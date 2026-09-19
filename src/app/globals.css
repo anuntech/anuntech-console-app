@@ -557,6 +557,22 @@ tr:last-child td {
   color: var(--muted);
   font-size: 11px;
 }
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.checkbox-field input[type="checkbox"] {
+  display: inline-block;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  padding: 0;
+  margin: 2px 0 0;
+  accent-color: var(--navy);
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

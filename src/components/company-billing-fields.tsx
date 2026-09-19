@@ -90,7 +90,7 @@ export function CompanyBillingFields({
         </Field>
       </div>
       <h2>Nota fiscal</h2>
-      <label>
+      <label className="checkbox-field">
         <input
           type="checkbox"
           name="autoIssueNfse"

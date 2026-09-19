@@ -143,7 +143,7 @@ export default async function Invoice({
                     required
                   />
                 </Field>
-                <label>
+                <label className="checkbox-field">
                   <input name="confirm" type="checkbox" value="yes" required />{" "}
                   Conferi o valor, vencimento e pagador e confirmo a emissão no
                   Inter.
