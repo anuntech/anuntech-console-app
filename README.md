@@ -111,3 +111,11 @@ Administração escreve contratos em texto simples por cliente, salva rascunhos 
 Editar um rascunho não altera a publicação: a versão publicada guarda título, texto e identificação do cliente. Publicar novamente substitui essa versão e incrementa sua numeração. Retirar a publicação bloqueia consulta/download do cliente e preserva o rascunho. Revisão numérica impede sobrescrita/publicação por uma aba desatualizada. Toda alteração gera auditoria.
 
 PDF gerado no servidor com PDFKit, A4, fontes Noto Sans incluídas no deploy, acentos, paginação e indicação de versão ou rascunho. Fontes sob SIL Open Font License em assets/fonts/OFL.txt. Nenhum conteúdo do contrato é enviado a um serviço externo para gerar o PDF.
+
+## Preenchimento por CNPJ e CEP
+
+Cadastro e edição da empresa consultam razão social e endereço pelo CNPJ (CNPJ.ws) e logradouro, bairro, cidade, UF e código IBGE pelo CEP (ViaCEP). Consulta automática 650 ms após completar os dígitos, com botão para repetir. CPF não é consultado. Número/complemento disponíveis no CNPJ são aproveitados; a consulta de CEP preserva esses campos e não usa o complemento de logradouro do ViaCEP como unidade do cliente.
+
+Todos os campos permanecem editáveis e só são persistidos ao salvar. Respostas atrasadas não sobrescrevem campos editados durante a consulta. API interna exige administrador verificado, usa hosts fixos, timeout de 8 segundos e não encaminha dados de sócios ou contatos públicos. Falhas e limite do provedor deixam o preenchimento manual disponível. Sem novas credenciais ou migrações.
+
+Referências: [CNPJ.ws público](https://docs.cnpj.ws/referencia-de-api/api-publica/consultando-cnpj), [ViaCEP](https://viacep.com.br/).

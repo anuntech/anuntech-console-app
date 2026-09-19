@@ -1,26 +1,215 @@
+"use client";
+import { useRef, useState, useEffect } from "react";
+import {
+  digits,
+  lookupFields,
+  mergeLookupFields,
+  type LookupKind,
+} from "@/lib/company-lookup";
 import { Field } from "./ui";
 import { payerAddress } from "@/lib/billing-rules";
 import type { CompanyAddress } from "@/lib/company-billing";
 
 export function CompanyBillingFields({
-  address,
-  autoIssueNfse = false,
+  company,
 }: {
-  address?: CompanyAddress | null;
-  autoIssueNfse?: boolean;
+  company?: {
+    name: string;
+    document: string;
+    billingEmail: string;
+    phone: string | null;
+    billingAddress: CompanyAddress | null;
+    autoIssueNfse: boolean;
+  };
 }) {
+  const [values, setValues] = useState<Record<string, string>>(() => ({
+    name: company?.name || "",
+    document: company?.document || "",
+    billingEmail: company?.billingEmail || "",
+    phone: company?.phone || "",
+    endereco: "",
+    numero: "",
+    complemento: "",
+    bairro: "",
+    cidade: "",
+    uf: "",
+    cep: "",
+    codigoMunicipio: "",
+    ...company?.billingAddress,
+  }));
+  const current = useRef(values);
+  const edits = useRef<Record<string, number>>({});
+  const active = useRef<AbortController | null>(null);
+  const generation = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState<LookupKind | null>(null);
+  const cancel = () => {
+    active.current?.abort();
+    generation.current++;
+    if (timer.current) clearTimeout(timer.current);
+  };
+  useEffect(
+    () => () => {
+      active.current?.abort();
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  async function lookup(kind: LookupKind, before = { ...edits.current }) {
+    cancel();
+    const value = digits(current.current[kind === "cnpj" ? "document" : "cep"]);
+    if (value.length !== (kind === "cnpj" ? 14 : 8)) return;
+    const sequence = generation.current;
+    const controller = new AbortController();
+    active.current = controller;
+    setBusy(kind);
+    setMessage(`Consultando ${kind === "cnpj" ? "CNPJ" : "CEP"}…`);
+    try {
+      const res = await fetch(
+        `/api/cadastro/consulta?tipo=${kind}&valor=${value}`,
+        { signal: controller.signal },
+      );
+      const data = await res.json();
+      if (sequence !== generation.current) return;
+      if (!res.ok) {
+        setMessage(
+          data.error || "Não foi possível consultar. Preencha manualmente.",
+        );
+        return;
+      }
+      const fields = lookupFields.parse(data.fields);
+      const merged = mergeLookupFields(
+        current.current,
+        fields,
+        before,
+        edits.current,
+      );
+      current.current = merged;
+      setValues(merged);
+      setMessage(
+        kind === "cnpj"
+          ? "Dados encontrados. Revise o cadastro antes de salvar."
+          : "Endereço encontrado. Confira número, complemento e os campos que faltarem antes de salvar.",
+      );
+    } catch {
+      if (!controller.signal.aborted)
+        setMessage(
+          "Não foi possível consultar. Você pode preencher os dados manualmente.",
+        );
+    } finally {
+      if (sequence === generation.current) setBusy(null);
+    }
+  }
+  function change(key: string, value: string) {
+    edits.current[key] = (edits.current[key] || 0) + 1;
+    const next = { ...current.current, [key]: value };
+    current.current = next;
+    setValues(next);
+    if (key === "document" || key === "cep") {
+      cancel();
+      setBusy(null);
+      setMessage("");
+      const kind = key === "document" ? "cnpj" : "cep";
+      if (digits(value).length === (kind === "cnpj" ? 14 : 8)) {
+        const before = { ...edits.current };
+        timer.current = setTimeout(() => void lookup(kind, before), 650);
+      }
+    }
+  }
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) {
+    change(e.target.name, e.target.value);
+  }
   return (
     <>
+      <Field
+        label="CPF ou CNPJ"
+        hint="Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
+      >
+        <input
+          name="document"
+          required
+          inputMode="numeric"
+          maxLength={18}
+          readOnly={!!company}
+          value={values.document}
+          onChange={handleChange}
+        />
+      </Field>
+      <button
+        type="button"
+        className="button lookup-button"
+        disabled={busy !== null || digits(values.document).length !== 14}
+        onClick={() => void lookup("cnpj")}
+      >
+        Buscar dados do CNPJ
+      </button>
+      <Field label="Nome ou razão social">
+        <input
+          name="name"
+          required
+          maxLength={160}
+          value={values.name}
+          onChange={handleChange}
+        />
+      </Field>
+      <Field label="E-mail financeiro">
+        <input
+          name="billingEmail"
+          type="email"
+          required
+          maxLength={254}
+          value={values.billingEmail}
+          onChange={handleChange}
+        />
+      </Field>
+      <Field label="Telefone (opcional)">
+        <input
+          name="phone"
+          type="tel"
+          maxLength={30}
+          value={values.phone}
+          onChange={handleChange}
+        />
+      </Field>
       <h2>Endereço de cobrança e nota fiscal</h2>
       <p className="muted">
         Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode
         completar depois, antes de emitir uma cobrança.
       </p>
+      <Field
+        label="CEP"
+        hint="Ao completar os 8 dígitos, o endereço é consultado automaticamente."
+      >
+        <input
+          name="cep"
+          inputMode="numeric"
+          maxLength={9}
+          autoComplete="postal-code"
+          value={values.cep}
+          onChange={handleChange}
+        />
+      </Field>
+      <button
+        type="button"
+        className="button lookup-button"
+        disabled={busy !== null || digits(values.cep).length !== 8}
+        onClick={() => void lookup("cep")}
+      >
+        Buscar endereço pelo CEP
+      </button>
+      <p role="status" aria-live="polite" className="muted lookup-status">
+        {message ||
+          "Os dados consultados só serão salvos quando você confirmar o cadastro."}
+      </p>
       <Field label="Endereço">
         <input
           name="endereco"
           maxLength={100}
-          defaultValue={address?.endereco ?? ""}
+          value={values.endereco}
+          onChange={handleChange}
           autoComplete="address-line1"
         />
       </Field>
@@ -29,14 +218,16 @@ export function CompanyBillingFields({
           <input
             name="numero"
             maxLength={10}
-            defaultValue={address?.numero ?? ""}
+            value={values.numero}
+            onChange={handleChange}
           />
         </Field>
         <Field label="Complemento (opcional)">
           <input
             name="complemento"
             maxLength={30}
-            defaultValue={address?.complemento ?? ""}
+            value={values.complemento}
+            onChange={handleChange}
             autoComplete="address-line2"
           />
         </Field>
@@ -45,7 +236,8 @@ export function CompanyBillingFields({
         <input
           name="bairro"
           maxLength={60}
-          defaultValue={address?.bairro ?? ""}
+          value={values.bairro}
+          onChange={handleChange}
         />
       </Field>
       <div className="two-columns">
@@ -53,14 +245,16 @@ export function CompanyBillingFields({
           <input
             name="cidade"
             maxLength={60}
-            defaultValue={address?.cidade ?? ""}
+            value={values.cidade}
+            onChange={handleChange}
             autoComplete="address-level2"
           />
         </Field>
         <Field label="UF">
           <select
             name="uf"
-            defaultValue={address?.uf ?? ""}
+            value={values.uf}
+            onChange={handleChange}
             autoComplete="address-level1"
           >
             <option value="">Selecione</option>
@@ -71,21 +265,13 @@ export function CompanyBillingFields({
         </Field>
       </div>
       <div className="two-columns">
-        <Field label="CEP">
-          <input
-            name="cep"
-            inputMode="numeric"
-            maxLength={9}
-            defaultValue={address?.cep ?? ""}
-            autoComplete="postal-code"
-          />
-        </Field>
         <Field label="Código IBGE do município (opcional)">
           <input
             name="codigoMunicipio"
             inputMode="numeric"
             maxLength={7}
-            defaultValue={address?.codigoMunicipio ?? ""}
+            value={values.codigoMunicipio}
+            onChange={handleChange}
           />
         </Field>
       </div>
@@ -95,7 +281,7 @@ export function CompanyBillingFields({
           type="checkbox"
           name="autoIssueNfse"
           value="yes"
-          defaultChecked={autoIssueNfse}
+          defaultChecked={company?.autoIssueNfse || false}
         />{" "}
         Emitir nota fiscal automaticamente para este cliente
       </label>

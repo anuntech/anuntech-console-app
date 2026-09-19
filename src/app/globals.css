@@ -1266,3 +1266,10 @@ tr:last-child td {
   font-size: 12px;
   padding: 4px 8px;
 }
+
+.lookup-button {
+  align-self: flex-start;
+}
+.lookup-status {
+  font-size: 13px;
+}

@@ -62,34 +62,7 @@ export default async function Company({
         <summary>Editar dados da empresa</summary>
         <ActionForm action={updateCompany} label="Salvar dados">
           <input type="hidden" name="id" value={id} />
-          <Field label="Nome ou razão social">
-            <input
-              name="name"
-              required
-              maxLength={160}
-              defaultValue={company.name}
-            />
-          </Field>
-          <Field label="E-mail financeiro">
-            <input
-              name="billingEmail"
-              type="email"
-              required
-              defaultValue={company.billingEmail}
-            />
-          </Field>
-          <Field label="Telefone">
-            <input
-              name="phone"
-              type="tel"
-              maxLength={30}
-              defaultValue={company.phone || ""}
-            />
-          </Field>
-          <CompanyBillingFields
-            address={company.billingAddress}
-            autoIssueNfse={company.autoIssueNfse}
-          />
+          <CompanyBillingFields company={company} />
         </ActionForm>
       </details>
       <div className="two-columns">

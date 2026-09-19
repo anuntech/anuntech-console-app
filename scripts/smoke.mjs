@@ -239,6 +239,74 @@ try {
     }
   }
   assert.ok(ready, "Servidor de teste iniciou");
+  const lookupPath = "/api/cadastro/consulta?tipo=cnpj&valor=12345678000199";
+  ok(
+    (await request(lookupPath)).status === 401,
+    "Consulta de cadastro exige sessão",
+  );
+  ok(
+    (await request(lookupPath, "finance")).status === 403,
+    "Cliente não consulta cadastro público pela API interna",
+  );
+  ok(
+    (
+      await request(
+        "/api/cadastro/consulta?tipo=cnpj&valor=12345678901",
+        "admin",
+      )
+    ).status === 400,
+    "CPF não é consultado como CNPJ",
+  );
+  ok(
+    (
+      await request(
+        "/api/cadastro/consulta?tipo=https://example.com&valor=01001000",
+        "admin",
+      )
+    ).status === 400,
+    "Consulta rejeita provedor arbitrário",
+  );
+  const lookupResponse = await request(lookupPath, "admin");
+  const lookupData = JSON.parse(lookupResponse.text);
+  ok(
+    lookupResponse.status === 200 &&
+      lookupData.fields.name === "Empresa de teste" &&
+      !lookupResponse.text.includes("socios") &&
+      lookupResponse.headers.get("cache-control").includes("no-store"),
+    "CNPJ retorna campos permitidos sem cache público",
+  );
+  const cepResponse = await request(
+    "/api/cadastro/consulta?tipo=cep&valor=01001000",
+    "admin",
+  );
+  const cepData = JSON.parse(cepResponse.text);
+  ok(
+    cepResponse.status === 200 &&
+      cepData.fields.endereco === "Praça da Sé" &&
+      !cepData.fields.complemento &&
+      !cepData.fields.numero,
+    "CEP retorna endereço sem substituir complemento ou número",
+  );
+  for (const status of [404, 429, 503]) {
+    flags({ approved: true, lookupStatus: status });
+    ok(
+      (await request(lookupPath, "admin")).status ===
+        (status === 503 ? 502 : status),
+      `Consulta trata indisponibilidade ${status}`,
+    );
+  }
+  flags({ approved: true, lookupMalformed: true });
+  ok(
+    (await request(lookupPath, "admin")).status === 502,
+    "Consulta rejeita resposta inesperada do provedor",
+  );
+  flags({ approved: true, lookupMissing: true });
+  ok(
+    (await request("/api/cadastro/consulta?tipo=cep&valor=01001000", "admin"))
+      .status === 404,
+    "CEP não encontrado permite preenchimento manual",
+  );
+  flags({ approved: true });
   let r = await request("/painel");
   ok(
     [302, 303, 307].includes(r.status) &&
