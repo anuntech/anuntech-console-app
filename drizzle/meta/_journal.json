@@ -15,6 +15,13 @@
       "when": 1789778667684,
       "tag": "0001_cooing_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789781524278,
+      "tag": "0002_wooden_praxagora",
+      "breakpoints": true
     }
   ]
 }

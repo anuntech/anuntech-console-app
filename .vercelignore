@@ -5,3 +5,6 @@ node_modules
 .git
 tests
 scripts
+
+# Certificados e chaves privados locais
+certificates/

@@ -1,4 +1,6 @@
 import { requireAdmin } from "@/lib/access";
+import { ActionForm } from "@/components/action-form";
+import { checkIntegration } from "@/lib/integration-actions";
 import { Heading, Badge } from "@/components/ui";
 export default async function Settings() {
   await requireAdmin();
@@ -21,19 +23,29 @@ export default async function Settings() {
     },
     {
       name: "Inter",
-      status: "Pendente",
+      provider: "inter",
+      status:
+        process.env.INTER_CLIENT_ID && process.env.INTER_CERTIFICATE_BASE64
+          ? "Configurado"
+          : "Pendente",
       detail:
-        "Aguardando credenciais, certificado e validação da API. Nenhuma cobrança real é emitida.",
+        "Emissão manual de boleto com Pix e consulta de pagamento. O teste abaixo verifica apenas autenticação.",
     },
     {
       name: "Focus NFe",
-      status: "Pendente",
-      detail: "Aguardando token, cadastro do emitente e regras fiscais.",
+      provider: "focus",
+      status: process.env.FOCUS_NFE_TOKEN_HOMOLOGATION
+        ? "Tokens configurados"
+        : "Pendente",
+      detail:
+        "Consulta de autenticação nos dois ambientes. Emissão aguarda cadastro e regras fiscais do serviço.",
     },
     {
       name: "WhatsApp / FLW",
-      status: "Pendente",
-      detail: "Aguardando documentação e configuração do fornecedor.",
+      provider: "flw",
+      status: process.env.FLW_SYNOVA ? "Token configurado" : "Pendente",
+      detail:
+        "Consulta de canais ativos. Cobranças proativas pelo WhatsApp dependem de modelo de mensagem aprovado. Recuperação de acesso ainda não habilitada.",
     },
   ];
   return (
@@ -51,6 +63,11 @@ export default async function Settings() {
               <Badge>{i.status}</Badge>
             </div>
             <p className="muted">{i.detail}</p>
+            {i.provider && (
+              <ActionForm action={checkIntegration} label="Testar conexão">
+                <input type="hidden" name="provider" value={i.provider} />
+              </ActionForm>
+            )}
           </section>
         ))}
       </div>

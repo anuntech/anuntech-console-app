@@ -46,3 +46,6 @@ next-env.d.ts
 *.key
 *.p12
 *.pfx
+
+# Certificados e chaves privados locais
+certificates/

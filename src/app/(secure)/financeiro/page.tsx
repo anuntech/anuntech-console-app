@@ -42,8 +42,9 @@ export default async function Finance() {
       />
       {actor.admin && (
         <p className="alert">
-          A criação de rascunhos está disponível. Emissão de Pix, boleto e nota
-          fiscal depende da configuração e validação das integrações.
+          Crie um rascunho e abra a fatura para emitir manualmente no Inter.
+          Consulte a cobrança para atualizar o pagamento. Emissão fiscal aguarda
+          configuração.
         </p>
       )}
       <section className="panel">

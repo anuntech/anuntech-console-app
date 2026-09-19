@@ -1,6 +1,6 @@
 "use server";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "./db";
 import { getActor, canAccess } from "./access";
@@ -437,7 +437,13 @@ export async function cancelDraft(
       const [row] = await tx
         .update(invoices)
         .set({ status: "cancelled" })
-        .where(and(eq(invoices.id, invoiceId), eq(invoices.status, "draft")))
+        .where(
+          and(
+            eq(invoices.id, invoiceId),
+            eq(invoices.status, "draft"),
+            isNull(invoices.bankRequest),
+          ),
+        )
         .returning();
       if (!row) throw Error();
       await tx.insert(auditEvents).values({
@@ -546,17 +552,21 @@ export async function updateDraft(
           amountCents,
           dueDate: input.dueDate,
         })
-        .where(and(eq(invoices.id, input.id), eq(invoices.status, "draft")))
+        .where(
+          and(
+            eq(invoices.id, input.id),
+            eq(invoices.status, "draft"),
+            isNull(invoices.bankRequest),
+          ),
+        )
         .returning();
       if (!row) return false;
-      await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          companyId: row.companyId,
-          action: "invoice.draft_updated",
-          entityId: row.id,
-        });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: row.companyId,
+        action: "invoice.draft_updated",
+        entityId: row.id,
+      });
       return true;
     });
     if (!changed)
@@ -594,14 +604,12 @@ export async function updateCompany(
         .where(eq(companies.id, input.id))
         .returning();
       if (!row) throw Error();
-      await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          companyId: row.id,
-          action: "company.updated",
-          entityId: row.id,
-        });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: row.id,
+        action: "company.updated",
+        entityId: row.id,
+      });
     });
     revalidatePath(`/empresas/${input.id}`);
     refresh();

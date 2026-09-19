@@ -229,6 +229,11 @@ export const invoices = pgTable(
       .notNull()
       .default("draft"),
     providerId: text("provider_id").unique(),
+    bankRequest: jsonb("bank_request").$type<Record<string, unknown>>(),
+    bankBase: text("bank_base"),
+    bankStatus: text("bank_status"),
+    bankCheckedAt: timestamp("bank_checked_at", { withTimezone: true }),
+    boletoLine: text("boleto_line"),
     pixCopyPaste: text("pix_copy_paste"),
     boletoUrl: text("boleto_url"),
     fiscalStatus: text("fiscal_status", {

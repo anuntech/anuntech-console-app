@@ -10,7 +10,9 @@ Portal de clientes da Anuntech para produtos, projetos, atendimento e financeiro
 - Permissões separadas de atendimento e financeiro por empresa.
 - Produtos e projetos com situação e descrição.
 - Chamados com respostas, responsável, status e anexos privados.
-- Faturas manuais: criação, edição e cancelamento de rascunhos.
+- Faturas manuais: rascunhos, emissão Inter de boleto com Pix, consulta manual de pagamento e download privado do boleto.
+- Tentativa bancária persistida antes do envio; edição/cancelamento do rascunho bloqueados após tentativa. Resposta incerta exige reconciliação, sem repetir a emissão.
+- Diagnóstico de autenticação Inter, Focus NFe e canais FLW em Configurações (admin).
 - Aviso de acesso manual via Resend, com idempotência e registro da tentativa.
 - Histórico de operações no banco.
 
@@ -38,7 +40,7 @@ npm run build
 npm run test:integration
 ```
 
-O teste de integração requer build prévio e banco de desenvolvimento. Inicia servidor em `127.0.0.1:3101`, cria fixtures isoladas, verifica autorização e formulários por HTTP e remove os próprios registros ao terminar. Não envia e-mail nem transaciona com bancos. Não rodar no banco de produção com clientes reais. O teste de OAuth verifica o redirecionamento, não substitui a validação de login real pelo Google.
+O teste de integração requer build prévio e banco de desenvolvimento. Inicia servidor em `127.0.0.1:3101`, cria fixtures isoladas, verifica autorização e formulários por HTTP e remove os próprios registros ao terminar. Não envia e-mail nem transaciona com bancos: o servidor de teste carrega scripts/inter-mock.cjs para simular o Inter. Não rodar no banco de produção com clientes reais. O teste de OAuth verifica o redirecionamento, não substitui a validação de login real pelo Google.
 
 ## Estrutura
 
@@ -51,7 +53,9 @@ O teste de integração requer build prévio e banco de desenvolvimento. Inicia 
 
 ## Limites atuais
 
-Inter, Focus NFe e FLW aguardam credenciais e validação. Nenhuma emissão financeira/fiscal é simulada. Não há recorrência ou disparos automáticos. Notificações de entrega/bounce de e-mail ainda não têm webhook: acompanhar no Resend. O aviso de acesso é enviado uma única vez por vínculo; repetição segura dentro de 23 horas reutiliza a tentativa. Links de acesso em avisos exigem HTTPS.
+Autenticação Inter validada com certificado real. Emissão e consulta de cobranças têm testes HTTP com banco simulado; nenhuma cobrança real foi emitida na validação. A cobrança Inter exige pagador/endereço, pelo menos R$ 2,50 e vencimento a partir do próximo dia. O QR Pix depende de chave cadastrada na conta Inter. A atualização de pagamento ocorre pela ação manual de consulta; webhook bancário ainda não está habilitado.
+
+Focus NFe: tokens testados por consulta nos dois ambientes; emissão bloqueada enquanto aguardamos dados fiscais. FLW: token e canal ativo conferidos; disparos e recuperação de acesso aguardam fluxo e modelos adequados. Nenhuma emissão fiscal é simulada. Não há recorrência ou disparos automáticos. Notificações de entrega/bounce de e-mail ainda não têm webhook: acompanhar no Resend. O aviso de acesso é enviado uma única vez por vínculo; repetição segura dentro de 23 horas reutiliza a tentativa. Links de acesso em avisos exigem HTTPS.
 
 Anexos de PDF/PNG/JPEG ficam no banco, com download privado: até 1 MB cada e 20 por chamado. A leitura exige a mesma permissão de atendimento do chamado. Para volume maior, migrar o conteúdo para armazenamento privado dedicado.
 
@@ -66,3 +70,11 @@ Decisões do produto: `/Users/kauan/Desktop/anuntech/anuntech-wiki/Console/`.
 `.env.local` é ignorado pelo Git. `.env.example` contém somente nomes e valores públicos de configuração. Segredos nunca usam `NEXT_PUBLIC_`. GitHub/Vercel/Cloudflare são configurados como infraestrutura, não como credenciais do runtime.
 
 Referências: [Next.js](https://nextjs.org/docs), [Better Auth](https://better-auth.com/docs), [Neon](https://neon.com/docs), [Resend](https://resend.com/docs).
+
+## Integrações — referências oficiais
+
+- [Inter Cobrança](https://developers.inter.co/references/cobranca-bolepix): emissão, consulta, PDF e idempotência bancária de 30 minutos.
+- [Focus autenticação](https://doc.focusnfe.com.br/reference/autenticacao): Basic com token por ambiente; consultar referência inexistente verifica autenticação sem emitir nota.
+- [FLW/Helena](https://helena.readme.io/reference/getting-started-with-your-api): Bearer; canais e templates usam /chat/v1, separado do /core/v1.
+
+Certificados em certificates/inter são privados e excluídos do Git e dos uploads Vercel. Na Vercel utilizam-se apenas as variáveis BASE64; caminhos locais não são enviados.

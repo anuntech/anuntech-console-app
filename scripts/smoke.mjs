@@ -55,7 +55,9 @@ async function submitForm(page, reader, sender, identifier, values) {
   const forms = [
     ...rendered.text.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/g),
   ].map((m) => m[1]);
-  const form = forms.find((f) => (f.includes(`name="${identifier}"`) || f.includes(identifier)));
+  const form = forms.find(
+    (f) => f.includes(`name="${identifier}"`) || f.includes(identifier),
+  );
   assert.ok(form, `Formulário ${identifier} encontrado`);
   const body = new FormData();
   for (const match of form.matchAll(/<input\b[^>]*>/g)) {
@@ -122,7 +124,9 @@ try {
       [
         cid,
         `QA Company ${label} ${marker}`,
-        `qa-${cid}`,
+        BigInt(`0x${cid.replaceAll("-", "").slice(0, 11)}`)
+          .toString()
+          .padStart(14, "0"),
         `qa-${label}@example.invalid`,
       ],
     );
@@ -175,6 +179,8 @@ try {
         ...process.env,
         CONSOLE_ADMIN_EMAIL: adminEmail,
         BETTER_AUTH_URL: base,
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs`,
+        INTER_API_BASE_URL: "https://cdpj.partners.bancointer.com.br",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -362,11 +368,137 @@ try {
     ).rowCount === 1,
     "Upload de anexo é persistido com acesso privado",
   );
-  await submitForm(`/financeiro/${drafted.id}`,"admin","admin","amount",{id:drafted.id,description:`Draft form ${marker}`,amount:"1300,25",dueDate:"2026-12-21"});
-  ok((await database.query("select amount_cents from console_invoices where id=$1",[drafted.id])).rows[0].amount_cents===130025,"Administrador edita valor e vencimento do rascunho");
-  await submitForm(`/financeiro/${drafted.id}`, "admin", "admin", "Cancelar rascunho", {
+  await submitForm(`/financeiro/${drafted.id}`, "admin", "admin", "amount", {
     id: drafted.id,
+    description: `Draft form ${marker}`,
+    amount: "1300,25",
+    dueDate: "2026-12-21",
   });
+  ok(
+    (
+      await database.query(
+        "select amount_cents from console_invoices where id=$1",
+        [drafted.id],
+      )
+    ).rows[0].amount_cents === 130025,
+    "Administrador edita valor e vencimento do rascunho",
+  );
+  const bankInput = {
+    id: ids.draft,
+    endereco: "Rua Teste",
+    numero: "10",
+    bairro: "Centro",
+    cidade: "São Paulo",
+    uf: "SP",
+    cep: "01001000",
+    numDiasAgenda: "30",
+    confirm: "yes",
+  };
+  await database.query(
+    "update console_invoices set due_date='2099-12-20', amount_cents=1000 where id=$1",
+    [ids.draft],
+  );
+  await submitForm(
+    `/financeiro/${ids.draft}`,
+    "admin",
+    "manager",
+    "Emitir cobrança no Inter",
+    bankInput,
+  );
+  ok(
+    !(
+      await database.query(
+        "select bank_request from console_invoices where id=$1",
+        [ids.draft],
+      )
+    ).rows[0].bank_request,
+    "Cliente não emite cobrança por POST direto",
+  );
+  await submitForm(
+    `/financeiro/${ids.draft}`,
+    "admin",
+    "admin",
+    "Emitir cobrança no Inter",
+    { ...bankInput, confirm: "" },
+  );
+  ok(
+    !(
+      await database.query(
+        "select bank_request from console_invoices where id=$1",
+        [ids.draft],
+      )
+    ).rows[0].bank_request,
+    "Emissão exige confirmação explícita",
+  );
+  await submitForm(
+    `/financeiro/${ids.draft}`,
+    "admin",
+    "admin",
+    "Emitir cobrança no Inter",
+    bankInput,
+  );
+  const bankInvoice = (
+    await database.query("select * from console_invoices where id=$1", [
+      ids.draft,
+    ])
+  ).rows[0];
+  ok(
+    bankInvoice.status === "issued" &&
+      bankInvoice.provider_id &&
+      bankInvoice.bank_status === "EM_PROCESSAMENTO",
+    "Emissão com Inter simulado persiste identificador sem marcar pagamento",
+  );
+  await submitForm(
+    `/financeiro/${ids.draft}`,
+    "admin",
+    "admin",
+    "Consultar cobrança no Inter",
+    { id: ids.draft },
+  );
+  ok(
+    (
+      await database.query(
+        "select boleto_line from console_invoices where id=$1",
+        [ids.draft],
+      )
+    ).rows[0].boleto_line.length === 47,
+    "Consulta de Inter simulado grava linha digitável e Pix",
+  );
+  r = await request(`/api/boletos/${ids.draft}`, "finance");
+  ok(
+    r.status === 200 &&
+      r.text.startsWith("%PDF-") &&
+      r.headers.get("cache-control") === "private, no-store",
+    "Boleto simulado tem download privado para financeiro",
+  );
+  r = await request(`/api/boletos/${ids.draft}`, "support");
+  ok(r.status === 404, "Atendimento não baixa boleto");
+  r = await request(`/api/boletos/${ids.draft}`, "outsider");
+  ok(r.status === 404, "Boleto de outra empresa é negado");
+  await submitForm(
+    `/financeiro/${ids.draft}`,
+    "admin",
+    "admin",
+    "Consultar cobrança no Inter",
+    { id: ids.draft },
+  );
+  ok(
+    (
+      await database.query("select status from console_invoices where id=$1", [
+        ids.draft,
+      ])
+    ).rows[0].status === "paid",
+    "Conciliação simulada confirma pagamento somente após consulta ao banco",
+  );
+  await submitForm(
+    `/financeiro/${drafted.id}`,
+    "admin",
+    "admin",
+    "Cancelar rascunho",
+    {
+      id: drafted.id,
+    },
+  );
   ok(
     (
       await database.query("select status from console_invoices where id=$1", [
