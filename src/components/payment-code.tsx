@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 export function PaymentCode({
   value,
   label,
@@ -40,14 +40,24 @@ export function PaymentCode({
 export function PaymentRefresh() {
   const router = useRouter();
   const [pending, start] = useTransition();
-  return (
-    <button
-      className="button"
-      type="button"
-      disabled={pending}
-      onClick={() => start(() => router.refresh())}
-    >
-      {pending ? "Atualizando…" : "Atualizar situação"}
-    </button>
-  );
+  useEffect(() => {
+    if (pending) return;
+    let refreshing = false;
+    function refresh() {
+      if (refreshing || document.hidden || !navigator.onLine) return;
+      refreshing = true;
+      start(() => router.refresh());
+    }
+    const timer = window.setInterval(refresh, 15_000);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+    };
+  }, [pending, router, start]);
+  return null;
 }

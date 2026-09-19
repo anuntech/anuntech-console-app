@@ -94,8 +94,8 @@ export default async function Payment({
               <div className={styles.notice}>
                 <h2>Preparando o pagamento</h2>
                 <p>
-                  O banco está processando esta cobrança. Atualize a página em
-                  alguns instantes.
+                  O banco está processando esta cobrança. Os dados de pagamento
+                  aparecerão aqui assim que estiverem disponíveis.
                 </p>
               </div>
             )}
