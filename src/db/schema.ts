@@ -138,6 +138,37 @@ export const memberships = pgTable(
     index("console_membership_email_idx").on(t.email),
   ],
 );
+export type ContractPublication = {
+  title: string;
+  body: string;
+  companyName: string;
+  companyDocument: string;
+};
+export const contracts = pgTable(
+  "console_contracts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    revision: integer("revision").notNull().default(1),
+    publication: jsonb("publication").$type<ContractPublication>(),
+    publishedVersion: integer("published_version").notNull().default(0),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("console_contract_company_idx").on(t.companyId)],
+);
 export const engagements = pgTable(
   "console_engagements",
   {

@@ -9,6 +9,7 @@ import {
   ReceiptText,
   Settings2,
   UserRound,
+  FileText,
 } from "lucide-react";
 const items = [
   { href: "/conta", label: "Minha conta", icon: UserRound },
@@ -27,6 +28,7 @@ const items = [
     icon: ReceiptText,
     area: "finance",
   },
+  { href: "/contratos", label: "Contratos", icon: FileText, area: "finance" },
   {
     href: "/configuracoes",
     label: "Configurações",

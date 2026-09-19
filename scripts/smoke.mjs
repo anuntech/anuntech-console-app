@@ -420,6 +420,236 @@ try {
     ).rows[0].amount_cents === 130025,
     "Administrador edita valor e vencimento do rascunho",
   );
+  const contractInput = {
+    companyId: ids.a,
+    title: `Contract A ${marker}`,
+    body: "CLÁUSULA 1 — Prestação de serviços.\n\nCondições, valores e obrigações.",
+  };
+  await submitForm(
+    "/contratos/novo",
+    "admin",
+    "manager",
+    "Salvar rascunho",
+    contractInput,
+  );
+  ok(
+    !(
+      await database.query(
+        "select id from console_contracts where company_id=$1",
+        [ids.a],
+      )
+    ).rowCount,
+    "Cliente não cria contrato por POST direto",
+  );
+  await submitForm(
+    "/contratos/novo",
+    "admin",
+    "admin",
+    "Salvar rascunho",
+    contractInput,
+  );
+  let contract = (
+    await database.query(
+      "select * from console_contracts where company_id=$1",
+      [ids.a],
+    )
+  ).rows[0];
+  ok(
+    contract && !contract.published_at && contract.revision === 1,
+    "Administrador cria contrato como rascunho privado",
+  );
+  const contractPath = `/contratos/${contract.id}`;
+  const contractPdfPath = `/api/contratos/${contract.id}/pdf`;
+  r = await request(contractPath, "finance");
+  ok(
+    !r.text.includes(contractInput.body) &&
+      r.text.includes("Página não encontrada"),
+    "Cliente não acessa rascunho de contrato por URL",
+  );
+  r = await request(contractPdfPath + "?draft=1", "finance");
+  ok(r.status === 404, "PDF de rascunho é restrito à administração");
+  r = await request(contractPdfPath + "?draft=1", "admin");
+  ok(
+    r.status === 200 &&
+      r.text.startsWith("%PDF-") &&
+      r.headers.get("cache-control") === "private, no-store",
+    "Administrador baixa PDF real do rascunho com fontes locais",
+  );
+  await submitForm(contractPath, "admin", "admin", "Publicar para o cliente", {
+    id: contract.id,
+    revision: "1",
+  });
+  ok(
+    !(
+      await database.query(
+        "select published_at from console_contracts where id=$1",
+        [contract.id],
+      )
+    ).rows[0].published_at,
+    "Publicar contrato exige confirmação",
+  );
+  await submitForm(
+    contractPath,
+    "admin",
+    "manager",
+    "Publicar para o cliente",
+    { id: contract.id, revision: "1", confirm: "yes" },
+  );
+  ok(
+    !(
+      await database.query(
+        "select published_at from console_contracts where id=$1",
+        [contract.id],
+      )
+    ).rows[0].published_at,
+    "Cliente não publica contrato por POST direto",
+  );
+  await submitForm(contractPath, "admin", "admin", "Publicar para o cliente", {
+    id: contract.id,
+    revision: "1",
+    confirm: "yes",
+  });
+  contract = (
+    await database.query("select * from console_contracts where id=$1", [
+      contract.id,
+    ])
+  ).rows[0];
+  ok(
+    contract.published_at && contract.published_version === 1,
+    "Publicação salva versão e disponibiliza contrato",
+  );
+  for (const person of ["finance", "manager"]) {
+    r = await request(contractPath, person);
+    ok(
+      r.text.includes("Prestação de serviços") && r.text.includes("Baixar PDF"),
+      `Perfil ${person} visualiza contrato publicado`,
+    );
+  }
+  r = await request(contractPath, "support");
+  ok(
+    r.text.includes("Página não encontrada") &&
+      !r.text.includes("Prestação de serviços"),
+    "Atendimento não acessa conteúdo contratual",
+  );
+  const pdfResponse = await fetch(base + contractPdfPath, {
+    headers: { Cookie: people.finance.cookie },
+  });
+  const pdfBytes = Buffer.from(await pdfResponse.arrayBuffer());
+  ok(
+    pdfResponse.status === 200 &&
+      pdfBytes.subarray(0, 5).toString() === "%PDF-" &&
+      pdfBytes.toString().includes("%%EOF") &&
+      pdfResponse.headers.get("content-type") === "application/pdf",
+    "Cliente baixa PDF real da versão publicada",
+  );
+  r = await request(contractPdfPath);
+  ok(r.status === 401, "PDF de contrato exige sessão");
+  r = await request(contractPdfPath, "support");
+  ok(r.status === 404, "PDF de contrato respeita perfil financeiro");
+  await submitForm("/contratos/novo", "admin", "admin", "Salvar rascunho", {
+    ...contractInput,
+    companyId: ids.b,
+    title: `PRIVATE-CONTRACT-B-${marker}`,
+  });
+  const contractB = (
+    await database.query(
+      "select * from console_contracts where company_id=$1",
+      [ids.b],
+    )
+  ).rows[0];
+  await submitForm(
+    `/contratos/${contractB.id}`,
+    "admin",
+    "admin",
+    "Publicar para o cliente",
+    { id: contractB.id, revision: "1", confirm: "yes" },
+  );
+  r = await request("/contratos", "finance");
+  ok(
+    r.text.includes(contractInput.title) &&
+      !r.text.includes(`PRIVATE-CONTRACT-B-${marker}`),
+    "Lista de contratos publicada é isolada por empresa",
+  );
+  r = await request(`/api/contratos/${contractB.id}/pdf`, "finance");
+  ok(r.status === 404, "PDF de outra empresa é negado");
+  await submitForm(contractPath, "admin", "finance", "Salvar rascunho", {
+    id: contract.id,
+    revision: String(contract.revision),
+    title: "Alteração indevida",
+    body: "Inválido",
+  });
+  ok(
+    (
+      await database.query("select title from console_contracts where id=$1", [
+        contract.id,
+      ])
+    ).rows[0].title === contractInput.title,
+    "Cliente não edita contrato por POST direto",
+  );
+  const updatedBody =
+    "PRIVATE-DRAFT-CHANGE — Condições revisadas.\n\nSegunda cláusula.";
+  await submitForm(contractPath, "admin", "admin", "Salvar rascunho", {
+    id: contract.id,
+    revision: String(contract.revision),
+    title: contractInput.title,
+    body: updatedBody,
+  });
+  r = await request(contractPath, "finance");
+  ok(
+    !r.text.includes("PRIVATE-DRAFT-CHANGE") &&
+      r.text.includes("Prestação de serviços"),
+    "Editar rascunho preserva texto publicado para cliente",
+  );
+  await submitForm(contractPath, "admin", "admin", "Publicar para o cliente", {
+    id: contract.id,
+    revision: String(contract.revision),
+    confirm: "yes",
+  });
+  ok(
+    (
+      await database.query(
+        "select published_version from console_contracts where id=$1",
+        [contract.id],
+      )
+    ).rows[0].published_version === 1,
+    "Publicação de aba desatualizada é recusada",
+  );
+  contract = (
+    await database.query("select * from console_contracts where id=$1", [
+      contract.id,
+    ])
+  ).rows[0];
+  await submitForm(contractPath, "admin", "admin", "Publicar para o cliente", {
+    id: contract.id,
+    revision: String(contract.revision),
+    confirm: "yes",
+  });
+  contract = (
+    await database.query("select * from console_contracts where id=$1", [
+      contract.id,
+    ])
+  ).rows[0];
+  r = await request(contractPath, "finance");
+  ok(
+    contract.published_version === 2 && r.text.includes("PRIVATE-DRAFT-CHANGE"),
+    "Nova publicação substitui conteúdo do cliente e incrementa versão",
+  );
+  await submitForm(contractPath, "admin", "admin", "Retirar publicação", {
+    id: contract.id,
+    revision: String(contract.revision),
+    confirm: "yes",
+  });
+  r = await request(contractPdfPath, "finance");
+  ok(
+    r.status === 404 &&
+      !(
+        await database.query(
+          "select published_at from console_contracts where id=$1",
+          [contract.id],
+        )
+      ).rows[0].published_at,
+    "Retirar publicação bloqueia download e preserva rascunho",
+  );
   const clientAddress = {
     endereco: "Rua Teste",
     numero: "10",
@@ -930,7 +1160,11 @@ try {
     server.kill("SIGTERM");
     await new Promise((r) => server.once("exit", r));
   }
-  for (const table of ["console_audit_events", "console_invoices"])
+  for (const table of [
+    "console_audit_events",
+    "console_invoices",
+    "console_contracts",
+  ])
     await database.query(
       `delete from ${table} where company_id=any($1::text[])`,
       [companyIds],

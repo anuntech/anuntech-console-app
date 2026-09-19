@@ -103,3 +103,11 @@ O e-mail descreve a movimentação e aponta para o chamado. O WhatsApp usa FLW_T
 Processamento imediato via after e retomada a cada 5 minutos por cron Vercel protegido por CRON_SECRET. A fila é bloqueada por registro para evitar workers concorrentes enviando a mesma tentativa. Resend usa chave idempotente e conteúdo persistido. Envio incerto ao FLW não é repetido automaticamente, porque senderId é somente um identificador de correlação documentado. WhatsApp aceito é consultado até confirmação de entrega, falha ou 23 horas; aceite do Resend não é apresentado como entrega.
 
 Tentativas pendentes expiram após 23 horas para manter as retentativas dentro do prazo de idempotência. Erros e respostas incertas ficam disponíveis em Configurações → Avisos de chamados. Remover/trocar o WhatsApp ou administrador cancela o destinatário antigo ainda pendente. Nenhum histórico anterior à implantação é reenviado.
+
+## Contratos
+
+Administração escreve contratos em texto simples por cliente, salva rascunhos e publica uma versão para consulta e download em PDF. Perfis administrador do cliente e financeiro veem apenas publicações da própria empresa; atendimento não acessa contratos. As mesmas regras são verificadas no download privado, sem cache público.
+
+Editar um rascunho não altera a publicação: a versão publicada guarda título, texto e identificação do cliente. Publicar novamente substitui essa versão e incrementa sua numeração. Retirar a publicação bloqueia consulta/download do cliente e preserva o rascunho. Revisão numérica impede sobrescrita/publicação por uma aba desatualizada. Toda alteração gera auditoria.
+
+PDF gerado no servidor com PDFKit, A4, fontes Noto Sans incluídas no deploy, acentos, paginação e indicação de versão ou rascunho. Fontes sob SIL Open Font License em assets/fonts/OFL.txt. Nenhum conteúdo do contrato é enviado a um serviço externo para gerar o PDF.

@@ -34,6 +34,10 @@ export const engagementLabels: Record<string, string> = {
 };
 
 export const auditLabels: Record<string, string> = {
+  "contract.created": "Rascunho de contrato criado",
+  "contract.draft_updated": "Rascunho de contrato atualizado",
+  "contract.published": "Contrato publicado para o cliente",
+  "contract.unpublished": "Contrato retirado da área do cliente",
   "company.created": "Empresa cadastrada",
   "company.updated": "Cadastro atualizado",
   "membership.granted": "Acesso liberado ou atualizado",
