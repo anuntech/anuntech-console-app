@@ -54,7 +54,7 @@ export async function runBillingTests({
     const r = await cron();
     assert.equal(r.status, 200, r.text);
   }
-  flags({ approved: false, bankUnpaid: true });
+  flags({ approved: false, bankUnpaid: true, billingBankDue: offset(6) });
   await db.query(
     "update console_companies set phone='11999990002' where id=$1",
     [ids.a],
@@ -150,10 +150,32 @@ export async function runBillingTests({
   );
   sub = await one("select * from console_subscriptions where id=$1", [sub.id]);
   ok(
+    (
+      await one("select due_date::text due from console_invoices where id=$1", [
+        i.id,
+      ])
+    ).due === offset(6) &&
+      i.bank_request.dataVencimento === offset(5) &&
+      sub.anchor_day === Number(offset(5).slice(8)),
+    "Data efetiva do Inter libera boleto e Pix sem alterar a data solicitada ou âncora da recorrência",
+  );
+  const recurringNextDue = String(sub.next_due_date);
+  ok(
     sub.next_due_date > i.due_date && sub.status === "active",
     "Emissão avança somente o próximo período da recorrência",
   );
   await cron();
+  ok(
+    String(
+      (
+        await one(
+          "select next_due_date from console_subscriptions where id=$1",
+          [sub.id],
+        )
+      ).next_due_date,
+    ) === recurringNextDue,
+    "Reconciliar vencimento ajustado novamente não avança nem desloca a recorrência",
+  );
   ok(
     (
       await one(
@@ -222,7 +244,7 @@ export async function runBillingTests({
     id: i.id,
     enabled: "yes",
   });
-  flags({ approved: true, bankUnpaid: true });
+  flags({ approved: true, bankUnpaid: true, billingBankDue: offset(6) });
   await drain();
   rows = await notices(i.id);
   ok(
@@ -280,6 +302,21 @@ export async function runBillingTests({
         )
       ).amount_cents === 59900,
     "Editar próximas cobranças preserva valor da fatura emitida",
+  );
+  // A bank adjustment discovered after queuing must delay the due reminder.
+  await db.query("update console_invoices set due_date=$2 where id=$1", [
+    i.id,
+    today,
+  ]);
+  const beforeDateAdjustment = sentNotices().length;
+  flags({ approved: true, bankUnpaid: true, billingBankDue: offset(1) });
+  await drain();
+  ok(
+    sentNotices().length === beforeDateAdjustment &&
+      (await notices(i.id))
+        .filter((n) => n.kind === "due")
+        .every((n) => n.status === "pending"),
+    "Aviso vence hoje aguarda a data efetiva quando o Inter prorroga o vencimento",
   );
   // Historical dates are test fixtures only; the bank mock independently returns the matching due date.
   for (const days of [0, 5, 10, 15, 20, 25]) {

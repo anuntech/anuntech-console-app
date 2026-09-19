@@ -41,3 +41,25 @@ test("Referência estável e respostas incompletas não conciliam cobrança", ()
     false,
   );
 });
+test("Consulta bancária exige vencimento civil válido", () => {
+  const cobranca = {
+    codigoSolicitacao: "12345678-1234-4234-8234-123456789012",
+    seuNumero: "123456781234423",
+    valorNominal: 10,
+    dataVencimento: "2026-09-21",
+    situacao: "A_RECEBER",
+    pagador: { cpfCnpj: "12345678901" },
+  };
+  assert.equal(bankCharge.safeParse({ cobranca }).success, true);
+  for (const dataVencimento of [
+    "2026-02-30",
+    "21/09/2026",
+    "",
+    "2026-09-21T00:00:00Z",
+  ])
+    assert.equal(
+      bankCharge.safeParse({ cobranca: { ...cobranca, dataVencimento } })
+        .success,
+      false,
+    );
+});

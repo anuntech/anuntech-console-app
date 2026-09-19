@@ -22,6 +22,7 @@ import {
   billingChannelId,
   billingWhatsappParameters,
   noticeIsCurrent,
+  daysOverdue,
   reminderKind,
 } from "./billing-notice-rules";
 
@@ -157,6 +158,7 @@ export async function processBillingNotice(
       .where(eq(billingNotices.id, id));
   };
   let postingWhatsapp = false;
+  let checkingBank = false;
   try {
     const load = async () =>
       (
@@ -181,14 +183,6 @@ export async function processBillingNotice(
       return;
     }
     const today = saoPauloDate();
-    if (!noticeIsCurrent(notice.kind, row.i.dueDate, today)) {
-      await save({
-        status: "skipped",
-        error:
-          "O prazo deste aviso terminou. Somente o aviso vigente poderá ser enviado.",
-      });
-      return;
-    }
     if (row.i.status !== "issued" || !row.i.publicId) {
       await save({
         error: "Aguardando emissão e dados de pagamento do Inter.",
@@ -263,7 +257,9 @@ export async function processBillingNotice(
       }
     }
     // Always check the bank before sending, including after a provider wait/retry.
+    checkingBank = true;
     await reconcileCharge(row.i.id, notice.actorId, undefined, "scheduled");
+    checkingBank = false;
     row = await load();
     if (unavailable()) {
       await save({
@@ -275,6 +271,22 @@ export async function processBillingNotice(
     }
     if (!row.i.pixCopyPaste && !row.i.boletoLine) {
       await save({ error: "Aguardando dados de pagamento do Inter." });
+      return;
+    }
+    // Recheck the reminder against the date just confirmed by the bank.
+    if (!noticeIsCurrent(notice.kind, row.i.dueDate, today)) {
+      const future =
+        notice.kind !== "initial" &&
+        daysOverdue(row.i.dueDate, today) <
+          (notice.kind === "due"
+            ? 0
+            : Number(notice.kind.replace("overdue_", "")));
+      await save({
+        status: future ? "pending" : "skipped",
+        error: future
+          ? "Aviso aguardando a data confirmada pelo Inter."
+          : "O prazo deste aviso terminou. Somente o aviso vigente poderá ser enviado.",
+      });
       return;
     }
     const data = {
@@ -402,7 +414,9 @@ export async function processBillingNotice(
       status: postingWhatsapp ? "uncertain" : "pending",
       error: postingWhatsapp
         ? "Envio ao Synova sem confirmação. Confira no provedor antes de reenviar."
-        : "Consulta ou envio indisponível. Uma nova tentativa ocorrerá automaticamente.",
+        : checkingBank
+          ? "Não foi possível confirmar os dados da cobrança no Inter. Os avisos aguardam essa confirmação."
+          : "Consulta ou envio indisponível. Uma nova tentativa ocorrerá automaticamente.",
     });
   }
 }

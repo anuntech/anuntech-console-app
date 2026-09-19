@@ -29,7 +29,6 @@ export async function reconcileCharge(
     c.codigoSolicitacao !== providerId ||
     c.seuNumero !== bankReference(i.id) ||
     Math.round(Number(c.valorNominal) * 100) !== i.amountCents ||
-    c.dataVencimento !== i.dueDate ||
     c.pagador.cpfCnpj.replace(/\D/g, "") !== payer.cpfCnpj
   )
     throw new Error(
@@ -62,6 +61,11 @@ export async function reconcileCharge(
     const next = bankInvoiceStatus(c.situacao);
     if (current.status === "paid" && next !== "paid") return;
     if (current.status === "cancelled" && next === "issued") return;
+    // The authenticated bank is authoritative for the effective due date
+    // (for example, Sunday rolls to Monday). Identity, reference, amount and
+    // payer must still match. Keep the requested date in the immutable request.
+    if (current.dueDate !== i.dueDate && c.dataVencimento !== current.dueDate)
+      return; // A concurrent reconciliation already applied a newer date.
     await tx
       .update(invoices)
       .set({
@@ -70,11 +74,28 @@ export async function reconcileCharge(
         status: next,
         bankStatus: c.situacao,
         bankCheckedAt: new Date(),
+        dueDate: c.dataVencimento,
         boletoLine: result.boleto?.linhaDigitavel || null,
         pixCopyPaste: result.pix?.pixCopiaECola || null,
       })
       .where(eq(invoices.id, id));
-    await advanceSubscription(tx, { ...current, status: next });
+    await advanceSubscription(tx, {
+      ...current,
+      status: next,
+      dueDate: z.iso.date().parse(current.bankRequest!.dataVencimento),
+    });
+    if (current.dueDate !== c.dataVencimento)
+      await tx.insert(auditEvents).values({
+        actorId,
+        companyId: i.companyId,
+        action: "invoice.bank_due_date_updated",
+        entityId: id,
+        details: {
+          previousDueDate: current.dueDate,
+          dueDate: c.dataVencimento,
+          source,
+        },
+      });
     if (
       source === "manual" ||
       current.bankStatus !== c.situacao ||

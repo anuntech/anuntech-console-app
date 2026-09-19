@@ -83,6 +83,14 @@ export default async function Invoice({
         </div>
         <p className="invoice-amount">{currency(i.amountCents)}</p>
         <p className="pre-wrap">{i.description}</p>
+        {actor.admin &&
+          typeof i.bankRequest?.dataVencimento === "string" &&
+          i.bankRequest.dataVencimento !== i.dueDate && (
+            <p className="muted">
+              Vencimento confirmado pelo Inter: {dateLabel(i.dueDate)}. Data
+              solicitada: {dateLabel(i.bankRequest.dataVencimento)}.
+            </p>
+          )}
         <p className="muted">
           {sub
             ? `Cobrança recorrente · ${sub.interval === "monthly" ? "Mensal" : "Anual"}`

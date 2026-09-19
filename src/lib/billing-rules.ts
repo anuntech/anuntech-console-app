@@ -57,7 +57,7 @@ export const bankCharge = z.object({
     codigoSolicitacao: z.string().uuid(),
     seuNumero: z.string(),
     valorNominal: z.union([z.string(), z.number()]),
-    dataVencimento: z.string(),
+    dataVencimento: z.iso.date(),
     situacao: z.enum([
       "RECEBIDO",
       "A_RECEBER",

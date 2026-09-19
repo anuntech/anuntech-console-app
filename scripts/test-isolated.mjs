@@ -1,6 +1,6 @@
 // A disposable database keeps all test fixtures separate from customer data.
 import { randomBytes } from "node:crypto";
-import { readdir, readFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { spawn, execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,10 +18,12 @@ try {
   target.pathname = `/${name}`;
   const db = new pg.Pool({ connectionString: target.toString() });
   try {
-    for (const file of (await readdir("drizzle"))
-      .filter((f) => f.endsWith(".sql"))
-      .sort())
-      await db.query(await readFile(`drizzle/${file}`, "utf8"));
+    // Use production's journal; ignore duplicate files left by filesystem sync.
+    const journal = JSON.parse(
+      await readFile("drizzle/meta/_journal.json", "utf8"),
+    );
+    for (const { tag } of journal.entries)
+      await db.query(await readFile(`drizzle/${tag}.sql`, "utf8"));
   } finally {
     await db.end();
   }
