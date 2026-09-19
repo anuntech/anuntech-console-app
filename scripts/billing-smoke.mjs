@@ -53,6 +53,20 @@ export async function runBillingTests({
     );
     const r = await cron();
     assert.equal(r.status, 200, r.text);
+    // PostgreSQL's default now() has microseconds; the worker's JS clock has
+    // milliseconds. A newly queued notice can miss that same fast CI tick.
+    // Drain untouched, eligible notices before moving to another fixture date.
+    if (
+      (
+        await one(
+          "select count(*)::int n from console_billing_notices where status='waiting' and attempts=0 and locked_until is null and next_attempt_at<=now()",
+        )
+      ).n
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const retried = await cron();
+      assert.equal(retried.status, 200, retried.text);
+    }
   }
   flags({ approved: false, bankUnpaid: true, billingBankDue: offset(6) });
   await db.query(
@@ -370,7 +384,7 @@ export async function runBillingTests({
               ? "uncertain"
               : "accepted"),
         ),
-      `Aviso ${kind} enviado uma vez por canal após consulta ao Inter`,
+      `Aviso ${kind} enviado uma vez por canal após consulta ao Inter (${events.map((n) => `${n.channel}: ${n.status}, tentativas=${n.attempts}, erro=${n.error}`).join("; ")})`,
     );
     if (days === 10) {
       const emailEvent = events.find((n) => n.channel === "email");
