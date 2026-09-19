@@ -1,3 +1,5 @@
+import { Download, FileText, Globe2, PencilLine } from "lucide-react";
+import styles from "../../empresas/management.module.css";
 import { DownloadLink } from "@/components/download-link";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -38,98 +40,108 @@ export default async function Contract({
     <>
       <Back href="/contratos" label="Contratos" />
       <Heading
+        eyebrow="DOCUMENTOS"
         title={actor.admin ? c.title : published!.title}
         description={row.company}
       />
-      <div className="contract-toolbar">
-        <Badge status={published ? "active" : "draft"}>
-          {published ? `Publicado · versão ${c.publishedVersion}` : "Rascunho"}
-        </Badge>
-        {published && (
-          <DownloadLink
-            className="button primary"
-            href={`/api/contratos/${id}/pdf`}
-          >
-            Baixar PDF
-          </DownloadLink>
-        )}
-        {actor.admin && (
-          <DownloadLink
-            className="button"
-            href={`/api/contratos/${id}/pdf?draft=1`}
-          >
-            Baixar PDF do rascunho
-          </DownloadLink>
-        )}
-      </div>
-      {actor.admin && (
-        <>
-          <section className="panel padded section-gap">
-            <h2>Editar rascunho</h2>
-            <p className="muted">
-              Salvar não altera a versão do cliente. Revise o texto salvo e
-              publique quando estiver pronto.
-            </p>
-            <ActionForm
-              key={c.revision}
-              action={saveContract}
-              label="Salvar rascunho"
-            >
-              <input type="hidden" name="id" value={id} />
-              <input type="hidden" name="revision" value={c.revision} />
-              <Field label="Título">
-                <input
-                  name="title"
-                  defaultValue={c.title}
-                  maxLength={160}
-                  required
-                />
-              </Field>
-              <Field
-                label="Texto do contrato"
-                hint="Texto simples. As quebras de linha são preservadas na visualização e no PDF."
-              >
-                <textarea
-                  name="body"
-                  className="contract-editor"
-                  rows={24}
-                  maxLength={100000}
-                  defaultValue={c.body}
-                  required
-                />
-              </Field>
-            </ActionForm>
-          </section>
-          <section className="panel padded section-gap">
-            <h2>Disponibilidade para o cliente</h2>
+      <div className={styles.documentLayout}>
+        <section
+          className={`panel ${styles.documentTop}`}
+          aria-label="Situação e downloads do contrato"
+        >
+          <div>
+            <Badge status={published ? "active" : "draft"}>
+              {published
+                ? `Publicado · versão ${c.publishedVersion}`
+                : "Rascunho"}
+            </Badge>
             <p>
-              {changed
-                ? "Há um rascunho que ainda não foi publicado."
-                : "O texto salvo está igual à versão publicada."}
+              {published
+                ? `Publicado em ${dateLabel(c.publishedAt!)}`
+                : "Visível somente para a administração"}
             </p>
-            {changed && (
+          </div>
+          <div className={styles.documentActions}>
+            {published && (
+              <DownloadLink
+                className="button primary"
+                href={`/api/contratos/${id}/pdf`}
+              >
+                <Download size={16} />
+                Baixar PDF
+              </DownloadLink>
+            )}
+            {actor.admin && (
+              <DownloadLink
+                className="button"
+                href={`/api/contratos/${id}/pdf?draft=1`}
+              >
+                <FileText size={16} />
+                Baixar PDF do rascunho
+              </DownloadLink>
+            )}
+          </div>
+        </section>
+        {actor.admin && (
+          <div className={styles.formShell}>
+            <section className={`panel ${styles.formCard}`}>
+              <div className={styles.sectionHeader}>
+                <PencilLine size={19} />
+                <div>
+                  <h2>Editar rascunho</h2>
+                  <p>
+                    Salvar mantém a versão do cliente. Publique quando a revisão
+                    estiver concluída.
+                  </p>
+                </div>
+              </div>
               <ActionForm
-                key={`publish-${c.revision}`}
-                action={publishContract}
-                label="Publicar para o cliente"
+                key={c.revision}
+                action={saveContract}
+                label="Salvar rascunho"
               >
                 <input type="hidden" name="id" value={id} />
                 <input type="hidden" name="revision" value={c.revision} />
-                <label className="checkbox-field">
-                  <input type="checkbox" name="confirm" value="yes" required />
-                  Revisei o rascunho salvo e quero disponibilizá-lo para este
-                  cliente.
-                </label>
+                <Field label="Título">
+                  <input
+                    name="title"
+                    defaultValue={c.title}
+                    maxLength={160}
+                    required
+                  />
+                </Field>
+                <Field
+                  label="Texto do contrato"
+                  hint="Texto simples. As quebras de linha são preservadas na visualização e no PDF."
+                >
+                  <textarea
+                    name="body"
+                    className="contract-editor"
+                    rows={24}
+                    maxLength={100000}
+                    defaultValue={c.body}
+                    required
+                  />
+                </Field>
               </ActionForm>
-            )}
-            {published && (
-              <details className="edit-details">
-                <summary>Retirar da área do cliente</summary>
+            </section>
+            <section className={`panel ${styles.publication}`}>
+              <span className={styles.helpIcon}>
+                <Globe2 size={19} />
+              </span>
+              <div className={styles.publicationHeading}>
+                <h2>Disponibilidade para o cliente</h2>
+                <p className="muted">
+                  {changed
+                    ? "Há um rascunho que ainda não foi publicado."
+                    : "O texto salvo está igual à versão publicada."}
+                </p>
+              </div>
+              {changed && (
                 <ActionForm
-                  key={`unpublish-${c.revision}`}
-                  action={unpublishContract}
-                  label="Retirar publicação"
-                  danger
+                  key={`publish-${c.revision}`}
+                  action={publishContract}
+                  label="Publicar para o cliente"
                 >
                   <input type="hidden" name="id" value={id} />
                   <input type="hidden" name="revision" value={c.revision} />
@@ -140,28 +152,49 @@ export default async function Contract({
                       value="yes"
                       required
                     />
-                    Quero interromper a visualização e o download deste contrato
-                    pelo cliente.
+                    Revisei o rascunho salvo e quero disponibilizá-lo para este
+                    cliente.
                   </label>
                 </ActionForm>
-              </details>
-            )}
-          </section>
-        </>
-      )}
-      {published && (
-        <article className="panel padded section-gap contract-document">
-          <p className="muted">
-            Publicado em {dateLabel(c.publishedAt!)} · versão{" "}
-            {c.publishedVersion}
-          </p>
-          <h2>{published.title}</h2>
-          <p className="muted">
-            {published.companyName} · {published.companyDocument}
-          </p>
-          <div className="contract-body">{published.body}</div>
-        </article>
-      )}
+              )}
+              {published && (
+                <details className="edit-details">
+                  <summary>Retirar da área do cliente</summary>
+                  <ActionForm
+                    key={`unpublish-${c.revision}`}
+                    action={unpublishContract}
+                    label="Retirar publicação"
+                    danger
+                  >
+                    <input type="hidden" name="id" value={id} />
+                    <input type="hidden" name="revision" value={c.revision} />
+                    <label className="checkbox-field">
+                      <input
+                        type="checkbox"
+                        name="confirm"
+                        value="yes"
+                        required
+                      />
+                      Quero interromper a visualização e o download deste
+                      contrato pelo cliente.
+                    </label>
+                  </ActionForm>
+                </details>
+              )}
+            </section>
+          </div>
+        )}
+        {published && (
+          <article className={`panel ${styles.documentPaper}`}>
+            <p className="eyebrow">VERSÃO PUBLICADA · {c.publishedVersion}</p>
+            <h2>{published.title}</h2>
+            <p className="muted">
+              {published.companyName} · {published.companyDocument}
+            </p>
+            <div className="contract-body">{published.body}</div>
+          </article>
+        )}
+      </div>
     </>
   );
 }

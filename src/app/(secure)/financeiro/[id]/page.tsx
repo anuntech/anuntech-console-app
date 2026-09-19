@@ -1,3 +1,18 @@
+import {
+  CalendarDays,
+  CheckCircle2,
+  CreditCard,
+  ExternalLink,
+  FileText,
+  Info,
+  Link2,
+  Mail,
+  MessageCircle,
+  ReceiptText,
+  Repeat2,
+  Send,
+} from "lucide-react";
+import styles from "../finance.module.css";
 import { paymentUrl } from "@/lib/payment-link";
 import { issueDate } from "@/lib/recurrence";
 import {
@@ -74,363 +89,520 @@ export default async function Invoice({
     <>
       <Back href="/financeiro" label="Financeiro" />
       <Heading title="Detalhes da fatura" description={row.company.name} />
-      <section className="panel padded invoice-detail">
-        <div className="card-top">
-          <Badge status={i.status}>
-            {scheduled ? "Agendada" : invoiceLabels[i.status]}
-          </Badge>
-          <span className="muted">Vencimento: {dateLabel(i.dueDate)}</span>
+      <section className={styles.summary} aria-label="Resumo da fatura">
+        <div className={styles.summaryTop}>
+          <div>
+            <Badge status={scheduled ? "scheduled" : i.status}>
+              {scheduled ? "Agendada" : invoiceLabels[i.status]}
+            </Badge>
+            <h2 className={styles.summaryProduct}>{i.description}</h2>
+            <p className="muted">{row.company.name}</p>
+          </div>
+          <div className={styles.amount}>
+            <span>Valor da fatura</span>
+            <strong>{currency(i.amountCents)}</strong>
+          </div>
         </div>
-        <p className="invoice-amount">{currency(i.amountCents)}</p>
-        <p className="pre-wrap">{i.description}</p>
-        {actor.admin &&
-          typeof i.bankRequest?.dataVencimento === "string" &&
-          i.bankRequest.dataVencimento !== i.dueDate && (
-            <p className="muted">
-              Vencimento confirmado pelo Inter: {dateLabel(i.dueDate)}. Data
-              solicitada: {dateLabel(i.bankRequest.dataVencimento)}.
-            </p>
-          )}
-        <p className="muted">
-          {sub
-            ? `Cobrança recorrente · ${sub.interval === "monthly" ? "Mensal" : "Anual"}`
-            : "Cobrança única"}
-        </p>
-        {actor.admin && sub && (
-          <section className="edit-details">
-            <h2>Recorrência</h2>
-            <p>
-              Situação:{" "}
-              {
-                {
-                  draft: "Aguardando publicação",
-                  active: "Ativa",
-                  paused: "Pausada",
-                  cancelled: "Cancelada",
-                }[sub.status]
-              }
-            </p>
-            <p>
-              Próximo vencimento: {dateLabel(sub.nextDueDate)} · Emissão e
-              avisos: {dateLabel(issueDate(sub.nextDueDate, sub.leadDays))}
-            </p>
-            <p className="muted">
-              {currency(sub.amountCents)} · {sub.description}. Emissão e envio
-              por e-mail e WhatsApp 5 dias antes de cada vencimento.
-            </p>
-            {sub.status !== "cancelled" && (
-              <details className="edit-details">
-                <summary>Editar próximas cobranças</summary>
+        <div className={styles.summaryBottom}>
+          <div>
+            <CalendarDays size={18} aria-hidden="true" />
+            <div>
+              <span>Vencimento</span>
+              <strong>{dateLabel(i.dueDate)}</strong>
+            </div>
+          </div>
+          <div>
+            <Repeat2 size={18} aria-hidden="true" />
+            <div>
+              <span>Tipo de cobrança</span>
+              <strong>
+                {sub
+                  ? `Recorrente · ${sub.interval === "monthly" ? "Mensal" : "Anual"}`
+                  : "Cobrança única"}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div className={styles.layout}>
+        <div className={styles.main}>
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <span
+                className={`${styles.icon} ${i.status === "paid" ? styles.success : ""}`}
+              >
+                {i.status === "paid" ? (
+                  <CheckCircle2 size={18} aria-hidden="true" />
+                ) : (
+                  <CreditCard size={18} aria-hidden="true" />
+                )}
+              </span>
+              <div>
+                <h2>Pagamento</h2>
+                <p>
+                  {i.status === "paid"
+                    ? "Pagamento confirmado pelo banco."
+                    : "Dados e situação desta cobrança."}
+                </p>
+              </div>
+            </div>
+            <div className={styles.note}>
+              <Info size={17} aria-hidden="true" />
+              <p>
+                {scheduled
+                  ? `Cobrança agendada para emissão em ${dateLabel(issueDate(i.dueDate, sub!.leadDays))}. Os avisos serão enviados após a emissão.`
+                  : i.status === "draft"
+                    ? "Esta fatura é um rascunho. Nenhuma cobrança foi emitida."
+                    : i.status === "cancelled"
+                      ? "Esta fatura foi cancelada."
+                      : i.status === "paid"
+                        ? "Pagamento confirmado. Os avisos de cobrança foram interrompidos."
+                        : "Consulte os dados de pagamento abaixo. A confirmação é realizada pelo Inter."}
+              </p>
+            </div>
+            {actor.admin &&
+              typeof i.bankRequest?.dataVencimento === "string" &&
+              i.bankRequest.dataVencimento !== i.dueDate && (
+                <p className={styles.helpText}>
+                  Vencimento confirmado pelo Inter: {dateLabel(i.dueDate)}. Data
+                  solicitada: {dateLabel(i.bankRequest.dataVencimento)}.
+                </p>
+              )}
+            {i.status === "issued" && (i.pixCopyPaste || i.boletoLine) && (
+              <div className={`${styles.draftSection} stack`}>
+                {i.pixCopyPaste && (
+                  <Field label="Pix copia e cola">
+                    <textarea readOnly value={i.pixCopyPaste} rows={3} />
+                  </Field>
+                )}
+                {i.boletoLine && (
+                  <>
+                    <Field label="Linha digitável">
+                      <input readOnly value={i.boletoLine} />
+                    </Field>
+                    <DownloadLink
+                      className="button primary"
+                      href={`/api/boletos/${i.id}`}
+                    >
+                      <FileText size={16} aria-hidden="true" />
+                      Baixar boleto PDF
+                    </DownloadLink>
+                  </>
+                )}
+              </div>
+            )}
+            {actor.admin && i.bankRequest && (
+              <div className={styles.bankNote}>
+                <p className="muted">
+                  Situação no Inter: {i.bankStatus}.{" "}
+                  {i.bankCheckedAt
+                    ? `Consulta: ${i.bankCheckedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
+                    : "Aguardando consulta."}
+                </p>
                 <ActionForm
-                  action={updateSubscription}
-                  label="Salvar recorrência"
+                  action={syncCharge}
+                  label="Consultar cobrança no Inter"
                 >
-                  <input type="hidden" name="id" value={sub.id} />
-                  <Field label="Produto">
+                  <input type="hidden" name="id" value={i.id} />
+                  {!i.providerId && (
+                    <>
+                      <p>
+                        Consulte a solicitação no Inter e informe o código para
+                        reconciliar esta tentativa. Não crie outra cobrança
+                        antes de verificar.
+                      </p>
+                      <Field label="Código da solicitação no Inter">
+                        <input name="providerId" required />
+                      </Field>
+                    </>
+                  )}
+                </ActionForm>
+              </div>
+            )}
+          </section>
+          {actor.admin && i.status === "draft" && !i.bankRequest && (
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <span className={styles.icon}>
+                  <ReceiptText size={18} aria-hidden="true" />
+                </span>
+                <div>
+                  <h2>Revisão e publicação</h2>
+                  <p>Confira os dados antes de ativar a cobrança.</p>
+                </div>
+              </div>
+              <details className={styles.disclosure}>
+                <summary>
+                  {sub
+                    ? "Publicar cobrança recorrente"
+                    : "Publicar cobrança única"}
+                </summary>
+                <p>
+                  A cobrança usa os dados salvos no cadastro do cliente.
+                  Cobranças únicas são emitidas agora; recorrentes são agendadas
+                  para 5 dias antes do vencimento. O Pix depende de uma chave
+                  cadastrada na conta.
+                </p>
+                <ActionForm
+                  action={issueCharge}
+                  label={
+                    sub
+                      ? "Publicar cobrança recorrente"
+                      : "Publicar cobrança no Inter"
+                  }
+                >
+                  <input type="hidden" name="id" value={i.id} />
+                  <div className={styles.note}>
+                    <div>
+                      <strong>
+                        {row.company.name} · {row.company.document}
+                      </strong>
+                      <p>
+                        {row.company.billingAddress
+                          ? addressLabel(row.company.billingAddress)
+                          : "Complete o endereço no cadastro do cliente antes de emitir a cobrança."}
+                      </p>
+                      <Link href={`/empresas/${i.companyId}#cadastro`}>
+                        Editar cadastro do cliente
+                      </Link>
+                    </div>
+                  </div>
+                  <Field label="Dias após vencimento até cancelamento no banco">
+                    <input
+                      name="numDiasAgenda"
+                      type="number"
+                      min={0}
+                      max={60}
+                      defaultValue={30}
+                      required
+                    />
+                  </Field>
+                  {sub ? (
+                    <label className="checkbox-field">
+                      <input
+                        name="activateRecurring"
+                        type="checkbox"
+                        value="yes"
+                        required
+                      />
+                      Confirmo a recorrência{" "}
+                      {sub.interval === "monthly" ? "mensal" : "anual"}, com
+                      emissão e avisos por e-mail e WhatsApp 5 dias antes do
+                      vencimento.
+                    </label>
+                  ) : (
+                    <label className="checkbox-field">
+                      <input
+                        name="sendNotifications"
+                        type="checkbox"
+                        value="yes"
+                        defaultChecked
+                      />
+                      Enviar e-mail e WhatsApp com o link público quando os
+                      dados de pagamento estiverem disponíveis e os lembretes
+                      previstos.
+                    </label>
+                  )}
+                  <label className="checkbox-field">
+                    <input
+                      name="confirm"
+                      type="checkbox"
+                      value="yes"
+                      required
+                    />
+                    Conferi o valor, vencimento e pagador e confirmo a emissão
+                    no Inter.
+                  </label>
+                </ActionForm>
+              </details>
+              <details className={styles.disclosure}>
+                <summary>Editar rascunho</summary>
+                <ActionForm action={updateDraft} label="Salvar alterações">
+                  <input type="hidden" name="id" value={i.id} />
+                  <Field label="Descrição">
                     <textarea
                       name="description"
                       required
                       maxLength={1000}
-                      defaultValue={sub.description}
+                      defaultValue={i.description}
                     />
                   </Field>
-                  <InvoiceAmount defaultCents={sub.amountCents} />
-                  <InvoiceDueDate defaultValue={sub.nextDueDate} />
-                  <p className="muted">
-                    A alteração vale para os próximos períodos. Faturas já
-                    emitidas permanecem preservadas.
-                  </p>
+                  <div className="form-grid">
+                    <InvoiceAmount defaultCents={i.amountCents} />
+                    <InvoiceDueDate defaultValue={i.dueDate} />
+                  </div>
                 </ActionForm>
               </details>
-            )}
-            {sub.lastError && <p role="alert">{sub.lastError}</p>}
-            {["active", "paused"].includes(sub.status) && (
               <ActionForm
-                action={changeSubscription}
+                action={cancelDraft}
+                label="Cancelar rascunho"
+                danger
+                className="compact-form"
+              >
+                <input type="hidden" name="id" value={i.id} />
+              </ActionForm>
+            </section>
+          )}
+          {actor.admin && ["issued", "paid"].includes(i.status) && (
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <span className={styles.icon}>
+                  <Send size={18} aria-hidden="true" />
+                </span>
+                <div>
+                  <h2>Avisos de cobrança</h2>
+                  <p>Acompanhe cada canal de comunicação com o cliente.</p>
+                </div>
+              </div>
+              <div className={styles.contact}>
+                <div>
+                  <Mail size={16} aria-hidden="true" />
+                  <span>E-mail: {row.company.billingEmail}</span>
+                </div>
+                <div>
+                  <MessageCircle size={16} aria-hidden="true" />
+                  <span>WhatsApp: {row.company.phone || "Não cadastrado"}</span>
+                </div>
+              </div>
+              <p className={styles.helpText}>
+                Nova cobrança, aviso no vencimento e até 5 lembretes de atraso:
+                5, 10, 15, 20 e 25 dias. Os envios param após a confirmação do
+                pagamento. WhatsApp depende da aprovação dos modelos.
+              </p>
+              {notices.length > 0 && (
+                <ul className={styles.noticeList}>
+                  {notices.map((notice) => (
+                    <li key={notice.id} className={styles.noticeItem}>
+                      {notice.channel === "email" ? (
+                        <Mail size={17} aria-hidden="true" />
+                      ) : (
+                        <MessageCircle size={17} aria-hidden="true" />
+                      )}
+                      <div>
+                        <strong>
+                          {notice.channel === "email" ? "E-mail" : "WhatsApp"} ·{" "}
+                          {notice.kind === "initial"
+                            ? "Nova cobrança"
+                            : notice.kind === "due"
+                              ? "Vence hoje"
+                              : `${notice.kind.replace("overdue_", "")} dias de atraso`}
+                        </strong>
+                        <span
+                          className={styles.noticeBadge}
+                          data-status={notice.status}
+                        >
+                          {noticeStatus[notice.status]}
+                        </span>
+                        {notice.error && <p>{notice.error}</p>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(["email", "whatsapp"] as const).map((channel) => {
+                const notice = notices.find(
+                  (n) => n.kind === "initial" && n.channel === channel,
+                );
+                return i.status === "issued" &&
+                  i.publicEnabled &&
+                  (!notice ||
+                    (notice.status === "failed" && notice.attempts === 0)) ? (
+                  <ActionForm
+                    key={channel}
+                    action={sendInvoiceNotice}
+                    label={`Enviar cobrança por ${channel === "email" ? "e-mail" : "WhatsApp"}`}
+                    className="compact-form"
+                  >
+                    <input type="hidden" name="id" value={i.id} />
+                    <input type="hidden" name="channel" value={channel} />
+                  </ActionForm>
+                ) : null;
+              })}
+              <p className={styles.helpText}>
+                A confirmação de entrega é consultada automaticamente no Resend
+                e no Synova. Entrega ao servidor de e-mail não comprova leitura
+                ou chegada à caixa principal.
+              </p>
+            </section>
+          )}
+        </div>
+        <aside className={styles.aside}>
+          {actor.admin && ["issued", "paid"].includes(i.status) && (
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <span className={styles.icon}>
+                  <Link2 size={18} aria-hidden="true" />
+                </span>
+                <div>
+                  <h2>Link público de pagamento</h2>
+                  <p>Acesso direto, sem login.</p>
+                </div>
+              </div>
+              {i.publicId && i.publicEnabled ? (
+                <>
+                  <a
+                    className={`button secondary ${styles.publicLink}`}
+                    href={paymentUrl(i.publicId)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Abrir página de pagamento
+                    <ExternalLink size={15} aria-hidden="true" />
+                  </a>
+                  <Field label="Link para compartilhar">
+                    <input
+                      className={styles.linkInput}
+                      readOnly
+                      value={paymentUrl(i.publicId)}
+                    />
+                  </Field>
+                </>
+              ) : (
+                <p className={styles.helpText}>
+                  O link público está desativado ou ainda não foi gerado.
+                </p>
+              )}
+              <ActionForm
+                action={changePaymentLink}
                 label={
-                  sub.status === "active"
-                    ? "Pausar recorrência"
-                    : "Retomar recorrência"
+                  i.publicId && i.publicEnabled
+                    ? "Desativar link público"
+                    : "Ativar link público"
                 }
                 className="compact-form"
               >
-                <input type="hidden" name="id" value={sub.id} />
+                <input type="hidden" name="id" value={i.id} />
                 <input
                   type="hidden"
-                  name="status"
-                  value={sub.status === "active" ? "paused" : "active"}
+                  name="enabled"
+                  value={i.publicId && i.publicEnabled ? "no" : "yes"}
                 />
               </ActionForm>
-            )}
-          </section>
-        )}
-        {actor.admin && ["issued", "paid"].includes(i.status) && (
-          <section className="edit-details">
-            <h2>Link público de pagamento</h2>
-            {i.publicId && i.publicEnabled ? (
-              <p>
-                <a
-                  href={paymentUrl(i.publicId)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Abrir página de pagamento
-                </a>
+            </section>
+          )}
+          {actor.admin && sub && (
+            <section className={styles.section}>
+              <div className={styles.sectionHeader}>
+                <span className={styles.icon}>
+                  <Repeat2 size={18} aria-hidden="true" />
+                </span>
+                <div>
+                  <h2>Recorrência</h2>
+                  <p>
+                    {sub.interval === "monthly"
+                      ? "Cobrança mensal"
+                      : "Cobrança anual"}
+                  </p>
+                </div>
+              </div>
+              <dl className={styles.facts}>
+                <div>
+                  <dt>Situação</dt>
+                  <dd>
+                    <Badge status={sub.status}>
+                      {
+                        {
+                          draft: "Aguardando publicação",
+                          active: "Ativa",
+                          paused: "Pausada",
+                          cancelled: "Cancelada",
+                        }[sub.status]
+                      }
+                    </Badge>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Próximo vencimento</dt>
+                  <dd>{dateLabel(sub.nextDueDate)}</dd>
+                </div>
+                <div>
+                  <dt>Emissão e avisos</dt>
+                  <dd>{dateLabel(issueDate(sub.nextDueDate, sub.leadDays))}</dd>
+                </div>
+                <div>
+                  <dt>Valor por período</dt>
+                  <dd>{currency(sub.amountCents)}</dd>
+                </div>
+              </dl>
+              <p className={styles.helpText}>
+                {sub.description}. Emissão e envio por e-mail e WhatsApp 5 dias
+                antes de cada vencimento.
               </p>
-            ) : (
-              <p className="muted">
-                O link público está desativado ou ainda não foi gerado.
-              </p>
-            )}
-            {i.publicId && i.publicEnabled && (
-              <Field label="Link para compartilhar">
-                <input readOnly value={paymentUrl(i.publicId)} />
-              </Field>
-            )}
-            <ActionForm
-              action={changePaymentLink}
-              label={
-                i.publicId && i.publicEnabled
-                  ? "Desativar link público"
-                  : "Ativar link público"
-              }
-              className="compact-form"
-            >
-              <input type="hidden" name="id" value={i.id} />
-              <input
-                type="hidden"
-                name="enabled"
-                value={i.publicId && i.publicEnabled ? "no" : "yes"}
-              />
-            </ActionForm>
-            <h2>Avisos de cobrança</h2>
-            <p>
-              E-mail: {row.company.billingEmail} · WhatsApp:{" "}
-              {row.company.phone || "Não cadastrado"}
-            </p>
-            <p className="muted">
-              Nova cobrança, aviso no vencimento e até 5 lembretes de atraso: 5,
-              10, 15, 20 e 25 dias. Os envios param após a confirmação do
-              pagamento. WhatsApp depende da aprovação dos modelos.
-            </p>
-            {notices.map((notice) => (
-              <p key={notice.id}>
-                <strong>
-                  {notice.channel === "email" ? "E-mail" : "WhatsApp"} ·{" "}
-                  {notice.kind === "initial"
-                    ? "Nova cobrança"
-                    : notice.kind === "due"
-                      ? "Vence hoje"
-                      : `${notice.kind.replace("overdue_", "")} dias de atraso`}
-                </strong>
-                : {noticeStatus[notice.status]}
-                {notice.error ? ` — ${notice.error}` : ""}
-              </p>
-            ))}
-            {(["email", "whatsapp"] as const).map((channel) => {
-              const notice = notices.find(
-                (n) => n.kind === "initial" && n.channel === channel,
-              );
-              return i.status === "issued" &&
-                i.publicEnabled &&
-                (!notice ||
-                  (notice.status === "failed" && notice.attempts === 0)) ? (
+              {sub.status !== "cancelled" && (
+                <details className={styles.disclosure}>
+                  <summary>Editar próximas cobranças</summary>
+                  <ActionForm
+                    action={updateSubscription}
+                    label="Salvar recorrência"
+                  >
+                    <input type="hidden" name="id" value={sub.id} />
+                    <Field label="Produto">
+                      <textarea
+                        name="description"
+                        required
+                        maxLength={1000}
+                        defaultValue={sub.description}
+                      />
+                    </Field>
+                    <InvoiceAmount defaultCents={sub.amountCents} />
+                    <InvoiceDueDate defaultValue={sub.nextDueDate} />
+                    <p className={styles.helpText}>
+                      A alteração vale para os próximos períodos. Faturas já
+                      emitidas permanecem preservadas.
+                    </p>
+                  </ActionForm>
+                </details>
+              )}
+              {sub.lastError && <p role="alert">{sub.lastError}</p>}
+              {["active", "paused"].includes(sub.status) && (
                 <ActionForm
-                  key={channel}
-                  action={sendInvoiceNotice}
-                  label={`Enviar cobrança por ${channel === "email" ? "e-mail" : "WhatsApp"}`}
+                  action={changeSubscription}
+                  label={
+                    sub.status === "active"
+                      ? "Pausar recorrência"
+                      : "Retomar recorrência"
+                  }
                   className="compact-form"
                 >
-                  <input type="hidden" name="id" value={i.id} />
-                  <input type="hidden" name="channel" value={channel} />
-                </ActionForm>
-              ) : null;
-            })}
-            <p className="muted">
-              A confirmação de entrega é consultada automaticamente no Resend e
-              no Synova. Entrega ao servidor de e-mail não comprova leitura ou
-              chegada à caixa principal.
-            </p>
-          </section>
-        )}
-        <hr />
-        <h2>Pagamento</h2>
-        <p className="muted">
-          {scheduled
-            ? `Cobrança agendada para emissão em ${dateLabel(issueDate(i.dueDate, sub!.leadDays))}. Os avisos serão enviados após a emissão.`
-            : i.status === "draft"
-              ? "Esta fatura é um rascunho. Nenhuma cobrança foi emitida."
-              : i.status === "cancelled"
-                ? "Esta fatura foi cancelada."
-                : i.status === "paid"
-                  ? "Pagamento confirmado."
-                  : "Consulte os dados de pagamento abaixo. A atualização é feita pela equipe da Anuntech."}
-        </p>
-        {i.status === "issued" && i.pixCopyPaste && (
-          <Field label="Pix copia e cola">
-            <textarea readOnly value={i.pixCopyPaste} />
-          </Field>
-        )}
-        {i.status === "issued" && i.boletoLine && (
-          <>
-            <Field label="Linha digitável">
-              <input readOnly value={i.boletoLine} />
-            </Field>
-            <DownloadLink
-              className="button primary"
-              href={`/api/boletos/${i.id}`}
-            >
-              Baixar boleto PDF
-            </DownloadLink>
-          </>
-        )}
-        {actor.admin && i.bankRequest && (
-          <>
-            <p className="muted">
-              Situação no Inter: {i.bankStatus}.{" "}
-              {i.bankCheckedAt
-                ? `Consulta: ${i.bankCheckedAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`
-                : "Aguardando consulta."}
-            </p>
-            <ActionForm action={syncCharge} label="Consultar cobrança no Inter">
-              <input type="hidden" name="id" value={i.id} />
-              {!i.providerId && (
-                <>
-                  <p>
-                    Consulte a solicitação no Inter e informe o código para
-                    reconciliar esta tentativa. Não crie outra cobrança antes de
-                    verificar.
-                  </p>
-                  <Field label="Código da solicitação no Inter">
-                    <input name="providerId" required />
-                  </Field>
-                </>
-              )}
-            </ActionForm>
-          </>
-        )}
-        <h2>Nota fiscal</h2>
-        <p className="muted">
-          {i.fiscalStatus === "not_requested"
-            ? "Emissão ainda não solicitada."
-            : "Acompanhe a emissão com a equipe da Anuntech."}
-        </p>
-        {actor.admin && (
-          <p className="muted">
-            {row.company.autoIssueNfse
-              ? "Este cliente está selecionado para nota fiscal automática. A emissão ainda depende da conclusão da integração fiscal."
-              : "Nota fiscal automática desativada para este cliente."}{" "}
-            <Link href={`/empresas/${i.companyId}#cadastro`}>
-              Configurar no cadastro do cliente
-            </Link>
-            .
-          </p>
-        )}
-        {actor.admin && i.status === "draft" && !i.bankRequest && (
-          <>
-            <details className="edit-details">
-              <summary>
-                {sub
-                  ? "Publicar cobrança recorrente"
-                  : "Publicar cobrança única"}
-              </summary>
-              <p>
-                A cobrança usa os dados salvos no cadastro do cliente. Cobranças
-                únicas são emitidas agora; recorrentes são agendadas para 5 dias
-                antes do vencimento. O Pix depende de uma chave cadastrada na
-                conta.
-              </p>
-              <ActionForm
-                action={issueCharge}
-                label={
-                  sub
-                    ? "Publicar cobrança recorrente"
-                    : "Publicar cobrança no Inter"
-                }
-              >
-                <input type="hidden" name="id" value={i.id} />
-                <div>
-                  <strong>
-                    {row.company.name} · {row.company.document}
-                  </strong>
-                  <p>
-                    {row.company.billingAddress
-                      ? addressLabel(row.company.billingAddress)
-                      : "Complete o endereço no cadastro do cliente antes de emitir a cobrança."}
-                  </p>
-                  <Link href={`/empresas/${i.companyId}#cadastro`}>
-                    Editar cadastro do cliente
-                  </Link>
-                </div>
-                <Field label="Dias após vencimento até cancelamento no banco">
+                  <input type="hidden" name="id" value={sub.id} />
                   <input
-                    name="numDiasAgenda"
-                    type="number"
-                    min={0}
-                    max={60}
-                    defaultValue={30}
-                    required
+                    type="hidden"
+                    name="status"
+                    value={sub.status === "active" ? "paused" : "active"}
                   />
-                </Field>
-                {sub ? (
-                  <label className="checkbox-field">
-                    <input
-                      name="activateRecurring"
-                      type="checkbox"
-                      value="yes"
-                      required
-                    />
-                    Confirmo a recorrência{" "}
-                    {sub.interval === "monthly" ? "mensal" : "anual"}, com
-                    emissão e avisos por e-mail e WhatsApp 5 dias antes do
-                    vencimento.
-                  </label>
-                ) : (
-                  <label className="checkbox-field">
-                    <input
-                      name="sendNotifications"
-                      type="checkbox"
-                      value="yes"
-                      defaultChecked
-                    />
-                    Enviar e-mail e WhatsApp com o link público quando os dados
-                    de pagamento estiverem disponíveis e os lembretes previstos.
-                  </label>
-                )}
-                <label className="checkbox-field">
-                  <input name="confirm" type="checkbox" value="yes" required />{" "}
-                  Conferi o valor, vencimento e pagador e confirmo a emissão no
-                  Inter.
-                </label>
-              </ActionForm>
-            </details>
-            <details className="edit-details">
-              <summary>Editar rascunho</summary>
-              <ActionForm action={updateDraft} label="Salvar alterações">
-                <input type="hidden" name="id" value={i.id} />
-                <Field label="Descrição">
-                  <textarea
-                    name="description"
-                    required
-                    maxLength={1000}
-                    defaultValue={i.description}
-                  />
-                </Field>
-                <InvoiceAmount defaultCents={i.amountCents} />
-                <InvoiceDueDate defaultValue={i.dueDate} />
-              </ActionForm>
-            </details>
-            <ActionForm
-              action={cancelDraft}
-              label="Cancelar rascunho"
-              danger
-              className="compact-form"
-            >
-              <input type="hidden" name="id" value={i.id} />
-            </ActionForm>
-          </>
-        )}
-      </section>
+                </ActionForm>
+              )}
+            </section>
+          )}
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <span className={styles.icon}>
+                <FileText size={18} aria-hidden="true" />
+              </span>
+              <div>
+                <h2>Nota fiscal</h2>
+                <p>Documentação desta cobrança.</p>
+              </div>
+            </div>
+            <p className={styles.helpText}>
+              {i.fiscalStatus === "not_requested"
+                ? "Emissão ainda não solicitada."
+                : "Acompanhe a emissão com a equipe da Anuntech."}
+            </p>
+            {actor.admin && (
+              <p className={styles.helpText}>
+                {row.company.autoIssueNfse
+                  ? "Este cliente está selecionado para nota fiscal automática. A emissão ainda depende da conclusão da integração fiscal."
+                  : "Nota fiscal automática desativada para este cliente."}{" "}
+                <Link href={`/empresas/${i.companyId}#cadastro`}>
+                  Configurar no cadastro do cliente
+                </Link>
+                .
+              </p>
+            )}
+          </section>
+        </aside>
+      </div>
     </>
   );
 }

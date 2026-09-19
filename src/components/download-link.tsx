@@ -32,7 +32,7 @@ export function DownloadLink({
           ) {
             toast.error(
               res.status === 401
-                ? "Entre novamente na Console para baixar este arquivo."
+                ? "Entre novamente no Console para baixar este arquivo."
                 : "Não foi possível baixar o arquivo. Confira seu acesso e tente novamente.",
               { id, duration: 10000 },
             );

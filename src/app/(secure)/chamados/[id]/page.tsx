@@ -16,7 +16,7 @@ import { replyTicket, updateTicket, uploadAttachment } from "@/lib/actions";
 import { ActionForm } from "@/components/action-form";
 import { Heading, Field, Back, Badge } from "@/components/ui";
 import { ticketLabels, dateLabel } from "@/lib/format";
-import { Paperclip } from "lucide-react";
+import { Paperclip, MessagesSquare, SlidersHorizontal } from "lucide-react";
 export default async function Ticket({
   params,
 }: {
@@ -68,11 +68,20 @@ export default async function Ticket({
                 Aberto em {dateLabel(t.createdAt)}
               </small>
             </div>
+            <h2 className="detail-section-title">
+              <MessagesSquare size={18} aria-hidden="true" />
+              Conversa
+            </h2>
             <div className="thread">
               {thread.map(({ message: m, name }) => (
                 <article className="message" key={m.id}>
                   <div className="message-meta">
-                    <strong>{name}</strong>
+                    <span className="message-author">
+                      <span className="message-avatar" aria-hidden="true">
+                        {name.slice(0, 1).toUpperCase()}
+                      </span>
+                      <strong>{name}</strong>
+                    </span>
                     <time>{dateLabel(m.createdAt)}</time>
                   </div>
                   <p className="pre-wrap">{m.body}</p>
@@ -80,10 +89,21 @@ export default async function Ticket({
               ))}
             </div>
             {t.status !== "closed" ? (
-              <ActionForm action={replyTicket} label="Enviar resposta" reset>
+              <ActionForm
+                action={replyTicket}
+                label="Enviar resposta"
+                reset
+                className="form message-reply"
+              >
                 <input type="hidden" name="ticketId" value={id} />
                 <Field label="Sua resposta">
-                  <textarea name="body" required rows={5} maxLength={10000} />
+                  <textarea
+                    name="body"
+                    required
+                    rows={5}
+                    maxLength={10000}
+                    placeholder="Escreva sua resposta para continuar a conversa."
+                  />
                 </Field>
               </ActionForm>
             ) : (
@@ -97,7 +117,10 @@ export default async function Ticket({
         <aside className="details-column">
           {actor.admin && (
             <section className="panel padded">
-              <h2>Gerenciar chamado</h2>
+              <h2 className="detail-section-title">
+                <SlidersHorizontal size={17} aria-hidden="true" />
+                Gerenciar chamado
+              </h2>
               <ActionForm action={updateTicket} label="Atualizar">
                 <input type="hidden" name="ticketId" value={id} />
                 <Field label="Situação">
@@ -120,11 +143,17 @@ export default async function Ticket({
             </section>
           )}
           <section className="panel padded">
-            <h2>Anexos</h2>
+            <h2 className="detail-section-title">
+              <Paperclip size={17} aria-hidden="true" />
+              Anexos <span className="collection-count">{files.length}</span>
+            </h2>
             <p className="muted">
               PDF, PNG ou JPEG. Até 1 MB por arquivo e 20 arquivos por chamado.
             </p>
             <div className="attachment-list">
+              {!files.length && (
+                <p className="form-footnote">Nenhum arquivo anexado.</p>
+              )}
               {files.map((f) => (
                 <DownloadLink
                   key={f.id}

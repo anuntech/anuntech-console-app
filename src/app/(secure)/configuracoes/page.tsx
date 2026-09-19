@@ -3,38 +3,54 @@ import { ActionForm } from "@/components/action-form";
 import { checkIntegration } from "@/lib/integration-actions";
 import { Heading, Badge } from "@/components/ui";
 import Link from "next/link";
+import {
+  Database,
+  KeyRound,
+  Mail,
+  Landmark,
+  ReceiptText,
+  MessageCircle,
+  Bell,
+  ArrowUpRight,
+  ShieldCheck,
+} from "lucide-react";
 export default async function Settings() {
   await requireAdmin();
   const integrations = [
     {
       name: "Neon",
+      icon: Database,
       status: "Conectado",
       detail: "Dados e sessões armazenados no PostgreSQL.",
     },
     {
-      name: "Acesso à Console",
+      name: "Acesso ao Console",
+      icon: KeyRound,
       status: "Configurado",
       detail:
         "Códigos por e-mail ou WhatsApp, Google opcional e permissões por empresa.",
     },
     {
       name: "Resend",
+      icon: Mail,
       status: process.env.RESEND_API_KEY ? "Credencial recebida" : "Pendente",
       detail:
-        "Envio manual de aviso de acesso, com registro da tentativa. Requer endereço público HTTPS.",
+        "Códigos de acesso, avisos de chamados e e-mails de cobrança, com acompanhamento de entrega.",
     },
     {
       name: "Inter",
+      icon: Landmark,
       provider: "inter",
       status:
         process.env.INTER_CLIENT_ID && process.env.INTER_CERTIFICATE_BASE64
           ? "Configurado"
           : "Pendente",
       detail:
-        "Emissão manual de boleto com Pix e consulta de pagamento. O teste abaixo verifica apenas autenticação.",
+        "Boletos, Pix e confirmação de pagamentos. Cobranças únicas e recorrentes conforme a configuração de cada fatura. O teste verifica autenticação.",
     },
     {
       name: "Focus NFe",
+      icon: ReceiptText,
       provider: "focus",
       status: process.env.FOCUS_NFE_TOKEN_HOMOLOGATION
         ? "Tokens configurados"
@@ -44,6 +60,7 @@ export default async function Settings() {
     },
     {
       name: "WhatsApp / FLW",
+      icon: MessageCircle,
       provider: "flw",
       status: process.env.FLW_SYNOVA ? "Token configurado" : "Pendente",
       detail:
@@ -55,24 +72,38 @@ export default async function Settings() {
       <Heading
         eyebrow="ADMINISTRAÇÃO"
         title="Configurações"
-        description="Acompanhe a preparação dos serviços da Console."
+        description="Conexões e preferências que mantêm o Console funcionando."
       />
-      <div className="card-grid">
-        <section className="panel padded">
+      <section className="settings-banner">
+        <span className="settings-banner-icon">
+          <Bell size={21} aria-hidden="true" />
+        </span>
+        <div>
           <h2>Avisos de chamados</h2>
-          <p className="muted">
-            Movimentações enviadas por e-mail e WhatsApp ao administrador da
-            Anuntech. O WhatsApp exige modelo aprovado e número verificado.
-          </p>
-          <Link href="/configuracoes/notificacoes" className="button">
-            Ver destinatário e envios
-          </Link>
-        </section>
+          <p>Destinatários, tentativas e confirmações de entrega da equipe.</p>
+        </div>
+        <Link href="/configuracoes/notificacoes" className="button">
+          Ver destinatário e envios
+          <ArrowUpRight size={16} aria-hidden="true" />
+        </Link>
+      </section>
+      <div className="section-label">
+        <h2>Integrações</h2>
+        <span>{integrations.length} serviços</span>
+      </div>
+      <div className="card-grid integration-grid">
         {integrations.map((i) => (
-          <section key={i.name} className="panel padded">
+          <section key={i.name} className="panel padded integration-card">
             <div className="card-top">
-              <h2>{i.name}</h2>
-              <Badge>{i.status}</Badge>
+              <div className="integration-title">
+                <span className="integration-icon">
+                  <i.icon size={20} aria-hidden="true" />
+                </span>
+                <h2>{i.name}</h2>
+              </div>
+              <Badge status={i.status === "Pendente" ? "pending" : ""}>
+                {i.status}
+              </Badge>
             </div>
             <p className="muted">{i.detail}</p>
             {i.provider && (
@@ -84,9 +115,15 @@ export default async function Settings() {
         ))}
       </div>
       <section className="panel padded section-gap">
-        <h2>Regras desta versão</h2>
+        <h2 className="detail-section-title">
+          <ShieldCheck size={18} aria-hidden="true" />
+          Acesso e operação
+        </h2>
         <ul className="plain-list">
-          <li>Cobranças criadas manualmente pela administração.</li>
+          <li>
+            A administração define se a cobrança é única ou recorrente e
+            configura o vencimento.
+          </li>
           <li>
             Acesso liberado por e-mail, com permissão específica por empresa.
           </li>
@@ -95,8 +132,9 @@ export default async function Settings() {
             chamado.
           </li>
           <li>
-            Códigos de acesso enviados sob solicitação. Cobranças e emissão
-            fiscal não são automáticas.
+            Códigos de acesso enviados sob solicitação. Recorrências ativas
+            emitem com 5 dias de antecedência; a emissão fiscal segue pendente
+            de configuração.
           </li>
         </ul>
       </section>

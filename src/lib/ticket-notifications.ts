@@ -3,11 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, lte, sql } from "drizzle-orm";
 import { after } from "next/server";
 import { db } from "./db";
-import {
-  companies,
-  user,
-  ticketNotices,
-} from "@/db/schema";
+import { companies, user, ticketNotices } from "@/db/schema";
 import { APP_LOCALE, APP_TIME_ZONE } from "./dates";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -55,7 +51,7 @@ export async function enqueueTicketNotice(
           from: process.env.EMAIL_FROM || "",
           to: email,
           subject: `${movement} · ${ticket.subject}`,
-          text: `${movement}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nResponsável pela movimentação: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar na Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
+          text: `${movement}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nResponsável pela movimentação: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
         },
       },
       {

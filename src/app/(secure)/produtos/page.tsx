@@ -1,3 +1,5 @@
+import { Boxes, Building2, FolderKanban, Package } from "lucide-react";
+import styles from "../empresas/management.module.css";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { engagements, companies } from "@/db/schema";
@@ -28,7 +30,11 @@ export default async function Products() {
       <Heading
         eyebrow="RELACIONAMENTO"
         title="Produtos e projetos"
-        description="Veja o que sua empresa está construindo com a Anuntech."
+        description={
+          actor.admin
+            ? "Acompanhe os produtos e projetos de cada cliente em um só lugar."
+            : "Veja o que sua empresa está construindo com a Anuntech."
+        }
         action={
           actor.admin
             ? { label: "Adicionar", href: "/produtos/novo" }
@@ -36,46 +42,78 @@ export default async function Products() {
         }
       />
       {rows.length ? (
-        <div className="card-grid">
-          {rows.map(({ item, company }) => (
-            <article className="panel padded" key={item.id}>
-              <div className="card-top">
-                <span className="eyebrow">
-                  {item.kind === "product" ? "PRODUTO" : "PROJETO"}
-                </span>
-                <Badge status={item.status}>
-                  {engagementLabels[item.status]}
-                </Badge>
-              </div>
-              <h2>{item.name}</h2>
-              <p className="muted">{company}</p>
-              {item.description && (
-                <p className="pre-wrap">{item.description}</p>
-              )}
-              {actor.admin && (
-                <ActionForm
-                  action={updateEngagement}
-                  label="Atualizar"
-                  className="inline-form"
+        <>
+          <div
+            className={styles.productSummary}
+            aria-label="Resumo dos vínculos"
+          >
+            <span>
+              <Boxes size={15} />
+              {rows.length} {rows.length === 1 ? "vínculo" : "vínculos"}
+            </span>
+            <span>
+              <Package size={15} />
+              {rows.filter(({ item }) => item.kind === "product").length}{" "}
+              produtos
+            </span>
+            <span>
+              <FolderKanban size={15} />
+              {rows.filter(({ item }) => item.kind !== "product").length}{" "}
+              projetos
+            </span>
+          </div>
+          <div className="card-grid">
+            {rows.map(({ item, company }) => (
+              <article className={`panel ${styles.productCard}`} key={item.id}>
+                <div className="card-top">
+                  <span className={styles.avatar}>
+                    {item.kind === "product" ? (
+                      <Package size={19} />
+                    ) : (
+                      <FolderKanban size={19} />
+                    )}
+                  </span>
+                  <Badge status={item.status}>
+                    {engagementLabels[item.status]}
+                  </Badge>
+                </div>
+                <h2>{item.name}</h2>
+                <p className={styles.productCompany}>
+                  <Building2 size={14} />
+                  {company}
+                  <span aria-hidden="true">·</span>
+                  {item.kind === "product" ? "Produto" : "Projeto"}
+                </p>
+                <p
+                  className={`${styles.productDescription}${item.description ? "" : " muted"}`}
                 >
-                  <input type="hidden" name="id" value={item.id} />
-                  <label className="sr-only" htmlFor={`status-${item.id}`}>
-                    Situação de {item.name}
-                  </label>
-                  <select
-                    id={`status-${item.id}`}
-                    name="status"
-                    defaultValue={item.status}
+                  {item.description || "Nenhuma descrição adicionada."}
+                </p>
+                {actor.admin && (
+                  <ActionForm
+                    action={updateEngagement}
+                    label="Atualizar"
+                    className="inline-form"
                   >
-                    <option value="active">Ativo</option>
-                    <option value="paused">Pausado</option>
-                    <option value="completed">Concluído</option>
-                  </select>
-                </ActionForm>
-              )}
-            </article>
-          ))}
-        </div>
+                    <input type="hidden" name="id" value={item.id} />
+                    <label className="sr-only" htmlFor={`status-${item.id}`}>
+                      Situação de {item.name}
+                    </label>
+                    <select
+                      id={`status-${item.id}`}
+                      name="status"
+                      defaultValue={item.status}
+                    >
+                      <option value="active">Ativo</option>
+                      <option value="paused">Pausado</option>
+                      <option value="completed">Concluído</option>
+                    </select>
+                  </ActionForm>
+                )}
+              </article>
+            ))}
+          </div>
+        </>
       ) : (
         <section className="panel">
           <Empty

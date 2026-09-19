@@ -41,7 +41,7 @@ export async function publishInvoice(
       const today = saoPauloDate();
       if (i.dueDate <= today)
         throw new Error(
-          "Escolha um vencimento a partir de amanhã para emitir pela Console.",
+          "Escolha um vencimento a partir de amanhã para emitir pelo Console.",
         );
       const [company] = await tx
         .select()
@@ -108,7 +108,7 @@ export async function publishInvoice(
         dataVencimento: i.dueDate,
         numDiasAgenda,
         formasRecebimento: ["BOLETO", "PIX"],
-        // Comunicação é controlada pela Console, sem e-mail/telefone enviado ao banco.
+        // Comunicação é controlada pelo Console, sem e-mail/telefone enviado ao banco.
         pagador: {
           ...location,
           cpfCnpj: company.document,

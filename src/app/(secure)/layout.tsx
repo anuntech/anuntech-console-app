@@ -1,8 +1,9 @@
 import { getActor, allowedIds } from "@/lib/access";
-import { Sidebar } from "@/components/sidebar";
+import { Sidebar, WorkspaceHeader } from "@/components/sidebar";
 import { Brand } from "@/components/brand";
 import { SignOutButton } from "@/components/auth-buttons";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function ConsoleLayout({
@@ -14,41 +15,44 @@ export default async function ConsoleLayout({
   if (!actor.admin && !actor.grants.length) redirect("/acesso-pendente");
   return (
     <div className="console-shell">
+      <a className="skip-link" href="#main-content">
+        Ir para o conteúdo
+      </a>
       <aside className="sidebar">
-        <Brand />
-        <p className="nav-caption">
-          {actor.admin ? "ADMINISTRAÇÃO" : "ÁREA DO CLIENTE"}
-        </p>
+        <Link
+          className="brand-link"
+          href="/painel"
+          aria-label="Console, visão geral"
+        >
+          <Brand />
+        </Link>
         <Sidebar
           admin={actor.admin}
           support={!!allowedIds(actor, "support").length}
           finance={!!allowedIds(actor, "finance").length}
         />
         <div className="sidebar-bottom">
-          <span className="avatar">
-            {actor.user.name.slice(0, 1).toUpperCase()}
-          </span>
-          <div>
-            <strong>{actor.user.name}</strong>
-            <span>{actor.admin ? "Anuntech" : "Cliente"}</span>
-          </div>
+          <Link className="sidebar-profile" href="/conta">
+            <span className="avatar" aria-hidden="true">
+              {actor.user.name.slice(0, 1).toUpperCase()}
+            </span>
+            <div>
+              <strong>{actor.user.name}</strong>
+              <span>{actor.admin ? "Anuntech" : "Cliente"}</span>
+            </div>
+          </Link>
           <SignOutButton />
         </div>
       </aside>
       <div className="workspace">
-        <header className="topbar">
-          <span>
-            Console <span className="separator">/</span>{" "}
-            {actor.admin ? "Administração" : "Portal do cliente"}
-          </span>
-          <span className="topbar-tag">
-            {actor.admin ? "Acesso interno" : "Acesso da empresa"}
-          </span>
-          <div className="mobile-signout">
-            <SignOutButton />
-          </div>
-        </header>
-        <main className="page-content">{children}</main>
+        <WorkspaceHeader
+          admin={actor.admin}
+          support={!!allowedIds(actor, "support").length}
+          finance={!!allowedIds(actor, "finance").length}
+        />
+        <main className="page-content" id="main-content" tabIndex={-1}>
+          {children}
+        </main>
         <footer className="app-footer">Anuntech Console</footer>
       </div>
     </div>

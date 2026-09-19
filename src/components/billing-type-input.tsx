@@ -1,11 +1,20 @@
 "use client";
 import { useState } from "react";
+import { Repeat2 } from "lucide-react";
 import { Field } from "./ui";
+import styles from "./invoice-inputs.module.css";
 export function BillingTypeInput() {
   const [type, setType] = useState("one_time");
   return (
     <>
-      <Field label="Tipo de cobrança">
+      <Field
+        label="Tipo de cobrança"
+        hint={
+          type === "one_time"
+            ? "Uma cobrança emitida após a publicação do rascunho."
+            : undefined
+        }
+      >
         <select
           name="billingType"
           value={type}
@@ -23,11 +32,14 @@ export function BillingTypeInput() {
               <option value="yearly">Anual</option>
             </select>
           </Field>
-          <p className="muted">
-            A primeira publicação ativa a recorrência. As próximas cobranças
-            serão emitidas e enviadas por e-mail e WhatsApp 5 dias antes do
-            vencimento. Em meses sem esse dia, usamos o último dia do mês.
-          </p>
+          <div className={styles.typeHint}>
+            <Repeat2 size={17} aria-hidden="true" />
+            <p>
+              A primeira publicação ativa a recorrência. As próximas cobranças
+              serão emitidas e enviadas por e-mail e WhatsApp 5 dias antes do
+              vencimento. Em meses sem esse dia, usamos o último dia do mês.
+            </p>
+          </div>
         </>
       )}
     </>

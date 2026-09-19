@@ -1,6 +1,13 @@
 import Link from "next/link";
+import {
+  ArrowUpRight,
+  CalendarClock,
+  CircleCheck,
+  Clock3,
+  MailCheck,
+  TriangleAlert,
+} from "lucide-react";
 import { paymentUrl } from "@/lib/payment-link";
-import { Notification } from "@/components/notifications";
 import CrudInvoiceManager from "@/components/crud-invoice-manager";
 import { saoPauloDate } from "@/lib/dates";
 import { and, desc, eq, inArray, sql, ilike, or, count } from "drizzle-orm";
@@ -8,7 +15,12 @@ import { db } from "@/lib/db";
 import { invoices, companies, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Heading } from "@/components/ui";
-import { invoiceQuery, type InvoiceStatusFilter } from "@/lib/invoice-table";
+import {
+  invoiceListHref,
+  invoiceQuery,
+  type InvoiceStatusFilter,
+} from "@/lib/invoice-table";
+import styles from "./finance.module.css";
 export default async function Finance({
   searchParams,
 }: {
@@ -106,19 +118,75 @@ export default async function Finance({
             : undefined
         }
       />
-      {actor.admin && (
-        <Notification
-          message="Crie uma cobrança única ou recorrente. Publique para ativar a cobrança e os avisos por e-mail e WhatsApp."
-          id="finance-info"
-        />
-      )}
-      {actor.admin && (
-        <p>
-          <Link className="button secondary" href="/financeiro/envios">
-            Acompanhar entrega de e-mails e WhatsApp
+      <div className={styles.overview} aria-label="Resumo das faturas">
+        {[
+          {
+            status: "issued" as const,
+            label: "Em aberto",
+            detail: "Dentro do vencimento",
+            icon: Clock3,
+          },
+          {
+            status: "overdue" as const,
+            label: "Vencidas",
+            detail: "Aguardando pagamento",
+            icon: TriangleAlert,
+            tone: styles.warning,
+          },
+          ...(actor.admin
+            ? [
+                {
+                  status: "scheduled" as const,
+                  label: "Agendadas",
+                  detail: "Próximas emissões",
+                  icon: CalendarClock,
+                },
+              ]
+            : [
+                {
+                  status: "all" as const,
+                  label: "Todas as faturas",
+                  detail: "Histórico disponível",
+                  icon: CalendarClock,
+                },
+              ]),
+          {
+            status: "paid" as const,
+            label: "Pagas",
+            detail: "Pagamento confirmado",
+            icon: CircleCheck,
+            tone: styles.success,
+          },
+        ].map(({ status, label, detail, icon: Icon, tone }) => (
+          <Link
+            key={status}
+            className={styles.metric}
+            href={invoiceListHref({ ...query, status, page: 1 })}
+          >
+            <div>
+              <span className={styles.metricLabel}>{label}</span>
+              <strong>{counts[status]}</strong>
+              <small>{query.search ? "Na busca atual" : detail}</small>
+            </div>
+            <span className={`${styles.icon} ${tone || ""}`}>
+              <Icon size={18} aria-hidden="true" />
+            </span>
           </Link>
+        ))}
+      </div>
+      <div className={styles.listActions}>
+        <p className="muted">
+          {query.search
+            ? `Resultados para “${query.search}”`
+            : "Todas as cobranças, em um só lugar."}
         </p>
-      )}
+        {actor.admin && (
+          <Link href="/financeiro/envios">
+            <MailCheck size={16} aria-hidden="true" /> Acompanhar entrega de
+            e-mails e WhatsApp <ArrowUpRight size={14} aria-hidden="true" />
+          </Link>
+        )}
+      </div>
       <CrudInvoiceManager
         admin={actor.admin}
         today={today}

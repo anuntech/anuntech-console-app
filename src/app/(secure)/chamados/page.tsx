@@ -34,9 +34,23 @@ export default async function Tickets() {
         }
       />
       <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Solicitações</h2>
+            <p>Consulte a situação e retome cada conversa.</p>
+          </div>
+          <span className="collection-count">
+            {rows.length}
+            {rows.length === 200 ? "+" : ""}{" "}
+            {rows.length === 1 ? "chamado" : "chamados"}
+          </span>
+        </div>
         {rows.length ? (
           <div className="table-wrap">
             <table>
+              <caption className="sr-only">
+                Chamados das empresas com acesso autorizado
+              </caption>
               <thead>
                 <tr>
                   <th>Assunto</th>

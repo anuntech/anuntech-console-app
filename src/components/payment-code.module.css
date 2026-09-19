@@ -1,0 +1,43 @@
+.code {
+  display: grid;
+  gap: 10px;
+}
+.field {
+  display: grid;
+  gap: 8px;
+}
+.field > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+.field textarea {
+  width: 100%;
+  padding: 12px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  word-break: break-all;
+  resize: none;
+}
+.field textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.button {
+  width: 100%;
+  justify-content: center;
+}
+.feedback {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+}
+.feedback:empty {
+  display: none;
+}

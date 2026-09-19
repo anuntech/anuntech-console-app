@@ -3,7 +3,8 @@ import { Notification, toast } from "./notifications";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { Field } from "./ui";
+import { Field, Badge } from "./ui";
+import { MessageCircle, ShieldCheck } from "lucide-react";
 import { normalizePhone, useCooldown } from "./otp-login";
 export function WhatsappAccount({ phone }: { phone: string | null }) {
   const router = useRouter();
@@ -66,19 +67,31 @@ export function WhatsappAccount({ phone }: { phone: string | null }) {
     }
   }
   return (
-    <section className="panel form-panel">
-      <h2>Acesso pelo WhatsApp</h2>
+    <section className="panel form-panel whatsapp-settings">
+      <div className="card-top">
+        <h2 className="detail-section-title">
+          <MessageCircle size={20} aria-hidden="true" />
+          Acesso pelo WhatsApp
+        </h2>
+        <Badge status={phone ? "active" : ""}>
+          {phone ? "Vinculado" : "Não vinculado"}
+        </Badge>
+      </div>
       <p className="muted">
         Confirme seu número para entrar usando um código recebido pelo WhatsApp.
         Seu e-mail continuará disponível para acesso.
       </p>
       {phone ? (
         <div className="form">
-          <p>
-            Número verificado: <strong>{phone}</strong>
+          <p className="verified-number">
+            <ShieldCheck size={18} aria-hidden="true" />
+            <span>
+              <small>Número verificado</small>
+              <strong>{phone}</strong>
+            </span>
           </p>
           <button
-            className="button"
+            className="button danger"
             disabled={busy}
             onClick={() => {
               toast.warning(

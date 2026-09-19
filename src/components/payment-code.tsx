@@ -1,6 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import { Check, Copy } from "lucide-react";
+import styles from "./payment-code.module.css";
 export function PaymentCode({
   value,
   label,
@@ -20,20 +22,31 @@ export function PaymentCode({
     }
   }
   return (
-    <div>
-      <label className="field">
+    <div className={styles.code}>
+      <label className={styles.field}>
         <span>{label}</span>
         <textarea
           readOnly
           value={value}
-          rows={3}
+          rows={value.length > 100 ? 3 : 2}
           onFocus={(event) => event.currentTarget.select()}
         />
       </label>
-      <button className="button" type="button" onClick={copy}>
-        {buttonLabel}
+      <button
+        className={`button primary ${styles.button}`}
+        type="button"
+        onClick={copy}
+      >
+        {message === "Copiado!" ? (
+          <Check size={16} aria-hidden="true" />
+        ) : (
+          <Copy size={16} aria-hidden="true" />
+        )}
+        {message === "Copiado!" ? "Copiado!" : buttonLabel}
       </button>
-      <p role="status">{message}</p>
+      <p className={styles.feedback} role="status">
+        {message}
+      </p>
     </div>
   );
 }

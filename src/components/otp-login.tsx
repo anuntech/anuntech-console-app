@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Field } from "./ui";
 import { GoogleButton } from "./auth-buttons";
+import { ArrowRight, Mail, MessageCircle } from "lucide-react";
+import styles from "./auth.module.css";
 
 export function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, "");
@@ -92,7 +94,7 @@ export function OtpLogin() {
   }
   return (
     <>
-      <div className="auth-methods" aria-label="Forma de acesso">
+      <div className={styles.methods} role="group" aria-label="Forma de acesso">
         {(["email", "whatsapp"] as const).map((item) => (
           <button
             key={item}
@@ -107,12 +109,17 @@ export function OtpLogin() {
               setError("");
             }}
           >
+            {item === "email" ? (
+              <Mail size={15} aria-hidden="true" />
+            ) : (
+              <MessageCircle size={15} aria-hidden="true" />
+            )}
             {item === "email" ? "E-mail" : "WhatsApp"}
           </button>
         ))}
       </div>
       <form
-        className="form otp-form"
+        className={styles.form}
         onSubmit={(e) => {
           e.preventDefault();
           void (sent ? verify() : send());
@@ -153,9 +160,12 @@ export function OtpLogin() {
                 required
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className="otp-code"
+                className={styles.code}
               />
             </Field>
+            <p className={styles.codeHint}>
+              Digite os 6 números do código. Ele é válido por 5 minutos.
+            </p>
           </>
         )}
         {error && <Notification kind="error" message={error} />}
@@ -170,9 +180,10 @@ export function OtpLogin() {
               : seconds
                 ? `Aguarde ${seconds}s`
                 : "Receber código"}
+          {!busy && !seconds && <ArrowRight size={16} aria-hidden="true" />}
         </button>
         {sent && (
-          <div className="otp-actions">
+          <div className={styles.actions}>
             <button
               type="button"
               disabled={busy || seconds > 0}
@@ -195,12 +206,12 @@ export function OtpLogin() {
         )}
       </form>
       {mode === "whatsapp" && (
-        <p className="auth-hint">
+        <p className={styles.hint}>
           Primeiro acesso? Entre por e-mail e vincule seu WhatsApp em Minha
           conta.
         </p>
       )}
-      <div className="auth-divider">ou</div>
+      <div className={styles.divider}>ou continue com</div>
       <GoogleButton />
     </>
   );

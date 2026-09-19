@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { ArrowRight, Building2, Link2 } from "lucide-react";
 import { db } from "@/lib/db";
 import { eq, sql } from "drizzle-orm";
 import { companies, companyInvites } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
-import { Heading, Empty } from "@/components/ui";
+import { Heading, Empty, Badge } from "@/components/ui";
+import styles from "./management.module.css";
 export default async function Companies({
   searchParams,
 }: {
@@ -25,64 +27,87 @@ export default async function Companies({
       <Heading
         eyebrow="CLIENTES"
         title="Empresas"
-        description="Organize os clientes e as pessoas que têm acesso à Console."
+        description="Cadastros, contatos financeiros e pessoas com acesso ao Console."
         action={{ label: "Cadastrar empresa", href: "/empresas/nova" }}
       />
-      <p>
-        <Link className="button" href="/empresas/convites">
-          Links e cadastros recebidos
-          {pending > 0 ? ` (${pending} para revisar)` : ""}
-        </Link>
-      </p>
-      <nav
-        className="member-actions section-gap"
-        aria-label="Situação dos clientes"
-      >
-        <Link
-          className={`button${!archived ? " primary" : ""}`}
-          href="/empresas"
-          aria-current={!archived ? "page" : undefined}
-        >
-          Ativos
-        </Link>
-        <Link
-          className={`button${archived ? " primary" : ""}`}
-          href="/empresas?status=arquivados"
-          aria-current={archived ? "page" : undefined}
-        >
-          Arquivados
-        </Link>
-      </nav>
       <section className="panel">
+        <div className={styles.toolbar}>
+          <nav className={styles.tabs} aria-label="Situação dos clientes">
+            <Link
+              href="/empresas"
+              aria-current={!archived ? "page" : undefined}
+            >
+              Ativos
+            </Link>
+            <Link
+              href="/empresas?status=arquivados"
+              aria-current={archived ? "page" : undefined}
+            >
+              Arquivados
+            </Link>
+          </nav>
+          <Link className="button" href="/empresas/convites">
+            <Link2 size={16} />
+            Links e cadastros recebidos
+            {pending > 0 && (
+              <Badge status="pending">{pending} para revisar</Badge>
+            )}
+          </Link>
+        </div>
         {rows.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Empresa</th>
-                  <th>CPF / CNPJ</th>
-                  <th>E-mail financeiro</th>
-                  <th>
-                    <span className="sr-only">Ação</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <Link href={`/empresas/${c.id}`}>{c.name}</Link>
-                    </td>
-                    <td>{c.document}</td>
-                    <td>{c.billingEmail}</td>
-                    <td>
-                      <Link href={`/empresas/${c.id}`}>Gerenciar →</Link>
-                    </td>
+          <>
+            <div className="table-wrap">
+              <table>
+                <caption className="sr-only">
+                  Empresas {archived ? "arquivadas" : "ativas"}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Empresa</th>
+                    <th scope="col">CPF / CNPJ</th>
+                    <th scope="col">E-mail financeiro</th>
+                    <th scope="col">
+                      <span className="sr-only">Ação</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {rows.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <Link
+                          className={styles.entity}
+                          href={`/empresas/${c.id}`}
+                        >
+                          <span className={styles.avatar}>
+                            <Building2 size={17} />
+                          </span>
+                          <span>{c.name}</span>
+                        </Link>
+                      </td>
+                      <td className={styles.cellMuted}>{c.document}</td>
+                      <td className={styles.cellMuted}>{c.billingEmail}</td>
+                      <td>
+                        <Link
+                          className={styles.rowAction}
+                          href={`/empresas/${c.id}`}
+                          aria-label={`Gerenciar ${c.name}`}
+                        >
+                          Gerenciar <ArrowRight size={15} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className={styles.listFooter}>
+              {rows.length} {rows.length === 1 ? "empresa" : "empresas"}{" "}
+              {archived
+                ? "na lista de arquivados"
+                : "na lista de clientes ativos"}
+            </p>
+          </>
         ) : (
           <Empty
             title={

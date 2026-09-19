@@ -1,0 +1,561 @@
+.overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.metric {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  color: var(--foreground);
+}
+a.metric:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  text-decoration: none;
+}
+.metricLabel,
+.metric small {
+  display: block;
+}
+.metricLabel {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.metric strong {
+  display: block;
+  margin: 9px 0 4px;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.metric small {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+  color: var(--primary);
+}
+.warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+.success {
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+.listActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.listActions p {
+  margin: 0;
+  font-size: 13px;
+}
+.listActions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 24px;
+  align-items: start;
+}
+.main,
+.aside {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.section {
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+.section > :last-child {
+  margin-bottom: 0;
+}
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.sectionHeader h2 {
+  margin: 0 0 5px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.sectionHeader p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.section :global(.form) {
+  max-width: none;
+}
+.section :global(.compact-form) {
+  margin-top: 16px;
+}
+.section :global(.compact-form) > button {
+  width: 100%;
+}
+.summary {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.summaryTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 28px;
+}
+.summaryProduct {
+  margin: 15px 0 6px;
+  font-size: 22px;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.summaryTop p {
+  margin-bottom: 0;
+}
+.amount {
+  text-align: right;
+  flex-shrink: 0;
+}
+.amount > span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-bottom: 7px;
+}
+.amount strong {
+  display: block;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.summaryBottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--border);
+  background: var(--secondary);
+}
+.summaryBottom > div {
+  display: flex;
+  gap: 10px;
+  padding: 17px 28px;
+  align-items: center;
+  min-width: 0;
+}
+.summaryBottom > div + div {
+  border-left: 1px solid var(--border);
+}
+.summaryBottom svg {
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.summaryBottom span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-bottom: 3px;
+}
+.summaryBottom strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--primary);
+}
+.note p {
+  margin: 0;
+}
+.bankNote {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.bankNote p {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.bankNote :global(.form) {
+  gap: 14px;
+}
+.bankNote :global(.form) > button {
+  align-self: start;
+}
+.publicLink {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.linkInput {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.contact {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 20px;
+}
+.contact > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.contact svg {
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.contact span {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.noticeList {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  list-style: none;
+  margin: 20px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.noticeItem {
+  display: flex;
+  gap: 12px;
+  padding: 15px;
+  align-items: flex-start;
+}
+.noticeItem + .noticeItem {
+  border-top: 1px solid var(--border);
+}
+.noticeItem > svg {
+  color: var(--muted-foreground);
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.noticeItem strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+.noticeItem p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.noticeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.noticeBadge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.noticeBadge[data-status="delivered"] {
+  color: var(--success);
+}
+.noticeBadge[data-status="failed"],
+.noticeBadge[data-status="expired"],
+.noticeBadge[data-status="uncertain"] {
+  color: var(--destructive);
+}
+.noticeBadge[data-status="pending"],
+.noticeBadge[data-status="accepted"],
+.noticeBadge[data-status="sending"] {
+  color: var(--primary);
+}
+.helpText {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.facts {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+.facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  font-size: 13px;
+}
+.facts dt {
+  color: var(--muted-foreground);
+}
+.facts dd {
+  text-align: right;
+  margin: 0;
+  font-weight: 500;
+}
+.disclosure {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: 18px;
+  padding: 0 16px;
+}
+.disclosure summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 15px 0;
+}
+.disclosure[open] {
+  padding-bottom: 18px;
+}
+.disclosure[open] summary {
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.disclosure > p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.draftSection {
+  margin-top: 24px;
+}
+.formSection + .formSection {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  margin-top: 8px;
+}
+.formSection h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+.formSection > p {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+.formSection :global(.field) {
+  margin-bottom: 16px;
+}
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+  display: grid;
+  gap: 22px;
+  counter-reset: step;
+}
+.steps li {
+  display: flex;
+  gap: 12px;
+  counter-increment: step;
+}
+.steps li::before {
+  content: counter(step);
+  flex: 0 0 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--primary);
+  background: var(--secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.steps strong {
+  font-size: 13px;
+  display: block;
+  margin-bottom: 4px;
+}
+.steps p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.tableHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.tableHead h2 {
+  font-size: 15px;
+  margin: 0;
+}
+.tableHead span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.deliveryTable {
+  width: 100%;
+  min-width: 730px;
+}
+.deliveryTable td {
+  vertical-align: top;
+}
+.deliveryTable td p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 420px;
+}
+.deliveryTable td > a {
+  font-weight: 600;
+}
+.channel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .aside {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .section {
+    padding: 22px;
+  }
+  .overview {
+    gap: 12px;
+  }
+  .metric {
+    padding: 18px;
+  }
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aside {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .overview {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .metric {
+    padding: 15px;
+    gap: 8px;
+  }
+  .metric .icon {
+    display: none;
+  }
+  .metric strong {
+    font-size: 27px;
+  }
+  .metricLabel {
+    font-size: 12px;
+  }
+  .section {
+    padding: 20px;
+  }
+  .summaryTop {
+    flex-direction: column;
+    padding: 22px;
+    gap: 20px;
+  }
+  .summaryProduct {
+    font-size: 20px;
+  }
+  .amount {
+    text-align: left;
+  }
+  .summaryBottom {
+    grid-template-columns: 1fr;
+  }
+  .summaryBottom > div {
+    padding: 14px 22px;
+  }
+  .summaryBottom > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .aside {
+    grid-template-columns: 1fr;
+  }
+  .tableHead {
+    padding: 18px;
+  }
+  .contact span {
+    font-size: 12px;
+  }
+}

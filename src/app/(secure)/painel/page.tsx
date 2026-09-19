@@ -4,12 +4,15 @@ import { db } from "@/lib/db";
 import { companies, tickets, invoices } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Heading, Empty, Badge } from "@/components/ui";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { ticketLabels, invoiceLabels, currency, dateLabel } from "@/lib/format";
 import {
   MessagesSquare,
   ReceiptText,
   Building2,
   ArrowUpRight,
+  Plus,
+  ArrowRight,
 } from "lucide-react";
 export default async function Dashboard() {
   const actor = await getActor();
@@ -86,18 +89,43 @@ export default async function Dashboard() {
       <Heading
         eyebrow="VISÃO GERAL"
         title={`Olá, ${actor.user.name.split(" ")[0]}.`}
-        description="Acompanhe o que precisa da sua atenção."
+        description="Uma visão do seu atendimento, das suas empresas e do financeiro."
       />
+      <div className="overview-toolbar">
+        <p>Seu espaço de trabalho</p>
+        <div className="overview-actions">
+          {actor.admin && (
+            <Link href="/empresas/nova" className="button">
+              <Plus size={15} aria-hidden="true" />
+              Cadastrar empresa
+            </Link>
+          )}
+          {(actor.admin || supportIds.length > 0) && (
+            <Link href="/chamados/novo" className="button primary">
+              <Plus size={15} aria-hidden="true" />
+              Abrir chamado
+            </Link>
+          )}
+        </div>
+      </div>
       <div className="stats">
         <div className="stat">
           <MessagesSquare />
           <span>Chamados em andamento</span>
           <strong>{ticketCount.count}</strong>
+          <small>Solicitações que ainda precisam de atenção</small>
         </div>
         <div className="stat">
           <ReceiptText />
-          <span>{actor.admin ? "Faturas em rascunho" : "Faturas a pagar"}</span>
+          <span>
+            {actor.admin ? "Faturas não emitidas" : "Faturas a pagar"}
+          </span>
           <strong>{invoiceCount.count}</strong>
+          <small>
+            {actor.admin
+              ? "Rascunhos e cobranças agendadas"
+              : "Cobranças disponíveis para pagamento"}
+          </small>
         </div>
         <div className="stat">
           <Building2 />
@@ -105,6 +133,11 @@ export default async function Dashboard() {
             {actor.admin ? "Empresas cadastradas" : "Empresas com acesso"}
           </span>
           <strong>{companyCount.count}</strong>
+          <small>
+            {actor.admin
+              ? "Clientes no Console"
+              : "Vinculadas ao seu perfil de acesso"}
+          </small>
         </div>
       </div>
       {actor.admin && companyCount.count === 0 && (
@@ -123,11 +156,18 @@ export default async function Dashboard() {
         </div>
       )}
       <div className="two-columns">
-        <section className="panel">
-          <div className="panel-heading">
-            <h2>Últimos chamados</h2>
-            <Link href="/chamados">Ver todos →</Link>
-          </div>
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Últimos chamados</CardTitle>
+              <p>As conversas atualizadas recentemente.</p>
+            </div>
+            {(actor.admin || supportIds.length > 0) && (
+              <Link href="/chamados">
+                Ver todos <ArrowRight aria-hidden="true" />
+              </Link>
+            )}
+          </CardHeader>
           {recentTickets.length ? (
             <div className="record-list">
               {recentTickets.map(({ ticket, company }) => (
@@ -152,12 +192,19 @@ export default async function Dashboard() {
               description="Os atendimentos aparecerão neste espaço."
             />
           )}
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <h2>Últimas faturas</h2>
-            <Link href="/financeiro">Ver todas →</Link>
-          </div>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div>
+              <CardTitle>Últimas faturas</CardTitle>
+              <p>Documentos e cobranças mais recentes.</p>
+            </div>
+            {(actor.admin || financeIds.length > 0) && (
+              <Link href="/financeiro">
+                Ver todas <ArrowRight aria-hidden="true" />
+              </Link>
+            )}
+          </CardHeader>
           {recentInvoices.length ? (
             <div className="record-list">
               {recentInvoices.map(({ invoice, company }) => (
@@ -184,7 +231,7 @@ export default async function Dashboard() {
               description="As faturas disponíveis aparecerão neste espaço."
             />
           )}
-        </section>
+        </Card>
       </div>
     </>
   );

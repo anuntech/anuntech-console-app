@@ -8,6 +8,7 @@ import { ActionForm } from "@/components/action-form";
 import { checkTicketNotices } from "@/lib/notification-actions";
 import { auditLabels } from "@/lib/format";
 import { APP_LOCALE, APP_TIME_ZONE } from "@/lib/dates";
+import { Mail, MessageCircle, Send } from "lucide-react";
 const labels: Record<string, string> = {
   pending: "Aguardando",
   processing: "Processando",
@@ -43,15 +44,31 @@ export default async function Notifications() {
         description="Abertura, respostas, anexos e alterações de situação ou responsável."
       />
       <section className="panel padded">
-        <h2>Destinatário da equipe Anuntech</h2>
-        <p className="muted">E-mail: {process.env.CONSOLE_ADMIN_EMAIL}</p>
-        <p className="muted">
-          WhatsApp:{" "}
-          {actor.user.phoneNumberVerified
-            ? actor.user.phoneNumber
-            : "não vinculado"}
-          . <Link href="/conta">Gerenciar em Minha conta</Link>.
-        </p>
+        <h2 className="detail-section-title">
+          <Send size={18} aria-hidden="true" />
+          Destinatário da equipe Anuntech
+        </h2>
+        <div className="notification-destinations">
+          <div>
+            <Mail size={17} aria-hidden="true" />
+            <div>
+              <small>E-mail</small>
+              <strong>{process.env.CONSOLE_ADMIN_EMAIL}</strong>
+            </div>
+          </div>
+          <div>
+            <MessageCircle size={17} aria-hidden="true" />
+            <div>
+              <small>WhatsApp</small>
+              <strong>
+                {actor.user.phoneNumberVerified
+                  ? actor.user.phoneNumber
+                  : "não vinculado"}
+              </strong>
+              <Link href="/conta">Gerenciar em Minha conta</Link>
+            </div>
+          </div>
+        </div>
         <p className="muted">
           Toda movimentação é registrada para os dois canais, inclusive as
           feitas pela equipe. O WhatsApp usa o modelo
@@ -60,11 +77,14 @@ export default async function Notifications() {
         </p>
       </section>
       <section className="panel padded section-gap">
-        <h2>Histórico de envios</h2>
+        <div className="card-top">
+          <h2>Histórico de envios</h2>
+          <span className="collection-count">{rows.length} registros</span>
+        </div>
         <p className="muted">
           Avisos são processados após a movimentação e revisados a cada 5
-          minutos. O WhatsApp só envia com o modelo aprovado no FLW. “Aceito pelo
-          provedor” ainda não confirma entrega.
+          minutos. O WhatsApp só envia com o modelo aprovado no FLW. “Aceito
+          pelo provedor” ainda não confirma entrega.
         </p>
         <ActionForm
           action={checkTicketNotices}
@@ -81,6 +101,9 @@ export default async function Notifications() {
         {rows.length ? (
           <div className="table-wrap">
             <table>
+              <caption className="sr-only">
+                Histórico dos avisos de chamados e confirmações de entrega
+              </caption>
               <thead>
                 <tr>
                   <th>Movimentação</th>
@@ -105,7 +128,9 @@ export default async function Notifications() {
                       </p>
                     </td>
                     <td>
-                      <Badge>{labels[n.status] || n.status}</Badge>
+                      <Badge status={n.status}>
+                        {labels[n.status] || n.status}
+                      </Badge>
                       {n.error && <p className="muted">{n.error}</p>}
                       {n.providerStatus && (
                         <p className="muted">{n.providerStatus}</p>

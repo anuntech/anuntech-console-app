@@ -22,7 +22,7 @@ export async function contractPdf(
       Author: "Anuntech",
       Subject: input.draft
         ? "Rascunho de contrato"
-        : "Contrato publicado na Console",
+        : "Contrato publicado no Console",
     },
   });
   const chunks: Buffer[] = [];

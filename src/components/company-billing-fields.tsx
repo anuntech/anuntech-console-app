@@ -147,165 +147,177 @@ export function CompanyBillingFields({
   }
   return (
     <>
-      <Field
-        label="CPF ou CNPJ"
-        hint="Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
-      >
-        <NumberFormatBase
-          format={formatDocument}
-          removeFormatting={onlyDigits}
-          valueIsNumericString
-          onValueChange={(v, info) => {
-            if (info.source === "event") change("document", v.value);
-          }}
-          name="document"
-          required
-          inputMode="numeric"
-          maxLength={18}
-          readOnly={lockDocument}
-          value={values.document}
-        />
-      </Field>
-      <Field label="Nome ou razão social">
-        <input
-          name="name"
-          required
-          maxLength={160}
-          value={values.name}
-          onChange={handleChange}
-        />
-      </Field>
-      <Field label="E-mail financeiro">
-        <input
-          name="billingEmail"
-          type="email"
-          autoComplete="email"
-          autoCapitalize="none"
-          spellCheck={false}
-          required
-          maxLength={254}
-          value={values.billingEmail}
-          onChange={handleChange}
-        />
-      </Field>
-      <Field
-        label="Telefone"
-        hint="Informe o DDD e o número. Ex.: (11) 99999-9999."
-      >
-        <NumberFormatBase
-          format={formatPhone}
-          removeFormatting={phoneDigits}
-          valueIsNumericString
-          required
-          autoComplete="tel-national"
-          onValueChange={(v, info) => {
-            if (info.source === "event") change("phone", v.value);
-          }}
-          name="phone"
-          type="tel"
-          maxLength={30}
-          value={values.phone}
-        />
-      </Field>
-      <h2>Endereço de cobrança e nota fiscal</h2>
-      <p className="muted">
-        {inviteToken
-          ? "Preencha o endereço completo para cobrança e nota fiscal."
-          : "Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode completar depois, antes de emitir uma cobrança."}
-      </p>
-      <Field
-        label="CEP"
-        hint="Ao completar os 8 dígitos, o endereço é consultado automaticamente."
-      >
-        <input
-          name="cep"
-          required={!!inviteToken}
-          inputMode="numeric"
-          maxLength={9}
-          autoComplete="postal-code"
-          value={values.cep}
-          onChange={handleChange}
-        />
-      </Field>
-      <Field label="Endereço">
-        <input
-          name="endereco"
-          required={!!inviteToken}
-          maxLength={100}
-          value={values.endereco}
-          onChange={handleChange}
-          autoComplete="address-line1"
-        />
-      </Field>
-      <div className="two-columns">
-        <Field label="Número">
-          <input
-            name="numero"
-            required={!!inviteToken}
-            maxLength={10}
-            value={values.numero}
-            onChange={handleChange}
-          />
-        </Field>
-        <Field label="Complemento (opcional)">
-          <input
-            name="complemento"
-            maxLength={30}
-            value={values.complemento}
-            onChange={handleChange}
-            autoComplete="address-line2"
-          />
-        </Field>
-      </div>
-      <Field label="Bairro">
-        <input
-          name="bairro"
-          required={!!inviteToken}
-          maxLength={60}
-          value={values.bairro}
-          onChange={handleChange}
-        />
-      </Field>
-      <div className="two-columns">
-        <Field label="Cidade">
-          <input
-            name="cidade"
-            required={!!inviteToken}
-            maxLength={60}
-            value={values.cidade}
-            onChange={handleChange}
-            autoComplete="address-level2"
-          />
-        </Field>
-        <Field label="UF">
-          <select
-            name="uf"
-            required={!!inviteToken}
-            value={values.uf}
-            onChange={handleChange}
-            autoComplete="address-level1"
+      <section className="form-section">
+        <div className="section-heading">
+          <h2>Identificação e contato</h2>
+          <p className="muted">
+            Dados da empresa e canais para comunicação financeira.
+          </p>
+        </div>
+        <div className="form-grid">
+          <Field
+            label="CPF ou CNPJ"
+            hint="Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
           >
-            <option value="">Selecione</option>
-            {payerAddress.shape.uf.options.map((uf) => (
-              <option key={uf}>{uf}</option>
-            ))}
-          </select>
-        </Field>
-      </div>
-      <div className="two-columns">
-        <Field label="Código IBGE do município (opcional)">
-          <input
-            name="codigoMunicipio"
-            inputMode="numeric"
-            maxLength={7}
-            value={values.codigoMunicipio}
-            onChange={handleChange}
-          />
-        </Field>
-      </div>
+            <NumberFormatBase
+              format={formatDocument}
+              removeFormatting={onlyDigits}
+              valueIsNumericString
+              onValueChange={(v, info) => {
+                if (info.source === "event") change("document", v.value);
+              }}
+              name="document"
+              required
+              inputMode="numeric"
+              maxLength={18}
+              readOnly={lockDocument}
+              value={values.document}
+            />
+          </Field>
+          <Field label="Nome ou razão social">
+            <input
+              name="name"
+              required
+              maxLength={160}
+              value={values.name}
+              onChange={handleChange}
+            />
+          </Field>
+          <Field label="E-mail financeiro">
+            <input
+              name="billingEmail"
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              maxLength={254}
+              value={values.billingEmail}
+              onChange={handleChange}
+            />
+          </Field>
+          <Field
+            label="Telefone"
+            hint="Informe o DDD e o número. Ex.: (11) 99999-9999."
+          >
+            <NumberFormatBase
+              format={formatPhone}
+              removeFormatting={phoneDigits}
+              valueIsNumericString
+              required
+              autoComplete="tel-national"
+              onValueChange={(v, info) => {
+                if (info.source === "event") change("phone", v.value);
+              }}
+              name="phone"
+              type="tel"
+              maxLength={30}
+              value={values.phone}
+            />
+          </Field>
+        </div>
+      </section>
+      <section className="form-section">
+        <div className="section-heading">
+          <h2>Endereço de cobrança e nota fiscal</h2>
+          <p className="muted">
+            {inviteToken
+              ? "Preencha o endereço completo para cobrança e nota fiscal."
+              : "Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode completar depois, antes de emitir uma cobrança."}
+          </p>
+        </div>
+        <div className="form-grid">
+          <Field
+            label="CEP"
+            hint="Ao completar os 8 dígitos, o endereço é consultado automaticamente."
+          >
+            <input
+              name="cep"
+              required={!!inviteToken}
+              inputMode="numeric"
+              maxLength={9}
+              autoComplete="postal-code"
+              value={values.cep}
+              onChange={handleChange}
+            />
+          </Field>
+          <Field label="Endereço">
+            <input
+              name="endereco"
+              required={!!inviteToken}
+              maxLength={100}
+              value={values.endereco}
+              onChange={handleChange}
+              autoComplete="address-line1"
+            />
+          </Field>
+          <Field label="Número">
+            <input
+              name="numero"
+              required={!!inviteToken}
+              maxLength={10}
+              value={values.numero}
+              onChange={handleChange}
+            />
+          </Field>
+          <Field label="Complemento (opcional)">
+            <input
+              name="complemento"
+              maxLength={30}
+              value={values.complemento}
+              onChange={handleChange}
+              autoComplete="address-line2"
+            />
+          </Field>
+          <Field label="Bairro">
+            <input
+              name="bairro"
+              required={!!inviteToken}
+              maxLength={60}
+              value={values.bairro}
+              onChange={handleChange}
+            />
+          </Field>
+          <Field label="Cidade">
+            <input
+              name="cidade"
+              required={!!inviteToken}
+              maxLength={60}
+              value={values.cidade}
+              onChange={handleChange}
+              autoComplete="address-level2"
+            />
+          </Field>
+          <Field label="UF">
+            <select
+              name="uf"
+              required={!!inviteToken}
+              value={values.uf}
+              onChange={handleChange}
+              autoComplete="address-level1"
+            >
+              <option value="">Selecione</option>
+              {payerAddress.shape.uf.options.map((uf) => (
+                <option key={uf}>{uf}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Código IBGE do município (opcional)">
+            <input
+              name="codigoMunicipio"
+              inputMode="numeric"
+              maxLength={7}
+              value={values.codigoMunicipio}
+              onChange={handleChange}
+            />
+          </Field>
+        </div>
+      </section>
       {!inviteToken && (
-        <>
-          <h2>Nota fiscal</h2>
+        <section className="form-section">
+          <div className="section-heading">
+            <h2>Nota fiscal</h2>
+          </div>
           <label className="checkbox-field">
             <input
               type="checkbox"
@@ -320,7 +332,7 @@ export function CompanyBillingFields({
             emissão de NFS-e ainda depende da conclusão da integração fiscal e
             dos dados do serviço da Anuntech.
           </p>
-        </>
+        </section>
       )}
     </>
   );

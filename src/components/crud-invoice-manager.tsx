@@ -9,6 +9,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ReceiptText,
+  Repeat2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -164,6 +166,9 @@ export default function CrudInvoiceManager({
                       {invoice.description}
                     </Link>
                     <span className={styles.created}>
+                      {invoice.recurring && (
+                        <Repeat2 size={11} aria-hidden="true" />
+                      )}
                       {invoice.recurring ? "Recorrente" : "Única"}
                     </span>
                   </td>
@@ -177,11 +182,8 @@ export default function CrudInvoiceManager({
                     {currency(invoice.amountCents)}
                   </td>
                   <td>
-                    <span className={styles.status}>
-                      <span
-                        aria-hidden="true"
-                        className={`${styles.dot} ${styles[status]}`}
-                      />
+                    <span className={styles.status} data-status={status}>
+                      <span aria-hidden="true" className={styles.dot} />
                       {statusLabels[status]}
                     </span>
                   </td>
@@ -233,7 +235,9 @@ export default function CrudInvoiceManager({
             {!invoices.length && (
               <tr>
                 <td colSpan={6} className={styles.empty}>
-                  Nenhuma fatura encontrada. Tente outra situação ou busca.
+                  <ReceiptText size={28} strokeWidth={1.5} aria-hidden="true" />
+                  <strong>Nenhuma fatura encontrada</strong>
+                  <p>Tente outra situação ou busca.</p>
                 </td>
               </tr>
             )}

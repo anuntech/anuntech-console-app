@@ -11,6 +11,7 @@ import {
   saoPauloDate,
 } from "@/lib/dates";
 import { Field } from "./ui";
+import styles from "./invoice-inputs.module.css";
 
 export function InvoiceAmount({ defaultCents }: { defaultCents?: number }) {
   const [value, setValue] = useState(
@@ -19,6 +20,7 @@ export function InvoiceAmount({ defaultCents }: { defaultCents?: number }) {
   return (
     <Field label="Valor (R$)">
       <NumericFormat
+        className={styles.amount}
         value={value}
         valueIsNumericString
         onValueChange={(values) => setValue(values.value)}
@@ -93,6 +95,7 @@ export function InvoiceDueDate({
         }}
       >
         <PatternFormat
+          className={styles.date}
           id={id}
           getInputRef={input}
           value={text}
