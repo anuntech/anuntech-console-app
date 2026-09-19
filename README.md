@@ -58,6 +58,12 @@ Autenticação Inter validada com certificado real. Emissão e consulta de cobra
 
 Focus NFe: tokens testados por consulta nos dois ambientes; emissão bloqueada enquanto aguardamos dados fiscais. FLW: canal e modelo de autenticação configurados para login por WhatsApp; modelo de cobrança segue pendente. Nenhuma emissão fiscal é simulada. Não há recorrência ou disparos automáticos de cobranças. Notificações de entrega/bounce de e-mail ainda não têm webhook: acompanhar no Resend. O aviso de acesso é enviado uma única vez por vínculo; repetição segura dentro de 23 horas reutiliza a tentativa. Links de acesso em avisos exigem HTTPS.
 
+### Cadastro de cobrança e preferência fiscal
+
+Endereço, número, complemento, bairro, cidade, UF, CEP e código IBGE opcional ficam no cadastro da empresa. Cadastro sem endereço pode ser salvo, mas um endereço parcialmente preenchido é rejeitado. Para emitir Pix/boleto é obrigatório ter o endereço completo salvo: o servidor ignora endereços enviados no formulário da fatura e preserva o retrato dos dados usado em cada cobrança já emitida.
+
+A opção `autoIssueNfse` é individual por empresa e começa desativada, inclusive para clientes existentes. Somente o administrador pode alterá-la. Nesta etapa ela registra a preferência; não cria notas, não altera o estado fiscal das faturas e não ativa retroativamente emissões. O gatilho e a integração de emissão Focus dependem da conclusão dos parâmetros fiscais do prestador e do serviço. A interface informa essa pendência explicitamente.
+
 Anexos de PDF/PNG/JPEG ficam no banco, com download privado: até 1 MB cada e 20 por chamado. A leitura exige a mesma permissão de atendimento do chamado. Para volume maior, migrar o conteúdo para armazenamento privado dedicado.
 
 Listagens de chamados e faturas exibem até 200 itens recentes. Ainda não há filtros/paginação avançada, edição de cobrança emitida, estorno, baixa manual ou cancelamento bancário.

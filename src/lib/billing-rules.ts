@@ -2,6 +2,7 @@ import { z } from "zod";
 export const payerAddress = z.object({
   endereco: z.string().trim().min(1).max(100),
   numero: z.string().trim().min(1).max(10),
+  complemento: z.string().trim().max(30).default(""),
   bairro: z.string().trim().min(1).max(60),
   cidade: z.string().trim().min(1).max(60),
   cep: z

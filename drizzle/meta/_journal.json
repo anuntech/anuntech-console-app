@@ -36,6 +36,13 @@
       "when": 1789784671180,
       "tag": "0004_nice_callisto",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789785668663,
+      "tag": "0005_pink_groot",
+      "breakpoints": true
     }
   ]
 }

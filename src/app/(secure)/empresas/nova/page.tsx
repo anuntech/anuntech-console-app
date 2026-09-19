@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/access";
 import { createCompany } from "@/lib/actions";
 import { ActionForm } from "@/components/action-form";
 import { Heading, Field, Back } from "@/components/ui";
+import { CompanyBillingFields } from "@/components/company-billing-fields";
 export default async function NewCompany() {
   await requireAdmin();
   return (
@@ -9,7 +10,7 @@ export default async function NewCompany() {
       <Back href="/empresas" label="Empresas" />
       <Heading
         title="Cadastrar empresa"
-        description="Comece com os dados de identificação e contato."
+        description="Identificação, contato e dados para cobranças e notas fiscais."
       />
       <section className="panel form-panel">
         <ActionForm action={createCompany} label="Cadastrar empresa">
@@ -30,6 +31,7 @@ export default async function NewCompany() {
           <Field label="Telefone (opcional)">
             <input name="phone" type="tel" maxLength={30} />
           </Field>
+          <CompanyBillingFields />
         </ActionForm>
       </section>
     </>

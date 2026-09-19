@@ -420,16 +420,121 @@ try {
     ).rows[0].amount_cents === 130025,
     "Administrador edita valor e vencimento do rascunho",
   );
-  const bankInput = {
-    id: ids.draft,
+  const clientAddress = {
     endereco: "Rua Teste",
     numero: "10",
+    complemento: "Sala 2",
     bairro: "Centro",
     cidade: "São Paulo",
     uf: "SP",
-    cep: "01001000",
+    cep: "01001-000",
+    codigoMunicipio: "3550308",
+  };
+  const companyInput = {
+    id: ids.a,
+    name: `QA Company A ${marker}`,
+    billingEmail: "qa-A@example.invalid",
+    phone: "",
+    ...clientAddress,
+    autoIssueNfse: "yes",
+  };
+  await submitForm(
+    `/empresas/${ids.a}`,
+    "admin",
+    "manager",
+    "Salvar dados",
+    companyInput,
+  );
+  let companyState = (
+    await database.query("select * from console_companies where id=$1", [ids.a])
+  ).rows[0];
+  ok(
+    !companyState.billing_address && !companyState.auto_issue_nfse,
+    "Cliente não altera endereço ou preferência fiscal por POST direto",
+  );
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    ...companyInput,
+    cep: "123",
+  });
+  companyState = (
+    await database.query("select * from console_companies where id=$1", [ids.a])
+  ).rows[0];
+  ok(
+    !companyState.billing_address && !companyState.auto_issue_nfse,
+    "Endereço incompleto é rejeitado sem salvar parcialmente a preferência",
+  );
+  await submitForm(
+    `/empresas/${ids.a}`,
+    "admin",
+    "admin",
+    "Salvar dados",
+    companyInput,
+  );
+  companyState = (
+    await database.query("select * from console_companies where id=$1", [ids.a])
+  ).rows[0];
+  ok(
+    companyState.billing_address.cep === "01001000" &&
+      companyState.billing_address.complemento === "Sala 2" &&
+      companyState.auto_issue_nfse,
+    "Administrador salva endereço normalizado e preferência fiscal por cliente",
+  );
+  r = await request(`/empresas/${ids.a}`, "admin");
+  ok(
+    r.text.includes('name="autoIssueNfse"') &&
+      r.text.includes('checked=""') &&
+      r.text.includes("Sala 2"),
+    "Cadastro reaberto mostra endereço e opção fiscal salvos",
+  );
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    ...companyInput,
+    autoIssueNfse: "",
+  });
+  companyState = (
+    await database.query("select * from console_companies where id=$1", [ids.a])
+  ).rows[0];
+  ok(
+    !companyState.auto_issue_nfse &&
+      companyState.billing_address.endereco === "Rua Teste",
+    "Desmarcar a opção desativa a preferência sem apagar o endereço",
+  );
+  const newDocument = BigInt(
+    `0x${randomUUID().replaceAll("-", "").slice(0, 11)}`,
+  )
+    .toString()
+    .padStart(14, "0");
+  await submitForm("/empresas/nova", "admin", "admin", "Cadastrar empresa", {
+    name: `QA New ${marker}`,
+    document: newDocument,
+    billingEmail: "new@example.invalid",
+    phone: "",
+    ...clientAddress,
+    autoIssueNfse: "yes",
+  });
+  const newCompany = (
+    await database.query("select * from console_companies where document=$1", [
+      newDocument,
+    ])
+  ).rows[0];
+  if (newCompany) companyIds.push(newCompany.id);
+  ok(
+    newCompany?.billing_address.cidade === "São Paulo" &&
+      newCompany.auto_issue_nfse,
+    "Cadastro de novo cliente também persiste endereço e opção fiscal",
+  );
+  r = await request(`/financeiro/${ids.draft}`, "admin");
+  ok(
+    !r.text.includes('name="endereco"') &&
+      r.text.includes("Rua Teste") &&
+      r.text.includes(`/empresas/${ids.a}#cadastro`),
+    "Fatura usa resumo do cadastro sem pedir endereço novamente",
+  );
+  const bankInput = {
+    id: ids.draft,
     numDiasAgenda: "30",
     confirm: "yes",
+    endereco: "Endereço forjado ignorado",
+    cep: "99999999",
   };
   await database.query(
     "update console_invoices set due_date='2099-12-20', amount_cents=1000 where id=$1",
@@ -467,6 +572,31 @@ try {
     ).rows[0].bank_request,
     "Emissão exige confirmação explícita",
   );
+  await database.query(
+    "update console_companies set billing_address=null where id=$1",
+    [ids.a],
+  );
+  await submitForm(
+    `/financeiro/${ids.draft}`,
+    "admin",
+    "admin",
+    "Emitir cobrança no Inter",
+    { ...bankInput, ...clientAddress },
+  );
+  ok(
+    !(
+      await database.query(
+        "select bank_request from console_invoices where id=$1",
+        [ids.draft],
+      )
+    ).rows[0].bank_request,
+    "Endereço enviado na fatura não substitui cadastro ausente nem inicia emissão",
+  );
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    ...companyInput,
+    autoIssueNfse: "",
+  });
+
   await submitForm(
     `/financeiro/${ids.draft}`,
     "admin",
@@ -485,6 +615,36 @@ try {
       bankInvoice.bank_status === "EM_PROCESSAMENTO",
     "Emissão com Inter simulado persiste identificador sem marcar pagamento",
   );
+  ok(
+    bankInvoice.bank_request.pagador.endereco === "Rua Teste" &&
+      bankInvoice.bank_request.pagador.cep === "01001000" &&
+      bankInvoice.bank_request.pagador.complemento === "Sala 2" &&
+      !("codigoMunicipio" in bankInvoice.bank_request.pagador),
+    "Inter recebe endereço salvo e ignora dados forjados e campos fiscais exclusivos",
+  );
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    ...companyInput,
+    endereco: "Rua Atualizada",
+  });
+  ok(
+    (
+      await database.query(
+        "select bank_request from console_invoices where id=$1",
+        [ids.draft],
+      )
+    ).rows[0].bank_request.pagador.endereco === "Rua Teste",
+    "Alterar cadastro não modifica os dados de uma cobrança já emitida",
+  );
+  ok(
+    (
+      await database.query(
+        "select count(*)::int as n from console_invoices where company_id=$1 and fiscal_status <> 'not_requested'",
+        [ids.a],
+      )
+    ).rows[0].n === 0,
+    "Preferência fiscal não simula emissão enquanto integração está pendente",
+  );
+
   await submitForm(
     `/financeiro/${ids.draft}`,
     "admin",

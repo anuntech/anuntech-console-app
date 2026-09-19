@@ -8,6 +8,8 @@ import { saveMembership, revokeMembership, updateCompany } from "@/lib/actions";
 import { roleLabels, dateLabel, auditLabels } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Heading, Field, Back, Badge, Empty } from "@/components/ui";
+import { CompanyBillingFields } from "@/components/company-billing-fields";
+import { addressLabel } from "@/lib/company-billing";
 export default async function Company({
   params,
 }: {
@@ -40,7 +42,23 @@ export default async function Company({
         title={company.name}
         description={`${company.document} · ${company.billingEmail}`}
       />
-      <details className="panel padded edit-details">
+      <section className="panel padded">
+        <h2>Dados de cobrança e nota fiscal</h2>
+        <p>
+          {company.billingAddress
+            ? addressLabel(company.billingAddress)
+            : "Endereço ainda não cadastrado."}
+        </p>
+        <p>
+          Nota fiscal automática:{" "}
+          <strong>
+            {company.autoIssueNfse
+              ? "Selecionada — integração fiscal pendente"
+              : "Desativada"}
+          </strong>
+        </p>
+      </section>
+      <details id="cadastro" className="panel padded edit-details">
         <summary>Editar dados da empresa</summary>
         <ActionForm action={updateCompany} label="Salvar dados">
           <input type="hidden" name="id" value={id} />
@@ -68,6 +86,10 @@ export default async function Company({
               defaultValue={company.phone || ""}
             />
           </Field>
+          <CompanyBillingFields
+            address={company.billingAddress}
+            autoIssueNfse={company.autoIssueNfse}
+          />
         </ActionForm>
       </details>
       <div className="two-columns">

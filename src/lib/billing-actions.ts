@@ -32,7 +32,9 @@ export async function issueCharge(
     const id = uuid.parse(form.get("id"));
     if (form.get("confirm") !== "yes")
       return { error: "Confirme a emissão e confira os dados do pagador." };
-    const address = payerAddress.parse(Object.fromEntries(form));
+    const numDiasAgenda = payerAddress.shape.numDiasAgenda.parse(
+      form.get("numDiasAgenda"),
+    );
     await interToken(); // Não reserva a fatura quando a autenticação falha.
     const payload = await db.transaction(async (tx) => {
       const [i] = await tx
@@ -61,7 +63,14 @@ export async function issueCharge(
         throw new Error(
           "Confira o cadastro do pagador (nome até 100 caracteres).",
         );
-      const { numDiasAgenda, ...location } = address;
+      const savedAddress = payerAddress
+        .omit({ numDiasAgenda: true })
+        .safeParse(company.billingAddress);
+      if (!savedAddress.success)
+        throw new Error(
+          "Complete o endereço no cadastro do cliente antes de emitir a cobrança.",
+        );
+      const location = savedAddress.data;
       const data = {
         seuNumero: bankReference(i.id),
         valorNominal: i.amountCents / 100,
@@ -142,7 +151,7 @@ export async function issueCharge(
     return {
       error:
         error instanceof z.ZodError
-          ? "Confira o endereço e os campos obrigatórios."
+          ? "Confira os campos obrigatórios e o prazo de cancelamento."
           : error instanceof Error
             ? error.message
             : "Não foi possível iniciar a emissão.",

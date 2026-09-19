@@ -112,6 +112,11 @@ export const companies = pgTable("console_companies", {
   document: text("document").notNull().unique(),
   billingEmail: text("billing_email").notNull(),
   phone: text("phone"),
+  billingAddress:
+    jsonb("billing_address").$type<
+      import("@/lib/company-billing").CompanyAddress
+    >(),
+  autoIssueNfse: boolean("auto_issue_nfse").notNull().default(false),
   createdAt: created(),
 });
 export const memberships = pgTable(

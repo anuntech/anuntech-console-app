@@ -21,6 +21,7 @@ import {
   scheduleTicketNotices,
 } from "./ticket-notifications";
 import { ticketLabels } from "./format";
+import { companyBillingInput } from "./company-billing";
 const id = z.string().uuid();
 const str = (max: number) =>
   z
@@ -69,7 +70,10 @@ export async function createCompany(
       })
       .parse(Object.fromEntries(form));
     const company = await db.transaction(async (tx) => {
-      const [row] = await tx.insert(companies).values(input).returning();
+      const [row] = await tx
+        .insert(companies)
+        .values({ ...input, ...companyBillingInput(form) })
+        .returning();
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.id,
@@ -675,6 +679,7 @@ export async function updateCompany(
           name: input.name,
           billingEmail: input.billingEmail,
           phone: input.phone,
+          ...companyBillingInput(form),
         })
         .where(eq(companies.id, input.id))
         .returning();

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { addressLabel } from "@/lib/company-billing";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -17,7 +19,7 @@ export default async function Invoice({
   const actor = await getActor();
   const { id } = await params;
   const [row] = await db
-    .select({ invoice: invoices, company: companies.name })
+    .select({ invoice: invoices, company: companies })
     .from(invoices)
     .innerJoin(companies, eq(companies.id, invoices.companyId))
     .where(eq(invoices.id, id));
@@ -31,7 +33,7 @@ export default async function Invoice({
   return (
     <>
       <Back href="/financeiro" label="Financeiro" />
-      <Heading title="Detalhes da fatura" description={row.company} />
+      <Heading title="Detalhes da fatura" description={row.company.name} />
       <section className="panel padded invoice-detail">
         <div className="card-top">
           <Badge status={i.status}>{invoiceLabels[i.status]}</Badge>
@@ -96,75 +98,41 @@ export default async function Invoice({
             ? "Emissão ainda não solicitada."
             : "Acompanhe a emissão com a equipe da Anuntech."}
         </p>
+        {actor.admin && (
+          <p className="muted">
+            {row.company.autoIssueNfse
+              ? "Este cliente está selecionado para nota fiscal automática. A emissão ainda depende da conclusão da integração fiscal."
+              : "Nota fiscal automática desativada para este cliente."}{" "}
+            <Link href={`/empresas/${i.companyId}#cadastro`}>
+              Configurar no cadastro do cliente
+            </Link>
+            .
+          </p>
+        )}
         {actor.admin && i.status === "draft" && !i.bankRequest && (
           <>
             <details className="edit-details">
               <summary>Emitir cobrança Pix e boleto</summary>
               <p>
-                Confira o cadastro da empresa e informe o endereço do pagador.
-                Esta ação emite uma cobrança no Inter. O Pix depende de uma
-                chave cadastrada na conta.
+                A cobrança usa os dados salvos no cadastro do cliente. Esta ação
+                emite uma cobrança no Inter. O Pix depende de uma chave
+                cadastrada na conta.
               </p>
               <ActionForm action={issueCharge} label="Emitir cobrança no Inter">
                 <input type="hidden" name="id" value={i.id} />
-                <Field label="Endereço">
-                  <input name="endereco" required maxLength={100} />
-                </Field>
-                <Field label="Número">
-                  <input name="numero" required maxLength={10} />
-                </Field>
-                <Field label="Bairro">
-                  <input name="bairro" required maxLength={60} />
-                </Field>
-                <Field label="Cidade">
-                  <input name="cidade" required maxLength={60} />
-                </Field>
-                <Field label="UF">
-                  <select name="uf" required defaultValue="">
-                    <option value="" disabled>
-                      Selecione
-                    </option>
-                    {[
-                      "AC",
-                      "AL",
-                      "AP",
-                      "AM",
-                      "BA",
-                      "CE",
-                      "DF",
-                      "ES",
-                      "GO",
-                      "MA",
-                      "MT",
-                      "MS",
-                      "MG",
-                      "PA",
-                      "PB",
-                      "PR",
-                      "PE",
-                      "PI",
-                      "RJ",
-                      "RN",
-                      "RS",
-                      "RO",
-                      "RR",
-                      "SC",
-                      "SP",
-                      "SE",
-                      "TO",
-                    ].map((uf) => (
-                      <option key={uf}>{uf}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="CEP">
-                  <input
-                    name="cep"
-                    required
-                    inputMode="numeric"
-                    maxLength={9}
-                  />
-                </Field>
+                <div>
+                  <strong>
+                    {row.company.name} · {row.company.document}
+                  </strong>
+                  <p>
+                    {row.company.billingAddress
+                      ? addressLabel(row.company.billingAddress)
+                      : "Complete o endereço no cadastro do cliente antes de emitir a cobrança."}
+                  </p>
+                  <Link href={`/empresas/${i.companyId}#cadastro`}>
+                    Editar cadastro do cliente
+                  </Link>
+                </div>
                 <Field label="Dias após vencimento até cancelamento no banco">
                   <input
                     name="numDiasAgenda"
