@@ -5,6 +5,7 @@ import { requireAdmin, accessibleCompanies } from "@/lib/access";
 import { createInvoice } from "@/lib/actions";
 import { ActionForm } from "@/components/action-form";
 import { CompanyPicker } from "@/components/company-picker";
+import { InvoiceAmount, InvoiceDueDate } from "@/components/invoice-inputs";
 import { Heading, Field, Back, Empty } from "@/components/ui";
 export default async function NewInvoice() {
   const actor = await requireAdmin();
@@ -35,18 +36,8 @@ export default async function NewInvoice() {
               <textarea name="description" required maxLength={1000} rows={3} />
             </Field>
             <div className="form-grid">
-              <Field label="Valor (R$)" hint="Exemplo: 1500,00">
-                <input
-                  name="amount"
-                  required
-                  inputMode="decimal"
-                  placeholder="0,00"
-                  maxLength={20}
-                />
-              </Field>
-              <Field label="Vencimento">
-                <input name="dueDate" type="date" required />
-              </Field>
+              <InvoiceAmount />
+              <InvoiceDueDate />
             </div>
             <p className="muted">
               Salvar um rascunho não gera boleto, Pix, nota fiscal ou mensagem

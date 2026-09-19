@@ -1134,3 +1134,97 @@ tr:last-child td {
   flex: 1;
   background: var(--line, #e2e7ed);
 }
+
+.date-input {
+  position: relative;
+}
+.date-input > input:not([type="hidden"]) {
+  padding-right: 48px;
+}
+.calendar-trigger {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  height: 41px;
+  width: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+}
+.calendar-trigger:hover {
+  background: #eef2f7;
+}
+.date-popover {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: 0;
+  padding: 16px;
+  width: 310px;
+  max-width: calc(100vw - 48px);
+  border: 1px solid #d6dde7;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 36px #0b214526;
+}
+.date-popover.above {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+.date-popover .rdp-root {
+  --rdp-accent-color: var(--navy);
+  --rdp-accent-background-color: #eef2f7;
+  --rdp-day-width: 39px;
+  --rdp-day-height: 38px;
+  --rdp-day_button-width: 36px;
+  --rdp-day_button-height: 36px;
+  font-weight: 400;
+  font-size: 13px;
+}
+.date-popover table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.date-popover th,
+.date-popover td {
+  padding: 0;
+  border: 0;
+  text-align: center;
+  font-size: inherit;
+}
+.date-popover .rdp-weekday {
+  font-size: 11px;
+  font-weight: 400;
+  padding-block: 8px;
+  text-transform: none;
+}
+.date-popover .rdp-caption_label {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.date-popover .rdp-selected .rdp-day_button {
+  background: var(--navy);
+  color: white;
+}
+.date-popover .rdp-day_button:hover {
+  background: #e8eef8;
+  color: var(--navy);
+}
+.calendar-footer {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #e4e9f1;
+  margin-top: 10px;
+  padding-top: 12px;
+}
+.calendar-footer button {
+  border: 0;
+  background: transparent;
+  color: var(--navy);
+  font-size: 12px;
+  padding: 4px 8px;
+}

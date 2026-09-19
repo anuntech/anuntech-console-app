@@ -382,8 +382,7 @@ export async function createInvoice(
     const amountCents = moneyToCents(input.amount);
     if (amountCents === null)
       return {
-        error:
-          "Informe um valor positivo, como 1500,00, sem separador de milhar.",
+        error: "Informe um valor entre R$ 0,01 e R$ 9.999.999,99.",
       };
     const invoice = await db.transaction(async (tx) => {
       if (input.engagementId) {
@@ -543,7 +542,7 @@ export async function updateDraft(
       .parse(Object.fromEntries(form));
     const amountCents = moneyToCents(input.amount);
     if (amountCents === null)
-      return { error: "Informe um valor positivo sem separador de milhar." };
+      return { error: "Informe um valor entre R$ 0,01 e R$ 9.999.999,99." };
     const changed = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(invoices)

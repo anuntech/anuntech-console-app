@@ -6,6 +6,7 @@ import { getActor, canAccess } from "@/lib/access";
 import { cancelDraft, updateDraft } from "@/lib/actions";
 import { issueCharge, syncCharge } from "@/lib/billing-actions";
 import { ActionForm } from "@/components/action-form";
+import { InvoiceAmount, InvoiceDueDate } from "@/components/invoice-inputs";
 import { Heading, Back, Badge, Field } from "@/components/ui";
 import { invoiceLabels, currency, dateLabel } from "@/lib/format";
 export default async function Invoice({
@@ -193,24 +194,8 @@ export default async function Invoice({
                     defaultValue={i.description}
                   />
                 </Field>
-                <Field label="Valor (R$)">
-                  <input
-                    name="amount"
-                    required
-                    inputMode="decimal"
-                    defaultValue={(i.amountCents / 100)
-                      .toFixed(2)
-                      .replace(".", ",")}
-                  />
-                </Field>
-                <Field label="Vencimento">
-                  <input
-                    name="dueDate"
-                    type="date"
-                    required
-                    defaultValue={i.dueDate}
-                  />
-                </Field>
+                <InvoiceAmount defaultCents={i.amountCents} />
+                <InvoiceDueDate defaultValue={i.dueDate} />
               </ActionForm>
             </details>
             <ActionForm

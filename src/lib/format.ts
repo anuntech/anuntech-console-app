@@ -1,10 +1,12 @@
+import { APP_LOCALE, APP_TIME_ZONE } from "./dates";
 export const currency = (cents: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-    cents / 100,
-  );
+  new Intl.NumberFormat(APP_LOCALE, {
+    style: "currency",
+    currency: "BRL",
+  }).format(cents / 100);
 export const dateLabel = (date: Date | string) =>
-  new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
+  new Intl.DateTimeFormat(APP_LOCALE, {
+    timeZone: APP_TIME_ZONE,
     dateStyle: "short",
   }).format(typeof date === "string" ? new Date(date + "T12:00:00Z") : date);
 export const ticketLabels: Record<string, string> = {

@@ -2,6 +2,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { saoPauloDate } from "./dates";
 import { db } from "./db";
 import { getActor } from "./access";
 import { invoices, companies, auditEvents } from "@/db/schema";
@@ -43,9 +44,7 @@ export async function issueCharge(
         throw new Error("Esta fatura já tem uma tentativa de emissão.");
       if (i.amountCents < 250)
         throw new Error("O valor mínimo de uma cobrança Inter é R$ 2,50.");
-      const today = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "America/Sao_Paulo",
-      }).format(new Date());
+      const today = saoPauloDate();
       if (i.dueDate <= today)
         throw new Error(
           "Escolha um vencimento a partir de amanhã para emitir pela Console.",
