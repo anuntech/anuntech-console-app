@@ -75,6 +75,10 @@ export async function reconcileCharge(
         bankStatus: c.situacao,
         bankCheckedAt: new Date(),
         dueDate: c.dataVencimento,
+        ...(current.dueDate !== c.dataVencimento ||
+        current.boletoLine !== (result.boleto?.linhaDigitavel || null)
+          ? { boletoPdf: null }
+          : {}),
         boletoLine: result.boleto?.linhaDigitavel || null,
         pixCopyPaste: result.pix?.pixCopiaECola || null,
       })
