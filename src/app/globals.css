@@ -1138,6 +1138,9 @@ tr:last-child td {
 .date-input {
   position: relative;
 }
+.panel:has(.date-input) {
+  overflow: visible;
+}
 .date-input > input:not([type="hidden"]) {
   padding-right: 48px;
 }
