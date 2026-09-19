@@ -1273,3 +1273,17 @@ tr:last-child td {
 .lookup-status {
   font-size: 13px;
 }
+
+.registration-page {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 36px 20px;
+}
+.registration-page .form-panel {
+  max-width: none;
+}
+.registration-brand {
+  font-weight: 700;
+  font-size: 22px;
+  margin-bottom: 24px;
+}

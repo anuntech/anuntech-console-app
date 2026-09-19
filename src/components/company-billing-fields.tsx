@@ -1,4 +1,11 @@
 "use client";
+import { NumberFormatBase } from "react-number-format";
+import {
+  formatDocument,
+  formatPhone,
+  onlyDigits,
+  phoneDigits,
+} from "@/lib/company-input";
 import { useRef, useState, useEffect } from "react";
 import {
   digits,
@@ -12,7 +19,11 @@ import type { CompanyAddress } from "@/lib/company-billing";
 
 export function CompanyBillingFields({
   company,
+  inviteToken,
+  lockDocument = !!company,
 }: {
+  inviteToken?: string;
+  lockDocument?: boolean;
   company?: {
     name: string;
     document: string;
@@ -68,7 +79,10 @@ export function CompanyBillingFields({
     try {
       const res = await fetch(
         `/api/cadastro/consulta?tipo=${kind}&valor=${value}`,
-        { signal: controller.signal },
+        {
+          signal: controller.signal,
+          headers: inviteToken ? { "X-Company-Invite": inviteToken } : {},
+        },
       );
       const data = await res.json();
       if (sequence !== generation.current) return;
@@ -120,7 +134,12 @@ export function CompanyBillingFields({
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) {
-    change(e.target.name, e.target.value);
+    change(
+      e.target.name,
+      e.target.name === "billingEmail"
+        ? e.target.value.trim().toLowerCase()
+        : e.target.value,
+    );
   }
   return (
     <>
@@ -128,14 +147,19 @@ export function CompanyBillingFields({
         label="CPF ou CNPJ"
         hint="Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
       >
-        <input
+        <NumberFormatBase
+          format={formatDocument}
+          removeFormatting={onlyDigits}
+          valueIsNumericString
+          onValueChange={(v, info) => {
+            if (info.source === "event") change("document", v.value);
+          }}
           name="document"
           required
           inputMode="numeric"
           maxLength={18}
-          readOnly={!!company}
+          readOnly={lockDocument}
           value={values.document}
-          onChange={handleChange}
         />
       </Field>
       <button
@@ -159,25 +183,39 @@ export function CompanyBillingFields({
         <input
           name="billingEmail"
           type="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
           required
           maxLength={254}
           value={values.billingEmail}
           onChange={handleChange}
         />
       </Field>
-      <Field label="Telefone (opcional)">
-        <input
+      <Field
+        label="Telefone"
+        hint="Informe o DDD e o número. Ex.: (11) 99999-9999."
+      >
+        <NumberFormatBase
+          format={formatPhone}
+          removeFormatting={phoneDigits}
+          valueIsNumericString
+          required
+          autoComplete="tel-national"
+          onValueChange={(v, info) => {
+            if (info.source === "event") change("phone", v.value);
+          }}
           name="phone"
           type="tel"
           maxLength={30}
           value={values.phone}
-          onChange={handleChange}
         />
       </Field>
       <h2>Endereço de cobrança e nota fiscal</h2>
       <p className="muted">
-        Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode
-        completar depois, antes de emitir uma cobrança.
+        {inviteToken
+          ? "Preencha o endereço completo para cobrança e nota fiscal."
+          : "Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode completar depois, antes de emitir uma cobrança."}
       </p>
       <Field
         label="CEP"
@@ -185,6 +223,7 @@ export function CompanyBillingFields({
       >
         <input
           name="cep"
+          required={!!inviteToken}
           inputMode="numeric"
           maxLength={9}
           autoComplete="postal-code"
@@ -207,6 +246,7 @@ export function CompanyBillingFields({
       <Field label="Endereço">
         <input
           name="endereco"
+          required={!!inviteToken}
           maxLength={100}
           value={values.endereco}
           onChange={handleChange}
@@ -217,6 +257,7 @@ export function CompanyBillingFields({
         <Field label="Número">
           <input
             name="numero"
+            required={!!inviteToken}
             maxLength={10}
             value={values.numero}
             onChange={handleChange}
@@ -235,6 +276,7 @@ export function CompanyBillingFields({
       <Field label="Bairro">
         <input
           name="bairro"
+          required={!!inviteToken}
           maxLength={60}
           value={values.bairro}
           onChange={handleChange}
@@ -244,6 +286,7 @@ export function CompanyBillingFields({
         <Field label="Cidade">
           <input
             name="cidade"
+            required={!!inviteToken}
             maxLength={60}
             value={values.cidade}
             onChange={handleChange}
@@ -253,6 +296,7 @@ export function CompanyBillingFields({
         <Field label="UF">
           <select
             name="uf"
+            required={!!inviteToken}
             value={values.uf}
             onChange={handleChange}
             autoComplete="address-level1"
@@ -275,21 +319,25 @@ export function CompanyBillingFields({
           />
         </Field>
       </div>
-      <h2>Nota fiscal</h2>
-      <label className="checkbox-field">
-        <input
-          type="checkbox"
-          name="autoIssueNfse"
-          value="yes"
-          defaultChecked={company?.autoIssueNfse || false}
-        />{" "}
-        Emitir nota fiscal automaticamente para este cliente
-      </label>
-      <p className="muted">
-        Desmarcado: nenhuma emissão automática. A preferência fica salva; a
-        emissão de NFS-e ainda depende da conclusão da integração fiscal e dos
-        dados do serviço da Anuntech.
-      </p>
+      {!inviteToken && (
+        <>
+          <h2>Nota fiscal</h2>
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              name="autoIssueNfse"
+              value="yes"
+              defaultChecked={company?.autoIssueNfse || false}
+            />{" "}
+            Emitir nota fiscal automaticamente para este cliente
+          </label>
+          <p className="muted">
+            Desmarcado: nenhuma emissão automática. A preferência fica salva; a
+            emissão de NFS-e ainda depende da conclusão da integração fiscal e
+            dos dados do serviço da Anuntech.
+          </p>
+        </>
+      )}
     </>
   );
 }

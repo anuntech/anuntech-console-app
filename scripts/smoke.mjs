@@ -1,6 +1,6 @@
 // Run only against a development database. Creates isolated fixtures and removes them in finally.
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -77,9 +77,16 @@ function decodeAttr(value) {
 }
 async function submitForm(page, reader, sender, identifier, values) {
   const rendered = await request(page, reader);
-  const forms = [
-    ...rendered.text.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/g),
-  ].map((m) => m[1]);
+  return request(page, sender, {
+    method: "POST",
+    body: formBody(rendered.text, identifier, values),
+    headers: { Origin: base },
+  });
+}
+function formBody(html, identifier, values) {
+  const forms = [...html.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/g)].map(
+    (m) => m[1],
+  );
   const form = forms.find(
     (f) => f.includes(`name="${identifier}"`) || f.includes(identifier),
   );
@@ -93,11 +100,7 @@ async function submitForm(page, reader, sender, identifier, values) {
       body.set(decodeAttr(name[1]), decodeAttr(value?.[1] || ""));
   }
   for (const [key, value] of Object.entries(values)) body.set(key, value);
-  return request(page, sender, {
-    method: "POST",
-    body,
-    headers: { Origin: base },
-  });
+  return body;
 }
 
 try {
@@ -732,10 +735,305 @@ try {
     id: ids.a,
     name: `QA Company A ${marker}`,
     billingEmail: "qa-A@example.invalid",
-    phone: "",
+    phone: "(11) 99999-1234",
     ...clientAddress,
     autoIssueNfse: "yes",
   };
+  // Public registration links are exercised only in this disposable database.
+  const inviteLabel = `QA Invite ${marker}`;
+  await submitForm("/empresas/convites", "admin", "manager", "Gerar link", {
+    label: inviteLabel,
+  });
+  ok(
+    (
+      await database.query(
+        "select count(*)::int n from console_company_invites",
+      )
+    ).rows[0].n === 0,
+    "Cliente não gera links de cadastro",
+  );
+  const generated = await submitForm(
+    "/empresas/convites",
+    "admin",
+    "admin",
+    "Gerar link",
+    { label: inviteLabel },
+  );
+  const inviteToken = generated.text.match(
+    /cadastro\/empresa\/([a-f0-9]{64})/,
+  )?.[1];
+  assert.ok(inviteToken, "Link completo retornado ao administrador");
+  const invite = (
+    await database.query(
+      "select * from console_company_invites where label=$1",
+      [inviteLabel],
+    )
+  ).rows[0];
+  ok(
+    invite.token_hash ===
+      createHash("sha256").update(inviteToken).digest("hex") &&
+      !JSON.stringify(invite).includes(inviteToken),
+    "Link persiste somente hash e validade",
+  );
+  const publicPath = `/cadastro/empresa/${inviteToken}`;
+  let publicPage = await request(publicPath);
+  ok(
+    publicPage.status === 200 &&
+      publicPage.text.includes("Enviar cadastro") &&
+      !publicPage.text.includes("autoIssueNfse") &&
+      !publicPage.text.includes("QA Company"),
+    "Link abre sem login e não expõe clientes ou preferência fiscal",
+  );
+  const inviteLookup = await request(
+    "/api/cadastro/consulta?tipo=cep&valor=01001000",
+    null,
+    { headers: { "X-Company-Invite": inviteToken } },
+  );
+  ok(inviteLookup.status === 200, "Cliente com link válido consulta CEP");
+  const invalidLookup = await request(
+    "/api/cadastro/consulta?tipo=cep&valor=01001000",
+    null,
+    { headers: { "X-Company-Invite": "0".repeat(64) } },
+  );
+  ok(invalidLookup.status === 403, "Link forjado não consulta dados");
+  const submittedInput = {
+    ...clientAddress,
+    name: `QA Self Service ${marker}`,
+    document: "12.345.678/0001-99",
+    billingEmail: " FINANCEIRO@EXAMPLE.INVALID ",
+    phone: "(11) 99999-1234",
+    token: inviteToken,
+    autoIssueNfse: "yes",
+    admin: "true",
+  };
+  const sendPublic = (values) =>
+    request(publicPath, null, {
+      method: "POST",
+      body: formBody(publicPage.text, "Enviar cadastro", values),
+      headers: { Origin: base },
+    });
+  await sendPublic({ ...submittedInput, phone: "" });
+  ok(
+    (
+      await database.query(
+        "select status from console_company_invites where id=$1",
+        [invite.id],
+      )
+    ).rows[0].status === "open",
+    "Cadastro público rejeita telefone ausente no servidor",
+  );
+  await Promise.all([
+    sendPublic(submittedInput),
+    sendPublic({ ...submittedInput, name: "Concorrente" }),
+  ]);
+  const received = (
+    await database.query("select * from console_company_invites where id=$1", [
+      invite.id,
+    ])
+  ).rows[0];
+  ok(
+    received.status === "submitted" &&
+      received.payload.phone === "11999991234" &&
+      received.payload.billingEmail === "financeiro@example.invalid" &&
+      !received.payload.autoIssueNfse &&
+      !received.payload.admin,
+    "Envio público único normaliza campos e ignora privilégios forjados",
+  );
+  await sendPublic({ ...submittedInput, name: "Sobrescrita indevida" });
+  ok(
+    (
+      await database.query(
+        "select payload from console_company_invites where id=$1",
+        [invite.id],
+      )
+    ).rows[0].payload.name === received.payload.name,
+    "Link utilizado não sobrescreve cadastro recebido",
+  );
+  publicPage = await request(publicPath);
+  ok(
+    publicPage.text.includes("Cadastro recebido") &&
+      !publicPage.text.includes("financeiro@example.invalid") &&
+      !publicPage.text.includes("Enviar cadastro"),
+    "Link utilizado não revela dados enviados",
+  );
+  const reviewPath = `/empresas/convites/${invite.id}`;
+  ok(
+    !(await request(reviewPath, "manager")).text.includes(
+      "financeiro@example.invalid",
+    ),
+    "Cliente não acessa revisão administrativa",
+  );
+  const approval = {
+    ...submittedInput,
+    inviteId: invite.id,
+    name: `QA Approved ${marker}`,
+    autoIssueNfse: "",
+  };
+  await submitForm(
+    reviewPath,
+    "admin",
+    "manager",
+    "Aprovar e cadastrar",
+    approval,
+  );
+  ok(
+    (
+      await database.query(
+        "select status from console_company_invites where id=$1",
+        [invite.id],
+      )
+    ).rows[0].status === "submitted",
+    "Cliente não aprova cadastro por POST direto",
+  );
+  const reviewPage = await request(reviewPath, "admin");
+  const approve = () =>
+    request(reviewPath, "admin", {
+      method: "POST",
+      body: formBody(reviewPage.text, "Aprovar e cadastrar", approval),
+      headers: { Origin: base },
+    });
+  await Promise.all([approve(), approve()]);
+  const approvedInvite = (
+    await database.query("select * from console_company_invites where id=$1", [
+      invite.id,
+    ])
+  ).rows[0];
+  assert.ok(approvedInvite.company_id);
+  companyIds.push(approvedInvite.company_id);
+  const approvedCompany = (
+    await database.query("select * from console_companies where id=$1", [
+      approvedInvite.company_id,
+    ])
+  ).rows[0];
+  ok(
+    approvedInvite.status === "approved" &&
+      approvedInvite.payload === null &&
+      approvedCompany.name === approval.name &&
+      !approvedCompany.auto_issue_nfse &&
+      approvedCompany.billing_address.cep === "01001000",
+    "Aprovação revisa dados e cadastra empresa uma única vez",
+  );
+  ok(
+    (
+      await database.query(
+        "select count(*)::int n from console_memberships where company_id=$1",
+        [approvedInvite.company_id],
+      )
+    ).rows[0].n === 0,
+    "Aprovação não concede acesso automático à empresa",
+  );
+  ok(
+    (
+      await database.query(
+        "select count(*)::int n from console_audit_events where entity_id=$1 and action='company.created'",
+        [approvedInvite.company_id],
+      )
+    ).rows[0].n === 1,
+    "Aprovação concorrente gera apenas um cadastro e auditoria",
+  );
+  const expiredToken = "e".repeat(64),
+    revokedToken = "c".repeat(64);
+  for (const [t, status, days] of [
+    [expiredToken, "open", -1],
+    [revokedToken, "revoked", 1],
+  ]) {
+    await database.query(
+      "insert into console_company_invites(id,label,token_hash,status,expires_at) values($1,$2,$3,$4,now()+$5::int*interval '1 day')",
+      [
+        randomUUID(),
+        inviteLabel,
+        createHash("sha256").update(t).digest("hex"),
+        status,
+        days,
+      ],
+    );
+    const closed = await request(`/cadastro/empresa/${t}`);
+    ok(
+      closed.text.includes("indisponível") &&
+        !closed.text.includes("Enviar cadastro"),
+      `Link ${status === "open" ? "expirado" : "cancelado"} não abre formulário`,
+    );
+  }
+  const generated2 = await submitForm(
+    "/empresas/convites",
+    "admin",
+    "admin",
+    "Gerar link",
+    { label: inviteLabel + " cancel" },
+  );
+  const token2 = generated2.text.match(
+    /cadastro\/empresa\/([a-f0-9]{64})/,
+  )?.[1];
+  assert.ok(token2);
+  const invite2 = (
+    await database.query(
+      "select * from console_company_invites where token_hash=$1",
+      [createHash("sha256").update(token2).digest("hex")],
+    )
+  ).rows[0];
+  const page2 = `/cadastro/empresa/${token2}`;
+  for (const t of [expiredToken, revokedToken])
+    await submitForm(page2, null, null, "Enviar cadastro", {
+      ...submittedInput,
+      token: t,
+    });
+  ok(
+    (
+      await database.query(
+        "select count(*)::int n from console_company_invites where label=$1 and status='submitted'",
+        [inviteLabel],
+      )
+    ).rows[0].n === 0,
+    "POST não reutiliza link expirado ou cancelado",
+  );
+  await database.query(
+    "update console_company_invites set lookup_count=40 where id=$1",
+    [invite2.id],
+  );
+  ok(
+    (
+      await request("/api/cadastro/consulta?tipo=cep&valor=01001000", null, {
+        headers: { "X-Company-Invite": token2 },
+      })
+    ).status === 403,
+    "Limite de consultas por link é aplicado no banco",
+  );
+  await submitForm(page2, null, null, "Enviar cadastro", {
+    ...submittedInput,
+    token: token2,
+  });
+  await submitForm(
+    `/empresas/convites/${invite2.id}`,
+    "admin",
+    "admin",
+    "Aprovar e cadastrar",
+    { ...approval, inviteId: invite2.id },
+  );
+  ok(
+    (
+      await database.query(
+        "select status from console_company_invites where id=$1",
+        [invite2.id],
+      )
+    ).rows[0].status === "submitted",
+    "Documento duplicado não aprova convite nem duplica empresa",
+  );
+  await submitForm(
+    `/empresas/convites/${invite2.id}`,
+    "admin",
+    "admin",
+    "Cancelar link",
+    { inviteId: invite2.id },
+  );
+  const cancelled = (
+    await database.query("select * from console_company_invites where id=$1", [
+      invite2.id,
+    ])
+  ).rows[0];
+  ok(
+    cancelled.status === "revoked" && cancelled.payload === null,
+    "Cancelar link descarta dados pendentes e bloqueia novos envios",
+  );
   await submitForm(
     `/empresas/${ids.a}`,
     "admin",
@@ -805,7 +1103,7 @@ try {
     name: `QA New ${marker}`,
     document: newDocument,
     billingEmail: "new@example.invalid",
-    phone: "",
+    phone: "(11) 99999-1234",
     ...clientAddress,
     autoIssueNfse: "yes",
   });
@@ -1228,6 +1526,11 @@ try {
     server.kill("SIGTERM");
     await new Promise((r) => server.once("exit", r));
   }
+  await database.query("delete from console_company_invites");
+  await database.query(
+    "delete from console_audit_events where actor_id=any($1::text[]) and company_id is null",
+    [Object.values(people).map((p) => p.id)],
+  );
   for (const table of [
     "console_audit_events",
     "console_invoices",

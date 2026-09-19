@@ -1,3 +1,4 @@
+import { allowInviteLookup } from "@/lib/company-invites";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { isAdministrator } from "@/lib/permissions";
@@ -9,12 +10,28 @@ const json = (data: unknown, status = 200) =>
   });
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user.emailVerified)
-    return json({ error: "Entre na Console para consultar." }, 401);
-  if (
-    !isAdministrator(session.user.email, true, process.env.CONSOLE_ADMIN_EMAIL)
-  )
-    return json({ error: "Acesso restrito à administração." }, 403);
+  const admin =
+    session?.user.emailVerified &&
+    isAdministrator(session.user.email, true, process.env.CONSOLE_ADMIN_EMAIL);
+  if (!admin) {
+    const token = request.headers.get("X-Company-Invite");
+    if (!token)
+      return json(
+        {
+          error:
+            "Acesso restrito à administração ou a um link de cadastro válido.",
+        },
+        session?.user.emailVerified ? 403 : 401,
+      );
+    if (!(await allowInviteLookup(token)))
+      return json(
+        {
+          error:
+            "Link indisponível ou limite de consultas atingido. Preencha manualmente ou solicite um novo link.",
+        },
+        403,
+      );
+  }
   const query = new URL(request.url).searchParams;
   const kind = query.get("tipo"),
     value = query.get("valor") || "";

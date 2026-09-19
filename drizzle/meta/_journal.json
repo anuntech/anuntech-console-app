@@ -50,6 +50,13 @@
       "when": 1789786429910,
       "tag": "0006_tough_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789787826510,
+      "tag": "0007_safe_lizard",
+      "breakpoints": true
     }
   ]
 }

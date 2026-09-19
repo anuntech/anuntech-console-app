@@ -21,6 +21,7 @@ import {
   scheduleTicketNotices,
 } from "./ticket-notifications";
 import { ticketLabels } from "./format";
+import { companyIdentity, companyPhone, companyEmail } from "./company-input";
 import { companyBillingInput } from "./company-billing";
 const id = z.string().uuid();
 const str = (max: number) =>
@@ -51,24 +52,7 @@ export async function createCompany(
   const actor = await getActor();
   if (!actor.admin) return blocked;
   try {
-    const input = z
-      .object({
-        name: str(160),
-        document: z
-          .string()
-          .transform((v) => v.replace(/\D/g, ""))
-          .pipe(
-            z
-              .string()
-              .regex(
-                /^(\d{11}|\d{14})$/,
-                "Informe CPF ou CNPJ com 11 ou 14 dígitos.",
-              ),
-          ),
-        billingEmail: mail,
-        phone: z.string().trim().max(30),
-      })
-      .parse(Object.fromEntries(form));
+    const input = companyIdentity.parse(Object.fromEntries(form));
     const company = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(companies)
@@ -668,8 +652,8 @@ export async function updateCompany(
       .object({
         id,
         name: str(160),
-        billingEmail: mail,
-        phone: z.string().trim().max(30),
+        billingEmail: companyEmail,
+        phone: companyPhone,
       })
       .parse(Object.fromEntries(form));
     await db.transaction(async (tx) => {

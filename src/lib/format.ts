@@ -38,6 +38,8 @@ export const auditLabels: Record<string, string> = {
   "contract.draft_updated": "Rascunho de contrato atualizado",
   "contract.published": "Contrato publicado para o cliente",
   "contract.unpublished": "Contrato retirado da área do cliente",
+  "company_invite.created": "Link de cadastro criado",
+  "company_invite.revoked": "Link de cadastro cancelado",
   "company.created": "Empresa cadastrada",
   "company.updated": "Cadastro atualizado",
   "membership.granted": "Acesso liberado ou atualizado",

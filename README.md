@@ -119,3 +119,11 @@ Cadastro e edição da empresa consultam razão social e endereço pelo CNPJ (CN
 Todos os campos permanecem editáveis e só são persistidos ao salvar. Respostas atrasadas não sobrescrevem campos editados durante a consulta. API interna exige administrador verificado, usa hosts fixos, timeout de 8 segundos e não encaminha dados de sócios ou contatos públicos. Falhas e limite do provedor deixam o preenchimento manual disponível. Sem novas credenciais ou migrações.
 
 Referências: [CNPJ.ws público](https://docs.cnpj.ws/referencia-de-api/api-publica/consultando-cnpj), [ViaCEP](https://viacep.com.br/).
+
+## Cadastro por link
+
+Em Empresas → Cadastrar empresa, a administração pode preencher o cadastro ou gerar um link individual em Links e cadastros recebidos. Link aleatório de 256 bits, apenas hash SHA-256 persistido, validade de 7 dias e um único envio. O endereço completo fica disponível para cópia somente na criação; perder o link exige cancelar e gerar outro. Envio e cancelamento concorrentes são condicionados ao estado atual no banco.
+
+O cliente não precisa de login. Preenche documento, razão social, e-mail financeiro, telefone obrigatório e endereço completo, com as mesmas buscas de CNPJ/CEP. Telefone com DDD, máscaras CPF/CNPJ e telefone, e-mail normalizado para minúsculas e validado no servidor. A busca pública exige token válido e permite no máximo 40 consultas por link. Sem envio de mensagens ao gerar um link.
+
+Dados recebidos ficam pendentes para revisão administrativa. Aprovar cria a empresa em transação, impede documento duplicado e registra auditoria; não cria usuário, associação, cobrança ou nota fiscal. Preferência fiscal é exclusiva da administração. Telefone cadastral não é verificação de WhatsApp para login. Cancelar descarta o payload pendente; aprovação move os dados para o cadastro e remove a cópia do convite. A página pública não reexibe dados já enviados. Referrer-Policy no-referrer impede que o token seja propagado em referências. Migração 0007 adiciona convites sem alterar clientes existentes.
