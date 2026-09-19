@@ -1,30 +1,76 @@
 import { Notification } from "@/components/notifications";
 import CrudInvoiceManager from "@/components/crud-invoice-manager";
 import { saoPauloDate } from "@/lib/dates";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, ilike, or, count } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { invoices, companies } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Heading } from "@/components/ui";
-export default async function Finance() {
+import { invoiceQuery, type InvoiceStatusFilter } from "@/lib/invoice-table";
+export default async function Finance({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = invoiceQuery(await searchParams);
+  const today = saoPauloDate();
   const actor = await getActor();
   const ids = allowedIds(actor, "finance");
+  const access = actor.admin
+    ? sql`true`
+    : ids.length
+      ? and(
+          inArray(invoices.companyId, ids),
+          inArray(invoices.status, ["issued", "paid"]),
+        )
+      : sql`false`;
+  const search = query.search.replace(/[\\%_]/g, "\\$&");
+  const scope = and(
+    access,
+    search
+      ? or(
+          ilike(invoices.description, `%${search}%`),
+          ilike(companies.name, `%${search}%`),
+        )
+      : undefined,
+  );
+  const displayStatus = sql<string>`case when ${invoices.status} = 'issued' and ${invoices.dueDate} < ${today} then 'overdue' else ${invoices.status} end`;
+  const grouped = await db
+    .select({ status: displayStatus, count: count() })
+    .from(invoices)
+    .innerJoin(companies, eq(companies.id, invoices.companyId))
+    .where(scope)
+    .groupBy(sql`1`);
+  const counts: Record<InvoiceStatusFilter, number> = {
+    all: 0,
+    issued: 0,
+    overdue: 0,
+    paid: 0,
+    draft: 0,
+    cancelled: 0,
+  };
+  for (const row of grouped) {
+    counts[row.status as InvoiceStatusFilter] = row.count;
+    counts.all += row.count;
+  }
+  const total = counts[query.status];
+  const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
+  const page = Math.min(query.page, pageCount);
   const rows = await db
     .select({ invoice: invoices, company: companies.name })
     .from(invoices)
     .innerJoin(companies, eq(companies.id, invoices.companyId))
     .where(
-      actor.admin
-        ? sql`true`
-        : ids.length
-          ? and(
-              inArray(invoices.companyId, ids),
-              inArray(invoices.status, ["issued", "paid"]),
-            )
-          : sql`false`,
+      and(
+        scope,
+        query.status !== "all"
+          ? sql`${displayStatus} = ${query.status}`
+          : undefined,
+      ),
     )
-    .orderBy(desc(invoices.createdAt))
-    .limit(200);
+    .orderBy(desc(invoices.createdAt), desc(invoices.id))
+    .limit(query.pageSize)
+    .offset((page - 1) * query.pageSize);
   return (
     <>
       <Heading
@@ -43,13 +89,17 @@ export default async function Finance() {
       />
       {actor.admin && (
         <Notification
-          message="Crie um rascunho e abra a fatura para emitir manualmente no Inter. Consulte a cobrança para atualizar o pagamento. Emissão fiscal aguarda configuração."
+          message="Crie um rascunho e abra a fatura para emitir manualmente no Inter. Pagamentos são verificados automaticamente a cada cinco minutos. Emissão fiscal aguarda configuração."
           id="finance-info"
         />
       )}
       <CrudInvoiceManager
         admin={actor.admin}
-        today={saoPauloDate()}
+        today={today}
+        query={{ ...query, page }}
+        counts={counts}
+        total={total}
+        pageCount={pageCount}
         invoices={rows.map(({ invoice, company }) => ({
           id: invoice.id,
           description: invoice.description,
@@ -60,9 +110,6 @@ export default async function Finance() {
           createdDate: saoPauloDate(invoice.createdAt),
         }))}
       />
-      {rows.length === 200 && (
-        <p className="muted">Exibindo as 200 faturas mais recentes.</p>
-      )}
     </>
   );
 }

@@ -66,7 +66,7 @@ A opção `autoIssueNfse` é individual por empresa e começa desativada, inclus
 
 Anexos de PDF/PNG/JPEG ficam no banco, com download privado: até 1 MB cada e 20 por chamado. A leitura exige a mesma permissão de atendimento do chamado. Para volume maior, migrar o conteúdo para armazenamento privado dedicado.
 
-Listagens de chamados e faturas exibem até 200 itens recentes. Ainda não há filtros/paginação avançada, edição de cobrança emitida, estorno, baixa manual ou cancelamento bancário.
+Chamados exibem até 200 itens recentes. Faturas têm paginação no servidor (10, 25, 50 ou 100 por página), busca por cliente/descrição e abas por situação com contagens autorizadas. Filtros e página ficam na URL; alterar filtros volta à primeira página. A tabela usa como referência crud-data-table do shadcn.io, sem totais monetários no cabeçalho/rodapé. Ainda não há edição de cobrança emitida, estorno, baixa manual ou cancelamento bancário.
 
 Antes de receber clientes reais, separar desenvolvimento/produção no Neon e concluir testes do OAuth Google e dos provedores financeiros em homologação.
 

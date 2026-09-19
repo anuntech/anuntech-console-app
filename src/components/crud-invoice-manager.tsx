@@ -1,14 +1,23 @@
 "use client";
 
-// Adapted from shadcn.io/blocks/crud-invoice-manager to Console's billing flow.
+// Adapted from shadcn.io/blocks/crud-data-table and crud-invoice-manager.
 import Link from "next/link";
-import { Copy, Eye, MoreVertical } from "lucide-react";
-import { useState } from "react";
+import {
+  Copy,
+  Eye,
+  MoreVertical,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { toast } from "sonner";
 import { currency, dateLabel } from "@/lib/format";
 import {
   invoiceDisplayStatus,
+  invoiceListHref,
+  type InvoiceStatusFilter,
   type InvoiceDisplayStatus,
   type InvoiceTableStatus,
 } from "@/lib/invoice-table";
@@ -24,7 +33,7 @@ export interface InvoiceTableRow {
   createdDate: string;
 }
 
-type StatusFilter = "all" | InvoiceDisplayStatus;
+type StatusFilter = InvoiceStatusFilter;
 const labels: Record<StatusFilter, string> = {
   all: "Todas",
   paid: "Pagas",
@@ -45,24 +54,30 @@ export default function CrudInvoiceManager({
   invoices,
   today,
   admin,
+  query,
+  counts,
+  total,
+  pageCount,
 }: {
   invoices: InvoiceTableRow[];
   today: string;
   admin: boolean;
+  query: {
+    status: StatusFilter;
+    search: string;
+    page: number;
+    pageSize: number;
+  };
+  counts: Record<StatusFilter, number>;
+  total: number;
+  pageCount: number;
 }) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const router = useRouter();
   const filters: StatusFilter[] = admin
-    ? ["all", "paid", "issued", "overdue", "draft", "cancelled"]
-    : ["all", "paid", "issued", "overdue"];
-  const filteredInvoices = invoices.filter(
-    (invoice) =>
-      statusFilter === "all" ||
-      invoiceDisplayStatus(invoice, today) === statusFilter,
-  );
-  const totalAmount = filteredInvoices.reduce(
-    (sum, invoice) => sum + invoice.amountCents,
-    0,
-  );
+    ? ["all", "issued", "overdue", "paid", "draft", "cancelled"]
+    : ["all", "issued", "overdue", "paid"];
+  const href = (patch: Partial<typeof query>) =>
+    invoiceListHref({ ...query, ...patch });
 
   async function copyLink(id: string) {
     try {
@@ -79,39 +94,42 @@ export default function CrudInvoiceManager({
 
   return (
     <section className={styles.manager} aria-label="Lista de faturas">
-      <div className={styles.header}>
-        <h2>Faturas</h2>
-        <div className={styles.summary} aria-live="polite" aria-atomic="true">
-          <span>Total da seleção</span>
-          <strong>{currency(totalAmount)}</strong>
-        </div>
-      </div>
-      <div
-        className={styles.filters}
-        role="group"
-        aria-label="Filtrar faturas por situação"
-      >
+      <nav className={styles.filters} aria-label="Filtrar faturas por situação">
         {filters.map((status) => (
-          <button
+          <Link
             key={status}
-            type="button"
-            aria-pressed={statusFilter === status}
-            onClick={() => setStatusFilter(status)}
+            href={href({ status, page: 1 })}
+            aria-current={query.status === status ? "page" : undefined}
+            scroll={false}
           >
-            {labels[status]}{" "}
-            <span>
-              (
-              {status === "all"
-                ? invoices.length
-                : invoices.filter(
-                    (invoice) =>
-                      invoiceDisplayStatus(invoice, today) === status,
-                  ).length}
-              )
-            </span>
-          </button>
+            {labels[status]} <span>{counts[status]}</span>
+          </Link>
         ))}
-      </div>
+      </nav>
+      <form action="/financeiro" className={styles.toolbar} role="search">
+        <input type="hidden" name="status" value={query.status} />
+        <input type="hidden" name="size" value={query.pageSize} />
+        <div className={styles.search}>
+          <Search size={16} aria-hidden="true" />
+          <input
+            key={query.search}
+            type="search"
+            name="q"
+            defaultValue={query.search}
+            placeholder="Buscar cliente ou descrição..."
+            aria-label="Buscar faturas por cliente ou descrição"
+            maxLength={160}
+          />
+        </div>
+        <button type="submit" className={styles.control}>
+          Buscar
+        </button>
+        {query.search && (
+          <Link className={styles.clear} href={href({ search: "", page: 1 })}>
+            Limpar busca
+          </Link>
+        )}
+      </form>
       <div className={styles.scroll}>
         <table className={styles.table}>
           <thead>
@@ -129,7 +147,7 @@ export default function CrudInvoiceManager({
             </tr>
           </thead>
           <tbody>
-            {filteredInvoices.map((invoice) => {
+            {invoices.map((invoice) => {
               const status = invoiceDisplayStatus(invoice, today);
               return (
                 <tr key={invoice.id}>
@@ -200,12 +218,10 @@ export default function CrudInvoiceManager({
                 </tr>
               );
             })}
-            {!filteredInvoices.length && (
+            {!invoices.length && (
               <tr>
                 <td colSpan={6} className={styles.empty}>
-                  {invoices.length
-                    ? "Nenhuma fatura nesta situação."
-                    : "Nenhuma fatura disponível."}
+                  Nenhuma fatura encontrada. Tente outra situação ou busca.
                 </td>
               </tr>
             )}
@@ -213,10 +229,65 @@ export default function CrudInvoiceManager({
         </table>
       </div>
       <div className={styles.footer}>
+        <label className={styles.pageSize}>
+          Por página
+          <select
+            aria-label="Faturas por página"
+            value={query.pageSize}
+            onChange={(event) =>
+              router.push(
+                href({ pageSize: Number(event.target.value), page: 1 }),
+                { scroll: false },
+              )
+            }
+          >
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
         <span aria-live="polite">
-          Exibindo {filteredInvoices.length} de {invoices.length} faturas
+          {total
+            ? `${(query.page - 1) * query.pageSize + 1}–${Math.min(query.page * query.pageSize, total)} de ${total} faturas`
+            : "0 faturas"}
         </span>
-        <strong>Total: {currency(totalAmount)}</strong>
+        <nav className={styles.pagination} aria-label="Paginação de faturas">
+          {query.page > 1 ? (
+            <Link
+              className={styles.control}
+              href={href({ page: query.page - 1 })}
+              scroll={false}
+            >
+              <ChevronLeft size={15} aria-hidden="true" />
+              Anterior
+            </Link>
+          ) : (
+            <button className={styles.control} disabled>
+              <ChevronLeft size={15} aria-hidden="true" />
+              Anterior
+            </button>
+          )}
+          <span>
+            Página {query.page} de {pageCount}
+          </span>
+          {query.page < pageCount ? (
+            <Link
+              className={styles.control}
+              href={href({ page: query.page + 1 })}
+              scroll={false}
+            >
+              Próxima
+              <ChevronRight size={15} aria-hidden="true" />
+            </Link>
+          ) : (
+            <button className={styles.control} disabled>
+              Próxima
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+          )}
+        </nav>
       </div>
     </section>
   );
