@@ -1,3 +1,4 @@
+import { Notifications } from "@/components/notifications";
 import type { Metadata } from "next";
 import "@daypicker/react/style.css";
 import "./globals.css";
@@ -11,7 +12,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Notifications />
+      </body>
     </html>
   );
 }

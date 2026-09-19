@@ -1,4 +1,5 @@
 "use client";
+import { Notification, toast } from "./notifications";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -80,12 +81,18 @@ export function WhatsappAccount({ phone }: { phone: string | null }) {
             className="button"
             disabled={busy}
             onClick={() => {
-              if (
-                window.confirm(
-                  "Desvincular este WhatsApp? Você poderá continuar entrando por e-mail.",
-                )
-              )
-                void act("remove");
+              toast.warning(
+                "Desvincular este WhatsApp? Você poderá continuar entrando por e-mail.",
+                {
+                  id: "unlink-whatsapp",
+                  duration: Infinity,
+                  action: {
+                    label: "Desvincular",
+                    onClick: () => void act("remove"),
+                  },
+                  cancel: { label: "Cancelar", onClick: () => {} },
+                },
+              );
             }}
           >
             Desvincular WhatsApp
@@ -166,16 +173,8 @@ export function WhatsappAccount({ phone }: { phone: string | null }) {
           )}
         </form>
       )}
-      {error && (
-        <p className="alert error" role="alert">
-          {error}
-        </p>
-      )}
-      {message && (
-        <p className="alert" role="status">
-          {message}
-        </p>
-      )}
+      {error && <Notification kind="error" message={error} />}
+      {message && <Notification kind="success" message={message} />}
     </section>
   );
 }

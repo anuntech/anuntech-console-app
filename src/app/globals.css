@@ -1267,13 +1267,6 @@ tr:last-child td {
   padding: 4px 8px;
 }
 
-.lookup-button {
-  align-self: flex-start;
-}
-.lookup-status {
-  font-size: 13px;
-}
-
 .registration-page {
   max-width: 780px;
   margin: 0 auto;
@@ -1286,4 +1279,27 @@ tr:last-child td {
   font-weight: 700;
   font-size: 22px;
   margin-bottom: 24px;
+}
+
+[data-sonner-toast].console-toast {
+  font-family: "Sofia", sans-serif;
+  border-radius: 12px;
+  font-size: 14px;
+  box-shadow: 0 8px 28px #10244a18;
+}
+.console-toast-description {
+  line-height: 1.5;
+}
+.toast-spinner {
+  animation: toast-spin 1s linear infinite;
+}
+@keyframes toast-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-spinner {
+    animation: none;
+  }
 }

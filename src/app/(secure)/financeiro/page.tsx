@@ -1,3 +1,4 @@
+import { Notification } from "@/components/notifications";
 import Link from "next/link";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -41,11 +42,10 @@ export default async function Finance() {
         }
       />
       {actor.admin && (
-        <p className="alert">
-          Crie um rascunho e abra a fatura para emitir manualmente no Inter.
-          Consulte a cobrança para atualizar o pagamento. Emissão fiscal aguarda
-          configuração.
-        </p>
+        <Notification
+          message="Crie um rascunho e abra a fatura para emitir manualmente no Inter. Consulte a cobrança para atualizar o pagamento. Emissão fiscal aguarda configuração."
+          id="finance-info"
+        />
       )}
       <section className="panel">
         {rows.length ? (

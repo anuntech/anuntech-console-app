@@ -1,4 +1,5 @@
 "use client";
+import { Notification, toast } from "./notifications";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
@@ -34,11 +35,7 @@ export function GoogleButton() {
         {pending ? "Conectando…" : "Continuar com Google"}
         <ArrowRight size={17} />
       </button>
-      {error && (
-        <p role="alert" className="alert error">
-          {error}
-        </p>
-      )}
+      {error && <Notification kind="error" message={error} />}
     </>
   );
 }
@@ -56,6 +53,7 @@ export function SignOutButton() {
           try {
             const result = await authClient.signOut();
             if (result.error) throw Error();
+            toast.success("Você saiu da Console.");
             router.replace("/entrar");
             router.refresh();
           } catch {
@@ -68,7 +66,10 @@ export function SignOutButton() {
         {pending ? "Saindo…" : "Sair"}
       </button>
       {error && (
-        <small role="alert">Não foi possível sair. Tente novamente.</small>
+        <Notification
+          kind="error"
+          message="Não foi possível sair. Tente novamente."
+        />
       )}
     </>
   );

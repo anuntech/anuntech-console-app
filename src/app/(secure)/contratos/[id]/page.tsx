@@ -1,3 +1,4 @@
+import { DownloadLink } from "@/components/download-link";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -45,14 +46,20 @@ export default async function Contract({
           {published ? `Publicado · versão ${c.publishedVersion}` : "Rascunho"}
         </Badge>
         {published && (
-          <a className="button primary" href={`/api/contratos/${id}/pdf`}>
+          <DownloadLink
+            className="button primary"
+            href={`/api/contratos/${id}/pdf`}
+          >
             Baixar PDF
-          </a>
+          </DownloadLink>
         )}
         {actor.admin && (
-          <a className="button" href={`/api/contratos/${id}/pdf?draft=1`}>
+          <DownloadLink
+            className="button"
+            href={`/api/contratos/${id}/pdf?draft=1`}
+          >
             Baixar PDF do rascunho
-          </a>
+          </DownloadLink>
         )}
       </div>
       {actor.admin && (

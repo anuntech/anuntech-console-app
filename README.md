@@ -127,3 +127,11 @@ Em Empresas → Cadastrar empresa, a administração pode preencher o cadastro o
 O cliente não precisa de login. Preenche documento, razão social, e-mail financeiro, telefone obrigatório e endereço completo, com as mesmas buscas de CNPJ/CEP. Telefone com DDD, máscaras CPF/CNPJ e telefone, e-mail normalizado para minúsculas e validado no servidor. A busca pública exige token válido e permite no máximo 40 consultas por link. Sem envio de mensagens ao gerar um link.
 
 Dados recebidos ficam pendentes para revisão administrativa. Aprovar cria a empresa em transação, impede documento duplicado e registra auditoria; não cria usuário, associação, cobrança ou nota fiscal. Preferência fiscal é exclusiva da administração. Telefone cadastral não é verificação de WhatsApp para login. Cancelar descarta o payload pendente; aprovação move os dados para o cadastro e remove a cópia do convite. A página pública não reexibe dados já enviados. Referrer-Policy no-referrer impede que o token seja propagado em referências. Migração 0007 adiciona convites sem alterar clientes existentes.
+
+## Notificações de interface
+
+Sonner do catálogo shadcn.io, consultado pelo MCP shadcnio e adaptado em src/components/ui/sonner.tsx ao tema claro e à fonte Sofia da Console, sem reconfigurar a identidade visual. Toaster global mantém avisos entre navegações. Formulários, login, WhatsApp, cópia de convite, consultas de CNPJ/CEP e downloads usam notificações de sucesso, erro, informação ou carregamento. Erros de validação nativa viram uma notificação em português com foco no primeiro campo inválido. Confirmação de desvinculação do WhatsApp usa notificação com ações explícitas.
+
+CNPJ e CEP consultam automaticamente após completar os dígitos e 650ms de pausa; não há botões de busca. Cancelar/alterar a consulta descarta resposta e notificação obsoletas. Feedback de salvamento permanece em noscript para navegadores sem JavaScript. Histórico e informações permanentes continuam como conteúdo da página, sem disparar mensagens históricas como eventos novos. Falhas de página têm aviso genérico e botão de tentar novamente.
+
+Origem do componente: https://www.shadcn.io/ui/sonner. O MCP já estava conectado; nenhum token/configuração privada foi incluído no repositório.

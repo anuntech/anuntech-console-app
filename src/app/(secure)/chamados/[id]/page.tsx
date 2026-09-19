@@ -1,3 +1,5 @@
+import { DownloadLink } from "@/components/download-link";
+import { Notification } from "@/components/notifications";
 import { eq, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
@@ -85,7 +87,10 @@ export default async function Ticket({
                 </Field>
               </ActionForm>
             ) : (
-              <p className="alert">Este chamado foi encerrado.</p>
+              <Notification
+                message="Este chamado foi encerrado."
+                id="ticket-closed"
+              />
             )}
           </div>
         </section>
@@ -121,13 +126,17 @@ export default async function Ticket({
             </p>
             <div className="attachment-list">
               {files.map((f) => (
-                <a key={f.id} href={`/api/anexos/${f.id}`}>
+                <DownloadLink
+                  key={f.id}
+                  href={`/api/anexos/${f.id}`}
+                  filename={f.name}
+                >
                   <Paperclip size={15} />
                   <span>
                     {f.name}
                     <small>{Math.ceil(f.size / 1024)} KB</small>
                   </span>
-                </a>
+                </DownloadLink>
               ))}
             </div>
             {t.status !== "closed" && (

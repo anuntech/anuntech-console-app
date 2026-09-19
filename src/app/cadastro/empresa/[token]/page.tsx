@@ -1,3 +1,4 @@
+import { Notification } from "@/components/notifications";
 import { findCompanyInvite } from "@/lib/company-invites";
 import { submitCompanyInvite } from "@/lib/company-invite-actions";
 import { ActionForm } from "@/components/action-form";
@@ -30,11 +31,22 @@ export default async function PublicCompanyRegistration({
             </ActionForm>
           </>
         ) : (
-          <p role="status">
-            {sent
-              ? "Cadastro recebido. A Anuntech dará continuidade à revisão. Não é necessário enviar novamente."
-              : "Este link está indisponível ou expirou. Solicite um novo link à Anuntech."}
-          </p>
+          <>
+            <Notification
+              kind={sent ? "success" : "warning"}
+              id="registration-state"
+              message={
+                sent
+                  ? "Cadastro recebido. A Anuntech dará continuidade à revisão."
+                  : "Link indisponível ou expirado. Solicite um novo link à Anuntech."
+              }
+            />
+            <p>
+              {sent
+                ? "Cadastro recebido. A Anuntech dará continuidade à revisão. Não é necessário enviar novamente."
+                : "Este link está indisponível ou expirou. Solicite um novo link à Anuntech."}
+            </p>
+          </>
         )}
       </section>
     </main>

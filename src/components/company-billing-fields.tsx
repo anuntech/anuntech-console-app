@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "./notifications";
 import { NumberFormatBase } from "react-number-format";
 import {
   formatDocument,
@@ -53,16 +54,17 @@ export function CompanyBillingFields({
   const active = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState<LookupKind | null>(null);
+  const notice = useRef<string | number | undefined>(undefined);
   const cancel = () => {
     active.current?.abort();
+    if (notice.current !== undefined) toast.dismiss(notice.current);
     generation.current++;
     if (timer.current) clearTimeout(timer.current);
   };
   useEffect(
     () => () => {
       active.current?.abort();
+      if (notice.current !== undefined) toast.dismiss(notice.current);
       if (timer.current) clearTimeout(timer.current);
     },
     [],
@@ -74,8 +76,10 @@ export function CompanyBillingFields({
     const sequence = generation.current;
     const controller = new AbortController();
     active.current = controller;
-    setBusy(kind);
-    setMessage(`Consultando ${kind === "cnpj" ? "CNPJ" : "CEP"}…`);
+    const noticeId = toast.loading(
+      `Consultando ${kind === "cnpj" ? "CNPJ" : "CEP"}…`,
+    );
+    notice.current = noticeId;
     try {
       const res = await fetch(
         `/api/cadastro/consulta?tipo=${kind}&valor=${value}`,
@@ -87,8 +91,9 @@ export function CompanyBillingFields({
       const data = await res.json();
       if (sequence !== generation.current) return;
       if (!res.ok) {
-        setMessage(
+        toast.error(
           data.error || "Não foi possível consultar. Preencha manualmente.",
+          { id: noticeId, duration: 10000 },
         );
         return;
       }
@@ -101,18 +106,18 @@ export function CompanyBillingFields({
       );
       current.current = merged;
       setValues(merged);
-      setMessage(
+      toast.success(
         kind === "cnpj"
           ? "Dados encontrados. Revise o cadastro antes de salvar."
           : "Endereço encontrado. Confira número, complemento e os campos que faltarem antes de salvar.",
+        { id: noticeId, duration: 6000 },
       );
     } catch {
       if (!controller.signal.aborted)
-        setMessage(
+        toast.error(
           "Não foi possível consultar. Você pode preencher os dados manualmente.",
+          { id: noticeId, duration: 10000 },
         );
-    } finally {
-      if (sequence === generation.current) setBusy(null);
     }
   }
   function change(key: string, value: string) {
@@ -122,8 +127,7 @@ export function CompanyBillingFields({
     setValues(next);
     if (key === "document" || key === "cep") {
       cancel();
-      setBusy(null);
-      setMessage("");
+
       const kind = key === "document" ? "cnpj" : "cep";
       if (digits(value).length === (kind === "cnpj" ? 14 : 8)) {
         const before = { ...edits.current };
@@ -162,14 +166,6 @@ export function CompanyBillingFields({
           value={values.document}
         />
       </Field>
-      <button
-        type="button"
-        className="button lookup-button"
-        disabled={busy !== null || digits(values.document).length !== 14}
-        onClick={() => void lookup("cnpj")}
-      >
-        Buscar dados do CNPJ
-      </button>
       <Field label="Nome ou razão social">
         <input
           name="name"
@@ -231,18 +227,6 @@ export function CompanyBillingFields({
           onChange={handleChange}
         />
       </Field>
-      <button
-        type="button"
-        className="button lookup-button"
-        disabled={busy !== null || digits(values.cep).length !== 8}
-        onClick={() => void lookup("cep")}
-      >
-        Buscar endereço pelo CEP
-      </button>
-      <p role="status" aria-live="polite" className="muted lookup-status">
-        {message ||
-          "Os dados consultados só serão salvos quando você confirmar o cadastro."}
-      </p>
       <Field label="Endereço">
         <input
           name="endereco"

@@ -1,10 +1,15 @@
 "use client";
-import { useActionState, useState } from "react";
+import { useActionState, useState, useEffect } from "react";
 import { createCompanyInvite } from "@/lib/company-invite-actions";
+import { toast } from "./notifications";
 import { Field } from "./ui";
 export function CompanyInviteLink() {
   const [state, action, pending] = useActionState(createCompanyInvite, {});
   const [copied, setCopied] = useState("");
+  useEffect(() => {
+    if (state.error) toast.error(state.error);
+    if (state.success) toast.success(state.success);
+  }, [state]);
   return (
     <form action={action} className="form">
       <Field
@@ -16,14 +21,8 @@ export function CompanyInviteLink() {
       <button className="button primary" disabled={pending}>
         {pending ? "Gerando…" : "Gerar link para o cliente"}
       </button>
-      {state.error && (
-        <p role="alert" className="alert error">
-          {state.error}
-        </p>
-      )}
       {state.link && (
         <>
-          <p role="status">{state.success}</p>
           <Field label="Link de cadastro">
             <input
               readOnly
@@ -38,14 +37,17 @@ export function CompanyInviteLink() {
               try {
                 await navigator.clipboard.writeText(state.link!);
                 setCopied(state.link!);
+                toast.success("Link copiado.");
               } catch {
-                setCopied("error");
+                toast.error(
+                  "Não foi possível copiar. Selecione e copie o link acima.",
+                );
               }
             }}
           >
             {copied === state.link ? "Link copiado" : "Copiar link"}
           </button>
-          {copied === "error" && <p>Selecione e copie o link acima.</p>}
+
           <p className="muted">
             Copie antes de sair desta página. Por segurança, o link completo só
             aparece aqui; se perder, cancele-o e gere outro.

@@ -1,4 +1,5 @@
 "use client";
+import { Notification, toast } from "./notifications";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -48,6 +49,9 @@ export function OtpLogin() {
         );
         return;
       }
+      toast.info(
+        `Se o acesso estiver autorizado, você receberá um código ${mode === "email" ? "no seu e-mail" : "no seu WhatsApp"}. Ele vale por 5 minutos.`,
+      );
       setSent(true);
       setCode("");
       startCooldown();
@@ -77,6 +81,7 @@ export function OtpLogin() {
         );
         return;
       }
+      toast.success("Acesso confirmado.");
       router.replace("/painel");
       router.refresh();
     } catch {
@@ -137,11 +142,6 @@ export function OtpLogin() {
         </Field>
         {sent && (
           <>
-            <p className="auth-hint" role="status">
-              Se o acesso estiver autorizado, você receberá um código{" "}
-              {mode === "email" ? "no seu e-mail" : "no seu WhatsApp"}. Ele vale
-              por 5 minutos.
-            </p>
             <Field label="Código de acesso">
               <input
                 autoFocus
@@ -158,11 +158,7 @@ export function OtpLogin() {
             </Field>
           </>
         )}
-        {error && (
-          <p className="alert error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <Notification kind="error" message={error} />}
         <button
           className="button primary"
           disabled={busy || (!sent && seconds > 0)}

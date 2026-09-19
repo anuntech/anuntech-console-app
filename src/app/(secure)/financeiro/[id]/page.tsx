@@ -1,3 +1,4 @@
+import { DownloadLink } from "@/components/download-link";
 import Link from "next/link";
 import { addressLabel } from "@/lib/company-billing";
 import { eq } from "drizzle-orm";
@@ -62,9 +63,12 @@ export default async function Invoice({
             <Field label="Linha digitável">
               <input readOnly value={i.boletoLine} />
             </Field>
-            <a className="button primary" href={`/api/boletos/${i.id}`}>
+            <DownloadLink
+              className="button primary"
+              href={`/api/boletos/${i.id}`}
+            >
               Baixar boleto PDF
-            </a>
+            </DownloadLink>
           </>
         )}
         {actor.admin && i.bankRequest && (

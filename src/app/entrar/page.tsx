@@ -1,3 +1,4 @@
+import { Notification } from "@/components/notifications";
 import { OtpLogin } from "@/components/otp-login";
 import { Brand } from "@/components/brand";
 export default async function SignIn({
@@ -33,10 +34,11 @@ export default async function SignIn({
             Use o e-mail que recebeu acesso à sua empresa.
           </p>
           {(query.erro || query.error) && (
-            <p role="alert" className="alert error">
-              Não foi possível concluir o acesso. Confira se está usando o
-              e-mail autorizado e tente novamente.
-            </p>
+            <Notification
+              kind="error"
+              id="login-error"
+              message="Não foi possível concluir o acesso. Confira se está usando o e-mail autorizado e tente novamente."
+            />
           )}
           <OtpLogin />
           <p className="login-help">
