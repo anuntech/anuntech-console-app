@@ -15,6 +15,7 @@ Portal de clientes da Anuntech para produtos, projetos, atendimento e financeiro
 - Diagnóstico de autenticação Inter, Focus NFe e canais FLW em Configurações (admin).
 - Aviso de acesso manual via Resend, com idempotência e registro da tentativa.
 - Histórico de operações no banco.
+- Avisos automáticos de movimentações de chamados por e-mail e WhatsApp para a administração, com fila persistida e histórico.
 
 ## Executar
 
@@ -40,7 +41,7 @@ npm run build
 npm run test:integration
 ```
 
-O teste de integração requer build prévio e uma conexão PostgreSQL com permissão de criar banco. Cria um banco descartável separado, aplica as migrações, testa autenticação e permissões por HTTP e remove o banco ao terminar. Os provedores Resend, FLW e Inter são simulados; nenhuma mensagem ou cobrança real é enviada. Os scripts recusam bancos fora do padrão temporário. O teste de OAuth verifica apenas o redirecionamento. No CI, a suíte de autenticação roda em PostgreSQL temporário.
+O teste de integração requer build prévio e uma conexão PostgreSQL com permissão de criar banco. Cria um banco descartável separado, aplica as migrações, testa autenticação e permissões por HTTP e remove o banco ao terminar. Os provedores Resend, FLW e Inter são simulados; nenhuma mensagem ou cobrança real é enviada. Os scripts recusam bancos fora do padrão temporário. O teste de OAuth verifica apenas o redirecionamento. No CI, as suítes completas rodam em PostgreSQL temporário. O certificado usado no teste Inter é gerado localmente para a simulação e removido ao final.
 
 ## Estrutura
 
@@ -86,3 +87,13 @@ O e-mail autorizado pode entrar sem conta Google. Código de 6 dígitos, validad
 Para WhatsApp, entre por e-mail ou Google e abra Minha conta. Vinculação e remoção exigem sessão criada nos últimos 10 minutos; confirme o número com código enviado pelo FLW. Depois, o número verificado pode ser usado na tela de entrada. Configure FLW_SENDER_NUMBER (DDI e DDD, somente dígitos) e FLW_OTP_TEMPLATE_ID (modelo AUTHENTICATION aprovado). Nenhum usuário é criado a partir de um telefone não vinculado.
 
 Os testes automatizados cobrem os fluxos e proteções com provedores simulados. A entrega efetiva na caixa de e-mail e no WhatsApp deve ser confirmada pelo destinatário ao solicitar um código.
+
+## Avisos de chamados
+
+Abertura, resposta, anexo, mudança de situação (incluindo encerramento/reabertura) ou responsável criam avisos na mesma transação do evento de auditoria. Salvar sem mudança ou uma ação recusada não dispara aviso. Atualmente o único destinatário é CONSOLE_ADMIN_EMAIL, conforme solicitado; o WhatsApp é o número verificado desse usuário. Clientes não recebem estes avisos internos.
+
+O e-mail descreve a movimentação e aponta para o chamado. O WhatsApp usa FLW_TICKET_TEMPLATE_ID com o parâmetro [nome_do_cliente] preenchido com o nome da empresa cliente. Modelo em análise permanece aguardando, sem bloquear e-mail. Aprovação é conferida antes do POST.
+
+Processamento imediato via after e retomada a cada 5 minutos por cron Vercel protegido por CRON_SECRET. A fila é bloqueada por registro para evitar workers concorrentes enviando a mesma tentativa. Resend usa chave idempotente e conteúdo persistido. Envio incerto ao FLW não é repetido automaticamente, porque senderId é somente um identificador de correlação documentado. WhatsApp aceito é consultado até confirmação de entrega, falha ou 23 horas; aceite do Resend não é apresentado como entrega.
+
+Tentativas pendentes expiram após 23 horas para manter as retentativas dentro do prazo de idempotência. Erros e respostas incertas ficam disponíveis em Configurações → Avisos de chamados. Remover/trocar o WhatsApp ou administrador cancela o destinatário antigo ainda pendente. Nenhum histórico anterior à implantação é reenviado.

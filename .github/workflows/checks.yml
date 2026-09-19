@@ -35,4 +35,4 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - run: node scripts/test-isolated.mjs --otp-only
+      - run: node scripts/test-isolated.mjs

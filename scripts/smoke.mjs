@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import pg from "pg";
 import { serializeSignedCookie } from "better-call";
 assert.match(
@@ -27,6 +30,23 @@ const ids = {
   attachment: randomUUID(),
 };
 const people = {};
+const noticeDir = mkdtempSync(join(tmpdir(), "console-notices-"));
+const noticeFile = join(noticeDir, "messages.jsonl"),
+  noticeFlags = join(noticeDir, "flags.json");
+const flags = (value) =>
+  writeFileSync(noticeFlags, JSON.stringify(value), { mode: 0o600 });
+const sentNotices = () => {
+  try {
+    return readFileSync(noticeFile, "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map(JSON.parse);
+  } catch {
+    return [];
+  }
+};
+flags({ approved: true });
 let server;
 let logs = "";
 let passed = 0;
@@ -169,6 +189,10 @@ try {
       Buffer.from("%PDF-test"),
     ],
   );
+  await database.query(
+    "update console_user set phone_number=$1,phone_number_verified=true where id=$2",
+    ["+5511999990001", people.admin.id],
+  );
   server = spawn(
     process.execPath,
     [
@@ -184,7 +208,15 @@ try {
         ...process.env,
         CONSOLE_ADMIN_EMAIL: adminEmail,
         BETTER_AUTH_URL: base,
-        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs`,
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs`,
+        CONSOLE_TEST_NOTICE_FILE: noticeFile,
+        CONSOLE_TEST_NOTICE_FLAGS: noticeFlags,
+        CRON_SECRET: "test-cron-secret",
+        FLW_TICKET_TEMPLATE_ID: "test-ticket-template",
+        FLW_SYNOVA: "test",
+        FLW_SENDER_NUMBER: "551151073435",
+        RESEND_API_KEY: "test",
+        EMAIL_FROM: "Console <test@example.invalid>",
         INTER_API_BASE_URL: "https://cdpj.partners.bancointer.com.br",
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -531,6 +563,200 @@ try {
         base + "/api/auth/callback/google",
     "OAuth Google gera callback do ambiente correto",
   );
+  async function drain() {
+    const r = await fetch(base + "/api/cron/ticket-notifications", {
+      headers: { Authorization: "Bearer test-cron-secret" },
+    });
+    assert.equal(r.status, 200, "Cron autorizado");
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const active = (
+        await database.query(
+          "select count(*)::int n from console_ticket_notices where status='processing'",
+        )
+      ).rows[0].n;
+      if (!active) return;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw Error("Worker de notificação não terminou");
+  }
+  const noticeRows = async () =>
+    (
+      await database.query(
+        "select * from console_ticket_notices where ticket_id=$1 order by created_at",
+        [created.id],
+      )
+    ).rows;
+  await drain();
+  let notices = await noticeRows();
+  ok(
+    notices.length === 6,
+    "Abertura, resposta e anexo geram um aviso por canal",
+  );
+  ok(
+    notices.every(
+      (n) =>
+        n.destination ===
+        (n.channel === "email" ? adminEmail : "+5511999990001"),
+    ),
+    "Avisos vão somente ao administrador interno, nunca aos clientes",
+  );
+  ok(
+    notices.every((n) => n.status === "accepted"),
+    "Aceite do provedor é registrado sem afirmar entrega",
+  );
+  const whatsappPayloads = sentNotices().filter(
+    (n) => n.channel === "whatsapp",
+  );
+  ok(
+    whatsappPayloads.every(
+      (n) =>
+        n.payload.templateId === "test-ticket-template" &&
+        n.payload.parameters["[nome_do_cliente]"] ===
+          `QA Company A ${marker}` &&
+        n.payload.options.enableBot === false,
+    ),
+    "WhatsApp usa o modelo e o nome do cliente sem acionar chatbot",
+  );
+  r = await request("/api/cron/ticket-notifications");
+  ok(r.status === 401, "Cron de notificações exige segredo");
+  r = await request("/configuracoes/notificacoes", "manager");
+  ok(
+    r.text.includes("Página não encontrada"),
+    "Histórico de notificações é exclusivo da administração",
+  );
+  async function changeTicket(status, assignedTo = "") {
+    await submitForm(`/chamados/${created.id}`, "admin", "admin", "status", {
+      ticketId: created.id,
+      status,
+      assignedTo,
+    });
+    await drain();
+  }
+  await changeTicket("closed");
+  ok((await noticeRows()).length === 8, "Encerramento gera os dois avisos");
+  await changeTicket("closed");
+  ok(
+    (await noticeRows()).length === 8,
+    "Salvar sem movimentação não duplica avisos",
+  );
+  await submitForm(`/chamados/${ids.ticketA}`, "manager", "manager", "body", {
+    ticketId: created.id,
+    body: "Resposta bloqueada no chamado encerrado",
+  });
+  ok((await noticeRows()).length === 8, "Interação recusada não gera aviso");
+  await changeTicket("open");
+  ok((await noticeRows()).length === 10, "Reabertura gera os dois avisos");
+  await changeTicket("open", adminEmail);
+  ok(
+    (await noticeRows()).length === 12,
+    "Troca de responsável gera os dois avisos",
+  );
+  flags({ approved: false });
+  await submitForm(`/chamados/${created.id}`, "manager", "manager", "body", {
+    ticketId: created.id,
+    body: "Modelo ainda em análise",
+  });
+  await drain();
+  notices = await noticeRows();
+  const waiting = notices.find(
+    (n) => n.channel === "whatsapp" && n.status === "pending",
+  );
+  ok(
+    !!waiting &&
+      notices
+        .filter((n) => n.channel === "email")
+        .every((n) => n.status === "accepted"),
+    "Modelo em análise mantém WhatsApp na fila sem impedir o e-mail",
+  );
+  flags({ approved: true });
+  await database.query(
+    "update console_ticket_notices set next_attempt_at=now() where id=$1",
+    [waiting.id],
+  );
+  await Promise.all([drain(), drain()]);
+  ok(
+    sentNotices().filter((n) => n.key === waiting.id).length === 1,
+    "Workers concorrentes enviam apenas uma mensagem após aprovação",
+  );
+  await database.query(
+    "update console_ticket_notices set next_attempt_at=now() where id=$1",
+    [waiting.id],
+  );
+  await drain();
+  ok(
+    (
+      await database.query(
+        "select status from console_ticket_notices where id=$1",
+        [waiting.id],
+      )
+    ).rows[0].status === "delivered",
+    "Entrega WhatsApp é confirmada por consulta ao FLW",
+  );
+  flags({ approved: true, email503: true });
+  await submitForm(`/chamados/${created.id}`, "manager", "manager", "body", {
+    ticketId: created.id,
+    body: "Falha temporária de e-mail",
+  });
+  await drain();
+  const retry = (await noticeRows()).find(
+    (n) => n.channel === "email" && n.status === "pending",
+  );
+  ok(!!retry, "Falha temporária do Resend permanece na fila");
+  flags({ approved: true });
+  await database.query(
+    "update console_ticket_notices set next_attempt_at=now() where id=$1",
+    [retry.id],
+  );
+  await drain();
+  const attempts = sentNotices().filter((n) => n.key === `ticket-${retry.id}`);
+  ok(
+    attempts.length === 2 &&
+      JSON.stringify(attempts[0].payload) ===
+        JSON.stringify(attempts[1].payload),
+    "Reenvio de e-mail preserva chave e conteúdo idempotentes",
+  );
+  flags({ approved: true, whatsappTimeout: true });
+  await submitForm(`/chamados/${created.id}`, "manager", "manager", "body", {
+    ticketId: created.id,
+    body: "Resposta incerta do WhatsApp",
+  });
+  await drain();
+  const uncertain = (await noticeRows()).find((n) => n.status === "uncertain");
+  ok(!!uncertain, "Timeout de WhatsApp exige conferência, sem afirmar envio");
+  flags({ approved: true });
+  await drain();
+  ok(
+    sentNotices().filter((n) => n.key === uncertain.id).length === 1,
+    "WhatsApp incerto não é reenviado automaticamente",
+  );
+  flags({ approved: false });
+  await submitForm(`/chamados/${created.id}`, "manager", "manager", "body", {
+    ticketId: created.id,
+    body: "Destinatário removido antes do envio",
+  });
+  await drain();
+  const cancel = (await noticeRows()).find(
+    (n) => n.channel === "whatsapp" && n.status === "pending",
+  );
+  await database.query(
+    "update console_user set phone_number_verified=false where id=$1",
+    [people.admin.id],
+  );
+  await database.query(
+    "update console_ticket_notices set next_attempt_at=now() where id=$1",
+    [cancel.id],
+  );
+  flags({ approved: true });
+  await drain();
+  ok(
+    (
+      await database.query(
+        "select status from console_ticket_notices where id=$1",
+        [cancel.id],
+      )
+    ).rows[0].status === "cancelled",
+    "WhatsApp desvinculado deixa de receber avisos pendentes",
+  );
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );
@@ -575,5 +801,6 @@ try {
     Object.values(people).map((p) => p.id),
   ]);
   await database.end();
+  rmSync(noticeDir, { recursive: true, force: true });
   console.log("Fixtures de teste removidas.");
 }

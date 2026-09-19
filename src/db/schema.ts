@@ -287,3 +287,50 @@ export const emailDeliveries = pgTable("console_email_deliveries", {
   providerId: text("provider_id"),
   createdAt: created(),
 });
+
+export type TicketNoticePayload = {
+  from: string;
+  to: string;
+  subject?: string;
+  text?: string;
+  templateId?: string;
+  parameters?: Record<string, string>;
+  senderId?: string;
+  options?: { enableBot: boolean };
+};
+export const ticketNotices = pgTable(
+  "console_ticket_notices",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => auditEvents.id, { onDelete: "cascade" }),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    channel: text("channel", { enum: ["email", "whatsapp"] }).notNull(),
+    destination: text("destination").notNull(),
+    payload: jsonb("payload").$type<TicketNoticePayload>().notNull(),
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    providerId: text("provider_id"),
+    providerStatus: text("provider_status"),
+    error: text("error"),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("console_ticket_notice_event_recipient_idx").on(
+      t.eventId,
+      t.channel,
+      t.destination,
+    ),
+    index("console_ticket_notice_pending_idx").on(t.status, t.nextAttemptAt),
+  ],
+);

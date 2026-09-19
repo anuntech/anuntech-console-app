@@ -4,6 +4,7 @@ import { Brand } from "@/components/brand";
 import { SignOutButton } from "@/components/auth-buttons";
 import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 export default async function ConsoleLayout({
   children,
 }: {

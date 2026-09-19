@@ -16,6 +16,11 @@ import {
 } from "@/db/schema";
 import { normalizeEmail, moneyToCents } from "./permissions";
 import type { ActionState } from "./action-state";
+import {
+  enqueueTicketNotice,
+  scheduleTicketNotices,
+} from "./ticket-notifications";
+import { ticketLabels } from "./format";
 const id = z.string().uuid();
 const str = (max: number) =>
   z
@@ -252,15 +257,26 @@ export async function createTicket(
         authorId: actor.user.id,
         body: input.body,
       });
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: row.companyId,
-        action: "ticket.created",
-        entityId: row.id,
-      });
+      const [event] = await tx
+        .insert(auditEvents)
+        .values({
+          actorId: actor.user.id,
+          companyId: row.companyId,
+          action: "ticket.created",
+          entityId: row.id,
+        })
+        .returning({ id: auditEvents.id });
+      await enqueueTicketNotice(
+        tx,
+        event.id,
+        row,
+        actor.user.name,
+        "Chamado aberto",
+      );
       return row;
     });
     refresh();
+    scheduleTicketNotices();
     return { success: "Chamado aberto.", href: `/chamados/${ticket.id}` };
   } catch (e) {
     return failure(e);
@@ -302,16 +318,27 @@ export async function replyTicket(
             : {}),
         })
         .where(eq(tickets.id, ticket.id));
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: ticket.companyId,
-        action: "ticket.replied",
-        entityId: ticket.id,
-      });
+      const [event] = await tx
+        .insert(auditEvents)
+        .values({
+          actorId: actor.user.id,
+          companyId: ticket.companyId,
+          action: "ticket.replied",
+          entityId: ticket.id,
+        })
+        .returning({ id: auditEvents.id });
+      await enqueueTicketNotice(
+        tx,
+        event.id,
+        ticket,
+        actor.user.name,
+        "Nova resposta no chamado",
+      );
       return { success: "Resposta enviada." };
     });
     revalidatePath(`/chamados/${input.ticketId}`);
     refresh();
+    if ("success" in result) scheduleTicketNotices();
     return result;
   } catch (e) {
     return failure(e);
@@ -338,6 +365,17 @@ export async function updateTicket(
       })
       .parse(Object.fromEntries(form));
     await db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select()
+        .from(tickets)
+        .where(eq(tickets.id, input.ticketId))
+        .for("update");
+      if (!previous) throw Error();
+      if (
+        previous.status === input.status &&
+        (previous.assignedTo || "") === input.assignedTo
+      )
+        return;
       const [row] = await tx
         .update(tickets)
         .set({
@@ -348,16 +386,43 @@ export async function updateTicket(
         .where(eq(tickets.id, input.ticketId))
         .returning();
       if (!row) throw Error();
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: row.companyId,
-        action: "ticket.updated",
-        entityId: row.id,
-        details: { status: row.status, assignedTo: row.assignedTo },
-      });
+      const [event] = await tx
+        .insert(auditEvents)
+        .values({
+          actorId: actor.user.id,
+          companyId: row.companyId,
+          action: "ticket.updated",
+          entityId: row.id,
+          details: { status: row.status, assignedTo: row.assignedTo },
+        })
+        .returning({ id: auditEvents.id });
+      const changes = [
+        ...(previous.status !== row.status
+          ? [
+              row.status === "closed"
+                ? "Chamado encerrado"
+                : row.status === "resolved"
+                  ? "Chamado resolvido"
+                  : previous.status === "closed"
+                    ? `Chamado reaberto: ${ticketLabels[row.status]}`
+                    : `Situação alterada: ${ticketLabels[row.status]}`,
+            ]
+          : []),
+        ...(previous.assignedTo !== row.assignedTo
+          ? [`Responsável: ${row.assignedTo || "não atribuído"}`]
+          : []),
+      ];
+      await enqueueTicketNotice(
+        tx,
+        event.id,
+        row,
+        actor.user.name,
+        changes.join(" · "),
+      );
     });
     revalidatePath(`/chamados/${input.ticketId}`);
     refresh();
+    scheduleTicketNotices();
     return { success: "Chamado atualizado." };
   } catch (e) {
     return failure(e);
@@ -510,15 +575,26 @@ export async function uploadAttachment(
           content,
         })
         .returning({ id: attachments.id });
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: ticket.companyId,
-        action: "ticket.attachment_added",
-        entityId: row.id,
-      });
+      const [event] = await tx
+        .insert(auditEvents)
+        .values({
+          actorId: actor.user.id,
+          companyId: ticket.companyId,
+          action: "ticket.attachment_added",
+          entityId: row.id,
+        })
+        .returning({ id: auditEvents.id });
+      await enqueueTicketNotice(
+        tx,
+        event.id,
+        ticket,
+        actor.user.name,
+        "Novo anexo no chamado",
+      );
       return { success: "Anexo salvo." };
     });
     revalidatePath(`/chamados/${ticketId}`);
+    if ("success" in result) scheduleTicketNotices();
     return result;
   } catch (e) {
     return failure(e);

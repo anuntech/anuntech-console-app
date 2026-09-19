@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/access";
 import { ActionForm } from "@/components/action-form";
 import { checkIntegration } from "@/lib/integration-actions";
 import { Heading, Badge } from "@/components/ui";
+import Link from "next/link";
 export default async function Settings() {
   await requireAdmin();
   const integrations = [
@@ -57,6 +58,16 @@ export default async function Settings() {
         description="Acompanhe a preparação dos serviços da Console."
       />
       <div className="card-grid">
+        <section className="panel padded">
+          <h2>Avisos de chamados</h2>
+          <p className="muted">
+            Movimentações enviadas por e-mail e WhatsApp ao administrador da
+            Anuntech. O WhatsApp exige modelo aprovado e número verificado.
+          </p>
+          <Link href="/configuracoes/notificacoes" className="button">
+            Ver destinatário e envios
+          </Link>
+        </section>
         {integrations.map((i) => (
           <section key={i.name} className="panel padded">
             <div className="card-top">
