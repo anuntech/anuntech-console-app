@@ -114,7 +114,7 @@ PDF gerado no servidor com PDFKit, A4, fontes Noto Sans incluídas no deploy, ac
 
 ## Preenchimento por CNPJ e CEP
 
-Cadastro e edição da empresa consultam razão social e endereço pelo CNPJ (CNPJ.ws) e logradouro, bairro, cidade, UF e código IBGE pelo CEP (ViaCEP). Consulta automática 650 ms após completar os dígitos, com botão para repetir. CPF não é consultado. Número/complemento disponíveis no CNPJ são aproveitados; a consulta de CEP preserva esses campos e não usa o complemento de logradouro do ViaCEP como unidade do cliente.
+Cadastro e edição da empresa consultam razão social e endereço pelo CNPJ (CNPJ.ws) e logradouro, bairro, cidade, UF e código IBGE pelo CEP (ViaCEP). Consulta automática 650 ms após completar os dígitos, sem botões de busca. CPF não é consultado. Número/complemento disponíveis no CNPJ são aproveitados; a consulta de CEP preserva esses campos e não usa o complemento de logradouro do ViaCEP como unidade do cliente.
 
 Todos os campos permanecem editáveis e só são persistidos ao salvar. Respostas atrasadas não sobrescrevem campos editados durante a consulta. API interna exige administrador verificado, usa hosts fixos, timeout de 8 segundos e não encaminha dados de sócios ou contatos públicos. Falhas e limite do provedor deixam o preenchimento manual disponível. Sem novas credenciais ou migrações.
 
