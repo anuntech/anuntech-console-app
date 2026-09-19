@@ -1,0 +1,442 @@
+// Run only against a development database. Creates isolated fixtures and removes them in finally.
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
+import pg from "pg";
+import { serializeSignedCookie } from "better-call";
+const base = "http://127.0.0.1:3101";
+const marker = randomUUID().slice(0, 8);
+const adminEmail = `qa-admin-${marker}@example.invalid`;
+const database = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 10000,
+});
+const ids = {
+  a: randomUUID(),
+  b: randomUUID(),
+  ticketA: randomUUID(),
+  ticketB: randomUUID(),
+  draft: randomUUID(),
+  billA: randomUUID(),
+  billB: randomUUID(),
+  attachment: randomUUID(),
+};
+const people = {};
+let server;
+let logs = "";
+let passed = 0;
+const companyIds = [ids.a, ids.b];
+const ok = (condition, message) => {
+  assert.ok(condition, message);
+  passed++;
+  console.log("PASS", message);
+};
+async function request(path, who, opts = {}) {
+  const r = await fetch(base + path, {
+    redirect: "manual",
+    ...opts,
+    headers: {
+      ...(who ? { Cookie: people[who].cookie } : {}),
+      ...opts.headers,
+    },
+  });
+  return { status: r.status, headers: r.headers, text: await r.text() };
+}
+function decodeAttr(value) {
+  return value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+async function submitForm(page, reader, sender, identifier, values) {
+  const rendered = await request(page, reader);
+  const forms = [
+    ...rendered.text.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/g),
+  ].map((m) => m[1]);
+  const form = forms.find((f) => (f.includes(`name="${identifier}"`) || f.includes(identifier)));
+  assert.ok(form, `Formulário ${identifier} encontrado`);
+  const body = new FormData();
+  for (const match of form.matchAll(/<input\b[^>]*>/g)) {
+    const tag = match[0];
+    const name = tag.match(/name="([^"]*)"/);
+    const value = tag.match(/value="([^"]*)"/);
+    if (name && tag.includes('type="hidden"'))
+      body.set(decodeAttr(name[1]), decodeAttr(value?.[1] || ""));
+  }
+  for (const [key, value] of Object.entries(values)) body.set(key, value);
+  return request(page, sender, {
+    method: "POST",
+    body,
+    headers: { Origin: base },
+  });
+}
+
+try {
+  for (const [name, role] of [
+    ["admin", null],
+    ["support", "support"],
+    ["finance", "finance"],
+    ["manager", "manager"],
+    ["outsider", null],
+    ["expired", null],
+  ]) {
+    const uid = randomUUID(),
+      token = randomUUID();
+    const email =
+      name === "admin" ? adminEmail : `qa-${name}-${marker}@example.invalid`;
+    await database.query(
+      "insert into console_user (id,name,email,email_verified) values ($1,$2,$3,true)",
+      [uid, `QA ${name}`, email],
+    );
+    await database.query(
+      "insert into console_session (id,token,user_id,expires_at) values ($1,$2,$3,$4)",
+      [
+        randomUUID(),
+        token,
+        uid,
+        new Date(Date.now() + (name === "expired" ? -60000 : 3600000)),
+      ],
+    );
+    people[name] = {
+      id: uid,
+      email,
+      role,
+      cookie: (
+        await serializeSignedCookie(
+          "anuntech-console.session_token",
+          token,
+          process.env.BETTER_AUTH_SECRET,
+          { path: "/" },
+        )
+      ).split(";")[0],
+    };
+  }
+  for (const [cid, label] of [
+    [ids.a, "A"],
+    [ids.b, "B"],
+  ])
+    await database.query(
+      "insert into console_companies(id,name,document,billing_email) values ($1,$2,$3,$4)",
+      [
+        cid,
+        `QA Company ${label} ${marker}`,
+        `qa-${cid}`,
+        `qa-${label}@example.invalid`,
+      ],
+    );
+  for (const person of Object.values(people).filter((p) => p.role))
+    await database.query(
+      "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,$4)",
+      [randomUUID(), ids.a, person.email, person.role],
+    );
+  for (const [tid, cid, subject] of [
+    [ids.ticketA, ids.a, `Allowed ticket ${marker}`],
+    [ids.ticketB, ids.b, `PRIVATE-B-${marker}`],
+  ])
+    await database.query(
+      "insert into console_tickets(id,company_id,subject,author_id) values($1,$2,$3,$4)",
+      [tid, cid, subject, people.admin.id],
+    );
+  for (const [iid, cid, status, description] of [
+    [ids.draft, ids.a, "draft", `PRIVATE-DRAFT-${marker}`],
+    [ids.billA, ids.a, "issued", `Allowed invoice ${marker}`],
+    [ids.billB, ids.b, "issued", `PRIVATE-BILL-B-${marker}`],
+  ])
+    await database.query(
+      "insert into console_invoices(id,company_id,status,description,amount_cents,due_date) values($1,$2,$3,$4,12345,$5)",
+      [iid, cid, status, description, "2026-12-15"],
+    );
+  await database.query(
+    "insert into console_attachments(id,ticket_id,author_id,name,mime,size,content) values($1,$2,$3,$4,$5,$6,$7)",
+    [
+      ids.attachment,
+      ids.ticketA,
+      people.admin.id,
+      "qa.pdf",
+      "application/pdf",
+      9,
+      Buffer.from("%PDF-test"),
+    ],
+  );
+  server = spawn(
+    process.execPath,
+    [
+      "node_modules/next/dist/bin/next",
+      "start",
+      "--hostname",
+      "127.0.0.1",
+      "--port",
+      "3101",
+    ],
+    {
+      env: {
+        ...process.env,
+        CONSOLE_ADMIN_EMAIL: adminEmail,
+        BETTER_AUTH_URL: base,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  server.stdout.on("data", (b) => {
+    logs += b;
+  });
+  server.stderr.on("data", (b) => {
+    logs += b;
+  });
+  let ready = false;
+  for (let i = 0; i < 100; i++) {
+    try {
+      await fetch(base + "/entrar");
+      ready = true;
+      break;
+    } catch {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  assert.ok(ready, "Servidor de teste iniciou");
+  let r = await request("/painel");
+  ok(
+    [302, 303, 307].includes(r.status) &&
+      r.headers.get("location")?.includes("/entrar"),
+    "Sem sessão: painel redireciona para login",
+  );
+  r = await request("/painel", "admin");
+  ok(
+    r.status === 200 && r.text.includes("QA admin"),
+    "Sessão assinada real: painel administrativo renderiza",
+  );
+  r = await request("/chamados", "support");
+  ok(
+    r.status === 200 &&
+      r.text.includes(`Allowed ticket ${marker}`) &&
+      !r.text.includes(`PRIVATE-B-${marker}`),
+    "Lista de chamados isolada por empresa",
+  );
+  r = await request(`/chamados/${ids.ticketB}`, "support");
+  ok(
+    !r.text.includes(`PRIVATE-B-${marker}`) &&
+      r.text.includes("Página não encontrada"),
+    "URL de chamado de outra empresa negada",
+  );
+  r = await request("/financeiro", "support");
+  ok(
+    !r.text.includes(`Allowed invoice ${marker}`),
+    "Permissão atendimento não lê financeiro",
+  );
+  r = await request("/financeiro", "finance");
+  ok(
+    r.text.includes(`Allowed invoice ${marker}`) &&
+      !r.text.includes(`PRIVATE-DRAFT-${marker}`) &&
+      !r.text.includes(`PRIVATE-BILL-B-${marker}`),
+    "Financeiro mostra somente faturas emitidas da empresa autorizada",
+  );
+  r = await request(`/financeiro/${ids.draft}`, "finance");
+  ok(
+    !r.text.includes(`PRIVATE-DRAFT-${marker}`),
+    "Rascunho oculto inclusive por URL direta",
+  );
+  r = await request("/empresas", "manager");
+  ok(
+    r.text.includes("Página não encontrada") &&
+      !r.text.includes(`QA Company B ${marker}`),
+    "Administrador do cliente não administra empresas globalmente",
+  );
+  r = await request(`/api/anexos/${ids.attachment}`, "support");
+  ok(
+    r.status === 200 &&
+      r.headers.get("content-disposition")?.startsWith("attachment;") &&
+      r.headers.get("cache-control") === "private, no-store",
+    "Anexo privado autorizado com download e sem cache",
+  );
+  r = await request(`/api/anexos/${ids.attachment}`, "finance");
+  ok(r.status === 404, "Perfil financeiro não baixa anexos de atendimento");
+  r = await request(`/api/anexos/${ids.attachment}`);
+  ok(r.status === 401, "Download de anexo exige sessão");
+  r = await request("/painel", "expired");
+  ok(r.headers.get("location")?.includes("/entrar"), "Sessão expirada negada");
+
+  await submitForm("/chamados/novo", "support", "support", "subject", {
+    companyId: ids.a,
+    engagementId: "",
+    subject: `Created through form ${marker}`,
+    body: "Descrição criada pelo teste HTTP",
+    priority: "normal",
+  });
+  const created = (
+    await database.query(
+      "select id from console_tickets where company_id=$1 and subject=$2",
+      [ids.a, `Created through form ${marker}`],
+    )
+  ).rows[0];
+  ok(!!created, "Formulário de chamado grava no banco");
+  await submitForm("/chamados/novo", "support", "support", "subject", {
+    companyId: ids.b,
+    engagementId: "",
+    subject: `Forbidden mutation ${marker}`,
+    body: "Negar acesso cruzado",
+    priority: "normal",
+  });
+  ok(
+    (
+      await database.query("select id from console_tickets where subject=$1", [
+        `Forbidden mutation ${marker}`,
+      ])
+    ).rowCount === 0,
+    "POST adulterado não cria chamado em outra empresa",
+  );
+  await submitForm(`/chamados/${created.id}`, "support", "support", "body", {
+    ticketId: created.id,
+    body: "Resposta do teste HTTP",
+  });
+  ok(
+    (
+      await database.query(
+        "select id from console_messages where ticket_id=$1",
+        [created.id],
+      )
+    ).rowCount === 2,
+    "Resposta é persistida no chamado",
+  );
+  await submitForm("/financeiro/nova", "admin", "admin", "amount", {
+    companyId: ids.a,
+    engagementId: "",
+    description: `Draft form ${marker}`,
+    amount: "1250,29",
+    dueDate: "2026-12-20",
+  });
+  const drafted = (
+    await database.query(
+      "select * from console_invoices where company_id=$1 and description=$2",
+      [ids.a, `Draft form ${marker}`],
+    )
+  ).rows[0];
+  ok(
+    drafted?.amount_cents === 125029 &&
+      drafted.status === "draft" &&
+      drafted.provider_id === null,
+    "Fatura manual salva em centavos sem emitir cobrança",
+  );
+  await submitForm("/financeiro/nova", "admin", "manager", "amount", {
+    companyId: ids.a,
+    engagementId: "",
+    description: `Forbidden bill ${marker}`,
+    amount: "10",
+    dueDate: "2026-12-20",
+  });
+  ok(
+    (
+      await database.query(
+        "select id from console_invoices where description=$1",
+        [`Forbidden bill ${marker}`],
+      )
+    ).rowCount === 0,
+    "Cliente não cria fatura via POST direto",
+  );
+  await submitForm(`/chamados/${created.id}`, "support", "support", "file", {
+    ticketId: created.id,
+    file: new File(["not a pdf"], "fake.pdf", { type: "application/pdf" }),
+  });
+  ok(
+    (
+      await database.query(
+        "select id from console_attachments where ticket_id=$1",
+        [created.id],
+      )
+    ).rowCount === 0,
+    "Arquivo com MIME falso é recusado",
+  );
+  await submitForm(`/chamados/${created.id}`, "support", "support", "file", {
+    ticketId: created.id,
+    file: new File(["%PDF-1.7\nQA fixture"], "fixture.pdf", {
+      type: "application/pdf",
+    }),
+  });
+  ok(
+    (
+      await database.query(
+        "select id from console_attachments where ticket_id=$1",
+        [created.id],
+      )
+    ).rowCount === 1,
+    "Upload de anexo é persistido com acesso privado",
+  );
+  await submitForm(`/financeiro/${drafted.id}`,"admin","admin","amount",{id:drafted.id,description:`Draft form ${marker}`,amount:"1300,25",dueDate:"2026-12-21"});
+  ok((await database.query("select amount_cents from console_invoices where id=$1",[drafted.id])).rows[0].amount_cents===130025,"Administrador edita valor e vencimento do rascunho");
+  await submitForm(`/financeiro/${drafted.id}`, "admin", "admin", "Cancelar rascunho", {
+    id: drafted.id,
+  });
+  ok(
+    (
+      await database.query("select status from console_invoices where id=$1", [
+        drafted.id,
+      ])
+    ).rows[0].status === "cancelled",
+    "Administrador cancela somente rascunho",
+  );
+  await database.query(
+    "update console_memberships set active=false where email=$1",
+    [people.support.email],
+  );
+  r = await request(`/api/anexos/${ids.attachment}`, "support");
+  ok(r.status === 404, "Revogação tem efeito imediato em sessão existente");
+  const s = await request("/api/auth/sign-in/social", undefined, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: base },
+    body: JSON.stringify({ provider: "google", callbackURL: base + "/painel" }),
+  });
+  const social = JSON.parse(s.text);
+  const url = new URL(social.url);
+  ok(
+    url.hostname === "accounts.google.com" &&
+      url.searchParams.get("redirect_uri") ===
+        base + "/api/auth/callback/google",
+    "OAuth Google gera callback do ambiente correto",
+  );
+  console.log(
+    `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
+  );
+} catch (error) {
+  console.error("FAIL", error.message);
+  if (logs.includes("Error"))
+    console.error("O servidor registrou erro; verificar logs locais.");
+  process.exitCode = 1;
+} finally {
+  if (server) {
+    server.kill("SIGTERM");
+    await new Promise((r) => server.once("exit", r));
+  }
+  for (const table of ["console_audit_events", "console_invoices"])
+    await database.query(
+      `delete from ${table} where company_id=any($1::text[])`,
+      [companyIds],
+    );
+  for (const table of ["console_attachments", "console_messages"])
+    await database.query(
+      `delete from ${table} where ticket_id in (select id from console_tickets where company_id=any($1::text[]))`,
+      [companyIds],
+    );
+  await database.query(
+    "delete from console_tickets where company_id=any($1::text[])",
+    [companyIds],
+  );
+  await database.query(
+    "delete from console_email_deliveries where membership_id in (select id from console_memberships where company_id=any($1::text[]))",
+    [companyIds],
+  );
+  for (const table of ["console_memberships", "console_engagements"])
+    await database.query(
+      `delete from ${table} where company_id=any($1::text[])`,
+      [companyIds],
+    );
+  await database.query(
+    "delete from console_companies where id=any($1::text[])",
+    [companyIds],
+  );
+  await database.query("delete from console_user where id=any($1::text[])", [
+    Object.values(people).map((p) => p.id),
+  ]);
+  await database.end();
+  console.log("Fixtures de teste removidas.");
+}

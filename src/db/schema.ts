@@ -1,0 +1,274 @@
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  integer,
+  date,
+  uniqueIndex,
+  index,
+  jsonb,
+  customType,
+} from "drizzle-orm/pg-core";
+const created = () =>
+  timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
+export const user = pgTable("console_user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  createdAt: created(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+export const session = pgTable(
+  "console_session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("console_session_user_idx").on(t.userId)],
+);
+export const account = pgTable(
+  "console_account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", {
+      withTimezone: true,
+    }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+      withTimezone: true,
+    }),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("console_account_user_idx").on(t.userId),
+    uniqueIndex("console_account_provider_idx").on(t.providerId, t.accountId),
+  ],
+);
+export const verification = pgTable(
+  "console_verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("console_verification_identifier_idx").on(t.identifier)],
+);
+export const rateLimit = pgTable("console_rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: customType<{ data: number; driverData: string }>({
+    dataType: () => "bigint",
+    fromDriver: (v) => Number(v),
+  })("last_request").notNull(),
+});
+export const companies = pgTable("console_companies", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  document: text("document").notNull().unique(),
+  billingEmail: text("billing_email").notNull(),
+  phone: text("phone"),
+  createdAt: created(),
+});
+export const memberships = pgTable(
+  "console_memberships",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    email: text("email").notNull(),
+    role: text("role", { enum: ["manager", "support", "finance"] }).notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: created(),
+  },
+  (t) => [
+    uniqueIndex("console_membership_unique").on(t.companyId, t.email),
+    index("console_membership_email_idx").on(t.email),
+  ],
+);
+export const engagements = pgTable(
+  "console_engagements",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: ["product", "project"] }).notNull(),
+    status: text("status", { enum: ["active", "paused", "completed"] })
+      .notNull()
+      .default("active"),
+    description: text("description"),
+    createdAt: created(),
+  },
+  (t) => [index("console_engagement_company_idx").on(t.companyId)],
+);
+export const tickets = pgTable(
+  "console_tickets",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    engagementId: text("engagement_id").references(() => engagements.id),
+    subject: text("subject").notNull(),
+    status: text("status", {
+      enum: ["open", "in_progress", "waiting_customer", "resolved", "closed"],
+    })
+      .notNull()
+      .default("open"),
+    priority: text("priority", { enum: ["normal", "high"] })
+      .notNull()
+      .default("normal"),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    assignedTo: text("assigned_to"),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("console_ticket_company_idx").on(t.companyId)],
+);
+export const messages = pgTable(
+  "console_messages",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    body: text("body").notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("console_message_ticket_idx").on(t.ticketId)],
+);
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+export const attachments = pgTable(
+  "console_attachments",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    name: text("name").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    content: bytea("content").notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("console_attachment_ticket_idx").on(t.ticketId)],
+);
+export const invoices = pgTable(
+  "console_invoices",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    engagementId: text("engagement_id").references(() => engagements.id),
+    description: text("description").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    dueDate: date("due_date").notNull(),
+    status: text("status", { enum: ["draft", "issued", "paid", "cancelled"] })
+      .notNull()
+      .default("draft"),
+    providerId: text("provider_id").unique(),
+    pixCopyPaste: text("pix_copy_paste"),
+    boletoUrl: text("boleto_url"),
+    fiscalStatus: text("fiscal_status", {
+      enum: ["not_requested", "processing", "authorized", "error"],
+    })
+      .notNull()
+      .default("not_requested"),
+    fiscalUrl: text("fiscal_url"),
+    createdAt: created(),
+  },
+  (t) => [index("console_invoice_company_idx").on(t.companyId)],
+);
+export const auditEvents = pgTable(
+  "console_audit_events",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => user.id),
+    companyId: text("company_id").references(() => companies.id),
+    action: text("action").notNull(),
+    entityId: text("entity_id").notNull(),
+    details: jsonb("details"),
+    createdAt: created(),
+  },
+  (t) => [index("console_audit_company_idx").on(t.companyId)],
+);
+export const emailDeliveries = pgTable("console_email_deliveries", {
+  id: text("id").primaryKey(),
+  membershipId: text("membership_id")
+    .notNull()
+    .references(() => memberships.id),
+  payload: jsonb("payload")
+    .$type<{ from: string; to: string[]; subject: string; text: string }>()
+    .notNull(),
+  status: text("status", { enum: ["pending", "accepted", "failed"] })
+    .notNull()
+    .default("pending"),
+  providerId: text("provider_id"),
+  createdAt: created(),
+});
