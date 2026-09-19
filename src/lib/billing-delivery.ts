@@ -68,8 +68,17 @@ export async function checkBillingDeliveries(deadline = Date.now() + 90000) {
         email ? ["delivered", "opened", "clicked"] : ["DELIVERED", "READ"]
       ).includes(event);
       const status = failed ? "failed" : delivered ? "delivered" : row.status;
+      const diagnostic =
+        email && Array.isArray(data.bounce?.diagnosticCode)
+          ? data.bounce.diagnosticCode
+              .filter((value: unknown) => typeof value === "string")
+              .join(" ")
+              .slice(0, 600)
+          : "";
       const error = failed
-        ? `Entrega não concluída (${event}). Confira o destinatário e o provedor.`
+        ? diagnostic.includes("5.7.193")
+          ? "O grupo de e-mail do destinatário não permite remetentes externos (Microsoft 365, 550 5.7.193). Libere o recebimento externo ou corrija o e-mail financeiro."
+          : `Entrega não concluída (${event}). Confira o destinatário e o provedor.${diagnostic ? ` Motivo: ${diagnostic}` : ""}`
         : event === "delivery_delayed"
           ? "O servidor do destinatário adiou a entrega. O Resend continuará tentando."
           : null;
@@ -83,20 +92,18 @@ export async function checkBillingDeliveries(deadline = Date.now() + 90000) {
             .select({ companyId: invoices.companyId })
             .from(invoices)
             .where(eq(invoices.id, row.invoiceId));
-          await tx
-            .insert(auditEvents)
-            .values({
-              actorId: row.actorId,
-              companyId: i.companyId,
-              action: "invoice.notice_delivery",
-              entityId: row.invoiceId,
-              details: {
-                channel: row.channel,
-                kind: row.kind,
-                status,
-                providerStatus: event,
-              },
-            });
+          await tx.insert(auditEvents).values({
+            actorId: row.actorId,
+            companyId: i.companyId,
+            action: "invoice.notice_delivery",
+            entityId: row.invoiceId,
+            details: {
+              channel: row.channel,
+              kind: row.kind,
+              status,
+              providerStatus: event,
+            },
+          });
         }
       });
     } catch {

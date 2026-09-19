@@ -46,6 +46,13 @@ globalThis.fetch = async (input, options = {}) => {
       return Response.json({
         id: url.pathname.split("/").at(-1),
         last_event: flags.emailBounced ? "bounced" : "delivered",
+        bounce: flags.emailBounced
+          ? {
+              diagnosticCode: [
+                "smtp;550 5.7.193 UnifiedGroupAgent; external senders aren't permitted",
+              ],
+            }
+          : null,
       });
     if (url.pathname === "/chat/v1/template")
       return Response.json({

@@ -433,9 +433,10 @@ export async function runBillingTests({
       (n) =>
         n.channel === "email" &&
         n.provider_status === "bounced" &&
-        n.status === "failed",
+        n.status === "failed" &&
+        n.error.includes("não permite remetentes externos"),
     ),
-    "Devolução posterior do e-mail aparece como falha de entrega",
+    "Devolução posterior do e-mail mostra falha e motivo do bloqueio externo",
   );
   ok(
     (await request("/financeiro/envios", "admin")).status === 200 &&
