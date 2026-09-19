@@ -7,12 +7,8 @@ import { db } from "./db";
 import { getActor } from "./access";
 import { invoices, companies, auditEvents } from "@/db/schema";
 import { interApi, interBase, interToken, ProviderError } from "./integrations";
-import {
-  payerAddress,
-  bankReference,
-  bankInvoiceStatus,
-  bankCharge,
-} from "./billing-rules";
+import { payerAddress, bankReference } from "./billing-rules";
+import { reconcileCharge } from "./billing-sync";
 import type { ActionState } from "./action-state";
 const uuid = z.string().uuid();
 function refresh(id: string) {
@@ -167,56 +163,7 @@ export async function syncCharge(
   if (!actor.admin) return { error: "Acesso restrito à administração." };
   try {
     const id = uuid.parse(form.get("id"));
-    const [i] = await db.select().from(invoices).where(eq(invoices.id, id));
-    if (!i?.bankRequest || i.bankBase !== interBase())
-      return { error: "Cobrança ausente ou pertence a outro ambiente Inter." };
-    const providerId = uuid.parse(i.providerId || form.get("providerId"));
-    const result = bankCharge.parse(
-      await interApi(`/cobranca/v3/cobrancas/${providerId}`),
-    );
-    const c = result.cobranca;
-    const payer = i.bankRequest.pagador as { cpfCnpj: string };
-    if (
-      c.codigoSolicitacao !== providerId ||
-      c.seuNumero !== bankReference(i.id) ||
-      Math.round(Number(c.valorNominal) * 100) !== i.amountCents ||
-      c.dataVencimento !== i.dueDate ||
-      c.pagador.cpfCnpj.replace(/\D/g, "") !== payer.cpfCnpj
-    )
-      return {
-        error: "A cobrança retornada não corresponde aos dados desta fatura.",
-      };
-    await db.transaction(async (tx) => {
-      const [current] = await tx
-        .select()
-        .from(invoices)
-        .where(eq(invoices.id, id))
-        .for("update");
-      if (!current || (current.providerId && current.providerId !== providerId))
-        throw new Error();
-      // Preserve terminal states against a concurrent stale response.
-      const next = bankInvoiceStatus(c.situacao);
-      if (current.status === "paid" && next !== "paid") return;
-      if (current.status === "cancelled" && next === "issued") return;
-      await tx
-        .update(invoices)
-        .set({
-          providerId,
-          status: next,
-          bankStatus: c.situacao,
-          bankCheckedAt: new Date(),
-          boletoLine: result.boleto?.linhaDigitavel || null,
-          pixCopyPaste: result.pix?.pixCopiaECola || null,
-        })
-        .where(eq(invoices.id, id));
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: i.companyId,
-        action: "invoice.bank_checked",
-        entityId: id,
-        details: { status: c.situacao },
-      });
-    });
+    await reconcileCharge(id, actor.user.id, form.get("providerId"));
     refresh(id);
     return { success: "Situação consultada diretamente no Inter." };
   } catch {

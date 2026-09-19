@@ -1430,6 +1430,65 @@ try {
   ok(r.status === 404, "Atendimento não baixa boleto");
   r = await request(`/api/boletos/${ids.draft}`, "outsider");
   ok(r.status === 404, "Boleto de outra empresa é negado");
+  r = await request("/api/cron/billing-sync");
+  ok(r.status === 401, "Conciliação automática exige segredo do cron");
+  await database.query(
+    "update console_invoices set bank_checked_at=now()-interval '6 minutes' where id=$1",
+    [ids.draft],
+  );
+  await database.query(
+    "update console_invoices set amount_cents=amount_cents+1 where id=$1",
+    [ids.draft],
+  );
+  r = await request("/api/cron/billing-sync", undefined, {
+    headers: { authorization: "Bearer test-cron-secret" },
+  });
+  ok(
+    r.status === 503 &&
+      JSON.parse(r.text).failed === 1 &&
+      (
+        await database.query(
+          "select status from console_invoices where id=$1",
+          [ids.draft],
+        )
+      ).rows[0].status === "issued",
+    "Dados divergentes do banco não confirmam pagamento e sinalizam falha",
+  );
+  await database.query(
+    "update console_invoices set amount_cents=amount_cents-1 where id=$1",
+    [ids.draft],
+  );
+  r = await request("/api/cron/billing-sync", undefined, {
+    headers: { authorization: "Bearer test-cron-secret" },
+  });
+  ok(
+    r.status === 200 && JSON.parse(r.text).checked === 1,
+    "Cron consulta cobrança pendente diretamente no Inter",
+  );
+  ok(
+    (
+      await database.query("select status from console_invoices where id=$1", [
+        ids.draft,
+      ])
+    ).rows[0].status === "paid",
+    "Pix recebido é conciliado automaticamente sem ação do administrador",
+  );
+  const autoAudit = await database.query(
+    "select details from console_audit_events where entity_id=$1 and action='invoice.bank_checked' and details->>'source'='scheduled'",
+    [ids.draft],
+  );
+  ok(
+    autoAudit.rows.length === 1 &&
+      autoAudit.rows[0].details.status === "RECEBIDO",
+    "Conciliação automática registra origem e confirmação do banco",
+  );
+  r = await request("/api/cron/billing-sync", undefined, {
+    headers: { authorization: "Bearer test-cron-secret" },
+  });
+  ok(
+    r.status === 200 && JSON.parse(r.text).checked === 0,
+    "Cron repetido não reprocessa fatura paga",
+  );
   await submitForm(
     `/financeiro/${ids.draft}`,
     "admin",

@@ -141,3 +141,9 @@ Origem do componente: https://www.shadcn.io/ui/sonner. O MCP já estava conectad
 Em Empresas → Gerenciar → Editar dados da empresa, a administração pode alterar CPF/CNPJ, com máscara e consulta automática de CNPJ. O servidor normaliza o documento, rejeita duplicidade sem salvar alterações parciais e registra documento anterior e novo na auditoria. A identidade interna da empresa e seus vínculos são preservados.
 
 Arquivar cliente remove o cadastro da lista principal de Empresas. A aba Arquivados permite consultar e restaurar; históricos, documentos e permissões de acesso são preservados. Arquivar não revoga acessos nem altera faturas, contratos ou chamados. Arquivamento e restauração exigem administrador e geram auditoria apenas quando a situação muda. Migração 0008 adiciona archived com false como padrão, preservando todos os clientes atuais como ativos.
+
+## Conciliação automática de cobranças
+
+O cron `/api/cron/billing-sync`, protegido por `CRON_SECRET`, consulta cobranças emitidas no Inter a cada cinco minutos. Processa até 20 por execução, priorizando as menos recentemente consultadas, em grupos de quatro. Só consulta cobranças do ambiente configurado e com código de solicitação; não emite cobranças, notas fiscais nem mensagens.
+
+Consulta manual e automática usam a mesma validação: código, referência, valor, vencimento e documento original do pagador devem corresponder à fatura. Apenas `RECEBIDO` confirma pagamento; `MARCADO_RECEBIDO` não comprova recebimento. Estados pagos não retrocedem. Mudanças automáticas são auditadas com `source: scheduled`, vinculadas ao responsável pela emissão original. A trava transacional evita execuções de cron sobrepostas. Respostas divergentes/falhas mantêm a fatura e retornam HTTP 503 com contagem de falhas, permitindo diagnóstico e nova tentativa.

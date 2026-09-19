@@ -1,5 +1,12 @@
 {
   "crons": [
-    { "path": "/api/cron/ticket-notifications", "schedule": "*/5 * * * *" }
+    {
+      "path": "/api/cron/ticket-notifications",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/billing-sync",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }
