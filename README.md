@@ -10,7 +10,7 @@ Portal de clientes da Anuntech para produtos, projetos, atendimento e financeiro
 - Permissões separadas de atendimento e financeiro por empresa.
 - Produtos e projetos com situação e descrição.
 - Chamados com respostas, responsável, status e anexos privados.
-- Faturas manuais em rascunho e cancelamento de rascunhos.
+- Faturas manuais: criação, edição e cancelamento de rascunhos.
 - Aviso de acesso manual via Resend, com idempotência e registro da tentativa.
 - Histórico de operações no banco.
 
