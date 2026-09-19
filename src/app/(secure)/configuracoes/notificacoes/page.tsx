@@ -63,7 +63,7 @@ export default async function Notifications() {
         <h2>Histórico de envios</h2>
         <p className="muted">
           Avisos são processados após a movimentação e revisados a cada 5
-          minutos. O WhatsApp aguarda a aprovação do modelo no FLW. “Aceito pelo
+          minutos. O WhatsApp só envia com o modelo aprovado no FLW. “Aceito pelo
           provedor” ainda não confirma entrega.
         </p>
         <ActionForm
