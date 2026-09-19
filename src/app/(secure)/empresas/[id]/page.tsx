@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { companies, memberships, auditEvents } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
-import { saveMembership, revokeMembership, updateCompany } from "@/lib/actions";
+import {
+  saveMembership,
+  revokeMembership,
+  updateCompany,
+  setCompanyArchived,
+} from "@/lib/actions";
 import { roleLabels, dateLabel, auditLabels } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Heading, Field, Back, Badge, Empty } from "@/components/ui";
@@ -42,6 +47,11 @@ export default async function Company({
         title={company.name}
         description={`${company.document} · ${company.billingEmail}`}
       />
+      {company.archived && (
+        <p>
+          <Badge>Cliente arquivado</Badge>
+        </p>
+      )}
       <section className="panel padded">
         <h2>Dados de cobrança e nota fiscal</h2>
         <p>
@@ -125,6 +135,25 @@ export default async function Company({
           </ActionForm>
         </section>
       </div>
+      <section className="panel padded section-gap">
+        <h2>{company.archived ? "Restaurar cliente" : "Arquivar cliente"}</h2>
+        <p>
+          {company.archived
+            ? "Restaure o cliente para que ele volte à lista principal de empresas."
+            : "O cliente sairá da lista principal. O histórico e os acessos serão preservados, e você poderá restaurá-lo em Arquivados."}
+        </p>
+        <ActionForm
+          action={setCompanyArchived}
+          label={company.archived ? "Restaurar cliente" : "Arquivar cliente"}
+        >
+          <input type="hidden" name="id" value={id} />
+          <input
+            type="hidden"
+            name="archived"
+            value={company.archived ? "no" : "yes"}
+          />
+        </ActionForm>
+      </section>
       <section className="panel padded section-gap">
         <h2>Histórico administrativo</h2>
         <ul className="audit-list">

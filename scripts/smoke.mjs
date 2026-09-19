@@ -731,8 +731,14 @@ try {
     cep: "01001-000",
     codigoMunicipio: "3550308",
   };
+  const originalDocument = (
+    await database.query("select document from console_companies where id=$1", [
+      ids.a,
+    ])
+  ).rows[0].document;
   const companyInput = {
     id: ids.a,
+    document: originalDocument,
     name: `QA Company A ${marker}`,
     billingEmail: "qa-A@example.invalid",
     phone: "(11) 99999-1234",
@@ -1045,7 +1051,9 @@ try {
     await database.query("select * from console_companies where id=$1", [ids.a])
   ).rows[0];
   ok(
-    !companyState.billing_address && !companyState.auto_issue_nfse,
+    !companyState.billing_address &&
+      !companyState.auto_issue_nfse &&
+      companyState.document === originalDocument,
     "Cliente não altera endereço ou preferência fiscal por POST direto",
   );
   await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
@@ -1093,6 +1101,160 @@ try {
     !companyState.auto_issue_nfse &&
       companyState.billing_address.endereco === "Rua Teste",
     "Desmarcar a opção desativa a preferência sem apagar o endereço",
+  );
+  const editableDocument = r.text.match(
+    /<input\b[^>]*name="document"[^>]*>/,
+  )?.[0];
+  ok(
+    editableDocument && !/readonly/i.test(editableDocument),
+    "Documento do cadastro existente está editável",
+  );
+  const replacementDocument = "98.765.432/0001-10";
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    ...companyInput,
+    document: replacementDocument,
+  });
+  companyState = (
+    await database.query("select * from console_companies where id=$1", [ids.a])
+  ).rows[0];
+  ok(
+    companyState.document === "98765432000110" &&
+      companyState.billing_address.endereco === "Rua Teste",
+    "Administrador altera CNPJ, normaliza máscara e mantém endereço e vínculo da empresa",
+  );
+  const documentAudit = (
+    await database.query(
+      "select details from console_audit_events where company_id=$1 and details->'document'->>'after'=$2",
+      [ids.a, companyState.document],
+    )
+  ).rows[0];
+  ok(
+    documentAudit?.details.document.before === originalDocument,
+    "Troca do documento registra valor anterior e novo na auditoria",
+  );
+  companyInput.document = companyState.document;
+  const duplicateDocument = (
+    await database.query("select document from console_companies where id=$1", [
+      ids.b,
+    ])
+  ).rows[0].document;
+  const duplicateResult = await submitForm(
+    `/empresas/${ids.a}`,
+    "admin",
+    "admin",
+    "Salvar dados",
+    {
+      ...companyInput,
+      document: duplicateDocument,
+      name: "Não salvar parcialmente",
+    },
+  );
+  companyState = (
+    await database.query("select * from console_companies where id=$1", [ids.a])
+  ).rows[0];
+  ok(
+    companyState.document === companyInput.document &&
+      companyState.name === companyInput.name &&
+      duplicateResult.text.includes(
+        "Este CPF/CNPJ já está cadastrado em outra empresa.",
+      ),
+    "CNPJ duplicado mostra erro específico e não salva parcialmente o cadastro",
+  );
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    ...companyInput,
+    document: "123",
+  });
+  await submitForm(`/empresas/${ids.a}`, "admin", "manager", "Salvar dados", {
+    ...companyInput,
+    document: originalDocument,
+  });
+  companyState = (
+    await database.query("select * from console_companies where id=$1", [ids.a])
+  ).rows[0];
+  ok(
+    companyState.document === companyInput.document,
+    "Documento incompleto e alteração por cliente são bloqueados no servidor",
+  );
+  const archiveData = { id: ids.a, archived: "yes" };
+  const relations = async () =>
+    (
+      await database.query(
+        `select
+    (select count(*) from console_tickets where company_id=$1)::int tickets,
+    (select count(*) from console_invoices where company_id=$1)::int invoices,
+    (select count(*) from console_memberships where company_id=$1 and active=true)::int memberships`,
+        [ids.a],
+      )
+    ).rows[0];
+  const beforeArchive = await relations();
+  await submitForm(
+    `/empresas/${ids.a}`,
+    "admin",
+    "manager",
+    "Arquivar cliente",
+    archiveData,
+  );
+  ok(
+    !(
+      await database.query(
+        "select archived from console_companies where id=$1",
+        [ids.a],
+      )
+    ).rows[0].archived,
+    "Cliente não consegue arquivar a própria empresa por POST direto",
+  );
+  const archivePage = await request(`/empresas/${ids.a}`, "admin");
+  const archiveBody = () =>
+    formBody(archivePage.text, "Arquivar cliente", archiveData);
+  for (let attempt = 0; attempt < 2; attempt++)
+    await request(`/empresas/${ids.a}`, "admin", {
+      method: "POST",
+      body: archiveBody(),
+      headers: { Origin: base },
+    });
+  const activeList = await request("/empresas", "admin");
+  const archivedList = await request("/empresas?status=arquivados", "admin");
+  ok(
+    !activeList.text.includes(`/empresas/${ids.a}`) &&
+      archivedList.text.includes(`/empresas/${ids.a}`),
+    "Arquivar remove cliente dos ativos e o mostra somente na lista de arquivados",
+  );
+  assert.deepEqual(await relations(), beforeArchive);
+  ok(
+    (await request(`/chamados/${ids.ticketA}`, "manager")).status === 200,
+    "Arquivamento preserva chamados, faturas, vínculos e acesso ao histórico",
+  );
+  ok(
+    (
+      await database.query(
+        "select count(*)::int n from console_audit_events where company_id=$1 and action='company.archived'",
+        [ids.a],
+      )
+    ).rows[0].n === 1,
+    "Reenvio do arquivamento não duplica evento de auditoria",
+  );
+  await submitForm(
+    `/empresas/${ids.a}`,
+    "admin",
+    "admin",
+    "Restaurar cliente",
+    { id: ids.a, archived: "no" },
+  );
+  ok(
+    (await request("/empresas", "admin")).text.includes(`/empresas/${ids.a}`) &&
+      !(await request("/empresas?status=arquivados", "admin")).text.includes(
+        `/empresas/${ids.a}`,
+      ),
+    "Restaurar devolve cliente à lista principal",
+  );
+  ok(
+    (
+      await database.query(
+        "select count(*)::int n from console_audit_events where company_id=$1 and action='company.restored'",
+        [ids.a],
+      )
+    ).rows[0].n === 1,
+    "Restauração fica registrada na auditoria",
   );
   const newDocument = BigInt(
     `0x${randomUUID().replaceAll("-", "").slice(0, 11)}`,

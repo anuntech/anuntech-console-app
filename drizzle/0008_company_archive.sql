@@ -1,0 +1,1 @@
+ALTER TABLE "console_companies" ADD COLUMN "archived" boolean DEFAULT false NOT NULL;

@@ -21,7 +21,7 @@ import {
   scheduleTicketNotices,
 } from "./ticket-notifications";
 import { ticketLabels } from "./format";
-import { companyIdentity, companyPhone, companyEmail } from "./company-input";
+import { companyIdentity } from "./company-input";
 import { companyBillingInput } from "./company-billing";
 const id = z.string().uuid();
 const str = (max: number) =>
@@ -31,12 +31,24 @@ const str = (max: number) =>
     .min(1, "Preencha os campos obrigatórios.")
     .max(max, "O texto excede o tamanho permitido.");
 const mail = z.email("Informe um e-mail válido.").transform(normalizeEmail);
-const failure = (error: unknown): ActionState => ({
-  error:
-    error instanceof z.ZodError
-      ? error.issues[0].message
-      : "Não foi possível salvar. Confira os dados e tente novamente.",
-});
+const failure = (error: unknown): ActionState => {
+  const cause = error instanceof Error && error.cause ? error.cause : error;
+  if (
+    typeof cause === "object" &&
+    cause !== null &&
+    "code" in cause &&
+    cause.code === "23505" &&
+    "constraint" in cause &&
+    cause.constraint === "console_companies_document_unique"
+  )
+    return { error: "Este CPF/CNPJ já está cadastrado em outra empresa." };
+  return {
+    error:
+      error instanceof z.ZodError
+        ? error.issues[0].message
+        : "Não foi possível salvar. Confira os dados e tente novamente.",
+  };
+};
 const blocked = { error: "Você não tem permissão para realizar esta ação." };
 function refresh() {
   revalidatePath("/painel", "layout");
@@ -648,19 +660,21 @@ export async function updateCompany(
   const actor = await getActor();
   if (!actor.admin) return blocked;
   try {
-    const input = z
-      .object({
-        id,
-        name: str(160),
-        billingEmail: companyEmail,
-        phone: companyPhone,
-      })
+    const input = companyIdentity
+      .extend({ id })
       .parse(Object.fromEntries(form));
     await db.transaction(async (tx) => {
+      const [previous] = await tx
+        .select({ document: companies.document })
+        .from(companies)
+        .where(eq(companies.id, input.id))
+        .for("update");
+      if (!previous) throw Error();
       const [row] = await tx
         .update(companies)
         .set({
           name: input.name,
+          document: input.document,
           billingEmail: input.billingEmail,
           phone: input.phone,
           ...companyBillingInput(form),
@@ -673,11 +687,53 @@ export async function updateCompany(
         companyId: row.id,
         action: "company.updated",
         entityId: row.id,
+        details:
+          previous.document !== row.document
+            ? { document: { before: previous.document, after: row.document } }
+            : null,
       });
     });
     revalidatePath(`/empresas/${input.id}`);
     refresh();
     return { success: "Cadastro atualizado." };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+export async function setCompanyArchived(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const input = z
+      .object({ id, archived: z.enum(["yes", "no"]) })
+      .parse(Object.fromEntries(form));
+    const archived = input.archived === "yes";
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(companies)
+        .set({ archived })
+        .where(
+          and(eq(companies.id, input.id), eq(companies.archived, !archived)),
+        )
+        .returning();
+      if (!row) return;
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: row.id,
+        action: archived ? "company.archived" : "company.restored",
+        entityId: row.id,
+      });
+    });
+    revalidatePath(`/empresas/${input.id}`);
+    refresh();
+    return {
+      success: archived ? "Cliente arquivado." : "Cliente restaurado.",
+      href: archived ? "/empresas" : `/empresas/${input.id}`,
+    };
   } catch (e) {
     return failure(e);
   }

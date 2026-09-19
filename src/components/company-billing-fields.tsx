@@ -21,7 +21,7 @@ import type { CompanyAddress } from "@/lib/company-billing";
 export function CompanyBillingFields({
   company,
   inviteToken,
-  lockDocument = !!company,
+  lockDocument = false,
 }: {
   inviteToken?: string;
   lockDocument?: boolean;

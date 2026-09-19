@@ -42,6 +42,8 @@ export const auditLabels: Record<string, string> = {
   "company_invite.revoked": "Link de cadastro cancelado",
   "company.created": "Empresa cadastrada",
   "company.updated": "Cadastro atualizado",
+  "company.archived": "Cliente arquivado",
+  "company.restored": "Cliente restaurado",
   "membership.granted": "Acesso liberado ou atualizado",
   "membership.revoked": "Acesso revogado",
   "engagement.created": "Produto ou projeto cadastrado",

@@ -135,3 +135,9 @@ Sonner do catálogo shadcn.io, consultado pelo MCP shadcnio e adaptado em src/co
 CNPJ e CEP consultam automaticamente após completar os dígitos e 650ms de pausa; não há botões de busca. Cancelar/alterar a consulta descarta resposta e notificação obsoletas. Feedback de salvamento permanece em noscript para navegadores sem JavaScript. Histórico e informações permanentes continuam como conteúdo da página, sem disparar mensagens históricas como eventos novos. Falhas de página têm aviso genérico e botão de tentar novamente.
 
 Origem do componente: https://www.shadcn.io/ui/sonner. O MCP já estava conectado; nenhum token/configuração privada foi incluído no repositório.
+
+## Edição de documento e arquivamento de clientes
+
+Em Empresas → Gerenciar → Editar dados da empresa, a administração pode alterar CPF/CNPJ, com máscara e consulta automática de CNPJ. O servidor normaliza o documento, rejeita duplicidade sem salvar alterações parciais e registra documento anterior e novo na auditoria. A identidade interna da empresa e seus vínculos são preservados.
+
+Arquivar cliente remove o cadastro da lista principal de Empresas. A aba Arquivados permite consultar e restaurar; históricos, documentos e permissões de acesso são preservados. Arquivar não revoga acessos nem altera faturas, contratos ou chamados. Arquivamento e restauração exigem administrador e geram auditoria apenas quando a situação muda. Migração 0008 adiciona archived com false como padrão, preservando todos os clientes atuais como ativos.

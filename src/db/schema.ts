@@ -117,6 +117,7 @@ export const companies = pgTable("console_companies", {
       import("@/lib/company-billing").CompanyAddress
     >(),
   autoIssueNfse: boolean("auto_issue_nfse").notNull().default(false),
+  archived: boolean("archived").notNull().default(false),
   createdAt: created(),
 });
 export const memberships = pgTable(

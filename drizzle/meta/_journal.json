@@ -57,6 +57,13 @@
       "when": 1789787826510,
       "tag": "0007_safe_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789789877774,
+      "tag": "0008_company_archive",
+      "breakpoints": true
     }
   ]
 }

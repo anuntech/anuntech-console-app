@@ -4,9 +4,18 @@ import { eq, sql } from "drizzle-orm";
 import { companies, companyInvites } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
 import { Heading, Empty } from "@/components/ui";
-export default async function Companies() {
+export default async function Companies({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   await requireAdmin();
-  const rows = await db.select().from(companies).orderBy(companies.name);
+  const archived = (await searchParams).status === "arquivados";
+  const rows = await db
+    .select()
+    .from(companies)
+    .where(eq(companies.archived, archived))
+    .orderBy(companies.name);
   const [{ pending }] = await db
     .select({ pending: sql<number>`count(*)::int` })
     .from(companyInvites)
@@ -25,6 +34,25 @@ export default async function Companies() {
           {pending > 0 ? ` (${pending} para revisar)` : ""}
         </Link>
       </p>
+      <nav
+        className="member-actions section-gap"
+        aria-label="Situação dos clientes"
+      >
+        <Link
+          className={`button${!archived ? " primary" : ""}`}
+          href="/empresas"
+          aria-current={!archived ? "page" : undefined}
+        >
+          Ativos
+        </Link>
+        <Link
+          className={`button${archived ? " primary" : ""}`}
+          href="/empresas?status=arquivados"
+          aria-current={archived ? "page" : undefined}
+        >
+          Arquivados
+        </Link>
+      </nav>
       <section className="panel">
         {rows.length ? (
           <div className="table-wrap">
@@ -57,8 +85,14 @@ export default async function Companies() {
           </div>
         ) : (
           <Empty
-            title="Cadastre sua primeira empresa"
-            description="Os clientes de produtos e projetos ficam organizados aqui."
+            title={
+              archived ? "Nenhum cliente arquivado" : "Nenhum cliente ativo"
+            }
+            description={
+              archived
+                ? "Os clientes que você arquivar ficarão disponíveis aqui para consulta e restauração."
+                : "Cadastre uma empresa ou restaure um cliente da lista de arquivados."
+            }
           />
         )}
       </section>
