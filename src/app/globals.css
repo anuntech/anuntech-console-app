@@ -1067,4 +1067,70 @@ tr:last-child td {
   max-width: 620px;
 }
 
-.brand img{border-radius:6px}
+.brand img {
+  border-radius: 6px;
+}
+
+.auth-methods {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--bg, #f3f5f8);
+  margin-bottom: 22px;
+}
+.auth-methods button {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+}
+.auth-methods button[aria-pressed="true"] {
+  background: white;
+  color: var(--navy);
+  box-shadow: 0 1px 4px #16243a15;
+}
+.auth-hint {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.otp-form {
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.otp-code {
+  font-size: 22px;
+  letter-spacing: 0.25em;
+}
+.otp-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.otp-actions button {
+  background: none;
+  border: 0;
+  padding: 5px 0;
+  color: var(--navy);
+  text-decoration: underline;
+  font-size: 12px;
+}
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 20px 0;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line, #e2e7ed);
+}

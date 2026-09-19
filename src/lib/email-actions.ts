@@ -41,7 +41,7 @@ export async function sendAccessNotice(
       from: process.env.EMAIL_FROM,
       to: [entry.membership.email],
       subject: "Seu acesso à Anuntech Console",
-      text: `Olá!\n\nSeu acesso à empresa ${entry.company} foi liberado na Anuntech Console.\n\nEntre com este e-mail pelo Google: ${base}/entrar\n\nSe não reconhece este acesso, entre em contato com a Anuntech.\n\nEquipe Anuntech`,
+      text: `Olá!\n\nSeu acesso à empresa ${entry.company} foi liberado na Anuntech Console.\n\nEntre com este e-mail usando um código de acesso ou Google: ${base}/entrar\n\nSe não reconhece este acesso, entre em contato com a Anuntech.\n\nEquipe Anuntech`,
     };
     await db
       .insert(emailDeliveries)

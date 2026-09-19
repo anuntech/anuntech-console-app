@@ -8,8 +8,10 @@ import {
   MessagesSquare,
   ReceiptText,
   Settings2,
+  UserRound,
 } from "lucide-react";
 const items = [
+  { href: "/conta", label: "Minha conta", icon: UserRound },
   { href: "/painel", label: "Visão geral", icon: LayoutDashboard },
   { href: "/empresas", label: "Empresas", icon: Building2, admin: true },
   { href: "/produtos", label: "Produtos e projetos", icon: Layers3 },

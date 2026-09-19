@@ -4,6 +4,11 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import pg from "pg";
 import { serializeSignedCookie } from "better-call";
+assert.match(
+  new URL(process.env.DATABASE_URL).pathname,
+  /^\/console_test_[a-f0-9]+$/,
+  "Use scripts/test-isolated.mjs para criar um banco descartável",
+);
 const base = "http://127.0.0.1:3101";
 const marker = randomUUID().slice(0, 8);
 const adminEmail = `qa-admin-${marker}@example.invalid`;

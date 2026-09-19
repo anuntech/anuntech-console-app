@@ -1,4 +1,4 @@
-import { GoogleButton } from "@/components/auth-buttons";
+import { OtpLogin } from "@/components/otp-login";
 import { Brand } from "@/components/brand";
 export default async function SignIn({
   searchParams,
@@ -38,7 +38,7 @@ export default async function SignIn({
               e-mail autorizado e tente novamente.
             </p>
           )}
-          <GoogleButton />
+          <OtpLogin />
           <p className="login-help">
             Ainda não tem acesso? Solicite a liberação à equipe da Anuntech.
           </p>

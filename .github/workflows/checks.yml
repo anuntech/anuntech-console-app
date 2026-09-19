@@ -7,7 +7,20 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
+      DATABASE_URL: postgres://postgres:ci-test-only@localhost:5432/postgres
       BETTER_AUTH_URL: http://localhost:3100
       BETTER_AUTH_SECRET: ci-build-only-not-a-production-secret-2026
       GOOGLE_CLIENT_ID: ci-build-only
@@ -22,3 +35,4 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: node scripts/test-isolated.mjs --otp-only

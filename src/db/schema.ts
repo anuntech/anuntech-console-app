@@ -17,6 +17,10 @@ export const user = pgTable("console_user", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
+  phoneNumber: text("phone_number").unique(),
+  phoneNumberVerified: boolean("phone_number_verified")
+    .notNull()
+    .default(false),
   image: text("image"),
   createdAt: created(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -93,6 +97,12 @@ export const rateLimit = pgTable("console_rate_limit", {
     dataType: () => "bigint",
     fromDriver: (v) => Number(v),
   })("last_request").notNull(),
+});
+export const otpLimits = pgTable("console_otp_limits", {
+  key: text("key").primaryKey(),
+  lastSentAt: timestamp("last_sent_at", { withTimezone: true }).notNull(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  count: integer("count").notNull(),
 });
 export const companies = pgTable("console_companies", {
   id: text("id")

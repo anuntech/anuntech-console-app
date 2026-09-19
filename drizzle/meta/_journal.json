@@ -22,6 +22,13 @@
       "when": 1789781524278,
       "tag": "0002_wooden_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789782676337,
+      "tag": "0003_secret_menace",
+      "breakpoints": true
     }
   ]
 }

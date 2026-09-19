@@ -9,7 +9,7 @@ export function GoogleButton() {
   return (
     <>
       <button
-        className="button primary google"
+        className="button google"
         disabled={pending}
         onClick={async () => {
           setPending(true);

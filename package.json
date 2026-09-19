@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:integration": "node --env-file=.env.local scripts/smoke.mjs",
+    "test:integration": "node --env-file-if-exists=.env.local scripts/test-isolated.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

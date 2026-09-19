@@ -11,9 +11,10 @@ export default async function Settings() {
       detail: "Dados e sessões armazenados no PostgreSQL.",
     },
     {
-      name: "Google + Better Auth",
+      name: "Acesso à Console",
       status: "Configurado",
-      detail: "Acesso com Google e permissões por empresa.",
+      detail:
+        "Códigos por e-mail ou WhatsApp, Google opcional e permissões por empresa.",
     },
     {
       name: "Resend",
@@ -45,7 +46,7 @@ export default async function Settings() {
       provider: "flw",
       status: process.env.FLW_SYNOVA ? "Token configurado" : "Pendente",
       detail:
-        "Consulta de canais ativos. Cobranças proativas pelo WhatsApp dependem de modelo de mensagem aprovado. Recuperação de acesso ainda não habilitada.",
+        "Consulta de canais ativos. Cobranças proativas pelo WhatsApp dependem de modelo de mensagem aprovado. Login por código para números verificados em Minha conta.",
     },
   ];
   return (
@@ -82,7 +83,10 @@ export default async function Settings() {
             Anexos privados no banco, limitados a 1 MB por arquivo e 20 por
             chamado.
           </li>
-          <li>Nenhum envio automático de mensagem ou emissão fiscal.</li>
+          <li>
+            Códigos de acesso enviados sob solicitação. Cobranças e emissão
+            fiscal não são automáticas.
+          </li>
         </ul>
       </section>
     </>
