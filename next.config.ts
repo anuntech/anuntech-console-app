@@ -7,6 +7,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/pagar/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        ],
+      },
+      {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },

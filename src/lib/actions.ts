@@ -11,6 +11,7 @@ import {
   tickets,
   messages,
   invoices,
+  subscriptions,
   auditEvents,
   attachments,
 } from "@/db/schema";
@@ -442,6 +443,8 @@ export async function createInvoice(
         description: str(1000),
         amount: str(20),
         dueDate: z.iso.date(),
+        billingType: z.enum(["one_time", "recurring"]).default("one_time"),
+        interval: z.enum(["monthly", "yearly"]).default("monthly"),
       })
       .parse(Object.fromEntries(form));
     const amountCents = moneyToCents(input.amount);
@@ -462,10 +465,29 @@ export async function createInvoice(
           );
         if (!eng) throw Error();
       }
+      let subscriptionId: string | null = null;
+      if (input.billingType === "recurring") {
+        const [sub] = await tx
+          .insert(subscriptions)
+          .values({
+            companyId: input.companyId,
+            engagementId: input.engagementId || null,
+            description: input.description,
+            amountCents,
+            interval: input.interval,
+            anchorDay: Number(input.dueDate.slice(8)),
+            anchorMonth: Number(input.dueDate.slice(5, 7)),
+            nextDueDate: input.dueDate,
+            actorId: actor.user.id,
+          })
+          .returning();
+        subscriptionId = sub.id;
+      }
       const [row] = await tx
         .insert(invoices)
         .values({
           companyId: input.companyId,
+          subscriptionId,
           engagementId: input.engagementId || null,
           description: input.description,
           amountCents,
@@ -510,6 +532,15 @@ export async function cancelDraft(
         )
         .returning();
       if (!row) throw Error();
+      if (row.subscriptionId)
+        await tx
+          .update(subscriptions)
+          .set({
+            status: "paused",
+            lastError:
+              "Fatura do período cancelada. Revise o próximo vencimento.",
+          })
+          .where(eq(subscriptions.id, row.subscriptionId));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.companyId,
@@ -636,6 +667,27 @@ export async function updateDraft(
         )
         .returning();
       if (!row) return false;
+      if (row.subscriptionId) {
+        const [sub] = await tx
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.id, row.subscriptionId))
+          .for("update");
+        if (!sub || sub.status !== "draft")
+          throw new Error(
+            "A assinatura já foi ativada. Use Editar próximas cobranças para rever os próximos períodos.",
+          );
+        await tx
+          .update(subscriptions)
+          .set({
+            description: input.description,
+            amountCents,
+            nextDueDate: input.dueDate,
+            anchorDay: Number(input.dueDate.slice(8)),
+            anchorMonth: Number(input.dueDate.slice(5, 7)),
+          })
+          .where(eq(subscriptions.id, sub.id));
+      }
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.companyId,

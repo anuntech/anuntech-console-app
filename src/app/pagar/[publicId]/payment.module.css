@@ -1,0 +1,96 @@
+.page {
+  max-width: 660px;
+  margin: 0 auto;
+  padding: 36px 20px 24px;
+}
+.page header {
+  margin: 0 0 28px;
+}
+.card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.card h1 {
+  font-size: 24px;
+  margin: 16px 0 8px;
+  overflow-wrap: anywhere;
+}
+.customer {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.amount {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  margin: 28px 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.method {
+  margin: 28px 0;
+  padding: 24px 0 0;
+  border-top: 1px solid var(--border);
+}
+.method h2 {
+  font-size: 19px;
+}
+.method p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.qr {
+  display: block;
+  width: 232px;
+  height: 232px;
+  max-width: 100%;
+  margin: 20px auto;
+}
+.notice,
+.success {
+  margin: 24px 0;
+  padding: 20px;
+  border-radius: 10px;
+  background: #f3f5f8;
+  line-height: 1.6;
+}
+.success {
+  background: #eaf6ee;
+  color: #226b3c;
+}
+.note,
+.page footer {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.page footer {
+  text-align: center;
+  margin: 24px 0;
+}
+.card textarea {
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  resize: vertical;
+}
+@media (max-width: 480px) {
+  .page {
+    padding: 24px 12px;
+  }
+  .card {
+    padding: 24px 18px;
+  }
+  .amount {
+    font-size: 34px;
+  }
+  .card h1 {
+    font-size: 21px;
+  }
+}

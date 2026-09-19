@@ -1,11 +1,12 @@
 export type InvoiceTableStatus = "draft" | "issued" | "paid" | "cancelled";
-export type InvoiceDisplayStatus = InvoiceTableStatus | "overdue";
+export type InvoiceDisplayStatus = InvoiceTableStatus | "overdue" | "scheduled";
 
 // Overdue is a display state only; payment confirmation still comes from Inter.
 export function invoiceDisplayStatus(
-  invoice: { status: InvoiceTableStatus; dueDate: string },
+  invoice: { status: InvoiceTableStatus; dueDate: string; scheduled?: boolean },
   today: string,
 ): InvoiceDisplayStatus {
+  if (invoice.status === "draft" && invoice.scheduled) return "scheduled";
   return invoice.status === "issued" && invoice.dueDate < today
     ? "overdue"
     : invoice.status;
@@ -17,6 +18,7 @@ export const invoiceFilters: InvoiceStatusFilter[] = [
   "issued",
   "overdue",
   "paid",
+  "scheduled",
   "draft",
   "cancelled",
 ];

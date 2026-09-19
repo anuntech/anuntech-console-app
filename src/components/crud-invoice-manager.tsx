@@ -31,6 +31,9 @@ export interface InvoiceTableRow {
   status: InvoiceTableStatus;
   dueDate: string;
   createdDate: string;
+  recurring?: boolean;
+  scheduled?: boolean;
+  publicUrl?: string;
 }
 
 type StatusFilter = InvoiceStatusFilter;
@@ -40,6 +43,7 @@ const labels: Record<StatusFilter, string> = {
   issued: "Em aberto",
   overdue: "Vencidas",
   draft: "Rascunhos",
+  scheduled: "Agendadas",
   cancelled: "Canceladas",
 };
 const statusLabels: Record<InvoiceDisplayStatus, string> = {
@@ -47,6 +51,7 @@ const statusLabels: Record<InvoiceDisplayStatus, string> = {
   issued: "Em aberto",
   overdue: "Vencida",
   draft: "Rascunho",
+  scheduled: "Agendada",
   cancelled: "Cancelada",
 };
 
@@ -74,15 +79,15 @@ export default function CrudInvoiceManager({
 }) {
   const router = useRouter();
   const filters: StatusFilter[] = admin
-    ? ["all", "issued", "overdue", "paid", "draft", "cancelled"]
+    ? ["all", "issued", "overdue", "paid", "scheduled", "draft", "cancelled"]
     : ["all", "issued", "overdue", "paid"];
   const href = (patch: Partial<typeof query>) =>
     invoiceListHref({ ...query, ...patch });
 
-  async function copyLink(id: string) {
+  async function copyLink(id: string, publicUrl?: string) {
     try {
       await navigator.clipboard.writeText(
-        new URL(`/financeiro/${id}`, window.location.origin).href,
+        publicUrl || new URL(`/financeiro/${id}`, window.location.origin).href,
       );
       toast.success("Link da fatura copiado.");
     } catch {
@@ -158,6 +163,9 @@ export default function CrudInvoiceManager({
                     >
                       {invoice.description}
                     </Link>
+                    <span className={styles.created}>
+                      {invoice.recurring ? "Recorrente" : "Única"}
+                    </span>
                   </td>
                   <td>
                     <span className={styles.company}>{invoice.company}</span>
@@ -206,10 +214,14 @@ export default function CrudInvoiceManager({
                           </DropdownMenu.Item>
                           <DropdownMenu.Item
                             className={styles.menuItem}
-                            onSelect={() => void copyLink(invoice.id)}
+                            onSelect={() =>
+                              void copyLink(invoice.id, invoice.publicUrl)
+                            }
                           >
                             <Copy size={16} aria-hidden="true" />
-                            Copiar link
+                            {invoice.publicUrl
+                              ? "Copiar link de pagamento"
+                              : "Copiar link interno"}
                           </DropdownMenu.Item>
                         </DropdownMenu.Content>
                       </DropdownMenu.Portal>

@@ -1,9 +1,11 @@
+import Link from "next/link";
+import { paymentUrl } from "@/lib/payment-link";
 import { Notification } from "@/components/notifications";
 import CrudInvoiceManager from "@/components/crud-invoice-manager";
 import { saoPauloDate } from "@/lib/dates";
 import { and, desc, eq, inArray, sql, ilike, or, count } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { invoices, companies } from "@/db/schema";
+import { invoices, companies, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Heading } from "@/components/ui";
 import { invoiceQuery, type InvoiceStatusFilter } from "@/lib/invoice-table";
@@ -34,11 +36,12 @@ export default async function Finance({
         )
       : undefined,
   );
-  const displayStatus = sql<string>`case when ${invoices.status} = 'issued' and ${invoices.dueDate} < ${today} then 'overdue' else ${invoices.status} end`;
+  const displayStatus = sql<string>`case when ${invoices.status} = 'draft' and ${subscriptions.status} = 'active' then 'scheduled' when ${invoices.status} = 'issued' and ${invoices.dueDate} < ${today} then 'overdue' else ${invoices.status} end`;
   const grouped = await db
     .select({ status: displayStatus, count: count() })
     .from(invoices)
     .innerJoin(companies, eq(companies.id, invoices.companyId))
+    .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
     .where(scope)
     .groupBy(sql`1`);
   const counts: Record<InvoiceStatusFilter, number> = {
@@ -46,6 +49,7 @@ export default async function Finance({
     issued: 0,
     overdue: 0,
     paid: 0,
+    scheduled: 0,
     draft: 0,
     cancelled: 0,
   };
@@ -57,9 +61,24 @@ export default async function Finance({
   const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
   const page = Math.min(query.page, pageCount);
   const rows = await db
-    .select({ invoice: invoices, company: companies.name })
+    .select({
+      invoice: {
+        id: invoices.id,
+        subscriptionId: invoices.subscriptionId,
+        publicId: invoices.publicId,
+        publicEnabled: invoices.publicEnabled,
+        description: invoices.description,
+        amountCents: invoices.amountCents,
+        status: invoices.status,
+        dueDate: invoices.dueDate,
+        createdAt: invoices.createdAt,
+      },
+      company: companies.name,
+      subscriptionStatus: subscriptions.status,
+    })
     .from(invoices)
     .innerJoin(companies, eq(companies.id, invoices.companyId))
+    .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
     .where(
       and(
         scope,
@@ -89,9 +108,16 @@ export default async function Finance({
       />
       {actor.admin && (
         <Notification
-          message="Crie um rascunho e abra a fatura para emitir manualmente no Inter. Pagamentos são verificados automaticamente a cada cinco minutos. Emissão fiscal aguarda configuração."
+          message="Crie uma cobrança única ou recorrente. Publique para ativar a cobrança e os avisos por e-mail e WhatsApp."
           id="finance-info"
         />
+      )}
+      {actor.admin && (
+        <p>
+          <Link className="button secondary" href="/financeiro/envios">
+            Acompanhar entrega de e-mails e WhatsApp
+          </Link>
+        </p>
       )}
       <CrudInvoiceManager
         admin={actor.admin}
@@ -100,8 +126,17 @@ export default async function Finance({
         counts={counts}
         total={total}
         pageCount={pageCount}
-        invoices={rows.map(({ invoice, company }) => ({
+        invoices={rows.map(({ invoice, company, subscriptionStatus }) => ({
           id: invoice.id,
+          recurring: !!invoice.subscriptionId,
+          scheduled:
+            invoice.status === "draft" && subscriptionStatus === "active",
+          publicUrl:
+            invoice.publicId &&
+            invoice.publicEnabled &&
+            ["issued", "paid"].includes(invoice.status)
+              ? paymentUrl(invoice.publicId)
+              : undefined,
           description: invoice.description,
           company,
           amountCents: invoice.amountCents,

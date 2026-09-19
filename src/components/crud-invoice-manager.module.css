@@ -307,3 +307,8 @@
     transition: none;
   }
 }
+
+.scheduled {
+  color: #294b79;
+  background: #eef4fc;
+}

@@ -259,6 +259,31 @@ export const attachments = pgTable(
   },
   (t) => [index("console_attachment_ticket_idx").on(t.ticketId)],
 );
+export const subscriptions = pgTable("console_subscriptions", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  companyId: text("company_id")
+    .notNull()
+    .references(() => companies.id),
+  engagementId: text("engagement_id").references(() => engagements.id),
+  description: text("description").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  interval: text("interval", { enum: ["monthly", "yearly"] }).notNull(),
+  anchorDay: integer("anchor_day").notNull(),
+  anchorMonth: integer("anchor_month").notNull(),
+  nextDueDate: date("next_due_date").notNull(),
+  leadDays: integer("lead_days").notNull().default(5),
+  collectionDays: integer("collection_days").notNull().default(30),
+  status: text("status", { enum: ["draft", "active", "paused", "cancelled"] })
+    .notNull()
+    .default("draft"),
+  actorId: text("actor_id")
+    .notNull()
+    .references(() => user.id),
+  lastError: text("last_error"),
+  createdAt: created(),
+});
 export const invoices = pgTable(
   "console_invoices",
   {
@@ -269,6 +294,10 @@ export const invoices = pgTable(
       .notNull()
       .references(() => companies.id),
     engagementId: text("engagement_id").references(() => engagements.id),
+    subscriptionId: text("subscription_id").references(() => subscriptions.id),
+    publicId: text("public_id").unique(),
+    publicEnabled: boolean("public_enabled").notNull().default(true),
+    boletoPdf: text("boleto_pdf"),
     description: text("description").notNull(),
     amountCents: integer("amount_cents").notNull(),
     dueDate: date("due_date").notNull(),
@@ -291,7 +320,13 @@ export const invoices = pgTable(
     fiscalUrl: text("fiscal_url"),
     createdAt: created(),
   },
-  (t) => [index("console_invoice_company_idx").on(t.companyId)],
+  (t) => [
+    index("console_invoice_company_idx").on(t.companyId),
+    uniqueIndex("console_invoice_subscription_due_unique").on(
+      t.subscriptionId,
+      t.dueDate,
+    ),
+  ],
 );
 export const auditEvents = pgTable(
   "console_audit_events",
@@ -389,3 +424,65 @@ export const companyInvites = pgTable("console_company_invites", {
   lookupCount: integer("lookup_count").notNull().default(0),
   createdAt: created(),
 });
+
+export type BillingNoticePayload = {
+  from: string;
+  to: string | string[];
+  subject?: string;
+  text?: string;
+  html?: string;
+  templateId?: string;
+  parameters?: Record<string, string>;
+  senderId?: string;
+  options?: { enableBot: boolean };
+};
+export const billingNotices = pgTable(
+  "console_billing_notices",
+  {
+    id: text("id").primaryKey(),
+    invoiceId: text("invoice_id")
+      .notNull()
+      .references(() => invoices.id),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => user.id),
+    channel: text("channel", { enum: ["email", "whatsapp"] }).notNull(),
+    kind: text("kind")
+      .$type<import("@/lib/billing-notice-rules").BillingNoticeKind>()
+      .notNull(),
+    status: text("status", {
+      enum: [
+        "waiting",
+        "pending",
+        "sending",
+        "accepted",
+        "delivered",
+        "failed",
+        "expired",
+        "skipped",
+        "uncertain",
+      ],
+    })
+      .notNull()
+      .default("waiting"),
+    payload: jsonb("payload").$type<BillingNoticePayload>(),
+    providerId: text("provider_id"),
+    providerStatus: text("provider_status"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    createdAt: created(),
+  },
+  (t) => [
+    uniqueIndex("console_billing_notice_event_idx").on(
+      t.invoiceId,
+      t.channel,
+      t.kind,
+    ),
+    index("console_billing_notice_pending_idx").on(t.status, t.nextAttemptAt),
+  ],
+);

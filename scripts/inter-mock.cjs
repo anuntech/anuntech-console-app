@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Node preload test harness uses CommonJS. */
 // Test-process only. Never imported by the application or shipped to Vercel.
 const https = require("node:https");
+const fs = require("node:fs");
 const { EventEmitter } = require("node:events");
 const { randomUUID } = require("node:crypto");
 const original = https.request;
@@ -44,11 +45,24 @@ https.request = function (url, options, callback) {
           };
         else {
           charge.checks++;
+          const flags = JSON.parse(
+            fs.readFileSync(process.env.CONSOLE_TEST_NOTICE_FLAGS, "utf8"),
+          );
+          if (flags.bankUnavailable) {
+            req.emit("error", new Error("Mock bank unavailable"));
+            return;
+          }
           result = {
             cobranca: {
               ...charge.payload,
               codigoSolicitacao: id,
-              situacao: charge.checks > 1 ? "RECEBIDO" : "A_RECEBER",
+              dataVencimento:
+                flags.billingBankDue || charge.payload.dataVencimento,
+              situacao: flags.bankUnpaid
+                ? "A_RECEBER"
+                : charge.checks > 1
+                  ? "RECEBIDO"
+                  : "A_RECEBER",
             },
             boleto: { linhaDigitavel: "1".repeat(47) },
             pix: { pixCopiaECola: "test-pix-payload" },

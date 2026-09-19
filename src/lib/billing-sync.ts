@@ -1,4 +1,6 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
+import { advanceSubscription } from "./billing-publication";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
@@ -64,6 +66,7 @@ export async function reconcileCharge(
       .update(invoices)
       .set({
         providerId,
+        publicId: current.publicId || randomBytes(32).toString("base64url"),
         status: next,
         bankStatus: c.situacao,
         bankCheckedAt: new Date(),
@@ -71,6 +74,7 @@ export async function reconcileCharge(
         pixCopyPaste: result.pix?.pixCopiaECola || null,
       })
       .where(eq(invoices.id, id));
+    await advanceSubscription(tx, { ...current, status: next });
     if (
       source === "manual" ||
       current.bankStatus !== c.situacao ||

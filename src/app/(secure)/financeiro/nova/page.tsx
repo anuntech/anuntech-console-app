@@ -1,3 +1,4 @@
+import { BillingTypeInput } from "@/components/billing-type-input";
 import { inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { engagements } from "@/db/schema";
@@ -32,6 +33,7 @@ export default async function NewInvoice() {
         {companies.length ? (
           <ActionForm action={createInvoice} label="Salvar rascunho">
             <CompanyPicker companies={companies} engagements={items} />
+            <BillingTypeInput />
             <Field label="Descrição">
               <textarea name="description" required maxLength={1000} rows={3} />
             </Field>

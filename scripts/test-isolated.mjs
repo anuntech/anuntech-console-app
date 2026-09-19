@@ -59,10 +59,19 @@ try {
   }
   for (const script of process.argv.includes("--otp-only")
     ? ["scripts/otp-smoke.mjs"]
-    : ["scripts/otp-smoke.mjs", "scripts/smoke.mjs"]) {
+    : process.argv.includes("--billing-only")
+      ? ["scripts/smoke.mjs"]
+      : ["scripts/otp-smoke.mjs", "scripts/smoke.mjs"]) {
     const child = spawn(process.execPath, [script], {
       stdio: "inherit",
-      env: { ...process.env, ...bankEnv, DATABASE_URL: target.toString() },
+      env: {
+        ...process.env,
+        ...bankEnv,
+        DATABASE_URL: target.toString(),
+        CONSOLE_TEST_BILLING_ONLY: process.argv.includes("--billing-only")
+          ? "1"
+          : "",
+      },
     });
     const status = await new Promise((resolve) => child.on("exit", resolve));
     if (status !== 0) throw new Error(`Falha em ${script}`);
