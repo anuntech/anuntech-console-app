@@ -105,6 +105,26 @@ export async function runBillingTests({
       !(await notices(recurring.id)).length,
     "Publicação antecipada agenda recorrência sem emitir ou enviar antes dos 5 dias",
   );
+  const scheduledList = await request(
+    "/financeiro?status=scheduled&q=" +
+      encodeURIComponent(recurring.description),
+    "admin",
+  );
+  ok(
+    scheduledList.status === 200 &&
+      scheduledList.text.includes(`/financeiro/${recurring.id}`) &&
+      scheduledList.text.includes("Agendada"),
+    "Filtro paginado mostra recorrência ativa como agendada",
+  );
+  const draftList = await request(
+    "/financeiro?status=draft&q=" + encodeURIComponent(recurring.description),
+    "admin",
+  );
+  ok(
+    draftList.status === 200 &&
+      !draftList.text.includes(`/financeiro/${recurring.id}`),
+    "Recorrência agendada deixa a lista de rascunhos",
+  );
   ok(
     (await request("/api/cron/recurring-billing")).status === 401,
     "Cron recorrente exige autenticação",
