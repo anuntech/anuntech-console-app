@@ -1,11 +1,11 @@
 import { Notification } from "@/components/notifications";
-import Link from "next/link";
+import CrudInvoiceManager from "@/components/crud-invoice-manager";
+import { saoPauloDate } from "@/lib/dates";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { invoices, companies } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
-import { Heading, Empty, Badge } from "@/components/ui";
-import { invoiceLabels, currency, dateLabel } from "@/lib/format";
+import { Heading } from "@/components/ui";
 export default async function Finance() {
   const actor = await getActor();
   const ids = allowedIds(actor, "finance");
@@ -47,47 +47,19 @@ export default async function Finance() {
           id="finance-info"
         />
       )}
-      <section className="panel">
-        {rows.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Descrição</th>
-                  <th>Empresa</th>
-                  <th>Valor</th>
-                  <th>Vencimento</th>
-                  <th>Situação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ invoice: i, company }) => (
-                  <tr key={i.id}>
-                    <td>
-                      <Link href={`/financeiro/${i.id}`}>{i.description}</Link>
-                    </td>
-                    <td>{company}</td>
-                    <td className="nowrap">{currency(i.amountCents)}</td>
-                    <td>{dateLabel(i.dueDate)}</td>
-                    <td>
-                      <Badge status={i.status}>{invoiceLabels[i.status]}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <Empty
-            title="Nenhuma fatura disponível"
-            description={
-              actor.admin
-                ? "Crie uma fatura para preparar a cobrança do cliente."
-                : "As cobranças emitidas para sua empresa aparecerão aqui."
-            }
-          />
-        )}
-      </section>
+      <CrudInvoiceManager
+        admin={actor.admin}
+        today={saoPauloDate()}
+        invoices={rows.map(({ invoice, company }) => ({
+          id: invoice.id,
+          description: invoice.description,
+          company,
+          amountCents: invoice.amountCents,
+          status: invoice.status,
+          dueDate: invoice.dueDate,
+          createdDate: saoPauloDate(invoice.createdAt),
+        }))}
+      />
       {rows.length === 200 && (
         <p className="muted">Exibindo as 200 faturas mais recentes.</p>
       )}
