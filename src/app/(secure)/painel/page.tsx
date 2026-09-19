@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { companies, tickets, invoices } from "@/db/schema";
+import { companies, tickets, invoices, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Heading, Empty, Badge } from "@/components/ui";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,9 +46,14 @@ export default async function Dashboard() {
       .orderBy(desc(tickets.updatedAt))
       .limit(5),
     db
-      .select({ invoice: invoices, company: companies.name })
+      .select({
+        invoice: invoices,
+        company: companies.name,
+        subscriptionStatus: subscriptions.status,
+      })
       .from(invoices)
       .innerJoin(companies, eq(companies.id, invoices.companyId))
+      .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
       .where(invoiceScope)
       .orderBy(desc(invoices.createdAt))
       .limit(5),
@@ -207,23 +212,35 @@ export default async function Dashboard() {
           </CardHeader>
           {recentInvoices.length ? (
             <div className="record-list">
-              {recentInvoices.map(({ invoice, company }) => (
-                <Link
-                  href={`/financeiro/${invoice.id}`}
-                  key={invoice.id}
-                  className="record"
-                >
-                  <div>
-                    <strong>{currency(invoice.amountCents)}</strong>
-                    <small>
-                      {company} · {dateLabel(invoice.dueDate)}
-                    </small>
-                  </div>
-                  <Badge status={invoice.status}>
-                    {invoiceLabels[invoice.status]}
-                  </Badge>
-                </Link>
-              ))}
+              {recentInvoices.map(
+                ({ invoice, company, subscriptionStatus }) => (
+                  <Link
+                    href={`/financeiro/${invoice.id}`}
+                    key={invoice.id}
+                    className="record"
+                  >
+                    <div>
+                      <strong>{currency(invoice.amountCents)}</strong>
+                      <small>
+                        {company} · {dateLabel(invoice.dueDate)}
+                      </small>
+                    </div>
+                    <Badge
+                      status={
+                        invoice.status === "draft" &&
+                        subscriptionStatus === "active"
+                          ? "scheduled"
+                          : invoice.status
+                      }
+                    >
+                      {invoice.status === "draft" &&
+                      subscriptionStatus === "active"
+                        ? "Agendada"
+                        : invoiceLabels[invoice.status]}
+                    </Badge>
+                  </Link>
+                ),
+              )}
             </div>
           ) : (
             <Empty
