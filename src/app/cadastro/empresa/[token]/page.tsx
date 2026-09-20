@@ -1,4 +1,3 @@
-import { Notification } from "@/components/notifications";
 import { findCompanyInvite } from "@/lib/company-invites";
 import { submitCompanyInvite } from "@/lib/company-invite-actions";
 import { ActionForm } from "@/components/action-form";
@@ -7,6 +6,10 @@ import { Brand } from "@/components/brand";
 import { Check, Link2Off, ShieldCheck } from "lucide-react";
 import styles from "@/components/public-layout.module.css";
 export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "Cadastro da empresa",
+  robots: { index: false, follow: false },
+};
 export default async function PublicCompanyRegistration({
   params,
 }: {
@@ -17,7 +20,7 @@ export default async function PublicCompanyRegistration({
   const sent = invite?.status === "submitted" || invite?.status === "approved";
   const open = invite?.status === "open" && invite.expiresAt > new Date();
   return (
-    <main className={styles.page}>
+    <main id="main-content" tabIndex={-1} className={styles.page}>
       <header className={styles.header}>
         <Brand />
         <span className={styles.headerNote}>
@@ -51,15 +54,6 @@ export default async function PublicCompanyRegistration({
           </>
         ) : (
           <>
-            <Notification
-              kind={sent ? "success" : "warning"}
-              id="registration-state"
-              message={
-                sent
-                  ? "Cadastro recebido. A Anuntech dará continuidade à revisão."
-                  : "Link indisponível ou expirado. Solicite um novo link à Anuntech."
-              }
-            />
             <div className={styles.stateCard}>
               <div className={styles.stateIcon}>
                 {sent ? (

@@ -16,11 +16,16 @@ import {
 import { publicInvoice } from "@/lib/payment-link";
 import { currency, dateLabel } from "@/lib/format";
 import { Brand } from "@/components/brand";
-import { PaymentCode, PaymentRefresh } from "@/components/payment-code";
+import {
+  PaymentCode,
+  PaymentRefresh,
+  PaymentStatusAnnouncer,
+} from "@/components/payment-code";
+import { DownloadLink } from "@/components/download-link";
 import styles from "./payment.module.css";
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Pagar fatura | Anuntech",
+  title: "Pagar fatura",
   robots: { index: false, follow: false, noarchive: true },
 };
 export default async function Payment({
@@ -43,7 +48,7 @@ export default async function Payment({
         })
       : null;
   return (
-    <main className={styles.page}>
+    <main id="main-content" tabIndex={-1} className={styles.page}>
       <header className={styles.header}>
         <Brand />
         <span className={styles.official}>
@@ -51,6 +56,10 @@ export default async function Payment({
           Anuntech
         </span>
       </header>
+      <PaymentStatusAnnouncer
+        status={i.status}
+        ready={Boolean(i.pix || i.boletoLine)}
+      />
       <div className={styles.layout}>
         <section className={styles.summary} aria-labelledby="invoice-title">
           <div className={styles.summaryTop}>
@@ -97,7 +106,7 @@ export default async function Payment({
         </section>
         <section className={styles.payment} aria-label="Pagamento da fatura">
           {paid ? (
-            <div className={styles.complete} role="status">
+            <div className={styles.complete}>
               <div className={styles.successIcon}>
                 <CircleCheck size={32} strokeWidth={1.7} aria-hidden="true" />
               </div>
@@ -109,7 +118,7 @@ export default async function Payment({
               </div>
             </div>
           ) : cancelled ? (
-            <div className={styles.complete} role="status">
+            <div className={styles.complete}>
               <div className={styles.stateIcon}>
                 <CircleSlash size={30} strokeWidth={1.7} aria-hidden="true" />
               </div>
@@ -172,13 +181,14 @@ export default async function Payment({
                     label="Linha digitável"
                     buttonLabel="Copiar linha digitável"
                   />
-                  <a
+                  <DownloadLink
                     className={`button ${styles.download}`}
                     href={`/pagar/${publicId}/boleto`}
+                    filename="boleto-anuntech.pdf"
                   >
                     <ArrowDownToLine size={16} aria-hidden="true" /> Baixar
                     boleto PDF
-                  </a>
+                  </DownloadLink>
                 </section>
               )}
               {!i.pix && !i.boletoLine && (

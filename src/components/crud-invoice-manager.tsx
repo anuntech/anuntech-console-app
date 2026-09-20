@@ -113,7 +113,12 @@ export default function CrudInvoiceManager({
           </Link>
         ))}
       </nav>
-      <form action="/financeiro" className={styles.toolbar} role="search">
+      <form
+        action="/financeiro"
+        className={styles.toolbar}
+        role="search"
+        aria-label="Buscar faturas"
+      >
         <input type="hidden" name="status" value={query.status} />
         <input type="hidden" name="size" value={query.pageSize} />
         <div className={styles.search}>
@@ -137,8 +142,16 @@ export default function CrudInvoiceManager({
           </Link>
         )}
       </form>
-      <div className={styles.scroll}>
+      <div
+        className={styles.scroll}
+        role="region"
+        aria-label="Tabela de faturas"
+        tabIndex={0}
+      >
         <table className={styles.table}>
+          <caption className="sr-only">
+            Faturas, clientes, valores, situações e vencimentos
+          </caption>
           <thead>
             <tr>
               <th scope="col">Produto</th>
@@ -156,12 +169,14 @@ export default function CrudInvoiceManager({
           <tbody>
             {invoices.map((invoice) => {
               const status = invoiceDisplayStatus(invoice, today);
+              const invoiceLabel = `${invoice.description} — ${invoice.company}, vencimento ${dateLabel(invoice.dueDate)}`;
               return (
                 <tr key={invoice.id}>
                   <td>
                     <Link
                       className={styles.product}
                       href={`/financeiro/${invoice.id}`}
+                      aria-label={invoiceLabel}
                     >
                       {invoice.description}
                     </Link>
@@ -194,7 +209,7 @@ export default function CrudInvoiceManager({
                         <button
                           type="button"
                           className={styles.menuButton}
-                          aria-label={`Ações da fatura: ${invoice.description} — ${invoice.company}`}
+                          aria-label={`Ações da fatura: ${invoiceLabel}`}
                         >
                           <MoreVertical size={17} aria-hidden="true" />
                         </button>
@@ -209,7 +224,10 @@ export default function CrudInvoiceManager({
                             asChild
                             className={styles.menuItem}
                           >
-                            <Link href={`/financeiro/${invoice.id}`}>
+                            <Link
+                              href={`/financeiro/${invoice.id}`}
+                              aria-label={`Ver fatura: ${invoiceLabel}`}
+                            >
                               <Eye size={16} aria-hidden="true" />
                               Ver fatura
                             </Link>
@@ -280,7 +298,7 @@ export default function CrudInvoiceManager({
               Anterior
             </Link>
           ) : (
-            <button className={styles.control} disabled>
+            <button type="button" className={styles.control} disabled>
               <ChevronLeft size={15} aria-hidden="true" />
               Anterior
             </button>
@@ -298,7 +316,7 @@ export default function CrudInvoiceManager({
               <ChevronRight size={15} aria-hidden="true" />
             </Link>
           ) : (
-            <button className={styles.control} disabled>
+            <button type="button" className={styles.control} disabled>
               Próxima
               <ChevronRight size={15} aria-hidden="true" />
             </button>

@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Repeat2 } from "lucide-react";
 import { Field } from "./ui";
 import styles from "./invoice-inputs.module.css";
 export function BillingTypeInput() {
   const [type, setType] = useState("one_time");
+  const hintId = useId();
   return (
     <>
       <Field
@@ -17,6 +18,7 @@ export function BillingTypeInput() {
       >
         <select
           name="billingType"
+          aria-describedby={type === "recurring" ? hintId : undefined}
           value={type}
           onChange={(e) => setType(e.target.value)}
         >
@@ -32,7 +34,7 @@ export function BillingTypeInput() {
               <option value="yearly">Anual</option>
             </select>
           </Field>
-          <div className={styles.typeHint}>
+          <div id={hintId} className={styles.typeHint} role="status">
             <Repeat2 size={17} aria-hidden="true" />
             <p>
               A primeira publicação ativa a recorrência. As próximas cobranças

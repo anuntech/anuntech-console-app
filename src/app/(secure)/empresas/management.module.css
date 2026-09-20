@@ -14,12 +14,12 @@
 }
 .toolbar h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 1rem;
 }
 .toolbar p {
   margin: 4px 0 0;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .toolbarTitle {
   display: flex;
@@ -31,18 +31,19 @@
   align-items: center;
   justify-content: center;
   min-width: 25px;
-  height: 25px;
+  min-height: 25px;
   padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--secondary);
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   padding: 4px;
@@ -54,13 +55,13 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 0.8125rem;
   text-decoration: none;
 }
 .tabs a[aria-current="page"] {
   background: var(--card);
   color: var(--foreground);
-  border-color: var(--border);
+  border-color: var(--input);
   box-shadow: var(--shadow-sm);
 }
 .tabs a:hover {
@@ -70,7 +71,7 @@
   margin: 0;
   padding: 14px 22px;
   border-top: 1px solid var(--border);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
 }
 .entity {
@@ -85,7 +86,7 @@
 }
 .entity small {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 400;
 }
 .avatar {
@@ -106,7 +107,7 @@
   gap: 7px;
   white-space: nowrap;
   min-height: 36px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--primary);
 }
 .cellMuted {
@@ -138,12 +139,12 @@
 .helpCard h2,
 .helpCard h3 {
   margin: 14px 0 8px;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 .helpCard p {
   margin: 0 0 16px;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.7;
 }
 .helpCard p:last-child {
@@ -167,11 +168,11 @@
 }
 .sectionHeader h2 {
   margin: 0 0 5px;
-  font-size: 17px;
+  font-size: 1.0625rem;
 }
 .sectionHeader p {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
   line-height: 1.6;
 }
@@ -200,11 +201,11 @@
   gap: 7px;
   margin-bottom: 9px;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .summaryGrid dd {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -230,7 +231,7 @@
   gap: 8px;
 }
 .personRow strong {
-  font-size: 14px;
+  font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
 .personRow small {
@@ -249,13 +250,13 @@
   gap: 10px;
   padding: 20px 24px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 .details > summary::after {
   content: "+";
   margin-left: auto;
-  font-size: 20px;
+  font-size: 1.25rem;
   color: var(--muted-foreground);
   font-weight: 400;
 }
@@ -284,12 +285,12 @@
 }
 .secondaryAction h2 {
   margin: 0 0 7px;
-  font-size: 16px;
+  font-size: 1rem;
 }
 .secondaryAction p {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 0.8125rem;
   max-width: 620px;
   line-height: 1.6;
 }
@@ -308,7 +309,7 @@
   gap: 20px;
   padding: 14px 0 14px 20px;
   position: relative;
-  font-size: 13px;
+  font-size: 0.8125rem;
   border-bottom: 1px solid var(--border);
 }
 .timeline li::before {
@@ -325,7 +326,7 @@
   border-bottom: 0;
 }
 .timeline time {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
   white-space: nowrap;
 }
@@ -337,7 +338,7 @@
 }
 .statusPanel h2 {
   margin: 0 0 8px;
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 .statusPanel p {
   margin: 0;
@@ -349,7 +350,7 @@
   flex-wrap: wrap;
   gap: 20px;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-bottom: 20px;
 }
 .productSummary span {
@@ -365,7 +366,7 @@
 }
 .productCard h2 {
   margin: 18px 0 6px;
-  font-size: 21px;
+  font-size: 1.3125rem;
 }
 .productCard :global(.card-top) {
   margin-bottom: 0;
@@ -374,13 +375,13 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
   margin: 0;
 }
 .productDescription {
   line-height: 1.7;
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 20px 0 24px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -405,7 +406,7 @@
 .documentTop p {
   margin: 7px 0 0;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .documentActions {
   display: flex;
@@ -419,7 +420,7 @@
   line-height: 1.7;
 }
 .publication :global(.checkbox-field) {
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
 }
 .publication :global(.edit-details) {
@@ -435,13 +436,13 @@
 }
 .documentPaper h2 {
   margin: 20px 0 12px;
-  font-size: 26px;
+  font-size: 1.625rem;
 }
 .documentPaper :global(.contract-body) {
   margin-top: 28px;
   padding-top: 26px;
   border-top: 1px solid var(--border);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 @media (max-width: 1100px) {
   .formShell {
@@ -505,10 +506,15 @@
   margin-top: 18px;
 }
 .publicationHeading h2 {
-  font-size: 16px;
+  font-size: 1rem;
   margin-bottom: 10px;
 }
 .publicationHeading p {
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-bottom: 20px;
+}
+
+.productCompany {
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
 }

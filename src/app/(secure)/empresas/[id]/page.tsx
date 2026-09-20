@@ -24,6 +24,11 @@ import {
 } from "@/lib/actions";
 import { roleLabels, dateLabel, auditLabels } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
+import { FormModal } from "@/components/form-modal";
+export const metadata = {
+  title: "Detalhes da empresa",
+  description: "Consulte os dados da empresa, contatos e permissões de acesso.",
+};
 import { Heading, Field, Back, Badge, Empty } from "@/components/ui";
 import { CompanyBillingFields } from "@/components/company-billing-fields";
 import { addressLabel } from "@/lib/company-billing";
@@ -147,6 +152,10 @@ export default async function Company({
                     <div className="member-actions">
                       <ActionForm
                         action={sendAccessNotice}
+                        confirm={{
+                          title: "Enviar aviso de acesso?",
+                          description: `O aviso de acesso a ${company.name} será enviado para ${p.email}.`,
+                        }}
                         label="Enviar aviso de acesso"
                         className="compact-form"
                       >
@@ -154,6 +163,10 @@ export default async function Company({
                       </ActionForm>
                       <ActionForm
                         action={revokeMembership}
+                        confirm={{
+                          title: "Revogar este acesso?",
+                          description: `${p.email} perderá as permissões de acesso a ${company.name}. Os registros da empresa serão preservados.`,
+                        }}
                         label="Revogar"
                         danger
                         className="compact-form"
@@ -170,6 +183,7 @@ export default async function Company({
               ))
             ) : (
               <Empty
+                headingLevel={3}
                 title="Nenhum acesso liberado"
                 description="Adicione o e-mail que o cliente usará no Google."
               />
@@ -183,7 +197,14 @@ export default async function Company({
                 <p>A permissão se aplica somente a esta empresa.</p>
               </div>
             </div>
-            <ActionForm action={saveMembership} label="Liberar acesso" reset>
+            <FormModal
+              trigger="Liberar ou atualizar acesso"
+              title="Liberar ou atualizar acesso"
+              description={`Defina o e-mail e a permissão para ${company.name}. A alteração se aplica somente a esta empresa.`}
+              action={saveMembership}
+              label="Liberar acesso"
+              reset
+            >
               <input type="hidden" name="companyId" value={id} />
               <Field label="E-mail Google">
                 <input
@@ -202,7 +223,7 @@ export default async function Company({
                   </option>
                 </select>
               </Field>
-            </ActionForm>
+            </FormModal>
           </section>
         </div>
         <section className={`panel ${styles.formCard}`}>
@@ -242,6 +263,14 @@ export default async function Company({
           </div>
           <ActionForm
             action={setCompanyArchived}
+            confirm={{
+              title: company.archived
+                ? "Restaurar cliente?"
+                : "Arquivar cliente?",
+              description: company.archived
+                ? `${company.name} voltará à lista principal de empresas.`
+                : `${company.name} sairá da lista principal. Histórico, acessos e cobranças serão preservados; você poderá restaurar o cadastro depois.`,
+            }}
             label={company.archived ? "Restaurar cliente" : "Arquivar cliente"}
           >
             <input type="hidden" name="id" value={id} />

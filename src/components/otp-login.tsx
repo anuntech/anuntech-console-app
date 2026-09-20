@@ -1,6 +1,6 @@
 "use client";
-import { Notification, toast } from "./notifications";
-import { useEffect, useState } from "react";
+import { Notification } from "./notifications";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Field } from "./ui";
@@ -23,16 +23,31 @@ export function useCooldown() {
 }
 export function OtpLogin() {
   const router = useRouter();
+  const id = useId();
+  const destinationInput = useRef<HTMLInputElement>(null);
+  const codeInput = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"email" | "whatsapp">("email");
   const [destination, setDestination] = useState("");
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [invalidField, setInvalidField] = useState<
+    "destination" | "code" | null
+  >(null);
+  const [message, setMessage] = useState("");
   const [seconds, startCooldown] = useCooldown();
-  async function send() {
-    setBusy(true);
+  const errorId = `${id}-error`;
+  const statusId = `${id}-status`;
+  function clearFeedback() {
     setError("");
+    setInvalidField(null);
+    setMessage("");
+  }
+  async function send() {
+    if (busy || seconds > 0) return;
+    setBusy(true);
+    clearFeedback();
     try {
       const result =
         mode === "email"
@@ -49,14 +64,19 @@ export function OtpLogin() {
             ? "Aguarde um minuto antes de pedir outro código."
             : "Não foi possível enviar. Confira os dados e tente novamente.",
         );
+        if (result.error.status !== 429) {
+          setInvalidField("destination");
+          destinationInput.current?.focus();
+        }
         return;
       }
-      toast.info(
+      setMessage(
         `Se o acesso estiver autorizado, você receberá um código ${mode === "email" ? "no seu e-mail" : "no seu WhatsApp"}. Ele vale por 5 minutos.`,
       );
       setSent(true);
       setCode("");
       startCooldown();
+      requestAnimationFrame(() => codeInput.current?.focus());
     } catch {
       setError("Não foi possível conectar. Tente novamente.");
     } finally {
@@ -64,8 +84,9 @@ export function OtpLogin() {
     }
   }
   async function verify() {
+    if (busy) return;
     setBusy(true);
-    setError("");
+    clearFeedback();
     try {
       const result =
         mode === "email"
@@ -81,9 +102,11 @@ export function OtpLogin() {
         setError(
           "Código inválido ou expirado. Confira o código ou solicite outro.",
         );
+        setInvalidField("code");
+        codeInput.current?.focus();
         return;
       }
-      toast.success("Acesso confirmado.");
+      setMessage("Acesso confirmado. Abrindo o painel.");
       router.replace("/painel");
       router.refresh();
     } catch {
@@ -100,13 +123,14 @@ export function OtpLogin() {
             key={item}
             type="button"
             aria-pressed={mode === item}
-            disabled={busy}
+            aria-disabled={busy}
             onClick={() => {
+              if (busy || mode === item) return;
               setMode(item);
               setDestination("");
               setSent(false);
               setCode("");
-              setError("");
+              clearFeedback();
             }}
           >
             {item === "email" ? (
@@ -120,12 +144,14 @@ export function OtpLogin() {
       </div>
       <form
         className={styles.form}
-        onSubmit={(e) => {
-          e.preventDefault();
+        aria-label={`Acesso por ${mode === "email" ? "e-mail" : "WhatsApp"}`}
+        onSubmit={(event) => {
+          event.preventDefault();
           void (sent ? verify() : send());
         }}
       >
         <Field
+          key={mode}
           label={mode === "email" ? "Seu e-mail" : "Seu WhatsApp"}
           hint={
             mode === "whatsapp"
@@ -134,51 +160,78 @@ export function OtpLogin() {
           }
         >
           <input
+            ref={destinationInput}
+            id={`${id}-destination`}
+            name={mode === "email" ? "email" : "phone"}
             type={mode === "email" ? "email" : "tel"}
             autoComplete={mode === "email" ? "email" : "tel"}
+            autoCapitalize="none"
+            spellCheck={false}
             placeholder={
               mode === "email" ? "voce@empresa.com.br" : "(11) 99999-9999"
             }
             required
             maxLength={254}
             value={destination}
-            readOnly={sent}
-            disabled={busy}
-            onChange={(e) => setDestination(e.target.value)}
+            readOnly={sent || busy}
+            aria-invalid={invalidField === "destination" || undefined}
+            aria-describedby={error ? errorId : undefined}
+            onChange={(event) => {
+              setDestination(event.target.value);
+              if (invalidField === "destination") clearFeedback();
+            }}
           />
         </Field>
         {sent && (
-          <>
-            <Field label="Código de acesso">
-              <input
-                autoFocus
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                minLength={6}
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className={styles.code}
-              />
-            </Field>
-            <p className={styles.codeHint}>
-              Digite os 6 números do código. Ele é válido por 5 minutos.
-            </p>
-          </>
+          <Field
+            label="Código de acesso"
+            hint="Digite os 6 números do código. Ele é válido por 5 minutos."
+          >
+            <input
+              ref={codeInput}
+              id={`${id}-code`}
+              name="otp"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              minLength={6}
+              required
+              readOnly={busy}
+              value={code}
+              aria-invalid={invalidField === "code" || undefined}
+              aria-describedby={error ? errorId : undefined}
+              onChange={(event) => {
+                setCode(event.target.value.replace(/\D/g, ""));
+                if (invalidField === "code") clearFeedback();
+              }}
+              className={styles.code}
+            />
+          </Field>
         )}
-        {error && <Notification kind="error" message={error} />}
+        {error && <Notification id={errorId} kind="error" message={error} />}
+        {message && (
+          <Notification id={statusId} kind="info" message={message} />
+        )}
+        <p
+          className="sr-only"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {busy ? "Processando sua solicitação de acesso. Aguarde." : ""}
+        </p>
         <button
           className="button primary"
-          disabled={busy || (!sent && seconds > 0)}
+          aria-disabled={busy || (!sent && seconds > 0)}
+          aria-describedby={error ? errorId : message ? statusId : undefined}
         >
           {busy
             ? "Aguarde…"
             : sent
               ? "Entrar"
               : seconds
-                ? `Aguarde ${seconds}s`
+                ? "Aguarde para reenviar"
                 : "Receber código"}
           {!busy && !seconds && <ArrowRight size={16} aria-hidden="true" />}
         </button>
@@ -186,18 +239,27 @@ export function OtpLogin() {
           <div className={styles.actions}>
             <button
               type="button"
-              disabled={busy || seconds > 0}
+              aria-disabled={busy || seconds > 0}
+              aria-label={
+                seconds
+                  ? "Reenviar código. Aguarde um minuto entre envios."
+                  : "Reenviar código"
+              }
               onClick={() => void send()}
             >
-              {seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
+              <span aria-hidden={seconds > 0 || undefined}>
+                {seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
+              </span>
             </button>
             <button
               type="button"
-              disabled={busy}
+              aria-disabled={busy}
               onClick={() => {
+                if (busy) return;
                 setSent(false);
                 setCode("");
-                setError("");
+                clearFeedback();
+                requestAnimationFrame(() => destinationInput.current?.focus());
               }}
             >
               Alterar {mode === "email" ? "e-mail" : "número"}

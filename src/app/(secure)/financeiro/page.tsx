@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -21,6 +22,12 @@ import {
   type InvoiceStatusFilter,
 } from "@/lib/invoice-table";
 import styles from "./finance.module.css";
+export const metadata: Metadata = {
+  title: "Financeiro",
+  description:
+    "Consulte faturas, vencimentos e pagamentos das empresas com acesso autorizado.",
+};
+
 export default async function Finance({
   searchParams,
 }: {

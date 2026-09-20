@@ -3,6 +3,10 @@ import { OtpLogin } from "@/components/otp-login";
 import { Brand } from "@/components/brand";
 import { FileText, Headphones, Layers3, LockKeyhole } from "lucide-react";
 import styles from "@/components/auth.module.css";
+export const metadata = {
+  title: "Entrar",
+  robots: { index: false, follow: false },
+};
 export default async function SignIn({
   searchParams,
 }: {
@@ -10,7 +14,7 @@ export default async function SignIn({
 }) {
   const query = await searchParams;
   return (
-    <main className={styles.page}>
+    <main id="main-content" tabIndex={-1} className={styles.page}>
       <section className={styles.brandPanel} aria-label="Anuntech Console">
         <Brand />
         <div className={styles.intro}>

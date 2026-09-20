@@ -1,6 +1,8 @@
 # Design system do Console
 
-Revisão de 19/09/2026. Este documento registra a base visual, as referências e o inventário de interfaces do Console. A validação visual e funcional fica registrada separadamente; a existência de um componente não significa que seu fluxo já foi verificado no navegador.
+Revisão visual de 19/09/2026, com atualização dos padrões de acessibilidade em 20/09/2026. Este documento registra a base visual, as referências e o inventário de interfaces do Console. A validação visual e funcional fica registrada separadamente; a existência de um componente não significa que seu fluxo já foi verificado no navegador.
+
+O escopo, os padrões de interação, as evidências atuais e o roteiro manual estão em [Acessibilidade do Console](./accessibility.md).
 
 ## Direção visual
 
@@ -25,7 +27,7 @@ A fonte única dos tokens é `src/app/globals.css`. Novas telas devem usar token
 | Texto de apoio             | `--muted-foreground`                                        | `#5d6c81`           |
 | Destaque selecionado       | `--accent`                                                  | `#edf2fc`           |
 | Bordas                     | `--border`                                                  | `#e0e6ef`           |
-| Borda de entrada           | `--input`                                                   | `#ccd6e4`           |
+| Borda de entrada           | `--input`                                                   | `#7b8aa0`           |
 | Foco                       | `--ring`                                                    | `#557ac0`           |
 | Confirmação                | `--success`, `--success-bg`, `--success-border`             | Verde semântico     |
 | Atenção/pendência          | `--warning`, `--warning-bg`, `--warning-border`             | Âmbar semântico     |
@@ -36,26 +38,32 @@ A fonte única dos tokens é `src/app/globals.css`. Novas telas devem usar token
 - Raios: `--radius-sm` 6 px, `--radius-md` 8 px, `--radius-lg` 12 px, `--radius-xl` 18 px.
 - Sombra de superfície: `--shadow-sm`; menus e popovers: `--shadow-popover`.
 - Valores e datas usam algarismos tabulares quando a comparação entre linhas importa.
-- A tipografia do conteúdo parte de 14 px. Texto de apoio é menor e deve continuar legível; não usar cinza de placeholder para conteúdo relevante.
+- A tipografia do conteúdo parte de `0.875rem` (14 px com tamanho raiz de 16 px). Fontes usam `rem` para respeitar a preferência de tamanho de texto; controles, contadores e mensagens devem permitir crescimento. Texto de apoio deve continuar legível.
+- `--input` identifica limites de campos e controles; `--border` organiza superfícies e divisores. Não substituir a borda de um campo pelo token decorativo mais claro. Foco usa `--ring`, com alternativa em cores de sistema para cores forçadas.
 
 ## Componentes e responsabilidades
 
-| Componente/padrão    | Localização                               | Responsabilidade                                            |
-| -------------------- | ----------------------------------------- | ----------------------------------------------------------- |
-| Navegação            | `src/components/sidebar.tsx`              | Grupos, item ativo, usuário e navegação móvel               |
-| Sheet                | `src/components/ui/sheet.tsx`             | Menu móvel baseado em Dialog do Base UI                     |
-| Card                 | `src/components/ui/card.tsx`              | Superfície com cabeçalho, título, descrição e conteúdo      |
-| Heading              | `src/components/ui.tsx`                   | Título da página, contexto e ação principal                 |
-| Empty                | `src/components/ui.tsx`                   | Estado vazio com explicação e ação opcional                 |
-| Badge                | `src/components/ui.tsx`                   | Rótulo de situação com indicador visual                     |
-| Field / Back         | `src/components/ui.tsx`                   | Campos rotulados e retorno à área anterior                  |
-| ActionForm           | `src/components/action-form.tsx`          | Ações de servidor, estado de envio e feedback               |
-| Sonner               | `src/components/ui/sonner.tsx`            | Feedback transitório de ações                               |
-| Tabela de faturas    | `src/components/crud-invoice-manager.tsx` | Busca, filtros com contagens, paginação e menu por fatura   |
-| Campo monetário/data | `src/components/invoice-inputs.tsx`       | BRL, datas brasileiras, calendário e valores normalizados   |
-| Tipo de cobrança     | `src/components/billing-type-input.tsx`   | Frequência única/recorrente sem alterar a regra financeira  |
-| Meios de pagamento   | `src/components/payment-code.tsx`         | Apresentação e cópia de código na página pública            |
-| CSS por domínio      | `*.module.css`                            | Composição específica sem vazar estilos para outras páginas |
+| Componente/padrão    | Localização                                                          | Responsabilidade                                                              |
+| -------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Navegação            | `src/components/sidebar.tsx`                                         | Grupos, item ativo, usuário e navegação móvel                                 |
+| Sheet                | `src/components/ui/sheet.tsx`                                        | Menu móvel baseado em Dialog do Base UI                                       |
+| Card                 | `src/components/ui/card.tsx`                                         | Superfície com cabeçalho, título, descrição e conteúdo                        |
+| Heading              | `src/components/ui.tsx`                                              | Título da página, contexto e ação principal                                   |
+| Empty                | `src/components/ui.tsx`                                              | Estado vazio com explicação e ação opcional                                   |
+| Badge                | `src/components/ui.tsx`                                              | Rótulo de situação com indicador visual                                       |
+| Field                | `src/components/field.tsx` (reexportado em `ui.tsx`)                 | Rótulo explícito, dica/erro associados e validação persistente                |
+| Back                 | `src/components/ui.tsx`                                              | Retorno à área anterior                                                       |
+| ActionForm           | `src/components/action-form.tsx`                                     | Ações de servidor, estado de envio, erro persistente e confirmação contextual |
+| FormModal            | `src/components/form-modal.tsx`                                      | Edições curtas com foco contido, erro preservado e retorno ao acionador       |
+| Dialog / AlertDialog | `src/components/ui/dialog.tsx`, `src/components/ui/alert-dialog.tsx` | Primitivos Base UI para edição e confirmação                                  |
+| Notification         | `src/components/notifications.tsx`                                   | Feedback persistente e foco no primeiro campo inválido                        |
+| OTP                  | `src/components/otp-login.tsx`                                       | Código único, colagem/autocomplete, erro associado e reenvio                  |
+| Sonner               | `src/components/ui/sonner.tsx`                                       | Feedback transitório de ações                                                 |
+| Tabela de faturas    | `src/components/crud-invoice-manager.tsx`                            | Busca, filtros com contagens, paginação e menu por fatura                     |
+| Campo monetário/data | `src/components/invoice-inputs.tsx`                                  | BRL, datas brasileiras, calendário e valores normalizados                     |
+| Tipo de cobrança     | `src/components/billing-type-input.tsx`                              | Frequência única/recorrente sem alterar a regra financeira                    |
+| Meios de pagamento   | `src/components/payment-code.tsx`                                    | Apresentação e cópia de código na página pública                              |
+| CSS por domínio      | `*.module.css`                                                       | Composição específica sem vazar estilos para outras páginas                   |
 
 `panel`, `card`, `section-heading`, `form-section`, `form-grid`, `form-actions`, `stack`, `table-wrap` e as classes de controles compartilham a base global. CSS Modules cobre composições específicas, como detalhes financeiros, cadastro de empresas, acesso e pagamento público.
 
@@ -65,6 +73,7 @@ O MCP shadcn.io foi usado para pesquisar itens, consultar metadados e obter font
 
 Referências públicas, sem tokens de registry:
 
+- [Dialog](https://www.shadcn.io/ui/dialog) e [Alert Dialog](https://www.shadcn.io/ui/alert-dialog): referências para janelas de edição curta e confirmações, adaptadas com Base UI.
 - [Sheet](https://www.shadcn.io/ui/sheet): fonte adaptada para o menu móvel, usando `@base-ui/react/dialog`.
 - [Card](https://www.shadcn.io/ui/card): composição de superfície, cabeçalho e conteúdo.
 - [Empty](https://www.shadcn.io/ui/empty): referência para estados vazios.
@@ -80,7 +89,7 @@ Nenhum dado demonstrativo dos blocos de registry é usado em produção. As font
 ## Regras de composição
 
 1. Cada tela tem um `h1` e um contexto curto. Usar `h2` para grupos relevantes, sem simular títulos apenas com peso de fonte.
-2. Formulários longos são agrupados por decisão: cliente, dados, cobrança, permissões. Dicas ficam próximas do campo e não substituem o rótulo.
+2. Formulários longos são agrupados por decisão: cliente, dados, cobrança, permissões, e permanecem em página. Edições curtas de um registro podem usar `FormModal`; não colocar contratos extensos ou cadastros com muitos grupos em uma janela. Dicas ficam próximas do campo e são associadas por `aria-describedby`, sem substituir o rótulo.
 3. Cartões de resumo usam valores reais e explicitam o universo. As contagens da lista financeira acompanham a busca; as de envios descrevem os 200 registros mais recentes.
 4. Tabelas preservam cabeçalhos e alinhamento de valores. Em telas pequenas, o conteúdo rola dentro de `table-wrap`; a página não deve ganhar rolagem horizontal.
 5. Menus de ações ficam próximos do item. A operação mais frequente também permanece acessível pelo título/link da linha.
@@ -110,7 +119,10 @@ Produtos e projetos continuam em cartões, adequados à descrição e à atualiz
 - `aria-current` identifica a página/filtro atual; estados também têm texto visível.
 - O menu móvel usa o Dialog do Base UI, preservando foco, fechamento com Escape, portal e semântica de diálogo. Não substituir por um elemento posicionado sem gerenciamento de foco.
 - O menu de cada fatura usa Radix Dropdown Menu, preservando navegação por teclado e semântica de itens.
-- Rótulos de campos continuam associados às entradas. Inputs monetários e de data mantêm os campos normalizados esperados pelo servidor.
+- Rótulos de campos são associados por `htmlFor`/`id`; dicas e erros persistentes usam `aria-describedby`. Inputs monetários e de data mantêm os campos normalizados esperados pelo servidor.
+- Tabelas têm legenda e cabeçalhos `scope="col"`; regiões roláveis têm nome acessível e foco por teclado.
+- O anunciador de rotas nativo do Next.js permanece responsável por mudanças de página; metadados descritivos alimentam o anúncio.
+- Diálogos curtos e confirmações usam foco contido e retorno ao acionador. Durante envio, evitam duplicidade e fechamento antes da resposta. Confira os critérios e limites em [Acessibilidade do Console](./accessibility.md).
 - Foco visível, preferência por movimento reduzido e contraste reforçado têm estilos globais.
 - A estrutura tem atalho para o conteúdo principal. Estados de erro e vazios descrevem o próximo passo.
 - Mensagens de envio e publicação não são acionadas por renderização, navegação ou inspeção visual.
@@ -151,9 +163,9 @@ Foram encontrados **26 arquivos `page.tsx`**. A rota `/` é um redirecionamento;
 
 Estados adicionais: `src/app/error.tsx`, `src/app/(secure)/error.tsx` e `src/app/(secure)/loading.tsx`. A autorização exata continua definida em `src/lib/access.ts` e em cada rota/ação, não nesta tabela.
 
-## Validação desta revisão
+## Validação da revisão visual de 19/09/2026
 
-Validação local concluída; publicação e conferência de produção são registradas na wiki do Console:
+Os resultados abaixo são da revisão visual anterior. A validação da rodada de acessibilidade de 20/09/2026, incluindo seus itens pendentes, está em [Evidências desta rodada](./accessibility.md#evidências-desta-rodada). Publicação e conferência de produção são registradas na wiki do Console:
 
 - [x] Pesquisa e consulta de componentes pelo MCP shadcn.io.
 - [x] Typecheck consolidado aprovado.

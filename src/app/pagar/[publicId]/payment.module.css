@@ -16,7 +16,7 @@
   align-items: center;
   gap: 8px;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .layout {
   display: grid;
@@ -63,7 +63,7 @@
   background: var(--secondary);
   border: 1px solid var(--border);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
 }
 .paidBadge {
@@ -73,13 +73,13 @@
 }
 .eyebrow {
   margin: 0 0 10px;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   color: var(--muted-foreground);
 }
 .summary h1 {
-  font-size: 25px;
+  font-size: 1.5625rem;
   line-height: 1.25;
   letter-spacing: -0.035em;
   margin: 0 0 8px;
@@ -88,7 +88,7 @@
 .customer {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -96,11 +96,11 @@
   margin: 32px 0 24px;
 }
 .total > span {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
 }
 .amount {
-  font-size: clamp(32px, 3.2vw, 42px);
+  font-size: clamp(2rem, 3.2vw, 2.625rem);
   font-weight: 600;
   letter-spacing: -0.05em;
   margin: 8px 0 0;
@@ -121,7 +121,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .details dt {
   display: flex;
@@ -137,7 +137,7 @@
 }
 .summaryNote {
   margin: 20px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.7;
   color: var(--muted-foreground);
 }
@@ -155,14 +155,14 @@
 }
 .methodHeading h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.4;
   letter-spacing: -0.02em;
 }
 .methodHeading p {
   margin: 5px 0 0;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.6;
 }
 .methodIcon {
@@ -197,7 +197,7 @@
   margin: 0;
   padding-left: 16px;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.65;
   display: grid;
   gap: 12px;
@@ -221,7 +221,7 @@
 }
 .complete h2 {
   margin: 24px 0 10px;
-  font-size: 24px;
+  font-size: 1.5rem;
   line-height: 1.25;
   letter-spacing: -0.035em;
   text-wrap: balance;
@@ -230,7 +230,7 @@
   margin: 0;
   max-width: 340px;
   color: var(--muted-foreground);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.7;
 }
 .successIcon,
@@ -258,7 +258,7 @@
   border-radius: var(--radius-sm);
   color: #18613f;
   background: #eff8f2;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .note {
   display: flex;
@@ -270,7 +270,7 @@
   background: var(--secondary);
   border-top: 1px solid var(--border);
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.6;
 }
 .note svg {
@@ -283,7 +283,7 @@
   justify-content: center;
   gap: 8px;
   color: var(--muted-foreground);
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.6;
   text-align: center;
   margin: 28px 0 0;
@@ -325,13 +325,13 @@
     margin-bottom: 20px;
   }
   .summary h1 {
-    font-size: 24px;
+    font-size: 1.5rem;
   }
   .total {
     margin: 24px 0;
   }
   .amount {
-    font-size: 36px;
+    font-size: 2.25rem;
   }
   .method {
     padding: 24px;

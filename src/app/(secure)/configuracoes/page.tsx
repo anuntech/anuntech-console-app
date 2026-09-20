@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/access";
 import { ActionForm } from "@/components/action-form";
 import { checkIntegration } from "@/lib/integration-actions";
@@ -14,6 +15,12 @@ import {
   ArrowUpRight,
   ShieldCheck,
 } from "lucide-react";
+export const metadata: Metadata = {
+  title: "Configurações",
+  description:
+    "Consulte as integrações e preferências administrativas do Console.",
+};
+
 export default async function Settings() {
   await requireAdmin();
   const integrations = [
@@ -99,7 +106,7 @@ export default async function Settings() {
                 <span className="integration-icon">
                   <i.icon size={20} aria-hidden="true" />
                 </span>
-                <h2>{i.name}</h2>
+                <h3>{i.name}</h3>
               </div>
               <Badge status={i.status === "Pendente" ? "pending" : ""}>
                 {i.status}
@@ -107,7 +114,11 @@ export default async function Settings() {
             </div>
             <p className="muted">{i.detail}</p>
             {i.provider && (
-              <ActionForm action={checkIntegration} label="Testar conexão">
+              <ActionForm
+                action={checkIntegration}
+                label="Testar conexão"
+                submitAriaLabel={`Testar conexão com ${i.name}`}
+              >
                 <input type="hidden" name="provider" value={i.provider} />
               </ActionForm>
             )}

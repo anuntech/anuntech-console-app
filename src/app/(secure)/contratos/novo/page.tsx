@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import { FileText, LockKeyhole } from "lucide-react";
 import { requireAdmin, accessibleCompanies } from "@/lib/access";
 import { createContract } from "@/lib/contract-actions";
 import { ActionForm } from "@/components/action-form";
 import { Heading, Back, Field, Empty } from "@/components/ui";
 import styles from "../../empresas/management.module.css";
+export const metadata: Metadata = {
+  title: "Criar contrato",
+  description:
+    "Prepare e salve um rascunho de contrato para revisão antes da publicação.",
+};
+
 export default async function NewContract() {
   const actor = await requireAdmin();
   const companies = await accessibleCompanies(actor);
@@ -74,7 +81,7 @@ export default async function NewContract() {
         <aside className={styles.aside}>
           <section className={styles.helpCard}>
             <span className={styles.helpIcon}>
-              <LockKeyhole size={19} />
+              <LockKeyhole size={19} aria-hidden="true" />
             </span>
             <h2>Seu rascunho é privado</h2>
             <p>
@@ -84,7 +91,7 @@ export default async function NewContract() {
           </section>
           <section className={styles.helpCard}>
             <span className={styles.helpIcon}>
-              <FileText size={19} />
+              <FileText size={19} aria-hidden="true" />
             </span>
             <h2>Documento pronto para consulta</h2>
             <p>

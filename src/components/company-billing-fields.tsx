@@ -1,5 +1,4 @@
 "use client";
-import { toast } from "./notifications";
 import { NumberFormatBase } from "react-number-format";
 import {
   formatDocument,
@@ -7,7 +6,7 @@ import {
   onlyDigits,
   phoneDigits,
 } from "@/lib/company-input";
-import { useRef, useState, useEffect } from "react";
+import { useId, useRef, useState, useEffect } from "react";
 import {
   digits,
   lookupFields,
@@ -49,22 +48,24 @@ export function CompanyBillingFields({
     codigoMunicipio: "",
     ...company?.billingAddress,
   }));
+  const feedbackId = useId();
+  const [lookupFeedback, setLookupFeedback] = useState<{
+    kind: LookupKind;
+    message: string;
+  } | null>(null);
   const current = useRef(values);
   const edits = useRef<Record<string, number>>({});
   const active = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const notice = useRef<string | number | undefined>(undefined);
   const cancel = () => {
     active.current?.abort();
-    if (notice.current !== undefined) toast.dismiss(notice.current);
     generation.current++;
     if (timer.current) clearTimeout(timer.current);
   };
   useEffect(
     () => () => {
       active.current?.abort();
-      if (notice.current !== undefined) toast.dismiss(notice.current);
       if (timer.current) clearTimeout(timer.current);
     },
     [],
@@ -76,10 +77,10 @@ export function CompanyBillingFields({
     const sequence = generation.current;
     const controller = new AbortController();
     active.current = controller;
-    const noticeId = toast.loading(
-      `Consultando ${kind === "cnpj" ? "CNPJ" : "CEP"}…`,
-    );
-    notice.current = noticeId;
+    setLookupFeedback({
+      kind,
+      message: `Consultando ${kind === "cnpj" ? "CNPJ" : "CEP"}…`,
+    });
     try {
       const res = await fetch(
         `/api/cadastro/consulta?tipo=${kind}&valor=${value}`,
@@ -91,10 +92,11 @@ export function CompanyBillingFields({
       const data = await res.json();
       if (sequence !== generation.current) return;
       if (!res.ok) {
-        toast.error(
-          data.error || "Não foi possível consultar. Preencha manualmente.",
-          { id: noticeId, duration: 10000 },
-        );
+        setLookupFeedback({
+          kind,
+          message:
+            data.error || "Não foi possível consultar. Preencha manualmente.",
+        });
         return;
       }
       const fields = lookupFields.parse(data.fields);
@@ -106,18 +108,20 @@ export function CompanyBillingFields({
       );
       current.current = merged;
       setValues(merged);
-      toast.success(
-        kind === "cnpj"
-          ? "Dados encontrados. Revise o cadastro antes de salvar."
-          : "Endereço encontrado. Confira número, complemento e os campos que faltarem antes de salvar.",
-        { id: noticeId, duration: 6000 },
-      );
+      setLookupFeedback({
+        kind,
+        message:
+          kind === "cnpj"
+            ? "Dados encontrados. Revise o cadastro antes de salvar."
+            : "Endereço encontrado. Confira número, complemento e os campos que faltarem antes de salvar.",
+      });
     } catch {
       if (!controller.signal.aborted)
-        toast.error(
-          "Não foi possível consultar. Você pode preencher os dados manualmente.",
-          { id: noticeId, duration: 10000 },
-        );
+        setLookupFeedback({
+          kind,
+          message:
+            "Não foi possível consultar. Você pode preencher os dados manualmente.",
+        });
     }
   }
   function change(key: string, value: string) {
@@ -127,6 +131,7 @@ export function CompanyBillingFields({
     setValues(next);
     if (key === "document" || key === "cep") {
       cancel();
+      setLookupFeedback(null);
 
       const kind = key === "document" ? "cnpj" : "cep";
       if (digits(value).length === (kind === "cnpj" ? 14 : 8)) {
@@ -167,6 +172,8 @@ export function CompanyBillingFields({
                 if (info.source === "event") change("document", v.value);
               }}
               name="document"
+              aria-describedby={`${feedbackId}-cnpj`}
+              autoComplete="off"
               required
               inputMode="numeric"
               maxLength={18}
@@ -177,6 +184,7 @@ export function CompanyBillingFields({
           <Field label="Nome ou razão social">
             <input
               name="name"
+              autoComplete="organization"
               required
               maxLength={160}
               value={values.name}
@@ -216,6 +224,16 @@ export function CompanyBillingFields({
             />
           </Field>
         </div>
+        <p
+          id={`${feedbackId}-cnpj`}
+          role="status"
+          aria-atomic="true"
+          className={
+            lookupFeedback?.kind === "cnpj" ? "form-footnote" : "sr-only"
+          }
+        >
+          {lookupFeedback?.kind === "cnpj" ? lookupFeedback.message : ""}
+        </p>
       </section>
       <section className="form-section">
         <div className="section-heading">
@@ -233,6 +251,7 @@ export function CompanyBillingFields({
           >
             <input
               name="cep"
+              aria-describedby={`${feedbackId}-cep`}
               required={!!inviteToken}
               inputMode="numeric"
               maxLength={9}
@@ -272,6 +291,7 @@ export function CompanyBillingFields({
           <Field label="Bairro">
             <input
               name="bairro"
+              autoComplete="address-level3"
               required={!!inviteToken}
               maxLength={60}
               value={values.bairro}
@@ -312,6 +332,16 @@ export function CompanyBillingFields({
             />
           </Field>
         </div>
+        <p
+          id={`${feedbackId}-cep`}
+          role="status"
+          aria-atomic="true"
+          className={
+            lookupFeedback?.kind === "cep" ? "form-footnote" : "sr-only"
+          }
+        >
+          {lookupFeedback?.kind === "cep" ? lookupFeedback.message : ""}
+        </p>
       </section>
       {!inviteToken && (
         <section className="form-section">
@@ -322,12 +352,13 @@ export function CompanyBillingFields({
             <input
               type="checkbox"
               name="autoIssueNfse"
+              aria-describedby={`${feedbackId}-nfse`}
               value="yes"
               defaultChecked={company?.autoIssueNfse || false}
             />{" "}
             Emitir nota fiscal automaticamente para este cliente
           </label>
-          <p className="muted">
+          <p id={`${feedbackId}-nfse`} className="muted">
             Desmarcado: nenhuma emissão automática. A preferência fica salva; a
             emissão de NFS-e ainda depende da conclusão da integração fiscal e
             dos dados do serviço da Anuntech.

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { BillingTypeInput } from "@/components/billing-type-input";
 import { Info, ReceiptText } from "lucide-react";
 import { inArray } from "drizzle-orm";
@@ -10,6 +11,12 @@ import { CompanyPicker } from "@/components/company-picker";
 import { InvoiceAmount, InvoiceDueDate } from "@/components/invoice-inputs";
 import { Heading, Field, Back, Empty } from "@/components/ui";
 import styles from "../finance.module.css";
+export const metadata: Metadata = {
+  title: "Criar fatura",
+  description:
+    "Prepare uma cobrança única ou recorrente e revise os dados antes da emissão.",
+};
+
 export default async function NewInvoice() {
   const actor = await requireAdmin();
   const companies = await accessibleCompanies(actor);

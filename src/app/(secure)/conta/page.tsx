@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import { getActor } from "@/lib/access";
 import { Heading, Badge } from "@/components/ui";
 import { WhatsappAccount } from "@/components/whatsapp-account";
 import { Mail, ShieldCheck, UserRound } from "lucide-react";
+export const metadata: Metadata = {
+  title: "Minha conta",
+  description:
+    "Consulte seus dados de acesso e gerencie o número de WhatsApp verificado.",
+};
+
 export default async function AccountPage() {
   const actor = await getActor();
   return (

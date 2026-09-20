@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "@daypicker/react/style.css";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Anuntech Console",
+  title: { default: "Anuntech Console", template: "%s | Anuntech Console" },
   description: "Portal do cliente Anuntech.",
   robots: { index: false, follow: false },
 };
@@ -13,6 +13,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body>
+        <a className="skip-link" href="#main-content">
+          Ir para o conteúdo
+        </a>
         {children}
         <Notifications />
       </body>

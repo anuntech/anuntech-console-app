@@ -4,10 +4,14 @@ import { Brand } from "@/components/brand";
 import Link from "next/link";
 import { ArrowRight, UserRoundCheck } from "lucide-react";
 import styles from "@/components/public-layout.module.css";
+export const metadata = {
+  title: "Acesso pendente",
+  robots: { index: false, follow: false },
+};
 export default async function Pending() {
   const actor = await getActor();
   return (
-    <main className={styles.page}>
+    <main id="main-content" tabIndex={-1} className={styles.page}>
       <header className={styles.header}>
         <Brand />
       </header>

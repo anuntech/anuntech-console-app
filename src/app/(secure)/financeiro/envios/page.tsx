@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   CircleCheck,
@@ -14,6 +15,12 @@ import { billingNotices, invoices, companies } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
 import { Back, Heading, Empty } from "@/components/ui";
 import styles from "../finance.module.css";
+export const metadata: Metadata = {
+  title: "Envios de cobranças",
+  description:
+    "Acompanhe a entrega dos avisos de cobrança por e-mail e WhatsApp.",
+};
+
 export default async function BillingDeliveries() {
   await requireAdmin();
   const rows = await db
@@ -112,21 +119,32 @@ export default async function BillingDeliveries() {
               <h2>Histórico de envios</h2>
               <span>E-mail e WhatsApp</span>
             </div>
-            <div className="table-wrap">
+            <div
+              className="table-wrap"
+              role="region"
+              aria-label="Tabela de envios de cobranças"
+              tabIndex={0}
+            >
               <table className={styles.deliveryTable}>
+                <caption className="sr-only">
+                  Histórico de avisos e entrega das cobranças
+                </caption>
                 <thead>
                   <tr>
-                    <th>Cliente / Fatura</th>
-                    <th>Canal</th>
-                    <th>Aviso</th>
-                    <th>Entrega</th>
+                    <th scope="col">Cliente / Fatura</th>
+                    <th scope="col">Canal</th>
+                    <th scope="col">Aviso</th>
+                    <th scope="col">Entrega</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map(({ notice: n, company, description }) => (
                     <tr key={n.id}>
                       <td>
-                        <Link href={`/financeiro/${n.invoiceId}`}>
+                        <Link
+                          href={`/financeiro/${n.invoiceId}`}
+                          aria-label={`${company} — fatura de ${description}`}
+                        >
                           {company}
                         </Link>
                         <p className="muted">{description}</p>

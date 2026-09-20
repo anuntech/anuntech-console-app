@@ -15,9 +15,6 @@ export default async function ConsoleLayout({
   if (!actor.admin && !actor.grants.length) redirect("/acesso-pendente");
   return (
     <div className="console-shell">
-      <a className="skip-link" href="#main-content">
-        Ir para o conteúdo
-      </a>
       <aside className="sidebar">
         <Link
           className="brand-link"

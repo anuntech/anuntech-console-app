@@ -149,7 +149,7 @@ export function WorkspaceHeader({ admin, support, finance }: NavigationProps) {
         <div className="mobile-menu">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger className="icon-button" aria-label="Abrir navegação">
-              <Menu size={21} />
+              <Menu size={21} aria-hidden="true" />
             </SheetTrigger>
             <SheetContent>
               <SheetTitle className="sr-only">Navegação do Console</SheetTitle>

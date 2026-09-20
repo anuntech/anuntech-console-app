@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { engagements } from "@/db/schema";
@@ -7,6 +8,11 @@ import { ActionForm } from "@/components/action-form";
 import { CompanyPicker } from "@/components/company-picker";
 import { Heading, Field, Back, Empty } from "@/components/ui";
 import { MessagesSquare, Paperclip } from "lucide-react";
+export const metadata: Metadata = {
+  title: "Abrir chamado",
+  description: "Envie uma solicitação de atendimento vinculada à sua empresa.",
+};
+
 export default async function NewTicket() {
   const actor = await getActor();
   const companies = await accessibleCompanies(actor, "support");
@@ -75,6 +81,7 @@ export default async function NewTicket() {
             </ActionForm>
           ) : (
             <Empty
+              headingLevel={3}
               title="Nenhuma empresa disponível"
               description="É necessário ter permissão de atendimento em uma empresa."
             />

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Link2, ShieldCheck } from "lucide-react";
 import { requireAdmin } from "@/lib/access";
@@ -6,6 +7,12 @@ import { ActionForm } from "@/components/action-form";
 import { Heading, Back } from "@/components/ui";
 import { CompanyBillingFields } from "@/components/company-billing-fields";
 import styles from "../management.module.css";
+export const metadata: Metadata = {
+  title: "Cadastrar empresa",
+  description:
+    "Cadastre a identificação, os contatos e o endereço de cobrança de uma empresa.",
+};
+
 export default async function NewCompany() {
   await requireAdmin();
   return (
@@ -25,7 +32,7 @@ export default async function NewCompany() {
         <aside className={styles.aside}>
           <section className={styles.helpCard}>
             <span className={styles.helpIcon}>
-              <Link2 size={19} />
+              <Link2 size={19} aria-hidden="true" />
             </span>
             <h2>O cliente pode preencher</h2>
             <p>
@@ -38,7 +45,7 @@ export default async function NewCompany() {
           </section>
           <section className={styles.helpCard}>
             <span className={styles.helpIcon}>
-              <ShieldCheck size={19} />
+              <ShieldCheck size={19} aria-hidden="true" />
             </span>
             <h2>Acesso por empresa</h2>
             <p>

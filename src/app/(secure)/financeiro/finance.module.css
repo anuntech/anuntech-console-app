@@ -26,19 +26,23 @@ a.metric:hover {
   display: block;
 }
 .metricLabel {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
+}
+.metric > div {
+  min-width: 0;
 }
 .metric strong {
   display: block;
+  overflow-wrap: anywhere;
   margin: 9px 0 4px;
-  font-size: 30px;
+  font-size: 1.875rem;
   line-height: 1.1;
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
 }
 .metric small {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
 }
 .icon {
@@ -73,13 +77,13 @@ a.metric:hover {
 }
 .listActions p {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .listActions a {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 .layout {
@@ -113,12 +117,12 @@ a.metric:hover {
 }
 .sectionHeader h2 {
   margin: 0 0 5px;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.4;
 }
 .sectionHeader p {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--muted-foreground);
 }
@@ -128,7 +132,7 @@ a.metric:hover {
 .section :global(.compact-form) {
   margin-top: 16px;
 }
-.section :global(.compact-form) > button {
+.section :global(.compact-form) > :global([data-form-actions]) > button {
   width: 100%;
 }
 .summary {
@@ -148,7 +152,7 @@ a.metric:hover {
 }
 .summaryProduct {
   margin: 15px 0 6px;
-  font-size: 22px;
+  font-size: 1.375rem;
   letter-spacing: -0.025em;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -158,17 +162,20 @@ a.metric:hover {
 }
 .amount {
   text-align: right;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
 }
 .amount > span {
   display: block;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
   margin-bottom: 7px;
 }
 .amount strong {
   display: block;
-  font-size: clamp(26px, 3vw, 36px);
+  overflow-wrap: anywhere;
+  font-size: clamp(1.625rem, 3vw, 2.25rem);
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1.15;
@@ -196,12 +203,12 @@ a.metric:hover {
 }
 .summaryBottom span {
   display: block;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--muted-foreground);
   margin-bottom: 3px;
 }
 .summaryBottom strong {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
 }
 .note {
@@ -212,7 +219,7 @@ a.metric:hover {
   background: var(--secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   color: var(--muted-foreground);
 }
@@ -230,13 +237,13 @@ a.metric:hover {
   border-top: 1px solid var(--border);
 }
 .bankNote p {
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.6;
 }
 .bankNote :global(.form) {
   gap: 14px;
 }
-.bankNote :global(.form) > button {
+.bankNote :global(.form) > :global([data-form-actions]) {
   align-self: start;
 }
 .publicLink {
@@ -247,7 +254,7 @@ a.metric:hover {
   margin-bottom: 18px;
 }
 .linkInput {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
 }
 .contact {
@@ -266,7 +273,7 @@ a.metric:hover {
   flex-shrink: 0;
 }
 .contact span {
-  font-size: 13px;
+  font-size: 0.8125rem;
   overflow-wrap: anywhere;
 }
 .noticeList {
@@ -295,13 +302,13 @@ a.metric:hover {
 }
 .noticeItem strong {
   display: block;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   margin-bottom: 5px;
 }
 .noticeItem p {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   color: var(--muted-foreground);
 }
@@ -309,7 +316,7 @@ a.metric:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   color: var(--muted-foreground);
 }
@@ -335,7 +342,7 @@ a.metric:hover {
   color: var(--primary);
 }
 .helpText {
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.6;
   color: var(--muted-foreground);
 }
@@ -348,7 +355,7 @@ a.metric:hover {
   display: flex;
   justify-content: space-between;
   gap: 18px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .facts dt {
   color: var(--muted-foreground);
@@ -366,7 +373,7 @@ a.metric:hover {
 }
 .disclosure summary {
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   padding: 15px 0;
 }
@@ -378,7 +385,7 @@ a.metric:hover {
   border-bottom: 1px solid var(--border);
 }
 .disclosure > p {
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.6;
   color: var(--muted-foreground);
 }
@@ -392,11 +399,11 @@ a.metric:hover {
 }
 .formSection h2 {
   margin: 0 0 6px;
-  font-size: 16px;
+  font-size: 1rem;
 }
 .formSection > p {
   color: var(--muted-foreground);
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin: 0 0 20px;
 }
 .formSection :global(.field) {
@@ -425,16 +432,16 @@ a.metric:hover {
   border: 1px solid var(--border);
   color: var(--primary);
   background: var(--secondary);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
 }
 .steps strong {
-  font-size: 13px;
+  font-size: 0.8125rem;
   display: block;
   margin-bottom: 4px;
 }
 .steps p {
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.6;
   color: var(--muted-foreground);
   margin: 0;
@@ -448,12 +455,12 @@ a.metric:hover {
   border-bottom: 1px solid var(--border);
 }
 .tableHead h2 {
-  font-size: 15px;
+  font-size: 0.9375rem;
   margin: 0;
 }
 .tableHead span {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .deliveryTable {
   width: 100%;
@@ -464,7 +471,7 @@ a.metric:hover {
 }
 .deliveryTable td p {
   margin: 5px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   max-width: 420px;
 }
@@ -476,7 +483,7 @@ a.metric:hover {
   align-items: center;
   gap: 7px;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 @media (max-width: 1100px) {
   .layout {
@@ -520,10 +527,10 @@ a.metric:hover {
     display: none;
   }
   .metric strong {
-    font-size: 27px;
+    font-size: 1.6875rem;
   }
   .metricLabel {
-    font-size: 12px;
+    font-size: 0.75rem;
   }
   .section {
     padding: 20px;
@@ -534,7 +541,7 @@ a.metric:hover {
     gap: 20px;
   }
   .summaryProduct {
-    font-size: 20px;
+    font-size: 1.25rem;
   }
   .amount {
     text-align: left;
@@ -556,6 +563,6 @@ a.metric:hover {
     padding: 18px;
   }
   .contact span {
-    font-size: 12px;
+    font-size: 0.75rem;
   }
 }

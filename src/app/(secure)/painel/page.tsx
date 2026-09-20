@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -14,6 +15,11 @@ import {
   Plus,
   ArrowRight,
 } from "lucide-react";
+export const metadata: Metadata = {
+  title: "Visão geral",
+  description: "Acompanhe empresas, chamados e faturas no Console da Anuntech.",
+};
+
 export default async function Dashboard() {
   const actor = await getActor();
   const supportIds = allowedIds(actor, "support"),
@@ -115,13 +121,13 @@ export default async function Dashboard() {
       </div>
       <div className="stats">
         <div className="stat">
-          <MessagesSquare />
+          <MessagesSquare aria-hidden="true" />
           <span>Chamados em andamento</span>
           <strong>{ticketCount.count}</strong>
           <small>Solicitações que ainda precisam de atenção</small>
         </div>
         <div className="stat">
-          <ReceiptText />
+          <ReceiptText aria-hidden="true" />
           <span>
             {actor.admin ? "Faturas não emitidas" : "Faturas a pagar"}
           </span>
@@ -133,7 +139,7 @@ export default async function Dashboard() {
           </small>
         </div>
         <div className="stat">
-          <Building2 />
+          <Building2 aria-hidden="true" />
           <span>
             {actor.admin ? "Empresas cadastradas" : "Empresas com acesso"}
           </span>
@@ -156,7 +162,7 @@ export default async function Dashboard() {
           </div>
           <Link href="/empresas/nova" className="button primary">
             Cadastrar empresa
-            <ArrowUpRight size={16} />
+            <ArrowUpRight size={16} aria-hidden="true" />
           </Link>
         </div>
       )}
@@ -168,7 +174,7 @@ export default async function Dashboard() {
               <p>As conversas atualizadas recentemente.</p>
             </div>
             {(actor.admin || supportIds.length > 0) && (
-              <Link href="/chamados">
+              <Link href="/chamados" aria-label="Ver todos os chamados">
                 Ver todos <ArrowRight aria-hidden="true" />
               </Link>
             )}
@@ -193,6 +199,7 @@ export default async function Dashboard() {
             </div>
           ) : (
             <Empty
+              headingLevel={3}
               title="Nenhum chamado por aqui"
               description="Os atendimentos aparecerão neste espaço."
             />
@@ -205,7 +212,7 @@ export default async function Dashboard() {
               <p>Documentos e cobranças mais recentes.</p>
             </div>
             {(actor.admin || financeIds.length > 0) && (
-              <Link href="/financeiro">
+              <Link href="/financeiro" aria-label="Ver todas as faturas">
                 Ver todas <ArrowRight aria-hidden="true" />
               </Link>
             )}
@@ -244,6 +251,7 @@ export default async function Dashboard() {
             </div>
           ) : (
             <Empty
+              headingLevel={3}
               title="Nenhuma fatura por aqui"
               description="As faturas disponíveis aparecerão neste espaço."
             />

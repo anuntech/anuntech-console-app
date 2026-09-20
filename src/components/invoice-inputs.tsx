@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
+import { Popover } from "@base-ui/react/popover";
 import { NumericFormat, PatternFormat } from "react-number-format";
-import { DayPicker, TZDate } from "@daypicker/react";
+import { DateLib, DayPicker, TZDate } from "@daypicker/react";
 import { ptBR } from "@daypicker/react/locale";
 import { CalendarDays } from "lucide-react";
 import {
@@ -14,12 +15,14 @@ import { Field } from "./ui";
 import styles from "./invoice-inputs.module.css";
 
 export function InvoiceAmount({ defaultCents }: { defaultCents?: number }) {
+  const id = useId();
   const [value, setValue] = useState(
     defaultCents === undefined ? "" : (defaultCents / 100).toFixed(2),
   );
   return (
     <Field label="Valor (R$)">
       <NumericFormat
+        id={id}
         className={styles.amount}
         value={value}
         valueIsNumericString
@@ -52,11 +55,14 @@ export function InvoiceDueDate({
   const id = useId();
   const [text, setText] = useState(isoToBrazilDate(defaultValue));
   const [open, setOpen] = useState(false);
-  const [above, setAbove] = useState(false);
-  const container = useRef<HTMLDivElement>(null);
+  const [touched, setTouched] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
   const iso = brazilDateToISO(text);
+  const invalid =
+    Boolean(validationError) || (touched && Boolean(text) && !iso);
   const selected = iso
     ? new TZDate(`${iso}T12:00:00Z`, APP_TIME_ZONE)
     : undefined;
@@ -65,111 +71,122 @@ export function InvoiceDueDate({
       text && !iso ? "Informe uma data válida no formato dd/mm/aaaa." : "",
     );
   }, [text, iso]);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => {
-      if (!container.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [open]);
-  function closeCalendar() {
+  function selectDate(date: Date) {
+    setText(isoToBrazilDate(saoPauloDate(date)));
+    setValidationError("");
     setOpen(false);
-    trigger.current?.focus();
   }
   return (
-    <div className="field">
-      <label htmlFor={id}>Vencimento</label>
-      <div
-        ref={container}
-        className="date-input"
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && open) {
-            event.preventDefault();
-            closeCalendar();
-          }
-        }}
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget))
-            setOpen(false);
-        }}
-      >
-        <PatternFormat
-          className={styles.date}
-          id={id}
-          getInputRef={input}
-          value={text}
-          format="##/##/####"
-          mask="_"
-          onValueChange={({ formattedValue }) => setText(formattedValue)}
-          inputMode="numeric"
-          placeholder="dd/mm/aaaa"
-          required
-          autoComplete="off"
-          aria-describedby={`${id}-hint`}
-          minLength={10}
-          pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
-        />
-        <input type="hidden" name="dueDate" value={iso} />
-        <button
-          ref={trigger}
-          type="button"
-          className="calendar-trigger"
-          aria-label="Abrir calendário de vencimento"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-controls={open ? `${id}-calendar` : undefined}
-          onClick={() => {
-            const rect = container.current?.getBoundingClientRect();
-            setAbove(
-              !!rect &&
-                window.innerHeight - rect.bottom < 390 &&
-                rect.top > 390,
-            );
-            setOpen(!open);
-          }}
-        >
-          <CalendarDays size={19} aria-hidden="true" />
-        </button>
-        {open && (
-          <div
-            id={`${id}-calendar`}
-            className={`date-popover${above ? " above" : ""}`}
-            role="dialog"
-            aria-label="Escolher vencimento"
+    <div className="field" data-form-field="">
+      <label className="field-label" htmlFor={id}>
+        Vencimento{" "}
+        <span className="field-required" aria-hidden="true">
+          {" "}
+          (obrigatório)
+        </span>
+      </label>
+      <Popover.Root open={open} onOpenChange={setOpen} modal>
+        <div className="date-input">
+          <PatternFormat
+            className={styles.date}
+            id={id}
+            getInputRef={input}
+            value={text}
+            format="##/##/####"
+            mask="_"
+            onValueChange={({ formattedValue }) => {
+              setText(formattedValue);
+              if (brazilDateToISO(formattedValue)) setValidationError("");
+            }}
+            onInvalid={(event) => {
+              event.preventDefault();
+              setValidationError(
+                event.currentTarget.validity.valueMissing
+                  ? "Informe o vencimento."
+                  : "Informe uma data válida no formato dd/mm/aaaa.",
+              );
+            }}
+            onBlur={() => setTouched(true)}
+            inputMode="numeric"
+            placeholder="dd/mm/aaaa"
+            required
+            autoComplete="off"
+            aria-describedby={`${id}-hint${invalid ? ` ${id}-date-error` : ""}`}
+            aria-invalid={invalid || undefined}
+            minLength={10}
+            pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}"
+          />
+          <input type="hidden" name="dueDate" value={iso} />
+          <Popover.Trigger
+            ref={trigger}
+            className="calendar-trigger"
+            aria-label={
+              iso
+                ? `Alterar vencimento, ${isoToBrazilDate(iso)}`
+                : "Abrir calendário de vencimento"
+            }
           >
-            <DayPicker
-              mode="single"
-              locale={ptBR}
-              timeZone={APP_TIME_ZONE}
-              selected={selected}
-              defaultMonth={selected}
-              autoFocus
-              showOutsideDays
-              fixedWeeks
-              onSelect={(date) => {
-                if (date) setText(isoToBrazilDate(saoPauloDate(date)));
-                closeCalendar();
-              }}
-            />
-            <div className="calendar-footer">
-              <button
-                type="button"
-                onClick={() => {
-                  setText(isoToBrazilDate(saoPauloDate()));
-                  closeCalendar();
+            <CalendarDays size={19} aria-hidden="true" />
+          </Popover.Trigger>
+        </div>
+        <Popover.Portal>
+          <Popover.Positioner
+            className={styles.calendarPositioner}
+            align="end"
+            sideOffset={8}
+            collisionPadding={12}
+          >
+            <Popover.Popup
+              ref={popup}
+              className={`date-popover ${styles.calendarPopup}`}
+              initialFocus={() =>
+                popup.current?.querySelector<HTMLButtonElement>(
+                  '.rdp-day_button[tabindex="0"]',
+                ) ?? true
+              }
+              finalFocus={trigger}
+            >
+              <Popover.Title className="sr-only">
+                Escolher vencimento
+              </Popover.Title>
+              <Popover.Description className={styles.calendarHelp}>
+                Use as setas para mudar o dia e Enter para selecionar. Escape
+                fecha o calendário.
+              </Popover.Description>
+              <DayPicker
+                mode="single"
+                locale={ptBR}
+                navLayout="after"
+                formatters={{
+                  formatWeekdayName: (date, options, dateLib) =>
+                    (dateLib ?? new DateLib(options)).format(date, "ccccc"),
                 }}
-              >
-                Hoje
-              </button>
-              <button type="button" onClick={closeCalendar}>
-                Fechar
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+                timeZone={APP_TIME_ZONE}
+                selected={selected}
+                defaultMonth={selected}
+                autoFocus
+                showOutsideDays
+                fixedWeeks
+                onSelect={(date) => {
+                  if (date) selectDate(date);
+                }}
+              />
+              <div className="calendar-footer">
+                <button type="button" onClick={() => selectDate(new Date())}>
+                  Hoje
+                </button>
+                <Popover.Close>Fechar</Popover.Close>
+              </div>
+            </Popover.Popup>
+          </Popover.Positioner>
+        </Popover.Portal>
+      </Popover.Root>
       <small id={`${id}-hint`}>dd/mm/aaaa · Horário de São Paulo</small>
+      {invalid && (
+        <p id={`${id}-date-error`} className="field-error" role="alert">
+          {validationError || "Informe uma data válida no formato dd/mm/aaaa."}
+        </p>
+      )}
     </div>
   );
 }

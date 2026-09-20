@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { ArrowRight, FileText } from "lucide-react";
 import styles from "../empresas/management.module.css";
 import Link from "next/link";
@@ -7,6 +8,12 @@ import { companies, contracts } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Heading, Empty, Badge } from "@/components/ui";
 import { dateLabel } from "@/lib/format";
+export const metadata: Metadata = {
+  title: "Contratos",
+  description:
+    "Consulte os contratos e as versões publicadas para os clientes.",
+};
+
 export default async function Contracts() {
   const actor = await getActor();
   const ids = allowedIds(actor, "finance");
@@ -59,7 +66,12 @@ export default async function Contracts() {
           </div>
         </div>
         {rows.length ? (
-          <div className="table-wrap">
+          <div
+            className="table-wrap"
+            role="region"
+            aria-label="Tabela de contratos"
+            tabIndex={0}
+          >
             <table>
               <caption className="sr-only">
                 Contratos e situação de publicação
@@ -82,9 +94,10 @@ export default async function Contracts() {
                       <Link
                         className={styles.entity}
                         href={`/contratos/${c.id}`}
+                        aria-label={`${actor.admin ? c.title : c.publication?.title} — ${company}`}
                       >
                         <span className={styles.avatar}>
-                          <FileText size={17} />
+                          <FileText size={17} aria-hidden="true" />
                         </span>
                         <span>
                           {actor.admin ? c.title : c.publication?.title}
@@ -107,10 +120,10 @@ export default async function Contracts() {
                       <Link
                         className={styles.rowAction}
                         href={`/contratos/${c.id}`}
-                        aria-label={`Abrir contrato ${actor.admin ? c.title : c.publication?.title}`}
+                        aria-label={`Abrir contrato ${actor.admin ? c.title : c.publication?.title} — ${company}`}
                       >
                         Abrir
-                        <ArrowRight size={15} />
+                        <ArrowRight size={15} aria-hidden="true" />
                       </Link>
                     </td>
                   </tr>
@@ -120,6 +133,7 @@ export default async function Contracts() {
           </div>
         ) : (
           <Empty
+            headingLevel={3}
             title="Nenhum contrato disponível"
             description={
               actor.admin

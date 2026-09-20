@@ -12,6 +12,10 @@ import {
   unpublishContract,
 } from "@/lib/contract-actions";
 import { ActionForm } from "@/components/action-form";
+export const metadata = {
+  title: "Detalhes do contrato",
+  description: "Consulte o contrato e acompanhe sua publicação para o cliente.",
+};
 import { Heading, Back, Field, Badge } from "@/components/ui";
 import { dateLabel } from "@/lib/format";
 export default async function Contract({
@@ -141,6 +145,10 @@ export default async function Contract({
                 <ActionForm
                   key={`publish-${c.revision}`}
                   action={publishContract}
+                  confirm={{
+                    title: "Publicar contrato para o cliente?",
+                    description: `O rascunho salvo de “${c.title}” ficará disponível para consulta e download pelo cliente e substituirá a versão publicada, se houver.`,
+                  }}
                   label="Publicar para o cliente"
                 >
                   <input type="hidden" name="id" value={id} />
@@ -163,6 +171,10 @@ export default async function Contract({
                   <ActionForm
                     key={`unpublish-${c.revision}`}
                     action={unpublishContract}
+                    confirm={{
+                      title: "Retirar a publicação do contrato?",
+                      description: `O cliente deixará de visualizar e baixar “${c.title}”. O rascunho e o histórico serão preservados.`,
+                    }}
                     label="Retirar publicação"
                     danger
                   >

@@ -37,6 +37,11 @@ import { getActor, canAccess } from "@/lib/access";
 import { cancelDraft, updateDraft } from "@/lib/actions";
 import { issueCharge, syncCharge } from "@/lib/billing-actions";
 import { ActionForm } from "@/components/action-form";
+import { FormModal } from "@/components/form-modal";
+export const metadata = {
+  title: "Detalhes da fatura",
+  description: "Consulte o pagamento, os avisos e as condições desta fatura.",
+};
 import { InvoiceAmount, InvoiceDueDate } from "@/components/invoice-inputs";
 import { Heading, Back, Badge, Field } from "@/components/ui";
 import { invoiceLabels, currency, dateLabel } from "@/lib/format";
@@ -245,6 +250,12 @@ export default async function Invoice({
                 </p>
                 <ActionForm
                   action={issueCharge}
+                  confirm={{
+                    title: sub
+                      ? "Publicar cobrança recorrente?"
+                      : "Emitir cobrança no Inter?",
+                    description: `${row.company.name}: ${currency(i.amountCents)}, com vencimento em ${dateLabel(i.dueDate)}. ${sub ? "A publicação ativa as próximas emissões e os avisos recorrentes." : "A confirmação solicita a emissão bancária e aplica a opção de avisos selecionada."}`,
+                  }}
                   label={
                     sub
                       ? "Publicar cobrança recorrente"
@@ -315,26 +326,33 @@ export default async function Invoice({
                   </label>
                 </ActionForm>
               </details>
-              <details className={styles.disclosure}>
-                <summary>Editar rascunho</summary>
-                <ActionForm action={updateDraft} label="Salvar alterações">
-                  <input type="hidden" name="id" value={i.id} />
-                  <Field label="Descrição">
-                    <textarea
-                      name="description"
-                      required
-                      maxLength={1000}
-                      defaultValue={i.description}
-                    />
-                  </Field>
-                  <div className="form-grid">
-                    <InvoiceAmount defaultCents={i.amountCents} />
-                    <InvoiceDueDate defaultValue={i.dueDate} />
-                  </div>
-                </ActionForm>
-              </details>
+              <FormModal
+                trigger="Editar rascunho"
+                title="Editar rascunho da fatura"
+                description="Revise o produto, o valor e o vencimento. Salvar não emite a cobrança."
+                action={updateDraft}
+                label="Salvar alterações"
+              >
+                <input type="hidden" name="id" value={i.id} />
+                <Field label="Descrição">
+                  <textarea
+                    name="description"
+                    required
+                    maxLength={1000}
+                    defaultValue={i.description}
+                  />
+                </Field>
+                <div className="form-grid">
+                  <InvoiceAmount defaultCents={i.amountCents} />
+                  <InvoiceDueDate defaultValue={i.dueDate} />
+                </div>
+              </FormModal>
               <ActionForm
                 action={cancelDraft}
+                confirm={{
+                  title: "Cancelar este rascunho?",
+                  description: `A fatura de ${currency(i.amountCents)} para ${row.company.name} será cancelada. Nenhuma cobrança bancária será emitida.`,
+                }}
                 label="Cancelar rascunho"
                 danger
                 className="compact-form"
@@ -410,6 +428,10 @@ export default async function Invoice({
                   <ActionForm
                     key={channel}
                     action={sendInvoiceNotice}
+                    confirm={{
+                      title: `Enviar cobrança por ${channel === "email" ? "e-mail" : "WhatsApp"}?`,
+                      description: `O cliente ${row.company.name} receberá o aviso desta fatura de ${currency(i.amountCents)} com o link público de pagamento.`,
+                    }}
                     label={`Enviar cobrança por ${channel === "email" ? "e-mail" : "WhatsApp"}`}
                     className="compact-form"
                   >
@@ -464,6 +486,16 @@ export default async function Invoice({
               )}
               <ActionForm
                 action={changePaymentLink}
+                confirm={{
+                  title:
+                    i.publicId && i.publicEnabled
+                      ? "Desativar link público?"
+                      : "Ativar link público?",
+                  description:
+                    i.publicId && i.publicEnabled
+                      ? "O endereço compartilhado deixará de abrir esta fatura. A cobrança no banco permanece inalterada."
+                      : "Pessoas com o endereço poderão consultar e pagar esta fatura sem login.",
+                }}
                 label={
                   i.publicId && i.publicEnabled
                     ? "Desativar link público"
@@ -529,34 +561,44 @@ export default async function Invoice({
                 antes de cada vencimento.
               </p>
               {sub.status !== "cancelled" && (
-                <details className={styles.disclosure}>
-                  <summary>Editar próximas cobranças</summary>
-                  <ActionForm
-                    action={updateSubscription}
-                    label="Salvar recorrência"
-                  >
-                    <input type="hidden" name="id" value={sub.id} />
-                    <Field label="Produto">
-                      <textarea
-                        name="description"
-                        required
-                        maxLength={1000}
-                        defaultValue={sub.description}
-                      />
-                    </Field>
-                    <InvoiceAmount defaultCents={sub.amountCents} />
-                    <InvoiceDueDate defaultValue={sub.nextDueDate} />
-                    <p className={styles.helpText}>
-                      A alteração vale para os próximos períodos. Faturas já
-                      emitidas permanecem preservadas.
-                    </p>
-                  </ActionForm>
-                </details>
+                <FormModal
+                  trigger="Editar próximas cobranças"
+                  title="Editar próximas cobranças"
+                  description="As alterações valem para os próximos períodos. Faturas já emitidas permanecem preservadas."
+                  action={updateSubscription}
+                  label="Salvar recorrência"
+                >
+                  <input type="hidden" name="id" value={sub.id} />
+                  <Field label="Produto">
+                    <textarea
+                      name="description"
+                      required
+                      maxLength={1000}
+                      defaultValue={sub.description}
+                    />
+                  </Field>
+                  <InvoiceAmount defaultCents={sub.amountCents} />
+                  <InvoiceDueDate defaultValue={sub.nextDueDate} />
+                  <p className={styles.helpText}>
+                    A alteração vale para os próximos períodos. Faturas já
+                    emitidas permanecem preservadas.
+                  </p>
+                </FormModal>
               )}
               {sub.lastError && <p role="alert">{sub.lastError}</p>}
               {["active", "paused"].includes(sub.status) && (
                 <ActionForm
                   action={changeSubscription}
+                  confirm={{
+                    title:
+                      sub.status === "active"
+                        ? "Pausar recorrência?"
+                        : "Retomar recorrência?",
+                    description:
+                      sub.status === "active"
+                        ? "As próximas emissões automáticas serão pausadas. Faturas já emitidas permanecem inalteradas."
+                        : `As próximas emissões e avisos serão retomados. Próximo vencimento: ${dateLabel(sub.nextDueDate)}, no valor de ${currency(sub.amountCents)}.`,
+                  }}
                   label={
                     sub.status === "active"
                       ? "Pausar recorrência"

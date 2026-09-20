@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { DownloadLink } from "@/components/download-link";
 import { Notification } from "@/components/notifications";
 import { eq, asc } from "drizzle-orm";
@@ -17,6 +18,12 @@ import { ActionForm } from "@/components/action-form";
 import { Heading, Field, Back, Badge } from "@/components/ui";
 import { ticketLabels, dateLabel } from "@/lib/format";
 import { Paperclip, MessagesSquare, SlidersHorizontal } from "lucide-react";
+export const metadata: Metadata = {
+  title: "Detalhes do chamado",
+  description:
+    "Acompanhe a conversa, a situação e os arquivos de uma solicitação de atendimento.",
+};
+
 export default async function Ticket({
   params,
 }: {
@@ -82,7 +89,9 @@ export default async function Ticket({
                       </span>
                       <strong>{name}</strong>
                     </span>
-                    <time>{dateLabel(m.createdAt)}</time>
+                    <time dateTime={m.createdAt.toISOString()}>
+                      {dateLabel(m.createdAt)}
+                    </time>
                   </div>
                   <p className="pre-wrap">{m.body}</p>
                 </article>
@@ -136,6 +145,7 @@ export default async function Ticket({
                   <input
                     name="assignedTo"
                     type="email"
+                    autoComplete="email"
                     defaultValue={t.assignedTo || ""}
                   />
                 </Field>
@@ -147,7 +157,7 @@ export default async function Ticket({
               <Paperclip size={17} aria-hidden="true" />
               Anexos <span className="collection-count">{files.length}</span>
             </h2>
-            <p className="muted">
+            <p id="attachment-requirements" className="muted">
               PDF, PNG ou JPEG. Até 1 MB por arquivo e 20 arquivos por chamado.
             </p>
             <div className="attachment-list">
@@ -160,7 +170,7 @@ export default async function Ticket({
                   href={`/api/anexos/${f.id}`}
                   filename={f.name}
                 >
-                  <Paperclip size={15} />
+                  <Paperclip size={15} aria-hidden="true" />
                   <span>
                     {f.name}
                     <small>{Math.ceil(f.size / 1024)} KB</small>
@@ -179,6 +189,7 @@ export default async function Ticket({
                   <input
                     name="file"
                     type="file"
+                    aria-describedby="attachment-requirements"
                     required
                     accept=".pdf,.png,.jpg,.jpeg"
                   />

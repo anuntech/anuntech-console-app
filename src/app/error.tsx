@@ -5,7 +5,7 @@ import { CircleAlert, RotateCcw } from "lucide-react";
 import styles from "@/components/public-layout.module.css";
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
-    <main className={styles.page}>
+    <main id="main-content" tabIndex={-1} className={styles.page}>
       <header className={styles.header}>
         <Brand />
       </header>

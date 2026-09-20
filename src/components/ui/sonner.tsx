@@ -22,11 +22,17 @@ export function Toaster(props: ToasterProps) {
       mobileOffset={16}
       containerAriaLabel="Notificações"
       icons={{
-        success: <CircleCheck size={18} />,
-        info: <Info size={18} />,
-        warning: <TriangleAlert size={18} />,
-        error: <OctagonX size={18} />,
-        loading: <LoaderCircle size={18} className="toast-spinner" />,
+        success: <CircleCheck size={18} aria-hidden="true" />,
+        info: <Info size={18} aria-hidden="true" />,
+        warning: <TriangleAlert size={18} aria-hidden="true" />,
+        error: <OctagonX size={18} aria-hidden="true" />,
+        loading: (
+          <LoaderCircle
+            size={18}
+            className="toast-spinner"
+            aria-hidden="true"
+          />
+        ),
       }}
       toastOptions={{
         className: "console-toast",

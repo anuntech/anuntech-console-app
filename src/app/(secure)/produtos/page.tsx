@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Boxes, Building2, FolderKanban, Package } from "lucide-react";
 import styles from "../empresas/management.module.css";
 import { eq, inArray, sql } from "drizzle-orm";
@@ -8,6 +9,12 @@ import { updateEngagement } from "@/lib/actions";
 import { engagementLabels } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Heading, Empty, Badge } from "@/components/ui";
+export const metadata: Metadata = {
+  title: "Produtos e projetos",
+  description:
+    "Acompanhe os produtos e projetos vinculados às empresas com acesso autorizado.",
+};
+
 export default async function Products() {
   const actor = await getActor();
   const rows = await db
@@ -48,16 +55,16 @@ export default async function Products() {
             aria-label="Resumo dos vínculos"
           >
             <span>
-              <Boxes size={15} />
+              <Boxes size={15} aria-hidden="true" />
               {rows.length} {rows.length === 1 ? "vínculo" : "vínculos"}
             </span>
             <span>
-              <Package size={15} />
+              <Package size={15} aria-hidden="true" />
               {rows.filter(({ item }) => item.kind === "product").length}{" "}
               produtos
             </span>
             <span>
-              <FolderKanban size={15} />
+              <FolderKanban size={15} aria-hidden="true" />
               {rows.filter(({ item }) => item.kind !== "product").length}{" "}
               projetos
             </span>
@@ -68,9 +75,9 @@ export default async function Products() {
                 <div className="card-top">
                   <span className={styles.avatar}>
                     {item.kind === "product" ? (
-                      <Package size={19} />
+                      <Package size={19} aria-hidden="true" />
                     ) : (
-                      <FolderKanban size={19} />
+                      <FolderKanban size={19} aria-hidden="true" />
                     )}
                   </span>
                   <Badge status={item.status}>
@@ -79,7 +86,7 @@ export default async function Products() {
                 </div>
                 <h2>{item.name}</h2>
                 <p className={styles.productCompany}>
-                  <Building2 size={14} />
+                  <Building2 size={14} aria-hidden="true" />
                   {company}
                   <span aria-hidden="true">·</span>
                   {item.kind === "product" ? "Produto" : "Projeto"}
@@ -93,6 +100,7 @@ export default async function Products() {
                   <ActionForm
                     action={updateEngagement}
                     label="Atualizar"
+                    submitAriaLabel={`Atualizar situação de ${item.name} — ${company}`}
                     className="inline-form"
                   >
                     <input type="hidden" name="id" value={item.id} />

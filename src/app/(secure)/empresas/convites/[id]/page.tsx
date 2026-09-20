@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { CheckCircle2, Clock3, FileCheck2, Link2 } from "lucide-react";
 import styles from "../../management.module.css";
 import { eq } from "drizzle-orm";
@@ -13,6 +14,12 @@ import {
 import { ActionForm } from "@/components/action-form";
 import { CompanyBillingFields } from "@/components/company-billing-fields";
 import { Heading, Back, Badge } from "@/components/ui";
+export const metadata: Metadata = {
+  title: "Revisar cadastro por link",
+  description:
+    "Revise os dados enviados pelo cliente antes de aprovar o cadastro da empresa.",
+};
+
 export default async function ReviewInvite({
   params,
 }: {
@@ -51,7 +58,7 @@ export default async function ReviewInvite({
             </section>
             <aside className={styles.helpCard}>
               <span className={styles.helpIcon}>
-                <FileCheck2 size={19} />
+                <FileCheck2 size={19} aria-hidden="true" />
               </span>
               <h2>Revisão do cadastro</h2>
               <p>
@@ -66,11 +73,11 @@ export default async function ReviewInvite({
           <section className={`panel ${styles.statusPanel}`}>
             <span className={styles.helpIcon}>
               {row.status === "approved" ? (
-                <CheckCircle2 size={20} />
+                <CheckCircle2 size={20} aria-hidden="true" />
               ) : row.status === "revoked" || expired ? (
-                <Link2 size={20} />
+                <Link2 size={20} aria-hidden="true" />
               ) : (
-                <Clock3 size={20} />
+                <Clock3 size={20} aria-hidden="true" />
               )}
             </span>
             <div>

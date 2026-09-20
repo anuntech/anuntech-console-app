@@ -2,9 +2,13 @@ import Link from "next/link";
 import { Brand } from "@/components/brand";
 import { ArrowLeft, FileQuestion } from "lucide-react";
 import styles from "@/components/public-layout.module.css";
+export const metadata = {
+  title: "Página não encontrada",
+  robots: { index: false, follow: false },
+};
 export default function NotFound() {
   return (
-    <main className={styles.page}>
+    <main id="main-content" tabIndex={-1} className={styles.page}>
       <header className={styles.header}>
         <Brand />
       </header>

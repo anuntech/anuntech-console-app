@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Building2, Link2 } from "lucide-react";
 import { db } from "@/lib/db";
@@ -6,6 +7,12 @@ import { companies, companyInvites } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
 import { Heading, Empty, Badge } from "@/components/ui";
 import styles from "./management.module.css";
+export const metadata: Metadata = {
+  title: "Empresas",
+  description:
+    "Consulte os clientes e gerencie cadastros e acessos por empresa.",
+};
+
 export default async function Companies({
   searchParams,
 }: {
@@ -47,7 +54,7 @@ export default async function Companies({
             </Link>
           </nav>
           <Link className="button" href="/empresas/convites">
-            <Link2 size={16} />
+            <Link2 size={16} aria-hidden="true" />
             Links e cadastros recebidos
             {pending > 0 && (
               <Badge status="pending">{pending} para revisar</Badge>
@@ -56,7 +63,12 @@ export default async function Companies({
         </div>
         {rows.length ? (
           <>
-            <div className="table-wrap">
+            <div
+              className="table-wrap"
+              role="region"
+              aria-label="Tabela de empresas"
+              tabIndex={0}
+            >
               <table>
                 <caption className="sr-only">
                   Empresas {archived ? "arquivadas" : "ativas"}
@@ -80,7 +92,7 @@ export default async function Companies({
                           href={`/empresas/${c.id}`}
                         >
                           <span className={styles.avatar}>
-                            <Building2 size={17} />
+                            <Building2 size={17} aria-hidden="true" />
                           </span>
                           <span>{c.name}</span>
                         </Link>
@@ -93,7 +105,7 @@ export default async function Companies({
                           href={`/empresas/${c.id}`}
                           aria-label={`Gerenciar ${c.name}`}
                         >
-                          Gerenciar <ArrowRight size={15} />
+                          Gerenciar <ArrowRight size={15} aria-hidden="true" />
                         </Link>
                       </td>
                     </tr>

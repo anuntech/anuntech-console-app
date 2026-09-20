@@ -1,20 +1,23 @@
 "use client";
-import { Notification, toast } from "./notifications";
+import { Notification } from "./notifications";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { LogOut } from "lucide-react";
 import styles from "./auth.module.css";
 export function GoogleButton() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const feedbackId = useId();
   return (
     <>
       <button
         className={`button ${styles.google}`}
         type="button"
-        disabled={pending}
+        aria-disabled={pending}
+        aria-describedby={error ? feedbackId : undefined}
         onClick={async () => {
+          if (pending) return;
           setPending(true);
           setError("");
           try {
@@ -53,7 +56,7 @@ export function GoogleButton() {
         </svg>
         {pending ? "Conectando…" : "Continuar com Google"}
       </button>
-      {error && <Notification kind="error" message={error} />}
+      {error && <Notification id={feedbackId} kind="error" message={error} />}
     </>
   );
 }
@@ -61,17 +64,21 @@ export function SignOutButton() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
+  const feedbackId = useId();
   return (
     <>
       <button
         className="signout"
-        disabled={pending}
+        type="button"
+        aria-disabled={pending}
+        aria-describedby={error ? feedbackId : undefined}
         onClick={async () => {
+          if (pending) return;
           setPending(true);
+          setError(false);
           try {
             const result = await authClient.signOut();
             if (result.error) throw Error();
-            toast.success("Você saiu do Console.");
             router.replace("/entrar");
             router.refresh();
           } catch {
@@ -80,11 +87,12 @@ export function SignOutButton() {
           }
         }}
       >
-        <LogOut size={16} />
+        <LogOut size={16} aria-hidden="true" />
         {pending ? "Saindo…" : "Sair"}
       </button>
       {error && (
         <Notification
+          id={feedbackId}
           kind="error"
           message="Não foi possível sair. Tente novamente."
         />

@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import { Boxes, Building2 } from "lucide-react";
 import { requireAdmin, accessibleCompanies } from "@/lib/access";
 import { createEngagement } from "@/lib/actions";
 import { ActionForm } from "@/components/action-form";
 import { Heading, Field, Back, Empty } from "@/components/ui";
 import styles from "../../empresas/management.module.css";
+export const metadata: Metadata = {
+  title: "Adicionar produto ou projeto",
+  description:
+    "Vincule um produto ou projeto ao cliente e descreva o trabalho.",
+};
+
 export default async function NewProduct() {
   const actor = await requireAdmin();
   const companies = await accessibleCompanies(actor);
@@ -21,7 +28,7 @@ export default async function NewProduct() {
             <ActionForm action={createEngagement} label="Adicionar">
               <section className="form-section">
                 <div className={styles.sectionHeader}>
-                  <Building2 size={19} />
+                  <Building2 size={19} aria-hidden="true" />
                   <div>
                     <h2>Vínculo com o cliente</h2>
                     <p>Escolha a empresa e a categoria deste relacionamento.</p>
@@ -76,7 +83,7 @@ export default async function NewProduct() {
         </section>
         <aside className={styles.helpCard}>
           <span className={styles.helpIcon}>
-            <Boxes size={19} />
+            <Boxes size={19} aria-hidden="true" />
           </span>
           <h2>Um lugar para cada trabalho</h2>
           <p>

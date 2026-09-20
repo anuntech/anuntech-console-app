@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, ClipboardCheck, Link2 } from "lucide-react";
 import { desc } from "drizzle-orm";
@@ -8,6 +9,12 @@ import { CompanyInviteLink } from "@/components/company-invite-link";
 import { Heading, Back, Badge, Empty } from "@/components/ui";
 import { dateLabel } from "@/lib/format";
 import styles from "../management.module.css";
+export const metadata: Metadata = {
+  title: "Cadastro por link",
+  description:
+    "Crie links de cadastro e revise as informações recebidas dos clientes.",
+};
+
 export default async function CompanyInvites() {
   await requireAdmin();
   const rows = await db
@@ -37,7 +44,7 @@ export default async function CompanyInvites() {
         <div className={styles.formShell}>
           <section className={`panel ${styles.formCard}`}>
             <div className={styles.sectionHeader}>
-              <Link2 size={19} />
+              <Link2 size={19} aria-hidden="true" />
               <div>
                 <h2>Novo link de cadastro</h2>
                 <p>Um link individual para cada cliente, válido por 7 dias.</p>
@@ -47,7 +54,7 @@ export default async function CompanyInvites() {
           </section>
           <aside className={styles.helpCard}>
             <span className={styles.helpIcon}>
-              <ClipboardCheck size={19} />
+              <ClipboardCheck size={19} aria-hidden="true" />
             </span>
             <h2>Você revisa antes de aprovar</h2>
             <p>
@@ -67,7 +74,12 @@ export default async function CompanyInvites() {
             </div>
           </div>
           {rows.length ? (
-            <div className="table-wrap">
+            <div
+              className="table-wrap"
+              role="region"
+              aria-label="Tabela de links de cadastro"
+              tabIndex={0}
+            >
               <table>
                 <caption className="sr-only">
                   Links de cadastro de empresas
@@ -94,7 +106,7 @@ export default async function CompanyInvites() {
                             href={`/empresas/convites/${r.id}`}
                           >
                             <span className={styles.avatar}>
-                              <Link2 size={17} />
+                              <Link2 size={17} aria-hidden="true" />
                             </span>
                             <span>{r.label}</span>
                           </Link>
@@ -121,11 +133,12 @@ export default async function CompanyInvites() {
                           <Link
                             className={styles.rowAction}
                             href={`/empresas/convites/${r.id}`}
+                            aria-label={`${r.status === "submitted" ? "Revisar cadastro" : "Ver detalhes"}: ${r.label}`}
                           >
                             {r.status === "submitted"
                               ? "Revisar cadastro"
                               : "Ver detalhes"}
-                            <ArrowRight size={15} />
+                            <ArrowRight size={15} aria-hidden="true" />
                           </Link>
                         </td>
                       </tr>
@@ -136,6 +149,7 @@ export default async function CompanyInvites() {
             </div>
           ) : (
             <Empty
+              headingLevel={3}
               title="Nenhum link criado"
               description="Gere o primeiro link acima e compartilhe com o cliente para receber os dados de cadastro."
             />

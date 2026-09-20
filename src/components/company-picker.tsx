@@ -30,7 +30,14 @@ export function CompanyPicker({
           ))}
         </select>
       </Field>
-      <Field label="Produto ou projeto (opcional)">
+      <Field
+        label="Produto ou projeto (opcional)"
+        hint={
+          company
+            ? "Produtos e projetos da empresa selecionada."
+            : "Selecione uma empresa para consultar os produtos e projetos disponíveis."
+        }
+      >
         <select name="engagementId" key={company} defaultValue="">
           <option value="">Sem vínculo específico</option>
           {engagements

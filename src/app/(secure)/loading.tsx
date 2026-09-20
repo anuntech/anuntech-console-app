@@ -1,11 +1,7 @@
 import styles from "@/components/public-layout.module.css";
 export default function Loading() {
   return (
-    <div
-      className={styles.skeletonPage}
-      role="status"
-      aria-label="Carregando o Console"
-    >
+    <div className={styles.skeletonPage} role="status" aria-atomic="true">
       <span className={styles.visuallyHidden}>Carregando o Console…</span>
       <div className={styles.skeletonHeading} aria-hidden="true">
         <span className={styles.skeleton} />

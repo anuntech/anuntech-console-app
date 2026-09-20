@@ -1,4 +1,5 @@
 import Link from "next/link";
+export { Field } from "./field";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -45,18 +46,21 @@ export function Empty({
   description,
   icon: Icon = Inbox,
   action,
+  headingLevel = 2,
 }: {
   title: string;
   description: string;
   icon?: LucideIcon;
   action?: { label: string; href: string };
+  headingLevel?: 2 | 3;
 }) {
+  const Title = headingLevel === 3 ? "h3" : "h2";
   return (
     <div className="empty" data-slot="empty">
       <span className="empty-icon" data-slot="empty-icon">
         <Icon size={24} strokeWidth={1.7} aria-hidden="true" />
       </span>
-      <h3>{title}</h3>
+      <Title>{title}</Title>
       <p>{description}</p>
       {action && (
         <Link className="button" href={action.href}>
@@ -79,23 +83,6 @@ export function Badge({
       <span className="badge-dot" aria-hidden="true" />
       {children}
     </span>
-  );
-}
-export function Field({
-  label,
-  children,
-  hint,
-}: {
-  label: string;
-  children: React.ReactNode;
-  hint?: string;
-}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      {children}
-      {hint && <small>{hint}</small>}
-    </label>
   );
 }
 export function Back({ href, label }: { href: string; label: string }) {

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/access";
@@ -21,6 +22,12 @@ const labels: Record<string, string> = {
   cancelled: "Não enviado",
   expired: "Prazo expirado",
 };
+export const metadata: Metadata = {
+  title: "Avisos de chamados",
+  description:
+    "Confira os destinatários e as confirmações de entrega dos avisos de atendimento.",
+};
+
 export default async function Notifications() {
   const actor = await requireAdmin();
   const rows = await db
@@ -99,24 +106,34 @@ export default async function Notifications() {
           reenvio. São exibidos os 100 avisos mais recentes.
         </p>
         {rows.length ? (
-          <div className="table-wrap">
+          <div
+            className="table-wrap"
+            role="region"
+            aria-label="Tabela de avisos de chamados"
+            tabIndex={0}
+          >
             <table>
               <caption className="sr-only">
                 Histórico dos avisos de chamados e confirmações de entrega
               </caption>
               <thead>
                 <tr>
-                  <th>Movimentação</th>
-                  <th>Canal</th>
-                  <th>Situação</th>
-                  <th>Data</th>
+                  <th scope="col">Movimentação</th>
+                  <th scope="col">Canal</th>
+                  <th scope="col">Situação</th>
+                  <th scope="col">Data</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map(({ notice: n, subject, company, action }) => (
                   <tr key={n.id}>
                     <td>
-                      <Link href={`/chamados/${n.ticketId}`}>{subject}</Link>
+                      <Link
+                        href={`/chamados/${n.ticketId}`}
+                        aria-label={`${subject} — ${company}`}
+                      >
+                        {subject}
+                      </Link>
                       <p className="muted">
                         {company} · {auditLabels[action] || action}
                       </p>
@@ -150,6 +167,7 @@ export default async function Notifications() {
           </div>
         ) : (
           <Empty
+            headingLevel={3}
             title="Nenhum aviso registrado"
             description="As próximas movimentações dos chamados aparecerão aqui."
           />
