@@ -20,6 +20,7 @@ import * as schema from "@/db/schema";
 import { normalizeEmail } from "./permissions";
 import { z } from "zod";
 import { consoleTwoStep } from "./security-plugin";
+import { rememberOAuthEmail } from "./oauth-identity";
 export const auth = betterAuth({
   appName: "Anuntech Console",
   baseURL: process.env.BETTER_AUTH_URL,
@@ -29,6 +30,34 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
+  },
+  user: {
+    validateUserInfo: async ({ user: providerUser, source }, context) => {
+      if (source.method !== "oauth") return;
+      const denied = {
+        error: "oauth_identity_not_allowed",
+        errorDescription: "Use o e-mail principal autorizado da sua conta.",
+      };
+      const email = normalizeEmail(String(providerUser.email || ""));
+      if (
+        source.oauth?.providerId !== "google" ||
+        providerUser.emailVerified !== true ||
+        !(await allowedEmail(email))
+      )
+        return denied;
+      if (source.action !== "create-user") {
+        // Better Auth can find an existing Google link by provider ID even
+        // after the account's primary email changes. Check the fresh claim
+        // before it issues any session, for both callback and ID-token login.
+        if (!providerUser.id) return denied;
+        const [current] = await db
+          .select({ email: schema.user.email })
+          .from(schema.user)
+          .where(eq(schema.user.id, providerUser.id));
+        if (!current || normalizeEmail(current.email) !== email) return denied;
+      }
+      rememberOAuthEmail(context.context, email);
     },
   },
   session: {

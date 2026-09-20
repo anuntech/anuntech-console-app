@@ -69,6 +69,7 @@ try {
     "--members-only": "scripts/members-smoke.mjs",
     "--account-only": "scripts/account-smoke.mjs",
     "--billing-only": "scripts/smoke.mjs",
+    "--regression-only": "scripts/smoke.mjs",
   };
   const focused = Object.keys(focusedSuites).find((flag) =>
     process.argv.includes(flag),

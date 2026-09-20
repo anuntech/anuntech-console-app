@@ -150,3 +150,18 @@ Auditoria adicional de 24 casos HTTP/HTML aprovada, incluindo os quatro perfis, 
 ### Ajuste de composição do dock — 20/09/2026
 
 Dock centralizado no topo para equilibrar o cabeçalho. A reserva superior passou de 70 para 64 px na ausência de safe area; deslocamento e reserva consideram a área segura do dispositivo. A faixa transparente de posicionamento permite cliques no conteúdo, enquanto o dock mantém interação normal. A prévia foi inspecionada em 1280 px e 320 px: dock de 296 px em tela de 320 px, título abaixo do dock, sem overflow da página. Abertura por teclado, Escape e retorno de foco aos Ajustes preservados.
+
+## Perfil, contatos, segurança e membros — 20/09/2026
+
+Minha conta inclui foto privada, edição de nome, contatos verificados e verificação em duas etapas opcional, mantendo o acesso sem senha. Membros separa administração da Anuntech de permissões por empresa. Foram mantidos os modais compartilhados e selects nativos.
+
+QA em Chromium, com banco descartável e provedores simulados:
+
+- Edição de nome salva, fecha o diálogo e devolve o foco ao acionador. Erro de sessão antiga na alteração de contato permanece visível e recebe foco.
+- Após novo login, inclusão de e-mail com códigos distintos para origem e destino conclui, atualiza a lista, fecha o diálogo e devolve o foco a Adicionar e-mail.
+- Upload de PNG sintético exibe a imagem WebP de 512 × 512. Remoção restaura as iniciais e transfere o foco ao botão Adicionar foto. Feedback de envio, sucesso e erro permanece em contexto.
+- Ativação de duas etapas exige códigos de e-mail e WhatsApp em sequência; o estado passa a Ativada, o foco chega ao título da seção e alterações de contatos ficam indisponíveis com explicação.
+- Conta e formulário de acesso de cliente conferidos em 320 × 720 CSS px, sem overflow horizontal da página. Selects de empresa e permissão continuam nativos. Escape fecha o formulário de membro e devolve o foco ao acionador.
+- Endpoint de foto rejeita sessão ausente, origem externa e SVG; upload, leitura privada, remoção e resposta 404 posterior verificados. Storage real testado separadamente com imagem sintética: acesso autenticado com bytes iguais, acesso anônimo negado e objeto removido.
+
+Os testes de mensagens usam transportes simulados e não comprovam entrega de OTP a destinatários reais. Não foi realizada sessão completa com VoiceOver/NVDA nem uma nova matriz de navegadores ou zoom; permanecem os limites das rodadas anteriores.

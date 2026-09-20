@@ -468,6 +468,91 @@ try {
     r.status === 200 && r.body.token && !r.body.twoFactorRedirect,
     "Desativação restaura o login sem segunda etapa",
   );
+  const newPrimary = `security-new-${randomUUID()}@example.invalid`;
+  const linkedGoogle = (
+    await db.query(
+      "select id from console_account where user_id=$1 and provider_id='google' and account_id=$2",
+      [uid, fixture.sub],
+    )
+  ).rows[0];
+  assert.ok(
+    linkedGoogle,
+    "Fixture has a Google account linked before changing email",
+  );
+  // Account actions already test both ownership proofs and session revocation.
+  // Reproduce their committed state here to exercise the actual OAuth endpoints.
+  await db.query("update console_user set email=$1 where id=$2", [
+    newPrimary,
+    uid,
+  ]);
+  await db.query("delete from console_session where user_id=$1", [uid]);
+  r = await api("/sign-in/social", {
+    provider: "google",
+    callbackURL: base + "/painel",
+  });
+  assert.equal(r.status, 200);
+  const oldIdentityAuthorization = new URL(r.body.url);
+  const oldIdentityCallback = await fetch(
+    `${base}/api/auth/callback/google?state=${encodeURIComponent(oldIdentityAuthorization.searchParams.get("state"))}&code=${encodeURIComponent(oldIdentityAuthorization.searchParams.get("nonce") || "test")}`,
+    { headers: { Cookie: r.cookie }, redirect: "manual" },
+  );
+  ok(
+    oldIdentityCallback.status === 302 &&
+      new URL(
+        oldIdentityCallback.headers.get("location"),
+        base,
+      ).searchParams.get("error") === "oauth_identity_not_allowed" &&
+      !(await api("/get-session", undefined, cookies(oldIdentityCallback))).body
+        ?.user,
+    "Callback Google do principal anterior é recusado sem sessão após troca de e-mail",
+  );
+  r = await api("/sign-in/social", { provider: "google", idToken: { token } });
+  ok(
+    r.status === 403 &&
+      !r.body?.token &&
+      (await db.query("select id from console_session where user_id=$1", [uid]))
+        .rowCount === 0,
+    "ID token Google do alias anterior também é recusado sem criar sessão no banco",
+  );
+  const freshGoogleToken = (verified) => {
+    const value = [
+      Buffer.from(JSON.stringify({ alg: "RS256", kid: "test" })).toString(
+        "base64url",
+      ),
+      Buffer.from(
+        JSON.stringify({
+          ...claims,
+          email: newPrimary,
+          email_verified: verified,
+        }),
+      ).toString("base64url"),
+    ].join(".");
+    return `${value}.${sign("RSA-SHA256", Buffer.from(value), privateKey).toString("base64url")}`;
+  };
+  r = await api("/sign-in/social", {
+    provider: "google",
+    idToken: { token: freshGoogleToken(false) },
+  });
+  ok(
+    r.status === 403 && !r.body?.token,
+    "Google sem confirmação do novo e-mail não pode reutilizar o vínculo existente",
+  );
+  r = await api("/sign-in/social", {
+    provider: "google",
+    idToken: { token: freshGoogleToken(true) },
+  });
+  ok(
+    r.status === 200 &&
+      r.body.user?.id === uid &&
+      r.body.user.email === newPrimary &&
+      !!r.body.token &&
+      (
+        await db.query("select id from console_account where id=$1", [
+          linkedGoogle.id,
+        ])
+      ).rowCount === 1,
+    "Google com principal atual verificado mantém a conta e o vínculo originais",
+  );
   const audit = (
     await db.query(
       "select action,details from console_audit_events where actor_id=$1 and action like 'account.security.%' order by created_at",

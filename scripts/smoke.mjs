@@ -212,6 +212,8 @@ try {
         ...process.env,
         CONSOLE_ADMIN_EMAIL: adminEmail,
         BETTER_AUTH_URL: base,
+        GOOGLE_CLIENT_ID: "console-regression-test",
+        GOOGLE_CLIENT_SECRET: "test",
         NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs`,
         CONSOLE_TEST_NOTICE_FILE: noticeFile,
         CONSOLE_TEST_NOTICE_FLAGS: noticeFlags,

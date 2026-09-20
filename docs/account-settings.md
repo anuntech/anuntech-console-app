@@ -12,6 +12,7 @@ A foto é enviada ao servidor autenticado (`POST /api/conta/foto`) como PNG, JPE
 - Até cinco endereços verificados por conta, incluindo o principal. Endereços adicionais são contatos da mesma identidade; não abrem contas novas nem substituem o principal no formulário de login.
 - Adicionar um endereço ou mudar o principal exige uma sessão criada há até dez minutos e códigos novos tanto no endereço atual como no destino. Provas valem cinco minutos, permitem cinco tentativas, pertencem a uma única sessão e são consumidas uma vez.
 - Uma mudança do principal encerra todas as sessões e conserva o endereço anterior e suas permissões. O registro único de e-mails também é mantido por trigger para impedir colisões entre contatos e logins criados simultaneamente.
+- O Google também precisa apresentar o e-mail principal atual e verificado. Um vínculo anterior do provedor não permite entrar pelo endereço antigo; a identidade é reavaliada antes de liberar a sessão.
 - O e-mail do proprietário e endereços que identificam permissões atuais ou históricas permanecem na conta. Remover um contato livre encerra outras sessões.
 - WhatsApp precisa ser confirmado com o código enviado ao próprio número. Telefone cadastral da empresa não equivale a contato autenticado.
 

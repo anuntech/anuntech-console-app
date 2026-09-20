@@ -22,6 +22,7 @@ import { twoFactor } from "better-auth/plugins";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
+import { getOAuthEmail } from "./oauth-identity";
 import {
   user,
   session,
@@ -638,7 +639,32 @@ export function consoleTwoStep() {
                   "Não foi possível confirmar a segurança da conta. Entre novamente.",
               });
             }
-            if (!account?.twoFactorEnabled) return;
+            const oauth =
+              ctx.path === "/sign-in/social" ||
+              ctx.path.startsWith("/callback/");
+            const oauthEmail = getOAuthEmail(ctx.context);
+            if (
+              !account ||
+              fresh.user.email !== account.email ||
+              (oauth && (!oauthEmail || oauthEmail !== account.email))
+            ) {
+              // A principal-email change revokes older sessions. Recheck the
+              // identity proven by this request so an in-flight old login
+              // cannot issue a fresh session after that revocation commits.
+              deleteSessionCookie(ctx, true);
+              ctx.context.setNewSession(null);
+              await ctx.context.internalAdapter.deleteSession(
+                fresh.session.token,
+              );
+              if (ctx.path.startsWith("/callback/"))
+                throw ctx.redirect(
+                  `${ctx.context.baseURL.split("/api/auth")[0]}/entrar?erro=acesso`,
+                );
+              throw new APIError("UNAUTHORIZED", {
+                message: "Entre novamente usando seu e-mail principal atual.",
+              });
+            }
+            if (!account.twoFactorEnabled) return;
             // The primary token must never leave the server while a challenge exists.
             deleteSessionCookie(ctx, true);
             ctx.context.setNewSession(null);
