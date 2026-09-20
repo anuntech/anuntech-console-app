@@ -145,3 +145,8 @@ Verificação em Chromium com dados fictícios: três categorias inspecionadas e
 Lint, build, TypeScript e 24 testes unitários aprovados. Ajustado o acompanhamento dos metadados para impedir título de seção obsoleto ao fechar. Após o ajuste, entrada direta, troca de categorias, Voltar/Avançar e retorno a `/financeiro?page=2` preservaram título, foco e destino.
 
 Auditoria adicional de 24 casos HTTP/HTML aprovada, incluindo os quatro perfis, categorias permitidas/bloqueadas, login e 404. Revisão independente dos subagentes sobre permissões, semântica, histórico e foco. Nenhum envio ou registro real alterado. Os limites sobre leitores de tela, zoom real e certificação das rodadas anteriores continuam aplicáveis.
+
+
+### Ajuste de composição do dock — 20/09/2026
+
+Dock centralizado no topo para equilibrar o cabeçalho. A reserva superior passou de 70 para 64 px na ausência de safe area; deslocamento e reserva consideram a área segura do dispositivo. A faixa transparente de posicionamento permite cliques no conteúdo, enquanto o dock mantém interação normal. A prévia foi inspecionada em 1280 px e 320 px: dock de 296 px em tela de 320 px, título abaixo do dock, sem overflow da página. Abertura por teclado, Escape e retorno de foco aos Ajustes preservados.

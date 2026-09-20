@@ -1,13 +1,16 @@
 .headerBar {
-  min-height: 70px;
+  min-height: calc(52px + max(12px, env(safe-area-inset-top)));
   width: 100%;
 }
 .floating {
   position: fixed;
-  top: max(16px, env(safe-area-inset-top));
-  right: max(20px, env(safe-area-inset-right));
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
   z-index: 60;
-  max-width: calc(100vw - 40px);
 }
 .dock {
   display: flex;
@@ -15,6 +18,7 @@
   gap: 4px;
   width: max-content;
   max-width: 100%;
+  pointer-events: auto;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -113,12 +117,6 @@
 .tooltip[data-starting-style],
 .tooltip[data-ending-style] {
   opacity: 0;
-}
-@media (max-width: 560px) {
-  .floating {
-    right: max(12px, env(safe-area-inset-right));
-    max-width: calc(100vw - 24px);
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .link,
