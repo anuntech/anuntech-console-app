@@ -18,10 +18,13 @@ import modalStyles from "./ui/modal.module.css";
 export function WhatsappAccount({
   phone,
   className = "",
+  headingLevel = 2,
 }: {
   phone: string | null;
   className?: string;
+  headingLevel?: 2 | 3;
 }) {
+  const Title = headingLevel === 3 ? "h3" : "h2";
   const router = useRouter();
   const id = useId();
   const numberInput = useRef<HTMLInputElement>(null);
@@ -117,14 +120,14 @@ export function WhatsappAccount({
       aria-labelledby={`${id}-title`}
     >
       <div className="card-top">
-        <h2
+        <Title
           ref={heading}
           id={`${id}-title`}
           className="detail-section-title"
           tabIndex={-1}
         >
           <MessageCircle size={20} aria-hidden="true" /> Acesso pelo WhatsApp
-        </h2>
+        </Title>
         <Badge status={phone ? "active" : ""}>
           {phone ? "Vinculado" : "Não vinculado"}
         </Badge>

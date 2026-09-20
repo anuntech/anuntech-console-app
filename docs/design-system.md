@@ -45,7 +45,7 @@ A fonte única dos tokens é `src/app/globals.css`. Novas telas devem usar token
 
 | Componente/padrão    | Localização                                                          | Responsabilidade                                                              |
 | -------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Navegação            | `src/components/sidebar.tsx`                                         | Menu flutuante compacto, item ativo e opções por permissão                    |
+| Navegação            | `src/components/sidebar.tsx`                                         | Dock horizontal com ícones, tooltips, item ativo e permissões                 |
 | Preferências         | `src/components/preferences/`                                        | Minha conta, integrações e avisos em modal com navegação lateral              |
 | Card                 | `src/components/ui/card.tsx`                                         | Superfície com cabeçalho, título, descrição e conteúdo                        |
 | Heading              | `src/components/ui.tsx`                                              | Título da página, contexto e ação principal                                   |
@@ -74,7 +74,9 @@ O MCP shadcn.io foi usado para pesquisar itens, consultar metadados e obter font
 Referências públicas, sem tokens de registry:
 
 - [Dialog](https://www.shadcn.io/ui/dialog) e [Alert Dialog](https://www.shadcn.io/ui/alert-dialog): referências para janelas de edição curta e confirmações, adaptadas com Base UI.
-- [Popover](https://www.shadcn.io/ui/popover): composição consultada pelo MCP e adaptada ao menu flutuante, usando `@base-ui/react/popover`.
+- [Dock](https://www.shadcn.io/components/dock/dock): referência consultada pelo MCP; composição adaptada com links semânticos e sem magnificação/movimento obrigatório.
+- [Tooltip do Base UI](https://base-ui.com/react/components/tooltip): nomes visíveis ao focar os ícones ou passar o ponteiro.
+- [Ajustes da Apple](https://support.apple.com/guide/mac-help/change-system-settings-mh15217/mac): referência de organização por categorias, adaptada às funções reais e à marca Anuntech.
 - [Dialog do Base UI](https://base-ui.com/react/components/dialog): foco, portal e fechamento das preferências.
 - [Select nativo](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/select) e [data nativa](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/date): controles padrão solicitados para todo o Console.
 - [Card](https://www.shadcn.io/ui/card): composição de superfície, cabeçalho e conteúdo.
@@ -119,8 +121,8 @@ Produtos e projetos continuam em cartões, adequados à descrição e à atualiz
 
 - Links navegam e botões executam ações. Controles somente com ícone precisam de nome acessível.
 - `aria-current` identifica a página/filtro atual; estados também têm texto visível.
-- A navegação autenticada usa um botão flutuante no canto superior direito em todas as larguras. O Popover do Base UI contém foco, fecha por Escape ou clique externo e devolve foco ao acionador. Os links respeitam as permissões do ator; não há barra lateral fixa, logo ou selo de administração.
-- Minha conta, Integrações e Avisos de chamados ficam em um Dialog com navegação lateral. Rotas interceptadas preservam a tela de origem; abrir a URL diretamente mantém a apresentação de preferências e oferece retorno ao painel. A autorização continua no servidor.
+- A navegação autenticada usa um dock flutuante no canto superior direito, com ícones lado a lado. Os atalhos são links nativos com nome acessível, tooltip e marcador de página ativa. Em telas estreitas, as áreas rolam horizontalmente e Ajustes permanece visível. Não há botão de expansão, breadcrumb no canto esquerdo, logo ou selo de administração.
+- Minha conta, Integrações e Avisos de chamados ficam em um Dialog com navegação lateral e agrupamento inspirado nos Ajustes da Apple. O perfil aparece em destaque; cards reúnem informações pessoais, acesso e segurança, dados e acesso, comunicação, financeiro/fiscal e entrega de avisos. Sair fica nos Ajustes. Rotas interceptadas preservam a tela de origem; abrir a URL diretamente mantém a apresentação de preferências e oferece retorno ao painel. A autorização continua no servidor.
 - Toda seleção usa `<select>` nativo e toda data editável usa `<input type="date">`. A aparência do seletor/calendário e o formato mostrado seguem o navegador e o sistema operacional. O servidor recebe a data civil em ISO (`YYYY-MM-DD`), sem conversão de fuso horário. Não substituir esses controles por Select, combobox ou calendário personalizado.
 - O menu de cada fatura usa Radix Dropdown Menu, preservando navegação por teclado e semântica de itens.
 - Rótulos de campos são associados por `htmlFor`/`id`; dicas e erros persistentes usam `aria-describedby`. Inputs monetários e de data mantêm os campos normalizados esperados pelo servidor.

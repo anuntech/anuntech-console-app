@@ -98,7 +98,6 @@ export default async function Dashboard() {
   return (
     <>
       <Heading
-        eyebrow="VISÃO GERAL"
         title={`Olá, ${actor.user.name.split(" ")[0]}.`}
         description="Uma visão do seu atendimento, das suas empresas e do financeiro."
       />

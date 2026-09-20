@@ -56,7 +56,7 @@ Cadastros de empresa, criação de fatura, abertura de chamado e edição de con
 - O OTP usa um campo de seis dígitos, aceita colagem e `autocomplete="one-time-code"`. O destino e o código têm rótulos, dicas e erros associados.
 - A interface dirige o foco para o código após a solicitação e para o campo correspondente quando a API rejeita a entrada. A contagem para reenvio continua visível, sem anunciar cada segundo.
 - Vencimentos usam `<input type="date">` e seleções usam `<select>` nativo. O navegador oferece o calendário, as opções e a navegação por teclado conforme o sistema operacional. `Field` mantém rótulo, indicação de obrigatório e erros associados; o servidor valida a data civil ISO sem conversão de fuso.
-- O menu flutuante permanece no canto superior direito para todos os perfis. O Popover do Base UI contém foco e oferece Escape, fechamento explícito e retorno ao acionador. Minha conta e as configurações usam um Dialog com links laterais, título e descrição; permissões são verificadas novamente no servidor.
+- O dock permanece no canto superior direito para todos os perfis, com links de ícones em uma linha. Cada link tem nome acessível, tooltip ao foco/hover e estado ativo em texto assistivo/indicador visual. Tab percorre as áreas; em telas estreitas o grupo de rotas rola, mantendo Ajustes visível. O diálogo devolve foco a Ajustes ao fechar. Minha conta e as configurações usam um Dialog com links laterais, título e descrição; permissões são verificadas novamente no servidor.
 
 ### Tabelas, tamanho de texto, foco e contraste
 
@@ -133,3 +133,15 @@ Validação em Chromium, com banco descartável e provedores simulados:
 - Confirmação aninhada de desvincular WhatsApp inicia em Cancelar; Escape retorna ao acionador dentro de Minha conta, e o próximo Escape fecha as preferências. Nenhum vínculo real foi alterado.
 
 A inspeção de HTML confirma conteúdo renderizado no servidor, mas não equivale a suporte completo sem JavaScript: o streaming de conteúdo autenticado sob o loading do Next ainda depende da execução de scripts. A alternativa de menu em noscript foi verificada; não foi declarada navegação completa sem JavaScript nem certificação WCAG. Os testes de texto ampliado usam estilo temporário, sem substituir uma matriz de zoom/navegadores/leitores de tela.
+
+## Dock e ajustes por categoria — terceira rodada de 20/09/2026
+
+O dock horizontal substitui o menu expansível da segunda rodada. Cada ícone é um link com nome acessível, tooltip, foco visível e indicador da página atual. Em 320 px, a faixa de atalhos rola e Ajustes continua visível; alvos de 44 × 48 px. Removidos o breadcrumb superior e a legenda redundante de Visão geral no painel. Os controles de data e seleção continuam nativos.
+
+Minha conta ganhou perfil central e cartões de Informações pessoais e Acesso e segurança. Integrações são agrupadas em Dados e acesso, Comunicação e Financeiro e fiscal. Avisos separam Destinatários, Entrega e Histórico. A navegação lateral inclui a conta e as categorias permitidas; Sair permanece dentro dos Ajustes.
+
+Verificação em Chromium com dados fictícios: três categorias inspecionadas em desktop e tela estreita; navegação e conteúdo com rolagem independente em 320 px, texto a 200% e altura de 400 px. Sem overflow horizontal da página. Tab e Shift+Tab permanecem no modal, confirmação aninhada inicia em Cancelar e Escape devolve foco ao acionador. Fechamento dos Ajustes e Voltar/Avançar retornam ao dock e à página de origem. Cores forçadas e movimento reduzido emulados; nomes dos ícones e contorno de foco preservados.
+
+Lint, build, TypeScript e 24 testes unitários aprovados. Ajustado o acompanhamento dos metadados para impedir título de seção obsoleto ao fechar. Após o ajuste, entrada direta, troca de categorias, Voltar/Avançar e retorno a `/financeiro?page=2` preservaram título, foco e destino.
+
+Auditoria adicional de 24 casos HTTP/HTML aprovada, incluindo os quatro perfis, categorias permitidas/bloqueadas, login e 404. Revisão independente dos subagentes sobre permissões, semântica, histórico e foco. Nenhum envio ou registro real alterado. Os limites sobre leitores de tela, zoom real e certificação das rodadas anteriores continuam aplicáveis.

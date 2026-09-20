@@ -44,9 +44,9 @@ export async function NotificationsContent() {
     <div className={styles.content}>
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
-          <h2>Destinatário da equipe Anuntech</h2>
+          <h2>Destinatários</h2>
         </div>
-        <dl className={styles.settingsList}>
+        <dl className={`${styles.card} ${styles.settingsList}`}>
           <div className={styles.settingRow}>
             <dt>
               <Mail size={16} aria-hidden="true" /> E-mail
@@ -74,7 +74,7 @@ export async function NotificationsContent() {
             </dd>
           </div>
         </dl>
-        <p className={styles.helper}>
+        <p className={styles.groupNote}>
           Toda movimentação é registrada para os dois canais, inclusive as
           feitas pela equipe. O WhatsApp usa o modelo
           notificação_chamado_console com o nome da empresa cliente. O e-mail
@@ -83,30 +83,37 @@ export async function NotificationsContent() {
       </section>
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
+          <h2>Entrega</h2>
+        </div>
+        <div className={`${styles.card} ${styles.deliveryCard}`}>
+          <div className={styles.historyIntro}>
+            <p className={styles.helper}>
+              Avisos são processados após a movimentação e revisados a cada 5
+              minutos. O WhatsApp só envia com o modelo aprovado no FLW. “Aceito
+              pelo provedor” ainda não confirma entrega.
+            </p>
+            <div>
+              <ActionForm
+                action={checkTicketNotices}
+                label="Verificar avisos pendentes"
+                className={styles.integrationAction}
+              >
+                {null}
+              </ActionForm>
+            </div>
+          </div>
+          <p className={styles.helper}>
+            Tentativas seguras ficam disponíveis por até 23 horas. Respostas
+            incertas do WhatsApp exigem conferência no FLW antes de qualquer
+            reenvio. São exibidos os 100 avisos mais recentes.
+          </p>
+        </div>
+      </section>
+      <section className={styles.section}>
+        <div className={styles.sectionHeading}>
           <h2>Histórico de envios</h2>
           <span>{rows.length} registros</span>
         </div>
-        <div className={styles.historyIntro}>
-          <p className={styles.helper}>
-            Avisos são processados após a movimentação e revisados a cada 5
-            minutos. O WhatsApp só envia com o modelo aprovado no FLW. “Aceito
-            pelo provedor” ainda não confirma entrega.
-          </p>
-          <div>
-            <ActionForm
-              action={checkTicketNotices}
-              label="Verificar avisos pendentes"
-              className={styles.integrationAction}
-            >
-              {null}
-            </ActionForm>
-          </div>
-        </div>
-        <p className={styles.helper}>
-          Tentativas seguras ficam disponíveis por até 23 horas. Respostas
-          incertas do WhatsApp exigem conferência no FLW antes de qualquer
-          reenvio. São exibidos os 100 avisos mais recentes.
-        </p>
         {rows.length ? (
           <div
             className={`table-wrap ${styles.tableWrap}`}
@@ -170,11 +177,13 @@ export async function NotificationsContent() {
             </table>
           </div>
         ) : (
-          <Empty
-            headingLevel={3}
-            title="Nenhum aviso registrado"
-            description="As próximas movimentações dos chamados aparecerão aqui."
-          />
+          <div className={styles.card}>
+            <Empty
+              headingLevel={3}
+              title="Nenhum aviso registrado"
+              description="As próximas movimentações dos chamados aparecerão aqui."
+            />
+          </div>
         )}
       </section>
     </div>

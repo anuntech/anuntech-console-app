@@ -38,6 +38,7 @@ export async function PreferencesPage({
       section={section}
       {...copy[section]}
       admin={actor.admin}
+      userName={actor.user.name}
       intercepted={intercepted}
     >
       {section === "account" ? (

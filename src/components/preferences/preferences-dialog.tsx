@@ -17,6 +17,7 @@ import {
 } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Bell, PlugZap, UserRound, X } from "lucide-react";
+import { SignOutButton } from "@/components/auth-buttons";
 import styles from "./preferences-dialog.module.css";
 
 export type PreferenceSection = "account" | "integrations" | "notifications";
@@ -31,6 +32,10 @@ const sections = {
 };
 const isPreferencePath = (pathname: string) =>
   Object.values(sections).some(({ href }) => href === pathname);
+const isPreferenceTitle = (title: string) =>
+  Object.values(sections).some(
+    ({ label }) => title === `${label} | Anuntech Console`,
+  );
 const NavigationContext = createContext({
   directEntry: false,
   intercepted: false,
@@ -54,7 +59,9 @@ export function PreferencesNavigationProvider({
   const directEntry = isPreferencePath(backgroundPath);
   const previousPath = useRef(pathname);
   const restoreMenuFocus = useRef(false);
-  const pageTitles = useRef(new Map<string, string>());
+  const pageTitles = useRef(
+    new Map([["/painel", "Visão geral | Anuntech Console"]]),
+  );
   const managedTitle = useRef<{
     title: string;
     backgroundPath: string;
@@ -63,45 +70,55 @@ export function PreferencesNavigationProvider({
     const section = Object.values(sections).find(
       ({ href }) => href === pathname,
     );
+    let syncTitle: () => void;
     if (section) {
       restoreMenuFocus.current = false;
       const title = `${section.label} | Anuntech Console`;
       // Browser Back can restore an older modal over a different retained page
       // than the page just visited. The children slot, not the last URL, is its origin.
       const origin = directEntry ? "/painel" : backgroundPath;
-      const currentTitleIsPreference = Object.values(sections).some(
-        ({ label }) => document.title === `${label} | Anuntech Console`,
-      );
       if (
         !directEntry &&
         !pageTitles.current.has(origin) &&
-        !currentTitleIsPreference
+        !isPreferenceTitle(document.title)
       ) {
         pageTitles.current.set(origin, document.title);
       }
       managedTitle.current = { title, backgroundPath: origin };
       // The retained page can win Next's parallel-route metadata merge. Set the
       // active title before Next's existing route announcer reads it (useEffect).
-      document.title = title;
-      return;
+      syncTitle = () => {
+        if (document.title !== title) document.title = title;
+      };
+    } else {
+      const managed = managedTitle.current;
+      const returningToOrigin = managed?.backgroundPath === pathname;
+      restoreMenuFocus.current = returningToOrigin;
+      managedTitle.current = null;
+      syncTitle = () => {
+        const currentTitle = document.title;
+        if (isPreferenceTitle(currentTitle)) {
+          const previousTitle = pageTitles.current.get(pathname);
+          if (returningToOrigin && previousTitle)
+            document.title = previousTitle;
+        } else if (currentTitle.trim()) {
+          pageTitles.current.set(pathname, currentTitle);
+        }
+      };
     }
-    const managed = managedTitle.current;
-    restoreMenuFocus.current = !!managed && managed.backgroundPath === pathname;
-    const previousTitle = pageTitles.current.get(pathname);
-    if (
-      managed?.backgroundPath === pathname &&
-      previousTitle &&
-      document.title === managed.title
-    ) {
-      document.title = previousTitle;
-    }
-    // Never restore in cleanup: a different destination owns its own metadata.
-    managedTitle.current = null;
-    const currentTitleIsPreference = Object.values(sections).some(
-      ({ label }) => document.title === `${label} | Anuntech Console`,
-    );
-    if (!currentTitleIsPreference)
-      pageTitles.current.set(pathname, document.title);
+    syncTitle();
+    // Next can commit streamed head metadata after the route layout effect.
+    // Observe only this route, without adding a second live announcement.
+    const observer = new MutationObserver(() => {
+      if (window.location.pathname === pathname) syncTitle();
+    });
+    observer.observe(document.head, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    // A different destination owns its metadata; cleanup never writes a title.
+    return () => observer.disconnect();
   }, [pathname, backgroundPath, directEntry]);
   useEffect(() => {
     const returning =
@@ -136,6 +153,7 @@ export function PreferencesDialog({
   title,
   description,
   admin,
+  userName,
   intercepted = false,
   children,
 }: {
@@ -143,6 +161,7 @@ export function PreferencesDialog({
   title: string;
   description: string;
   admin: boolean;
+  userName: string;
   intercepted?: boolean;
   children: ReactNode;
 }) {
@@ -162,31 +181,73 @@ export function PreferencesDialog({
     if (!intercepted || navigation.directEntry) router.replace("/painel");
     else router.back();
   };
-  const navigationItems = (Object.keys(sections) as PreferenceSection[]).filter(
-    (item) => admin || item === "account",
+  const initials = userName
+    .trim()
+    .split(/\s+/)
+    .filter((_, index, parts) => index === 0 || index === parts.length - 1)
+    .map((part) => part[0])
+    .join("")
+    .toLocaleUpperCase("pt-BR");
+  const closeControl = hydrated ? (
+    <Dialog.Close className={styles.close} aria-label="Fechar ajustes">
+      <X size={16} aria-hidden="true" />
+    </Dialog.Close>
+  ) : (
+    <Link href="/painel" className={styles.close} aria-label="Fechar ajustes">
+      <X size={16} aria-hidden="true" />
+    </Link>
   );
   const sidebar = (
     <aside className={styles.sidebar}>
-      <p className={styles.sidebarTitle}>Preferências</p>
-      <nav className={styles.navigation} aria-label="Seções de preferências">
-        {navigationItems.map((item) => {
-          const { href, label, icon: Icon } = sections[item];
-          return (
-            <Link
-              key={item}
-              href={href}
-              replace
-              scroll={false}
-              className={styles.navLink}
-              aria-current={section === item ? "page" : undefined}
-            >
-              <Icon size={17} aria-hidden="true" />
-              <span>{label}</span>
-            </Link>
-          );
-        })}
+      <div className={styles.sidebarToolbar}>
+        {closeControl}
+        <span className={styles.sidebarTitle}>Ajustes</span>
+      </div>
+      <nav className={styles.navigation} aria-label="Categorias dos ajustes">
+        <Link
+          href="/conta"
+          replace
+          scroll={false}
+          className={styles.profileLink}
+          aria-current={section === "account" ? "page" : undefined}
+        >
+          <span className={styles.avatar} aria-hidden="true">
+            {initials}
+          </span>
+          <span className={styles.profileText}>
+            <strong>{userName}</strong>
+            <span>Minha conta</span>
+          </span>
+        </Link>
+        {admin && (
+          <div className={styles.category}>
+            <p className={styles.categoryTitle}>Console</p>
+            <div className={styles.categoryLinks}>
+              {(["integrations", "notifications"] as const).map((item) => {
+                const { href, label, icon: Icon } = sections[item];
+                return (
+                  <Link
+                    key={item}
+                    href={href}
+                    replace
+                    scroll={false}
+                    className={styles.navLink}
+                    aria-current={section === item ? "page" : undefined}
+                  >
+                    <span className={styles.categoryIcon}>
+                      <Icon size={17} aria-hidden="true" />
+                    </span>
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </nav>
-      <p className={styles.sidebarNote}>Anuntech Console</p>
+      <div className={styles.sidebarFooter}>
+        <SignOutButton />
+      </div>
     </aside>
   );
   const background = !intercepted ? (
@@ -204,7 +265,7 @@ export function PreferencesDialog({
         <section className={styles.popup} aria-labelledby="preferences-title">
           {sidebar}
           <div className={styles.content}>
-            <header className={styles.header}>
+            <header className={styles.header} data-section={section}>
               <h1 id="preferences-title" className={styles.title}>
                 {title}
               </h1>
@@ -212,13 +273,6 @@ export function PreferencesDialog({
             </header>
             <div className={styles.body}>{children}</div>
           </div>
-          <Link
-            href="/painel"
-            className={`icon-button ${styles.close}`}
-            aria-label="Fechar preferências"
-          >
-            <X size={18} aria-hidden="true" />
-          </Link>
         </section>
       </>
     );
@@ -242,7 +296,7 @@ export function PreferencesDialog({
           >
             {sidebar}
             <div className={styles.content}>
-              <header className={styles.header}>
+              <header className={styles.header} data-section={section}>
                 <Dialog.Title
                   render={<h1 />}
                   ref={titleRef}
@@ -257,12 +311,6 @@ export function PreferencesDialog({
               </header>
               <div className={styles.body}>{children}</div>
             </div>
-            <Dialog.Close
-              className={`icon-button ${styles.close}`}
-              aria-label="Fechar preferências"
-            >
-              <X size={18} aria-hidden="true" />
-            </Dialog.Close>
           </Dialog.Popup>
         </Dialog.Portal>
       </Dialog.Root>

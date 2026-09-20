@@ -1,21 +1,12 @@
 .content {
   display: flex;
   flex-direction: column;
+  gap: 26px;
   min-width: 0;
   container: preferences-content / inline-size;
 }
 .section {
   min-width: 0;
-  padding: 24px 0;
-}
-.section:first-child {
-  padding-top: 0;
-}
-.section + .section {
-  border-top: 1px solid var(--border);
-}
-.section:last-child {
-  padding-bottom: 0;
 }
 .sectionHeading {
   display: flex;
@@ -23,13 +14,12 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 16px;
-  margin-bottom: 14px;
+  margin: 0 4px 9px;
 }
 .sectionHeading h2,
-.identity h2,
 .linkSection h2 {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -38,82 +28,120 @@
   color: var(--muted-foreground);
   font-size: 0.75rem;
 }
-.identity {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-.identity > div {
+.card {
   min-width: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px #011e4103;
 }
-.identity p,
-.rowContent p {
+.profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 12px 0;
+  text-align: center;
+}
+.profileAvatar {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--primary);
+  font-size: 1.625rem;
+  font-weight: 600;
+}
+.profile h2 {
+  max-width: 100%;
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.profile p {
+  max-width: 100%;
   color: var(--muted-foreground);
   margin: 4px 0 0;
   font-size: 0.8125rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
-.avatar {
-  display: grid;
-  place-items: center;
-  flex: 0 0 42px;
-  min-height: 42px;
-  border-radius: 10px;
-  background: var(--secondary);
-  color: var(--foreground);
-  font-size: 1rem;
-  font-weight: 600;
-}
 .settingsList {
   margin: 0;
 }
 .settingRow {
   display: grid;
-  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.3fr);
+  grid-template-columns: minmax(135px, 0.8fr) minmax(0, 1.2fr);
   gap: 12px 24px;
-  padding: 14px 0;
-  border-top: 1px solid var(--border);
+  padding: 14px 18px;
   font-size: 0.8125rem;
+}
+.settingRow + .settingRow {
+  border-top: 1px solid var(--border);
 }
 .settingRow dt {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  color: var(--muted-foreground);
+  color: var(--foreground);
 }
 .settingRow dt svg {
+  flex: none;
   margin-top: 2px;
+  color: var(--primary);
 }
 .settingRow dd {
   margin: 0;
   min-width: 0;
+  color: var(--muted-foreground);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.note,
+.groupNote {
+  margin: 9px 4px 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .note {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 8px 0 0;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-  line-height: 1.6;
 }
 .note svg {
+  flex: none;
   margin-top: 2px;
 }
 .whatsapp:global(.whatsapp-settings) {
-  padding: 24px 0 0;
+  padding: 18px;
   margin: 0;
   border: 0;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
+  border-radius: inherit;
   box-shadow: none;
   background: transparent;
 }
+.settingsList + .whatsapp:global(.whatsapp-settings) {
+  border-top: 1px solid var(--border);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
 .whatsapp :global(.detail-section-title) {
-  font-size: 0.9375rem;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.whatsapp :global(.detail-section-title) > svg {
+  flex: none;
+  color: var(--primary);
 }
 .whatsapp > :global(.muted) {
   font-size: 0.8125rem;
@@ -137,10 +165,12 @@
 }
 .integrationRow {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) minmax(120px, 180px);
+  grid-template-columns: 32px minmax(0, 1fr) minmax(110px, 155px);
   align-items: start;
-  gap: 14px;
-  padding: 20px 0;
+  gap: 12px;
+  padding: 17px 18px;
+}
+.integrationRow + .integrationRow {
   border-top: 1px solid var(--border);
 }
 .serviceIcon {
@@ -149,9 +179,9 @@
   width: 32px;
   height: 32px;
   flex: none;
-  border-radius: 7px;
-  color: var(--muted-foreground);
-  background: var(--secondary);
+  border-radius: 8px;
+  color: var(--primary-foreground);
+  background: var(--primary);
 }
 .rowContent {
   min-width: 0;
@@ -161,6 +191,13 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.5;
+}
+.rowContent p {
+  color: var(--muted-foreground);
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .rowControls {
   display: flex;
@@ -201,7 +238,8 @@
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   align-items: start;
-  gap: 12px 14px;
+  gap: 12px;
+  padding: 18px;
 }
 .textLink {
   display: inline-flex;
@@ -212,21 +250,27 @@
   font-size: 0.8125rem;
   min-height: 28px;
 }
+.textLink svg {
+  flex: none;
+}
 .inlineLink {
   display: block;
   width: fit-content;
-  margin-top: 5px;
+  margin: 5px 0 0 auto;
   font-size: 0.75rem;
 }
 .guidanceList {
   margin: 0;
-  padding-left: 18px;
+  padding: 16px 18px 16px 35px;
   color: var(--muted-foreground);
   font-size: 0.8125rem;
   line-height: 1.7;
 }
 .guidanceList li + li {
   margin-top: 8px;
+}
+.deliveryCard {
+  padding: 18px;
 }
 .helper {
   margin: 0 0 14px;
@@ -235,7 +279,7 @@
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
-.section > .helper:last-child {
+.deliveryCard > .helper:last-child {
   margin-bottom: 0;
 }
 .historyIntro {
@@ -249,9 +293,10 @@
   max-width: 220px;
 }
 .tableWrap {
-  margin-top: 20px;
+  margin: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
+  background: var(--card);
 }
 .table {
   min-width: 610px;
@@ -279,7 +324,6 @@
 @media (max-width: 620px) {
   .integrationRow {
     grid-template-columns: 32px minmax(0, 1fr);
-    gap: 12px;
   }
   .rowControls {
     grid-column: 2;
@@ -303,13 +347,16 @@
     gap: 6px;
   }
   .settingRow dd {
-    padding-left: 25px;
+    padding-left: 26px;
+    text-align: left;
+  }
+  .inlineLink {
+    margin-left: 0;
   }
 }
 @container preferences-content (max-width: 620px) {
   .integrationRow {
     grid-template-columns: 32px minmax(0, 1fr);
-    gap: 12px;
   }
   .rowControls {
     grid-column: 2;
@@ -333,6 +380,17 @@
     gap: 6px;
   }
   .settingRow dd {
-    padding-left: 25px;
+    padding-left: 26px;
+    text-align: left;
+  }
+  .inlineLink {
+    margin-left: 0;
+  }
+}
+@media (forced-colors: active) {
+  .serviceIcon {
+    color: CanvasText;
+    background: Canvas;
+    border: 1px solid CanvasText;
   }
 }

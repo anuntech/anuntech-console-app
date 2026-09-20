@@ -1,8 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
-import { Popover } from "@base-ui/react/popover";
+import { Tooltip } from "@base-ui/react/tooltip";
 import {
   LayoutDashboard,
   Building2,
@@ -10,13 +9,9 @@ import {
   MessagesSquare,
   ReceiptText,
   Settings2,
-  UserRound,
   FileText,
-  Menu,
-  ChevronRight,
-  X,
+  type LucideIcon,
 } from "lucide-react";
-import { SignOutButton } from "./auth-buttons";
 import styles from "./navigation.module.css";
 
 type NavigationProps = { admin: boolean; support: boolean; finance: boolean };
@@ -37,163 +32,87 @@ const items = [
     area: "finance",
   },
   { href: "/contratos", label: "Contratos", icon: FileText, area: "finance" },
-  { href: "/conta", label: "Minha conta", icon: UserRound, preferences: true },
-  {
-    href: "/configuracoes",
-    label: "Configurações",
-    icon: Settings2,
-    admin: true,
-    preferences: true,
-  },
 ];
 
-function FloatingNavigation({ admin, support, finance }: NavigationProps) {
+function DockLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+  preferences = false,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+  preferences?: boolean;
+}) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        id={preferences ? "console-menu-trigger" : undefined}
+        render={<Link href={href} />}
+        className={styles.link}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        aria-haspopup={preferences ? "dialog" : undefined}
+      >
+        <Icon size={22} strokeWidth={1.8} aria-hidden="true" />
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Positioner
+          side="bottom"
+          sideOffset={9}
+          collisionPadding={12}
+          className={styles.tooltipPositioner}
+        >
+          <Tooltip.Popup className={styles.tooltip}>{label}</Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+}
+
+/** Dock composition from shadcn.io, using semantic links and Base UI tooltips. */
+export function WorkspaceHeader({ admin, support, finance }: NavigationProps) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-  const navigating = useRef(false);
-  const trigger = useRef<HTMLButtonElement>(null);
   const visible = items.filter(
     (item) =>
       (!item.admin || admin) &&
       (!item.area || admin || (item.area === "support" ? support : finance)),
   );
   return (
-    <div className={styles.floating}>
-      <Popover.Root
-        open={open}
-        modal="trap-focus"
-        onOpenChange={(nextOpen) => {
-          if (nextOpen) navigating.current = false;
-          setOpen(nextOpen);
-        }}
-      >
-        <Popover.Trigger
-          id="console-menu-trigger"
-          ref={trigger}
-          className={styles.trigger}
-          aria-label="Abrir menu"
-          title="Menu"
-        >
-          <Menu size={21} strokeWidth={1.8} aria-hidden="true" />
-        </Popover.Trigger>
-        <Popover.Portal>
-          <Popover.Positioner
-            align="end"
-            sideOffset={8}
-            collisionPadding={12}
-            className={styles.positioner}
-          >
-            <Popover.Popup
-              className={styles.popup}
-              finalFocus={() => (navigating.current ? false : trigger.current)}
-            >
-              <div className={styles.header}>
-                <Popover.Title className={styles.title}>Menu</Popover.Title>
-                <Popover.Close
-                  className={styles.close}
-                  aria-label="Fechar menu"
-                >
-                  <X size={17} aria-hidden="true" />
-                </Popover.Close>
-              </div>
-              <Popover.Description className="sr-only">
-                Navegue pelas áreas do Console ou abra suas preferências.
-              </Popover.Description>
-              <nav aria-label="Navegação principal">
-                {[false, true].map((preferences) => (
-                  <div key={String(preferences)} className={styles.group}>
-                    {visible
-                      .filter(
-                        (item) => Boolean(item.preferences) === preferences,
-                      )
-                      .map((item) => (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={styles.link}
-                          aria-current={
-                            pathname === item.href ||
-                            pathname.startsWith(item.href + "/")
-                              ? "page"
-                              : undefined
-                          }
-                          onNavigate={() => {
-                            navigating.current = true;
-                            setOpen(false);
-                          }}
-                        >
-                          <item.icon
-                            size={17}
-                            strokeWidth={1.8}
-                            aria-hidden="true"
-                          />
-                          <span>{item.label}</span>
-                        </Link>
-                      ))}
-                  </div>
-                ))}
-              </nav>
-              <div className={styles.footer}>
-                <SignOutButton />
-              </div>
-            </Popover.Popup>
-          </Popover.Positioner>
-        </Popover.Portal>
-      </Popover.Root>
-      <noscript>
-        <style>{"#console-menu-trigger { display: none; }"}</style>
-        <details className={styles.fallback}>
-          <summary>Menu</summary>
-          <nav aria-label="Navegação principal">
-            {visible.map((item) => (
-              <a key={item.href} href={item.href}>
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        </details>
-      </noscript>
-    </div>
-  );
-}
-
-export function WorkspaceHeader(props: NavigationProps) {
-  const pathname = usePathname();
-  const current = items.find(
-    (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
-  );
-  const suffix = pathname.split("/").filter(Boolean).slice(1);
-  const detail = suffix.length
-    ? {
-        nova: "Novo cadastro",
-        novo: "Novo cadastro",
-        convites: "Convites",
-        envios: "Envios",
-        notificacoes: "Avisos de chamados",
-      }[suffix[0]] || "Detalhes"
-    : null;
-  return (
     <header className={styles.headerBar}>
-      <nav className="breadcrumb" aria-label="Localização">
-        <ol>
-          {detail && current ? (
-            <>
-              <li>
-                <Link href={current.href}>{current.label}</Link>
-                <ChevronRight size={14} aria-hidden="true" />
-              </li>
-              <li>
-                <span aria-current="page">{detail}</span>
-              </li>
-            </>
-          ) : (
-            <li>
-              <span aria-current="page">{current?.label || "Visão geral"}</span>
-            </li>
-          )}
-        </ol>
-      </nav>
-      <FloatingNavigation key={pathname} {...props} />
+      <div className={styles.floating}>
+        <Tooltip.Provider delay={350} closeDelay={100}>
+          <nav className={styles.dock} aria-label="Navegação principal">
+            <div className={styles.routes}>
+              {visible.map((item) => (
+                <DockLink
+                  key={item.href}
+                  {...item}
+                  active={
+                    pathname === item.href ||
+                    pathname.startsWith(item.href + "/")
+                  }
+                />
+              ))}
+            </div>
+            <span className={styles.divider} aria-hidden="true" />
+            <DockLink
+              href="/conta"
+              label="Ajustes"
+              icon={Settings2}
+              preferences
+              active={
+                pathname === "/conta" ||
+                pathname === "/configuracoes" ||
+                pathname.startsWith("/configuracoes/")
+              }
+            />
+          </nav>
+        </Tooltip.Provider>
+      </div>
     </header>
   );
 }
