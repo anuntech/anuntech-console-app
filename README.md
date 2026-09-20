@@ -1,5 +1,7 @@
 # Anuntech Console
 
+Perfil, contatos verificados, verificação em duas etapas e permissões de membros: [documentação da conta](docs/account-settings.md).
+
 Portal de clientes da Anuntech para produtos, projetos, atendimento e financeiro.
 
 ## Implementado

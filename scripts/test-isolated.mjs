@@ -29,7 +29,11 @@ try {
   }
   console.log("Banco temporário criado e migrações aplicadas.");
   const bankEnv = {};
-  if (!process.argv.includes("--otp-only")) {
+  if (
+    !["--otp-only", "--security-only", "--members-only", "--account-only"].some(
+      (flag) => process.argv.includes(flag),
+    )
+  ) {
     certDir = await mkdtemp(join(tmpdir(), "console-bank-test-"));
     const cert = join(certDir, "test.crt"),
       key = join(certDir, "test.key");
@@ -59,11 +63,26 @@ try {
       INTER_PRIVATE_KEY_BASE64: (await readFile(key)).toString("base64"),
     });
   }
-  for (const script of process.argv.includes("--otp-only")
-    ? ["scripts/otp-smoke.mjs"]
-    : process.argv.includes("--billing-only")
-      ? ["scripts/smoke.mjs"]
-      : ["scripts/otp-smoke.mjs", "scripts/smoke.mjs"]) {
+  const focusedSuites = {
+    "--otp-only": "scripts/otp-smoke.mjs",
+    "--security-only": "scripts/security-smoke.mjs",
+    "--members-only": "scripts/members-smoke.mjs",
+    "--account-only": "scripts/account-smoke.mjs",
+    "--billing-only": "scripts/smoke.mjs",
+  };
+  const focused = Object.keys(focusedSuites).find((flag) =>
+    process.argv.includes(flag),
+  );
+  const scripts = focused
+    ? [focusedSuites[focused]]
+    : [
+        "scripts/otp-smoke.mjs",
+        "scripts/security-smoke.mjs",
+        "scripts/members-smoke.mjs",
+        "scripts/account-smoke.mjs",
+        "scripts/smoke.mjs",
+      ];
+  for (const script of scripts) {
     const child = spawn(process.execPath, [script], {
       stdio: "inherit",
       env: {

@@ -10,19 +10,23 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   usePathname,
   useRouter,
   useSelectedLayoutSegments,
 } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
-import { Bell, PlugZap, UserRound, X } from "lucide-react";
+import { Bell, PlugZap, UserRound, Users, X } from "lucide-react";
+import { profileAvatarSource } from "./profile-avatar";
 import { SignOutButton } from "@/components/auth-buttons";
 import styles from "./preferences-dialog.module.css";
 
-export type PreferenceSection = "account" | "integrations" | "notifications";
+export type PreferenceSection =
+  "account" | "members" | "integrations" | "notifications";
 const sections = {
   account: { href: "/conta", label: "Minha conta", icon: UserRound },
+  members: { href: "/configuracoes/membros", label: "Membros", icon: Users },
   integrations: { href: "/configuracoes", label: "Integrações", icon: PlugZap },
   notifications: {
     href: "/configuracoes/notificacoes",
@@ -154,6 +158,7 @@ export function PreferencesDialog({
   description,
   admin,
   userName,
+  userImage,
   intercepted = false,
   children,
 }: {
@@ -162,6 +167,7 @@ export function PreferencesDialog({
   description: string;
   admin: boolean;
   userName: string;
+  userImage: string | null;
   intercepted?: boolean;
   children: ReactNode;
 }) {
@@ -212,7 +218,23 @@ export function PreferencesDialog({
           aria-current={section === "account" ? "page" : undefined}
         >
           <span className={styles.avatar} aria-hidden="true">
-            {initials}
+            {profileAvatarSource(userImage) ? (
+              <Image
+                src={profileAvatarSource(userImage)!}
+                alt=""
+                width={42}
+                height={42}
+                unoptimized
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  borderRadius: "50%",
+                }}
+              />
+            ) : (
+              initials
+            )}
           </span>
           <span className={styles.profileText}>
             <strong>{userName}</strong>
@@ -223,24 +245,26 @@ export function PreferencesDialog({
           <div className={styles.category}>
             <p className={styles.categoryTitle}>Console</p>
             <div className={styles.categoryLinks}>
-              {(["integrations", "notifications"] as const).map((item) => {
-                const { href, label, icon: Icon } = sections[item];
-                return (
-                  <Link
-                    key={item}
-                    href={href}
-                    replace
-                    scroll={false}
-                    className={styles.navLink}
-                    aria-current={section === item ? "page" : undefined}
-                  >
-                    <span className={styles.categoryIcon}>
-                      <Icon size={17} aria-hidden="true" />
-                    </span>
-                    <span>{label}</span>
-                  </Link>
-                );
-              })}
+              {(["members", "integrations", "notifications"] as const).map(
+                (item) => {
+                  const { href, label, icon: Icon } = sections[item];
+                  return (
+                    <Link
+                      key={item}
+                      href={href}
+                      replace
+                      scroll={false}
+                      className={styles.navLink}
+                      aria-current={section === item ? "page" : undefined}
+                    >
+                      <span className={styles.categoryIcon}>
+                        <Icon size={17} aria-hidden="true" />
+                      </span>
+                      <span>{label}</span>
+                    </Link>
+                  );
+                },
+              )}
             </div>
           </div>
         )}

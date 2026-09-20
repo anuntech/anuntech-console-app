@@ -1,19 +1,27 @@
 import "server-only";
 import { createHmac, randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./db";
 import { memberships } from "@/db/schema";
 import { normalizeEmail } from "./permissions";
+import { resolveAccountIdentity } from "./account-identity";
+import { getConsoleStaffAccess } from "./console-members";
 export async function allowedEmail(email: string) {
   email = normalizeEmail(email);
-  if (email === process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase())
-    return true;
+  const identity = await resolveAccountIdentity(email);
+  if (identity.isAlias) return false;
+  if ((await getConsoleStaffAccess(email)).admin) return true;
   return (
     (
       await db
         .select({ id: memberships.id })
         .from(memberships)
-        .where(and(eq(memberships.email, email), eq(memberships.active, true)))
+        .where(
+          and(
+            inArray(memberships.email, identity.emails),
+            eq(memberships.active, true),
+          ),
+        )
         .limit(1)
     ).length > 0
   );

@@ -19,10 +19,12 @@ export function WhatsappAccount({
   phone,
   className = "",
   headingLevel = 2,
+  securityEnabled = false,
 }: {
   phone: string | null;
   className?: string;
   headingLevel?: 2 | 3;
+  securityEnabled?: boolean;
 }) {
   const Title = headingLevel === 3 ? "h3" : "h2";
   const router = useRouter();
@@ -51,7 +53,8 @@ export function WhatsappAccount({
     setMessage("");
   }
   async function act(action: "send" | "verify" | "remove") {
-    if (busy || (action === "send" && seconds > 0)) return false;
+    if (securityEnabled || busy || (action === "send" && seconds > 0))
+      return false;
     setBusy(true);
     clearFeedback();
     try {
@@ -136,6 +139,11 @@ export function WhatsappAccount({
         Confirme seu número para entrar usando um código recebido pelo WhatsApp.
         Seu e-mail continuará disponível para acesso.
       </p>
+      {securityEnabled && (
+        <p className="muted">
+          Desative a verificação em duas etapas antes de alterar seu número.
+        </p>
+      )}
       {phone ? (
         <div className="form">
           <p className="verified-number">
@@ -150,9 +158,10 @@ export function WhatsappAccount({
             type="button"
             className="button danger"
             aria-haspopup="dialog"
-            aria-disabled={busy}
+            disabled={securityEnabled}
+            aria-disabled={busy || securityEnabled}
             onClick={() => {
-              if (busy) return;
+              if (busy || securityEnabled) return;
               unlinked.current = false;
               clearFeedback();
               setConfirmOpen(true);

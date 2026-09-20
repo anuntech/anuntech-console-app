@@ -2,35 +2,26 @@ import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { auth } from "./auth";
 import { db } from "./db";
 import { companies, memberships } from "@/db/schema";
-import {
-  hasPermission,
-  isAdministrator,
-  normalizeEmail,
-  type Area,
-} from "./permissions";
+import { hasPermission, type Area } from "./permissions";
+import { getAccountEmails } from "./account-identity";
+import { getConsoleStaffAccess } from "./console-members";
 export const getActor = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user.emailVerified) redirect("/entrar");
-  const admin = isAdministrator(
-    session.user.email,
-    session.user.emailVerified,
-    process.env.CONSOLE_ADMIN_EMAIL,
-  );
+  const { admin, owner } = await getConsoleStaffAccess(session.user.email);
+  const emails = await getAccountEmails(session.user.id, session.user.email);
   const grants = await db
     .select({ company: companies, role: memberships.role })
     .from(memberships)
     .innerJoin(companies, eq(companies.id, memberships.companyId))
     .where(
-      and(
-        eq(memberships.email, normalizeEmail(session.user.email)),
-        eq(memberships.active, true),
-      ),
+      and(inArray(memberships.email, emails), eq(memberships.active, true)),
     );
-  return { user: session.user, admin, grants };
+  return { user: session.user, owner, admin, grants };
 });
 export type Actor = Awaited<ReturnType<typeof getActor>>;
 export async function requireAdmin() {

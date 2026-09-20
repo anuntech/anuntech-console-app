@@ -20,6 +20,7 @@ type FormModalProps = Omit<
   "onPendingChange" | "onSuccess" | "cancel"
 > & {
   trigger: string;
+  triggerAriaLabel?: string;
   title: string;
   description: string;
   triggerClassName?: string;
@@ -27,6 +28,7 @@ type FormModalProps = Omit<
 /** Short edits stay in context; server HTML/no-JS retains an ordinary functional form. */
 export function FormModal({
   trigger,
+  triggerAriaLabel,
   title,
   description,
   triggerClassName = "button",
@@ -54,7 +56,7 @@ export function FormModal({
   if (!hydrated)
     return (
       <details>
-        <summary>{trigger}</summary>
+        <summary aria-label={triggerAriaLabel}>{trigger}</summary>
         <p>{description}</p>
         <ActionForm {...formProps} />
       </details>
@@ -71,7 +73,11 @@ export function FormModal({
         setOpen(nextOpen);
       }}
     >
-      <DialogTrigger className={triggerClassName} ref={triggerRef}>
+      <DialogTrigger
+        className={triggerClassName}
+        ref={triggerRef}
+        aria-label={triggerAriaLabel}
+      >
         {trigger}
       </DialogTrigger>
       <DialogContent busy={pending} finalFocus={triggerRef}>

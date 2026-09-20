@@ -3,6 +3,7 @@ import { getActor, requireAdmin } from "@/lib/access";
 import { AccountContent } from "./account-content";
 import { IntegrationsContent } from "./integrations-content";
 import { NotificationsContent } from "./notifications-content";
+import { MembersContent } from "./members-content";
 import {
   PreferencesDialog,
   type PreferenceSection,
@@ -11,7 +12,11 @@ import {
 const copy = {
   account: {
     title: "Minha conta",
-    description: "Seus dados de acesso e as formas de entrar no Console.",
+    description: "Seu perfil, contatos e segurança de acesso.",
+  },
+  members: {
+    title: "Membros",
+    description: "Pessoas da equipe e acessos às empresas.",
   },
   integrations: {
     title: "Integrações",
@@ -39,12 +44,15 @@ export async function PreferencesPage({
       {...copy[section]}
       admin={actor.admin}
       userName={actor.user.name}
+      userImage={actor.user.image ?? null}
       intercepted={intercepted}
     >
       {section === "account" ? (
         <AccountContent />
       ) : section === "integrations" ? (
         <IntegrationsContent />
+      ) : section === "members" ? (
+        <MembersContent />
       ) : (
         <NotificationsContent />
       )}

@@ -1,7 +1,7 @@
 import { allowInviteLookup } from "@/lib/company-invites";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { isAdministrator } from "@/lib/permissions";
+import { getConsoleStaffAccess } from "@/lib/console-members";
 import { normalizeCnpj, normalizeCep } from "@/lib/company-lookup";
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   const admin =
     session?.user.emailVerified &&
-    isAdministrator(session.user.email, true, process.env.CONSOLE_ADMIN_EMAIL);
+    (await getConsoleStaffAccess(session.user.email)).admin;
   if (!admin) {
     const token = request.headers.get("X-Company-Invite");
     if (!token)

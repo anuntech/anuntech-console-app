@@ -2,12 +2,10 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { attachments, tickets, memberships } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
-import {
-  isAdministrator,
-  hasPermission,
-  normalizeEmail,
-} from "@/lib/permissions";
+import { and, eq, inArray } from "drizzle-orm";
+import { hasPermission } from "@/lib/permissions";
+import { getConsoleStaffAccess } from "@/lib/console-members";
+import { getAccountEmails } from "@/lib/account-identity";
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -21,20 +19,19 @@ export async function GET(
     .innerJoin(tickets, eq(tickets.id, attachments.ticketId))
     .where(eq(attachments.id, id));
   if (!meta) return new Response(null, { status: 404 });
-  if (
-    !isAdministrator(session.user.email, true, process.env.CONSOLE_ADMIN_EMAIL)
-  ) {
-    const [grant] = await db
+  if (!(await getConsoleStaffAccess(session.user.email)).admin) {
+    const emails = await getAccountEmails(session.user.id, session.user.email);
+    const grants = await db
       .select()
       .from(memberships)
       .where(
         and(
           eq(memberships.companyId, meta.companyId),
-          eq(memberships.email, normalizeEmail(session.user.email)),
+          inArray(memberships.email, emails),
           eq(memberships.active, true),
         ),
       );
-    if (!grant || !hasPermission(grant.role, "support"))
+    if (!grants.some((grant) => hasPermission(grant.role, "support")))
       return new Response(null, { status: 404 });
   }
   const [file] = await db

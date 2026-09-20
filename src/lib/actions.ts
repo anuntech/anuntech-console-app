@@ -6,7 +6,6 @@ import { db } from "./db";
 import { getActor, canAccess } from "./access";
 import {
   companies,
-  memberships,
   engagements,
   tickets,
   messages,
@@ -17,6 +16,7 @@ import {
 } from "@/db/schema";
 import { normalizeEmail, moneyToCents } from "./permissions";
 import type { ActionState } from "./action-state";
+import { saveCompanyMember, revokeCompanyMember } from "./members-actions";
 import {
   enqueueTicketNotice,
   scheduleTicketNotices,
@@ -86,72 +86,16 @@ export async function createCompany(
   }
 }
 export async function saveMembership(
-  _: ActionState,
+  previous: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const actor = await getActor();
-  if (!actor.admin) return blocked;
-  try {
-    const input = z
-      .object({
-        companyId: id,
-        email: mail,
-        role: z.enum(["manager", "support", "finance"]),
-      })
-      .parse(Object.fromEntries(form));
-    await db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(memberships)
-        .values(input)
-        .onConflictDoUpdate({
-          target: [memberships.companyId, memberships.email],
-          set: { role: input.role, active: true },
-        })
-        .returning();
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: input.companyId,
-        action: "membership.granted",
-        entityId: row.id,
-        details: { email: input.email, role: input.role },
-      });
-    });
-    revalidatePath(`/empresas/${input.companyId}`);
-    return {
-      success:
-        "Acesso liberado. A pessoa já pode entrar com esse e-mail pelo Google. Nenhuma mensagem foi enviada.",
-    };
-  } catch (e) {
-    return failure(e);
-  }
+  return saveCompanyMember(previous, form);
 }
 export async function revokeMembership(
-  _: ActionState,
+  previous: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const actor = await getActor();
-  if (!actor.admin) return blocked;
-  try {
-    const membershipId = id.parse(form.get("id"));
-    await db.transaction(async (tx) => {
-      const [row] = await tx
-        .update(memberships)
-        .set({ active: false })
-        .where(eq(memberships.id, membershipId))
-        .returning();
-      if (!row) throw Error();
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: row.companyId,
-        action: "membership.revoked",
-        entityId: row.id,
-      });
-    });
-    revalidatePath("/empresas", "layout");
-    return { success: "Acesso revogado." };
-  } catch (e) {
-    return failure(e);
-  }
+  return revokeCompanyMember(previous, form);
 }
 export async function createEngagement(
   _: ActionState,

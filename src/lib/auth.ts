@@ -2,7 +2,7 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   APIError,
   createAuthMiddleware,
@@ -19,6 +19,7 @@ import { db } from "./db";
 import * as schema from "@/db/schema";
 import { normalizeEmail } from "./permissions";
 import { z } from "zod";
+import { consoleTwoStep } from "./security-plugin";
 export const auth = betterAuth({
   appName: "Anuntech Console",
   baseURL: process.env.BETTER_AUTH_URL,
@@ -58,7 +59,16 @@ export const auth = betterAuth({
           path !== "/email-otp/send-verification-otp") ||
         (path.startsWith("/phone-number/") &&
           !["/phone-number/send-otp", "/phone-number/verify"].includes(path)) ||
-        path === "/sign-in/phone-number"
+        [
+          "/sign-in/phone-number",
+          "/sign-in/email",
+          "/sign-up/email",
+          "/set-password",
+          "/change-password",
+          "/reset-password",
+          "/request-password-reset",
+          "/change-email",
+        ].includes(path)
       )
         throw invalid();
       if (
@@ -93,6 +103,7 @@ export const auth = betterAuth({
           const session = await getSessionFromCtx(ctx);
           if (
             !session?.user.emailVerified ||
+            session.user.twoFactorEnabled ||
             !(await allowedEmail(session.user.email)) ||
             Date.now() - new Date(session.session.createdAt).getTime() > 600000
           )
@@ -124,14 +135,24 @@ export const auth = betterAuth({
             message: "Aguarde antes de solicitar outro código.",
           });
       }
-      if (path === "/update-user" && "phoneNumber" in (ctx.body || {})) {
+      if (path === "/update-user") {
         const session = await getSessionFromCtx(ctx);
         if (
           !session?.user.emailVerified ||
+          !(await allowedEmail(session.user.email)) ||
           Date.now() - new Date(session.session.createdAt).getTime() > 600000
         )
           throw new APIError("UNAUTHORIZED", {
             message: "Entre novamente para alterar seu WhatsApp.",
+          });
+        if (
+          session.user.twoFactorEnabled ||
+          ctx.body?.phoneNumber !== null ||
+          Object.keys(ctx.body || {}).some((key) => key !== "phoneNumber")
+        )
+          throw new APIError("FORBIDDEN", {
+            message:
+              "Use as configurações da conta. Desative a verificação em duas etapas antes de alterar seus contatos.",
           });
       }
     }),
@@ -142,18 +163,7 @@ export const auth = betterAuth({
       create: {
         before: async (newUser) => {
           const email = normalizeEmail(newUser.email);
-          const invited = await db
-            .select({ id: schema.memberships.id })
-            .from(schema.memberships)
-            .where(
-              and(
-                eq(schema.memberships.email, email),
-                eq(schema.memberships.active, true),
-              ),
-            )
-            .limit(1);
-          const admin = process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase();
-          if (!admin || (email !== admin && invited.length === 0))
+          if (!(await allowedEmail(email)))
             throw new APIError("FORBIDDEN", {
               message: "Acesso disponível somente para usuários autorizados.",
             });
@@ -184,6 +194,7 @@ export const auth = betterAuth({
         await deliverWhatsappOtp(phoneNumber, code);
       },
     }),
+    consoleTwoStep(),
     nextCookies(),
   ],
 });

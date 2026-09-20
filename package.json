@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts && node --conditions=react-server --import tsx --test tests/profile-avatar.test.mts",
     "test:integration": "node --env-file-if-exists=.env.local scripts/test-isolated.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
@@ -16,6 +16,7 @@
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@radix-ui/react-dropdown-menu": "^2.1.24",
+    "@vercel/blob": "^2.8.0",
     "@vercel/functions": "^3.9.8",
     "better-auth": "^1.7.5",
     "drizzle-orm": "^0.45.2",
@@ -28,6 +29,7 @@
     "react-dom": "19.2.8",
     "react-number-format": "^5.4.5",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.4",
     "sonner": "^2.0.8",
     "zod": "^4.6.5"
   },

@@ -22,6 +22,52 @@ export const user = pgTable("console_user", {
     .notNull()
     .default(false),
   image: text("image"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  twoStepChannel: text("two_step_channel", { enum: ["email", "whatsapp"] })
+    .notNull()
+    .default("whatsapp"),
+  createdAt: created(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+export const accountEmails = pgTable("console_account_emails", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  email: text("email").notNull().unique(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: created(),
+});
+export const twoFactor = pgTable("console_two_factor", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: "cascade" }),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  verified: boolean("verified").notNull().default(false),
+  failedVerificationCount: integer("failed_verification_count")
+    .notNull()
+    .default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+});
+export const consoleStaffMembers = pgTable("console_staff_members", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  email: text("email").notNull().unique(),
+  active: boolean("active").notNull().default(true),
+  createdBy: text("created_by").references(() => user.id, {
+    onDelete: "set null",
+  }),
+  updatedBy: text("updated_by").references(() => user.id, {
+    onDelete: "set null",
+  }),
   createdAt: created(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

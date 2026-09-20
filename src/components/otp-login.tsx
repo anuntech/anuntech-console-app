@@ -106,6 +106,15 @@ export function OtpLogin() {
         codeInput.current?.focus();
         return;
       }
+      if (
+        result.data &&
+        "twoFactorRedirect" in result.data &&
+        result.data.twoFactorRedirect
+      ) {
+        setMessage("Primeira etapa confirmada. Continue a verificação.");
+        router.replace("/verificar-acesso");
+        return;
+      }
       setMessage("Acesso confirmado. Abrindo o painel.");
       router.replace("/painel");
       router.refresh();

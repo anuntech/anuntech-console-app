@@ -75,6 +75,16 @@
 .settingsList {
   margin: 0;
 }
+.nameEdit {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.nameEdit > button {
+  font-size: 0.75rem;
+}
 .settingRow {
   display: grid;
   grid-template-columns: minmax(135px, 0.8fr) minmax(0, 1.2fr);
@@ -128,7 +138,7 @@
   box-shadow: none;
   background: transparent;
 }
-.settingsList + .whatsapp:global(.whatsapp-settings) {
+.card > .whatsapp:global(.whatsapp-settings) {
   border-top: 1px solid var(--border);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
@@ -350,6 +360,9 @@
     padding-left: 26px;
     text-align: left;
   }
+  .nameEdit {
+    justify-content: flex-start;
+  }
   .inlineLink {
     margin-left: 0;
   }
@@ -382,6 +395,9 @@
   .settingRow dd {
     padding-left: 26px;
     text-align: left;
+  }
+  .nameEdit {
+    justify-content: flex-start;
   }
   .inlineLink {
     margin-left: 0;

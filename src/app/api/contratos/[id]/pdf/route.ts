@@ -1,13 +1,11 @@
 import { headers } from "next/headers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { contracts, companies, memberships } from "@/db/schema";
-import {
-  isAdministrator,
-  hasPermission,
-  normalizeEmail,
-} from "@/lib/permissions";
+import { hasPermission } from "@/lib/permissions";
+import { getConsoleStaffAccess } from "@/lib/console-members";
+import { getAccountEmails } from "@/lib/account-identity";
 import { contractPdf } from "@/lib/contract-pdf";
 export const runtime = "nodejs";
 export async function GET(
@@ -24,26 +22,23 @@ export async function GET(
     .where(eq(contracts.id, id));
   if (!row) return new Response(null, { status: 404 });
   const c = row.contract;
-  const admin = isAdministrator(
-    session.user.email,
-    true,
-    process.env.CONSOLE_ADMIN_EMAIL,
-  );
+  const { admin } = await getConsoleStaffAccess(session.user.email);
   const draft = new URL(request.url).searchParams.get("draft") === "1";
   if (!admin) {
     if (draft || !c.publishedAt || !c.publication)
       return new Response(null, { status: 404 });
-    const [grant] = await db
+    const emails = await getAccountEmails(session.user.id, session.user.email);
+    const grants = await db
       .select()
       .from(memberships)
       .where(
         and(
           eq(memberships.companyId, c.companyId),
-          eq(memberships.email, normalizeEmail(session.user.email)),
+          inArray(memberships.email, emails),
           eq(memberships.active, true),
         ),
       );
-    if (!grant || !hasPermission(grant.role, "finance"))
+    if (!grants.some((grant) => hasPermission(grant.role, "finance")))
       return new Response(null, { status: 404 });
   }
   const publication = !draft && c.publishedAt ? c.publication : null;
