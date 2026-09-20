@@ -30,7 +30,7 @@ Para janelas modais, o comportamento esperado inclui foco dentro da janela, nave
 
 - O layout raiz declara `lang="pt-BR"` e oferece “Ir para o conteúdo”, apontando para `#main-content`.
 - Cada tela de conteúdo tem `main`, `h1` e título descritivo. Os metadados das rotas usam o modelo `%s | Anuntech Console`; títulos de detalhe não expõem dados pessoais.
-- O anúncio de transições continua sendo o recurso nativo do Next.js. Ele usa primeiro `document.title`, depois `h1` e, como último recurso, o caminho. Não adicionar um segundo anunciador para a mesma navegação. A referência técnica instalada está em `node_modules/next/dist/docs/03-architecture/accessibility.md`.
+- O anúncio de transições continua sendo o recurso nativo do Next.js. Ele usa primeiro `document.title`, depois `h1` e, como último recurso, o caminho. O provider de preferências sincroniza o título da seção ativa antes desse anúncio porque a página preservada pode vencer a composição de metadados das rotas paralelas. Não adicionar um segundo anunciador para a mesma navegação. A referência técnica instalada está em `node_modules/next/dist/docs/03-architecture/accessibility.md`.
 - `h2` organiza seções; `h3` identifica subseções. `Empty` aceita `headingLevel={3}` quando já existe um título de seção `h2`.
 - Ícones decorativos usam `aria-hidden`. Ações repetidas incluem o registro em seu nome acessível, preservando o texto visível da ação. `aria-current` marca a localização selecionada.
 
@@ -51,11 +51,12 @@ Cadastros de empresa, criação de fatura, abertura de chamado e edição de con
 
 `ActionForm` aceita confirmação contextual para operações relevantes. A confirmação usa `AlertDialog`, descrição da consequência e foco inicial em “Cancelar”. Confirmar solicita a mesma ação de servidor; a janela não substitui validação ou autorização. Ações de emissão e comunicação não devem ser executadas para avaliar aparência.
 
-### OTP e calendário
+### OTP, datas e seleções
 
 - O OTP usa um campo de seis dígitos, aceita colagem e `autocomplete="one-time-code"`. O destino e o código têm rótulos, dicas e erros associados.
 - A interface dirige o foco para o código após a solicitação e para o campo correspondente quando a API rejeita a entrada. A contagem para reenvio continua visível, sem anunciar cada segundo.
-- O calendário de vencimento usa Popover do Base UI e DayPicker, com título, instrução, foco no dia e retorno ao botão de abertura. Setas percorrem dias; Enter seleciona; Escape fecha. Digitação da data continua disponível e datas inválidas têm erro persistente.
+- Vencimentos usam `<input type="date">` e seleções usam `<select>` nativo. O navegador oferece o calendário, as opções e a navegação por teclado conforme o sistema operacional. `Field` mantém rótulo, indicação de obrigatório e erros associados; o servidor valida a data civil ISO sem conversão de fuso.
+- O menu flutuante permanece no canto superior direito para todos os perfis. O Popover do Base UI contém foco e oferece Escape, fechamento explícito e retorno ao acionador. Minha conta e as configurações usam um Dialog com links laterais, título e descrição; permissões são verificadas novamente no servidor.
 
 ### Tabelas, tamanho de texto, foco e contraste
 
@@ -67,7 +68,7 @@ Cadastros de empresa, criação de fatura, abertura de chamado e edição de con
 
 ## Evidências desta rodada
 
-As verificações abaixo se referem à revisão de acessibilidade em ambiente local isolado, em 20/09/2026. Os resultados da revisão visual anterior, de 19/09, permanecem no documento do design system e não substituem esta rodada.
+As verificações abaixo se referem à revisão inicial de acessibilidade em ambiente local isolado, em 20/09/2026, anterior à troca pelo calendário nativo e pelo menu flutuante. Os itens históricos sobre DayPicker e navegação móvel não validam seus substitutos. Os resultados da revisão visual anterior, de 19/09, permanecem no documento do design system e não substituem esta rodada.
 
 | Verificação         | Resultado registrado                                                          | Limite da evidência                                              |
 | ------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -108,10 +109,27 @@ Use banco descartável, provedores simulados e perfis de administração e clien
 2. **Navegação por teclado:** use somente Tab, Shift+Tab, setas, Enter, Espaço e Escape. Percorra menu móvel, menus de faturas e tabelas roláveis. Confirme foco visível e não encoberto. Na saída de cada diálogo, confira o retorno ao acionador.
 3. **Formulários e falhas:** envie valores vazios e inválidos; provoque falha simulada de consulta/servidor. Confira rótulo, indicação de obrigatório, dica, erro, foco e preservação do que foi digitado. Teste também correção posterior do erro e envio em andamento.
 4. **OTP em provedor simulado:** solicite e cole código, teste código incorreto/expirado, reenvio, mudança do destino e alternância entre e-mail/WhatsApp. Confirme a leitura do erro e que a contagem não produz anúncio a cada segundo.
-5. **Calendário e diálogos aninhados:** abra o calendário dentro e fora do modal, navegue entre meses e por setas, selecione com Enter e feche com Escape. Confira que cada fechamento devolve o foco ao controle esperado.
+5. **Controles nativos e preferências:** teste datas e seleções pelo teclado no navegador alvo, data obrigatória vazia e salvamento sem deslocamento de dia. Abra preferências sobre uma lista, troque as seções laterais e feche. Repita por URL direta, reload, Voltar/Avançar e com confirmação aninhada. Confira foco e preservação da tela de origem.
 6. **Ampliação e reflow:** verifique texto a 200% e viewport equivalente a 320 CSS px, incluindo zoom de 400% em janela de 1280 px. Confira títulos, valores, mensagens, formulário longo e botões de diálogo. Tabelas podem rolar em seu próprio contêiner; o restante não deve exigir rolagem horizontal para leitura.
 7. **Preferências visuais:** habilite cores forçadas/alto contraste e movimento reduzido. Confira limites de campos, foco, seleção, controles somente com ícones e ausência de informação dependente apenas de cor. Meça os pares reais de texto/fundo e controles/fundo, incluindo hover e erro.
 8. **Estados de negócio:** com fixtures, examine rascunho, agendada, emitida, paga e cancelada; convite aberto/recebido/expirado/inválido; listas vazias; download com falha. Confira que a atualização silenciosa de pagamento não rouba foco nem repete anúncios sem mudança relevante.
 9. **Depois da publicação:** confirme a versão publicada e repita navegação e inspeção nas rotas reais de forma somente leitura. Registre viewport, navegador, tecnologia assistiva, rota/estado, resultado e evidência. Não transformar validação local em alegação de validação de produção.
 
 Para regressões de código, executar `npm run lint`, `npm test`, `npm run build` e `npm run test:integration` conforme a configuração isolada do projeto. Nenhum desses comandos, sozinho, cobre o roteiro manual acima.
+
+## Navegação flutuante e preferências — segunda rodada de 20/09/2026
+
+Datas e seleções passam a ser controles nativos em todo o Console. O menu flutuante substitui a sidebar permanente. Minha conta, Integrações e Avisos de chamados compartilham um modal com navegação lateral e mantêm as mesmas verificações de autorização no servidor.
+
+Validação em Chromium, com banco descartável e provedores simulados:
+
+- 24 testes unitários, lint e build aprovados; integração com 23 verificações OTP e 185 verificações HTTP.
+- Auditoria HTTP de 66 cenários com resultados esperados: 57 páginas normais, 7 bloqueios por permissão, redirecionamento de acesso anônimo e 404 público. O 404 também foi verificado com sessão administrativa.
+- HTML e código confirmam os menus dos quatro perfis e controles de data/select nativos, com rótulos e aparência do navegador.
+- Data obrigatória vazia recebe erro persistente e foco; salvar uma data fictícia no modal de rascunho preserva o dia, fecha a janela e devolve o foco.
+- Menu aberto pelo teclado contém Tab/Shift+Tab, fecha por Escape e devolve foco. Em 320 px e texto a 200%, os itens continuam alcançáveis com rolagem interna.
+- Preferências testadas em 320 px, texto a 200%, viewport baixo de 320×400 e cores forçadas. Os links se reorganizam, a navegação e o conteúdo rolam separadamente e o foco do item atual tem contorno distinguível.
+- Histórico validado: abrir preferências, alternar as três seções, abrir um chamado pelo aviso, voltar ao modal e fechar preserva a página de fundo, seu título e o foco correto. URL direta/reload mostra uma única janela e fecha para o painel. Voltar/Avançar e abertura sobre `/financeiro?page=2` preservam a paginação.
+- Confirmação aninhada de desvincular WhatsApp inicia em Cancelar; Escape retorna ao acionador dentro de Minha conta, e o próximo Escape fecha as preferências. Nenhum vínculo real foi alterado.
+
+A inspeção de HTML confirma conteúdo renderizado no servidor, mas não equivale a suporte completo sem JavaScript: o streaming de conteúdo autenticado sob o loading do Next ainda depende da execução de scripts. A alternativa de menu em noscript foi verificada; não foi declarada navegação completa sem JavaScript nem certificação WCAG. Os testes de texto ampliado usam estilo temporário, sem substituir uma matriz de zoom/navegadores/leitores de tela.

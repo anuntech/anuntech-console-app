@@ -108,9 +108,6 @@
 .popup :global(.field) {
   min-width: 0;
 }
-.popup :global(.date-popover) {
-  z-index: 105;
-}
 @media (max-width: 600px) {
   .popup {
     padding: 20px;

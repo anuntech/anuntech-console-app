@@ -468,8 +468,7 @@ hr {
   text-decoration: none;
 }
 .console-shell {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  display: block;
   min-height: 100dvh;
 }
 .sidebar {
@@ -1530,103 +1529,6 @@ tr:last-child td {
   color: var(--muted-foreground);
 }
 
-/* Date picker: same controls, tokens and layering as dropdowns. */
-.date-input {
-  position: relative;
-}
-.panel:has(.date-input) {
-  overflow: visible;
-}
-.date-input > input:not([type="hidden"]) {
-  padding-right: 48px;
-}
-.calendar-trigger {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  height: 40px;
-  width: 42px;
-  border: 0;
-  background: transparent;
-  color: var(--foreground);
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-}
-.calendar-trigger:hover {
-  background: var(--secondary);
-}
-.date-popover {
-  position: absolute;
-  z-index: 45;
-  top: calc(100% + 8px);
-  right: 0;
-  padding: 16px;
-  width: 310px;
-  max-width: calc(100vw - 40px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--card);
-  box-shadow: var(--shadow-popover);
-}
-.date-popover.above {
-  top: auto;
-  bottom: calc(100% + 8px);
-}
-.date-popover .rdp-root {
-  --rdp-accent-color: var(--primary);
-  --rdp-accent-background-color: var(--accent);
-  --rdp-day-width: 39px;
-  --rdp-day-height: 38px;
-  --rdp-day_button-width: 36px;
-  --rdp-day_button-height: 36px;
-  font-weight: 400;
-  font-size: 0.8125rem;
-}
-.date-popover table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.date-popover th,
-.date-popover td {
-  padding: 0;
-  border: 0;
-  text-align: center;
-  font-size: inherit;
-}
-.date-popover .rdp-weekday {
-  font-size: 0.6875rem;
-  font-weight: 400;
-  padding-block: 8px;
-  text-transform: none;
-}
-.date-popover .rdp-caption_label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-transform: capitalize;
-}
-.date-popover .rdp-selected .rdp-day_button {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-.date-popover .rdp-day_button:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-.calendar-footer {
-  display: flex;
-  justify-content: space-between;
-  border-top: 1px solid var(--border);
-  margin-top: 10px;
-  padding-top: 12px;
-}
-.calendar-footer button {
-  border: 0;
-  background: transparent;
-  color: var(--primary);
-  font-size: 0.75rem;
-  padding: 4px 8px;
-}
 .registration-page {
   max-width: 800px;
   margin: 0 auto;
@@ -1666,9 +1568,6 @@ tr:last-child td {
   }
 }
 @media (max-width: 1150px) {
-  .console-shell {
-    grid-template-columns: 220px minmax(0, 1fr);
-  }
   .page-content {
     padding: 28px 24px 36px;
   }
@@ -1756,9 +1655,6 @@ tr:last-child td {
   }
   .compact-form .button {
     min-height: 36px;
-  }
-  .calendar-trigger {
-    height: 42px;
   }
 }
 @media (max-width: 560px) {
@@ -2320,4 +2216,10 @@ tr:last-child td {
 button[aria-disabled="true"] {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Preserve the operating system controls and native picker affordances. */
+select,
+input[type="date"] {
+  appearance: auto;
 }

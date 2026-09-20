@@ -15,7 +15,13 @@ import {
 } from "./ui/alert-dialog";
 import modalStyles from "./ui/modal.module.css";
 
-export function WhatsappAccount({ phone }: { phone: string | null }) {
+export function WhatsappAccount({
+  phone,
+  className = "",
+}: {
+  phone: string | null;
+  className?: string;
+}) {
   const router = useRouter();
   const id = useId();
   const numberInput = useRef<HTMLInputElement>(null);
@@ -107,7 +113,7 @@ export function WhatsappAccount({ phone }: { phone: string | null }) {
   }
   return (
     <section
-      className="panel form-panel whatsapp-settings"
+      className={`panel form-panel whatsapp-settings ${className}`}
       aria-labelledby={`${id}-title`}
     >
       <div className="card-top">

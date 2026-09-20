@@ -336,7 +336,9 @@ try {
     );
     r = await request("/painel", "admin");
     ok(
-      r.status === 200 && r.text.includes("QA admin"),
+      r.status === 200 &&
+        r.text.includes("Empresas cadastradas") &&
+        r.text.includes('href="/empresas/nova"'),
       "Sessão assinada real: painel administrativo renderiza",
     );
     r = await request("/chamados", "support");

@@ -45,8 +45,8 @@ A fonte única dos tokens é `src/app/globals.css`. Novas telas devem usar token
 
 | Componente/padrão    | Localização                                                          | Responsabilidade                                                              |
 | -------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Navegação            | `src/components/sidebar.tsx`                                         | Grupos, item ativo, usuário e navegação móvel                                 |
-| Sheet                | `src/components/ui/sheet.tsx`                                        | Menu móvel baseado em Dialog do Base UI                                       |
+| Navegação            | `src/components/sidebar.tsx`                                         | Menu flutuante compacto, item ativo e opções por permissão                    |
+| Preferências         | `src/components/preferences/`                                        | Minha conta, integrações e avisos em modal com navegação lateral              |
 | Card                 | `src/components/ui/card.tsx`                                         | Superfície com cabeçalho, título, descrição e conteúdo                        |
 | Heading              | `src/components/ui.tsx`                                              | Título da página, contexto e ação principal                                   |
 | Empty                | `src/components/ui.tsx`                                              | Estado vazio com explicação e ação opcional                                   |
@@ -60,7 +60,7 @@ A fonte única dos tokens é `src/app/globals.css`. Novas telas devem usar token
 | OTP                  | `src/components/otp-login.tsx`                                       | Código único, colagem/autocomplete, erro associado e reenvio                  |
 | Sonner               | `src/components/ui/sonner.tsx`                                       | Feedback transitório de ações                                                 |
 | Tabela de faturas    | `src/components/crud-invoice-manager.tsx`                            | Busca, filtros com contagens, paginação e menu por fatura                     |
-| Campo monetário/data | `src/components/invoice-inputs.tsx`                                  | BRL, datas brasileiras, calendário e valores normalizados                     |
+| Campo monetário/data | `src/components/invoice-inputs.tsx`                                  | BRL e campo de data nativo com valor ISO                                      |
 | Tipo de cobrança     | `src/components/billing-type-input.tsx`                              | Frequência única/recorrente sem alterar a regra financeira                    |
 | Meios de pagamento   | `src/components/payment-code.tsx`                                    | Apresentação e cópia de código na página pública                              |
 | CSS por domínio      | `*.module.css`                                                       | Composição específica sem vazar estilos para outras páginas                   |
@@ -74,7 +74,9 @@ O MCP shadcn.io foi usado para pesquisar itens, consultar metadados e obter font
 Referências públicas, sem tokens de registry:
 
 - [Dialog](https://www.shadcn.io/ui/dialog) e [Alert Dialog](https://www.shadcn.io/ui/alert-dialog): referências para janelas de edição curta e confirmações, adaptadas com Base UI.
-- [Sheet](https://www.shadcn.io/ui/sheet): fonte adaptada para o menu móvel, usando `@base-ui/react/dialog`.
+- [Popover](https://www.shadcn.io/ui/popover): composição consultada pelo MCP e adaptada ao menu flutuante, usando `@base-ui/react/popover`.
+- [Dialog do Base UI](https://base-ui.com/react/components/dialog): foco, portal e fechamento das preferências.
+- [Select nativo](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/select) e [data nativa](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/date): controles padrão solicitados para todo o Console.
 - [Card](https://www.shadcn.io/ui/card): composição de superfície, cabeçalho e conteúdo.
 - [Empty](https://www.shadcn.io/ui/empty): referência para estados vazios.
 - [Badge](https://www.shadcn.io/ui/badge): referência para rótulos de situação.
@@ -117,7 +119,9 @@ Produtos e projetos continuam em cartões, adequados à descrição e à atualiz
 
 - Links navegam e botões executam ações. Controles somente com ícone precisam de nome acessível.
 - `aria-current` identifica a página/filtro atual; estados também têm texto visível.
-- O menu móvel usa o Dialog do Base UI, preservando foco, fechamento com Escape, portal e semântica de diálogo. Não substituir por um elemento posicionado sem gerenciamento de foco.
+- A navegação autenticada usa um botão flutuante no canto superior direito em todas as larguras. O Popover do Base UI contém foco, fecha por Escape ou clique externo e devolve foco ao acionador. Os links respeitam as permissões do ator; não há barra lateral fixa, logo ou selo de administração.
+- Minha conta, Integrações e Avisos de chamados ficam em um Dialog com navegação lateral. Rotas interceptadas preservam a tela de origem; abrir a URL diretamente mantém a apresentação de preferências e oferece retorno ao painel. A autorização continua no servidor.
+- Toda seleção usa `<select>` nativo e toda data editável usa `<input type="date">`. A aparência do seletor/calendário e o formato mostrado seguem o navegador e o sistema operacional. O servidor recebe a data civil em ISO (`YYYY-MM-DD`), sem conversão de fuso horário. Não substituir esses controles por Select, combobox ou calendário personalizado.
 - O menu de cada fatura usa Radix Dropdown Menu, preservando navegação por teclado e semântica de itens.
 - Rótulos de campos são associados por `htmlFor`/`id`; dicas e erros persistentes usam `aria-describedby`. Inputs monetários e de data mantêm os campos normalizados esperados pelo servidor.
 - Tabelas têm legenda e cabeçalhos `scope="col"`; regiões roláveis têm nome acessível e foco por teclado.

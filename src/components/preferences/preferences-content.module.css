@@ -1,0 +1,338 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  container: preferences-content / inline-size;
+}
+.section {
+  min-width: 0;
+  padding: 24px 0;
+}
+.section:first-child {
+  padding-top: 0;
+}
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+.section:last-child {
+  padding-bottom: 0;
+}
+.sectionHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+}
+.sectionHeading h2,
+.identity h2,
+.linkSection h2 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sectionHeading > span {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.identity > div {
+  min-width: 0;
+}
+.identity p,
+.rowContent p {
+  color: var(--muted-foreground);
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  min-height: 42px;
+  border-radius: 10px;
+  background: var(--secondary);
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.settingsList {
+  margin: 0;
+}
+.settingRow {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.3fr);
+  gap: 12px 24px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+.settingRow dt {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--muted-foreground);
+}
+.settingRow dt svg {
+  margin-top: 2px;
+}
+.settingRow dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.note svg {
+  margin-top: 2px;
+}
+.whatsapp:global(.whatsapp-settings) {
+  padding: 24px 0 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.whatsapp :global(.detail-section-title) {
+  font-size: 0.9375rem;
+}
+.whatsapp > :global(.muted) {
+  font-size: 0.8125rem;
+  margin: 0 0 18px;
+}
+.whatsapp :global(.form) {
+  max-width: 480px;
+  gap: 16px;
+}
+.whatsapp :global(.verified-number) {
+  margin: 0;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.integrationList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.integrationRow {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) minmax(120px, 180px);
+  align-items: start;
+  gap: 14px;
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+}
+.serviceIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+}
+.rowContent {
+  min-width: 0;
+}
+.rowContent h3 {
+  margin: 3px 0 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.rowControls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+.rowControls :global(.badge) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.integrationAction {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+.integrationAction :global([data-form-actions]) > button {
+  color: var(--foreground);
+  border-color: var(--input);
+  background: var(--card);
+  font-size: 0.75rem;
+  min-height: 34px;
+  padding: 6px 10px;
+  white-space: normal;
+  text-align: center;
+}
+.integrationAction :global([data-form-actions]) > button:hover {
+  background: var(--secondary);
+}
+.rowControls :global([data-form-feedback]) {
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.linkSection {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px 14px;
+}
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  grid-column: 2;
+  justify-self: start;
+  font-size: 0.8125rem;
+  min-height: 28px;
+}
+.inlineLink {
+  display: block;
+  width: fit-content;
+  margin-top: 5px;
+  font-size: 0.75rem;
+}
+.guidanceList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.guidanceList li + li {
+  margin-top: 8px;
+}
+.helper {
+  margin: 0 0 14px;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.section > .helper:last-child {
+  margin-bottom: 0;
+}
+.historyIntro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+.historyIntro > div {
+  min-width: 0;
+  max-width: 220px;
+}
+.tableWrap {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.table {
+  min-width: 610px;
+}
+.table th,
+.table td {
+  padding: 12px 14px;
+  font-size: 0.75rem;
+}
+.table td {
+  max-width: 260px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.table td:last-child {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.table .cellDetail {
+  margin: 5px 0 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+@media (max-width: 620px) {
+  .integrationRow {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .rowControls {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+  .integrationAction {
+    align-items: flex-start;
+  }
+  .historyIntro {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 16px;
+  }
+  .historyIntro > div {
+    max-width: none;
+  }
+}
+@media (max-width: 420px) {
+  .settingRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .settingRow dd {
+    padding-left: 25px;
+  }
+}
+@container preferences-content (max-width: 620px) {
+  .integrationRow {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .rowControls {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+  .integrationAction {
+    align-items: flex-start;
+  }
+  .historyIntro {
+    grid-template-columns: 1fr;
+    gap: 0;
+    margin-bottom: 16px;
+  }
+  .historyIntro > div {
+    max-width: none;
+  }
+}
+@container preferences-content (max-width: 420px) {
+  .settingRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .settingRow dd {
+    padding-left: 25px;
+  }
+}
