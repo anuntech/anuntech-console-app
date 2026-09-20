@@ -94,7 +94,7 @@ Verificações adicionais realizadas no navegador Chromium do Codex:
 - [x] Login por OTP direciona foco ao código; erro de e-mail é associado ao campo e desaparece ao trocar para WhatsApp.
 - [x] Navegação móvel fecha por Escape e retorna ao disparador; tabela de faturas recebe foco e rola por teclado.
 - [x] 16 páginas/estados inspecionados a 320 CSS px, sem rolagem horizontal da página após corrigir o containing block dos textos exclusivos de leitor de tela nas tabelas.
-- [x] Modal a 200% do tamanho de texto, em 320 CSS px: rolagem vertical interna e controles alcançáveis pelo teclado.
+- [x] Modal e calendário a 200% do tamanho de texto, em 320 CSS px: rolagem vertical interna, controles alcançáveis pelo teclado, dias sem sobreposição e dia inicialmente focado completamente visível após posicionamento.
 - [x] Emulação de cores forçadas e movimento reduzido no modal: contornos e foco preservados; animação reduzida.
 - [x] Fatura fictícia mudou de emitida para paga na mesma aba, sem reload manual; a região de estado anunciou a confirmação, sem spinner ou toast.
 

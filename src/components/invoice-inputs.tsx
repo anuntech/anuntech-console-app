@@ -71,6 +71,23 @@ export function InvoiceDueDate({
       text && !iso ? "Informe uma data válida no formato dd/mm/aaaa." : "",
     );
   }, [text, iso]);
+  useEffect(() => {
+    if (!open) return;
+    // Wait for the positioner to constrain the popup before revealing its focus.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        const focused = document.activeElement;
+        if (
+          focused instanceof HTMLElement &&
+          popup.current?.contains(focused) &&
+          focused.matches(".rdp-day_button")
+        ) {
+          focused.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
   function selectDate(date: Date) {
     setText(isoToBrazilDate(saoPauloDate(date)));
     setValidationError("");
