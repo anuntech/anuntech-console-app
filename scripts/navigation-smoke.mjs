@@ -145,7 +145,8 @@ try {
       });
       await page.goto(base + entry);
       if (entry === "/painel")
-        await page.getByRole("link", { name: "Ajustes", exact: true }).click();
+        await page.getByRole("button", { name: "Menu da conta", exact: true }).click();
+        await page.getByRole("menuitem", { name: "Meu perfil", exact: true }).click();
       await page.getByRole("dialog").waitFor();
       await page.locator('[data-preference-content="account"]').waitFor();
       await page.evaluate(() => {

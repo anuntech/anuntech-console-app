@@ -11,17 +11,20 @@ import {
   Layers3,
   MessagesSquare,
   ReceiptText,
-  Settings,
   FileText,
   type LucideIcon,
 } from "lucide-react";
 import { useAppearance } from "@/components/appearance-provider";
+import { DockAccountMenu } from "./dock-account-menu";
 import styles from "./bottom-menu.module.css";
 
 export type NavigationProps = {
   admin: boolean;
   support: boolean;
   finance: boolean;
+  userName: string;
+  userImage: string | null;
+  canManageMembers: boolean;
 };
 const items = [
   { href: "/painel", label: "Visão geral", icon: LayoutDashboard },
@@ -47,23 +50,19 @@ function DockLink({
   label,
   icon: Icon,
   active,
-  preferences = false,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   active: boolean;
-  preferences?: boolean;
 }) {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger
-        id={preferences ? "console-menu-trigger" : undefined}
         render={<Link href={href} />}
         className={styles.link}
         aria-label={label}
         aria-current={active ? "page" : undefined}
-        aria-haspopup={preferences ? "dialog" : undefined}
       >
         <Icon size={22} strokeWidth={1.8} aria-hidden="true" />
       </Tooltip.Trigger>
@@ -86,6 +85,9 @@ export default function BottomMenu({
   admin,
   support,
   finance,
+  userName,
+  userImage,
+  canManageMembers,
 }: NavigationProps) {
   const pathname = usePathname();
   const { position } = useAppearance();
@@ -182,17 +184,7 @@ export default function BottomMenu({
               ))}
             </div>
             <span className={styles.divider} aria-hidden="true" />
-            <DockLink
-              href="/conta"
-              label="Ajustes"
-              icon={Settings}
-              preferences
-              active={
-                pathname === "/conta" ||
-                pathname === "/configuracoes" ||
-                pathname.startsWith("/configuracoes/")
-              }
-            />
+            <DockAccountMenu key={pathname} name={userName} image={userImage} canManageMembers={canManageMembers} />
           </nav>
         </Tooltip.Provider>
       </div>

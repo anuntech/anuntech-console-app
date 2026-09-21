@@ -27,6 +27,9 @@ export default async function ConsoleLayout({
         preferences={preferences}
         header={
           <WorkspaceHeader
+            userName={actor.user.name}
+            userImage={actor.user.image ?? null}
+            canManageMembers={canManageMembers(actor)}
             admin={actor.admin}
             support={!!allowedIds(actor, "support").length}
             finance={!!allowedIds(actor, "finance").length}

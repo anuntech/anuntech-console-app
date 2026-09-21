@@ -403,7 +403,8 @@ try {
       );
       // Intercepted preferences keep their origin through pagination.
       await page.goto(base + "/painel");
-      await page.getByRole("link", { name: "Ajustes", exact: true }).click();
+      await page.getByRole("button", { name: "Menu da conta", exact: true }).click();
+        await page.getByRole("menuitem", { name: "Meu perfil", exact: true }).click();
       await page
         .getByRole("link", { name: "Notificações", exact: true })
         .click();
