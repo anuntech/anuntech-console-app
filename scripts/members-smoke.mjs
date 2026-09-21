@@ -14,7 +14,8 @@ assert.match(
   "Use scripts/test-isolated.mjs; never run against customer data",
 );
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const base = "http://127.0.0.1:3103";
+const port = process.env.CONSOLE_TEST_MEMBERS_PORT || "3103";
+const base = `http://127.0.0.1:${port}`;
 const marker = randomUUID();
 const email = (name) => `members-${name}-${marker}@example.invalid`;
 const ownerEmail = email("owner"),
@@ -75,13 +76,16 @@ const deniedPage = (response) =>
   (response.status === 404 ||
     response.text.includes("NEXT_HTTP_ERROR_FALLBACK;404")) &&
   response.text.includes("Página não encontrada");
-async function capturedForm(identifier, reader = "owner") {
-  const response = await request(page, reader);
+async function capturedForm(identifier, reader = "owner", path = page) {
+  const response = await request(path, reader);
   const forms = [
     ...response.text.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/g),
   ].map((match) => match[1]);
   const found = forms.find((form) => form.includes(identifier));
-  assert.ok(found, `Form ${identifier} exists`);
+  assert.ok(
+    found,
+    `Form ${identifier} exists (status ${response.status}, ${response.text.includes("NEXT_HTTP_ERROR_FALLBACK;404") ? "not found" : "rendered"})`,
+  );
   return found;
 }
 function formData(form, values) {
@@ -213,7 +217,7 @@ try {
       "--hostname",
       "127.0.0.1",
       "--port",
-      "3103",
+      port,
     ],
     {
       env: {
@@ -229,7 +233,9 @@ try {
     },
   );
   server.stdout.resume();
-  server.stderr.resume();
+  server.stderr.on("data", (chunk) => {
+    if (process.env.CONSOLE_TEST_DEBUG) process.stderr.write(chunk);
+  });
   let ready = false;
   for (let i = 0; i < 100; i++) {
     try {
@@ -241,6 +247,147 @@ try {
     }
   }
   assert.ok(ready, "Members test server starts");
+
+  const settingsPath = "/configuracoes/empresa";
+  const noticesPath = settingsPath;
+  const companyForm = await capturedForm(
+    "Salvar dados da empresa",
+    "client",
+    settingsPath,
+  );
+  const ownValues = {
+    id: companyIds[1],
+    name: "Updated company",
+    document: "12345678000199",
+    billingEmail: email("billing"),
+    phone: "11999999999",
+    autoIssueNfse: "yes",
+  };
+  await post(companyForm, "client", ownValues);
+  let changedCompany = (
+    await db.query("select * from console_companies where id=$1", [
+      companyIds[1],
+    ])
+  ).rows[0];
+  ok(
+    changedCompany.name === "Updated company" &&
+      changedCompany.phone === "11999999999",
+    "Company administrator edits own company data",
+  );
+  ok(
+    changedCompany.auto_issue_nfse === false,
+    "Forged fiscal automation field is ignored in company settings",
+  );
+  await post(companyForm, "client", {
+    ...ownValues,
+    id: companyIds[0],
+    name: "Forbidden",
+  });
+  ok(
+    (
+      await db.query("select name from console_companies where id=$1", [
+        companyIds[0],
+      ])
+    ).rows[0].name !== "Forbidden",
+    "Company data action blocks cross-tenant ID tampering",
+  );
+  for (const who of ["support", "finance", "unverified"]) {
+    await post(companyForm, who, { ...ownValues, name: "Forbidden" });
+    ok(
+      (
+        await db.query("select name from console_companies where id=$1", [
+          companyIds[1],
+        ])
+      ).rows[0].name === "Updated company",
+      `${who} cannot edit company data using captured action`,
+    );
+  }
+  const companySettings = await request(settingsPath, "client");
+  const notificationSettings = await request(noticesPath, "client");
+  ok(
+    !companySettings.text.includes(companyIds[0]) &&
+      !notificationSettings.text.includes(companyIds[0]) &&
+      !notificationSettings.text.includes(ownerEmail) &&
+      !notificationSettings.text.includes("Operação Anuntech"),
+    "Company settings and notifications do not expose other tenants or operation contacts",
+  );
+  const notificationForm = await capturedForm(
+    'name="topic" value="billing"',
+    "client",
+    noticesPath,
+  );
+  const prefValues = {
+    companyId: companyIds[1],
+    topic: "billing",
+    email: email("finance-notices"),
+    phone: "11988888888",
+    emailEnabled: "yes",
+  };
+  await post(notificationForm, "client", prefValues);
+  const savedPreferences = async () =>
+    (
+      await db.query(
+        "select * from console_notification_preferences where company_id=$1",
+        [companyIds[1]],
+      )
+    ).rows;
+  ok(
+    (await savedPreferences())[0]?.email === prefValues.email &&
+      !(await savedPreferences())[0]?.whatsapp_enabled,
+    "Company notification contacts and enabled channels persist independently",
+  );
+  await post(notificationForm, "client", {
+    ...prefValues,
+    companyId: companyIds[0],
+  });
+  await post(notificationForm, "client", {
+    ...prefValues,
+    companyId: "",
+    topic: "tickets",
+  });
+  ok(
+    (
+      await db.query(
+        "select count(*)::int as count from console_notification_preferences",
+      )
+    ).rows[0].count === 1,
+    "Company manager cannot alter another company or operation notification preferences",
+  );
+  await post(notificationForm, "support", {
+    ...prefValues,
+    email: email("forbidden"),
+  });
+  await post(notificationForm, "client", { ...prefValues, email: "invalid" });
+  ok(
+    (await savedPreferences())[0]?.email === prefValues.email,
+    "Unauthorized and invalid notification changes leave existing preferences intact",
+  );
+  await db.query(
+    "update console_memberships set active=false where company_id=$1 and email=$2",
+    [companyIds[1], people.client.email],
+  );
+  await post(companyForm, "client", { ...ownValues, name: "Stale" });
+  await post(notificationForm, "client", {
+    ...prefValues,
+    email: email("stale"),
+  });
+  ok(
+    (await savedPreferences())[0]?.email === prefValues.email &&
+      (
+        await db.query("select name from console_companies where id=$1", [
+          companyIds[1],
+        ])
+      ).rows[0].name !== "Stale",
+    "Forms captured before revocation cannot save data or notification preferences",
+  );
+  await db.query(
+    "update console_memberships set active=true where company_id=$1 and email=$2",
+    [companyIds[1], people.client.email],
+  );
+  await db.query("update console_companies set name=$2 where id=$1", [
+    companyIds[1],
+    `Members company 1 ${marker}`,
+  ]);
 
   const grantStaff = await capturedForm("Liberar administração");
   await post(grantStaff, "unverified", { email: email("blocked") });
@@ -313,7 +460,7 @@ try {
   ok(
     deniedPage(await request("/configuracoes", "client")) &&
       deniedPage(await request("/configuracoes/notificacoes", "client")),
-    "Company member administration does not grant access to Console integrations or notices",
+    "Company manager cannot access Console integrations or operational notices",
   );
   for (const role of ["support", "finance"]) {
     ok(

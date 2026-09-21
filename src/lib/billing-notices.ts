@@ -1,4 +1,8 @@
 import "server-only";
+import {
+  getNoticePreferences,
+  whatsappDestination,
+} from "./notification-preferences";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 import { db } from "./db";
@@ -182,6 +186,34 @@ export async function processBillingNotice(
       });
       return;
     }
+    let preferences = await getNoticePreferences(row.c.id, "billing");
+    const recipientAllowed = () => {
+      if (notice.channel === "email")
+        return (
+          preferences.emailEnabled &&
+          !!preferences.email &&
+          (!notice.payload ||
+            (Array.isArray(notice.payload.to) &&
+              notice.payload.to.length === 1 &&
+              notice.payload.to[0] === preferences.email))
+        );
+      return (
+        preferences.whatsappEnabled &&
+        !!preferences.phone &&
+        (!notice.payload ||
+          (typeof notice.payload.to === "string" &&
+            whatsappDestination(notice.payload.to) ===
+              whatsappDestination(preferences.phone)))
+      );
+    };
+    if (!recipientAllowed()) {
+      await save({
+        status: "skipped",
+        error:
+          "Canal desativado ou destinatário alterado nas preferências de notificações.",
+      });
+      return;
+    }
     const today = saoPauloDate();
     if (row.i.status !== "issued" || !row.i.publicId) {
       await save({
@@ -243,7 +275,7 @@ export async function processBillingNotice(
               "complained",
               "suppressed",
             ]),
-            sql`${billingNotices.payload}->'to' @> ${JSON.stringify([row.c.billingEmail])}::jsonb`,
+            sql`${billingNotices.payload}->'to' @> ${JSON.stringify([preferences.email])}::jsonb`,
           ),
         )
         .limit(1);
@@ -266,6 +298,15 @@ export async function processBillingNotice(
         status: "skipped",
         error:
           "Envio interrompido após consulta ao Inter: cobrança indisponível ou liquidada.",
+      });
+      return;
+    }
+    preferences = await getNoticePreferences(row.c.id, "billing");
+    if (!recipientAllowed()) {
+      await save({
+        status: "skipped",
+        error:
+          "Preferências alteradas durante o processamento; envio interrompido.",
       });
       return;
     }
@@ -303,7 +344,7 @@ export async function processBillingNotice(
     else if (notice.channel === "email")
       payload = {
         from: billingEmailFrom(process.env.EMAIL_FROM!),
-        to: [row.c.billingEmail],
+        to: [preferences.email],
         ...billingEmailTemplate({
           ...data,
           url: paymentUrl(data.publicId),
@@ -311,7 +352,7 @@ export async function processBillingNotice(
         }),
       };
     else {
-      let phone = (row.c.phone || "").replace(/\D/g, "");
+      let phone = (preferences.phone || "").replace(/\D/g, "");
       if (phone.length === 10 || phone.length === 11) phone = `55${phone}`;
       if (!/^55\d{10,11}$/.test(phone)) {
         await save({

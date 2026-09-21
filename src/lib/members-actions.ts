@@ -5,13 +5,12 @@ import { z } from "zod";
 import {
   accountEmails,
   auditEvents,
-  companies,
   consoleStaffMembers,
   memberships,
   user,
 } from "@/db/schema";
 import { getActor, type Actor } from "./access";
-import { getAccountEmails, resolveAccountIdentity } from "./account-identity";
+import { resolveAccountIdentity } from "./account-identity";
 import type { ActionState } from "./action-state";
 import { getConsoleStaffAccess } from "./console-members";
 import { db } from "./db";
@@ -27,7 +26,7 @@ const emailInput = z
   .transform(normalizeEmail);
 const idInput = z.string().uuid("Acesso inválido.");
 const blocked = { error: "Você não tem permissão para realizar esta ação." };
-class AccessChangeError extends Error {}
+import { AccessChangeError, lockManagedCompany } from "./company-management";
 
 function failure(error: unknown): ActionState {
   return {
@@ -89,43 +88,6 @@ function refreshMembers(companyId?: string) {
   revalidatePath("/configuracoes/membros");
   revalidatePath("/", "layout");
   if (companyId) revalidatePath(`/empresas/${companyId}`);
-}
-
-/** A company lock serializes grants, demotions and revocations before authorization. */
-async function lockManagedCompany(
-  tx: Transaction,
-  actor: Actor,
-  companyId: string,
-) {
-  const [company] = await tx
-    .select({ id: companies.id })
-    .from(companies)
-    .where(
-      and(
-        eq(companies.id, companyId),
-        actor.admin
-          ? undefined
-          : inArray(companies.id, managedCompanyIds(actor)),
-      ),
-    )
-    .for("update");
-  if (!company) throw new AccessChangeError(blocked.error);
-  if (actor.admin) return;
-  // A form opened before a revocation cannot keep using the old manager grant.
-  const emails = await getAccountEmails(actor.user.id, actor.user.email, tx);
-  const [manager] = await tx
-    .select({ id: memberships.id })
-    .from(memberships)
-    .where(
-      and(
-        eq(memberships.companyId, companyId),
-        inArray(memberships.email, emails),
-        eq(memberships.role, "manager"),
-        eq(memberships.active, true),
-      ),
-    )
-    .limit(1);
-  if (!manager) throw new AccessChangeError(blocked.error);
 }
 
 async function protectCompanyAdministration(

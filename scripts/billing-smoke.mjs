@@ -496,5 +496,81 @@ export async function runBillingTests({
       ),
     "Histórico de entrega é restrito ao administrador",
   );
+  // Notification preferences affect real workers, without changing bank/payment rules.
+  flags({ approved: true, bankUnpaid: true, billingBankDue: offset(2) });
+  await db.query(
+    "update console_invoices set status='issued', due_date=$2 where id=$1",
+    [i.id, offset(2)],
+  );
+  const resetInitial = async () =>
+    db.query(
+      "update console_billing_notices set status='pending', payload=null, attempts=0, first_attempt_at=null, provider_id=null, provider_status=null, locked_until=null, next_attempt_at=now() where invoice_id=$1 and kind='initial'",
+      [i.id],
+    );
+  const preferenceId = `${ids.a}:billing`;
+  await db.query(
+    "insert into console_notification_preferences(key,company_id,topic,email,phone,email_enabled,whatsapp_enabled) values($1,$2,'billing',$3,'11988887777',false,false)",
+    [preferenceId, ids.a, `billing-preference-${marker}@example.invalid`],
+  );
+  await resetInitial();
+  let beforePreferences = sentNotices().length;
+  await drain();
+  ok(
+    sentNotices().length === beforePreferences &&
+      (await notices(i.id))
+        .filter((row) => row.kind === "initial")
+        .every((row) => row.status === "skipped"),
+    "Desativar canais financeiros interrompe a fila sem enviar mensagens",
+  );
+  await db.query(
+    "update console_notification_preferences set email_enabled=true where key=$1",
+    [preferenceId],
+  );
+  await resetInitial();
+  await drain();
+  const preferenceNotice = (await notices(i.id)).find(
+    (row) => row.kind === "initial" && row.channel === "email",
+  );
+  ok(
+    preferenceNotice.payload.to[0] ===
+      `billing-preference-${marker}@example.invalid` &&
+      sentNotices()
+        .slice(beforePreferences)
+        .every((row) => row.channel === "email"),
+    "Cobrança usa contato específico do financeiro e respeita WhatsApp desativado",
+  );
+  flags({
+    approved: true,
+    bankUnpaid: true,
+    billingBankDue: offset(2),
+    email503: true,
+  });
+  await resetInitial();
+  await drain();
+  const frozenNotice = (await notices(i.id)).find(
+    (row) => row.kind === "initial" && row.channel === "email",
+  );
+  ok(
+    frozenNotice.attempts > 0 && !!frozenNotice.payload,
+    "Falha transitória preserva payload do destinatário original",
+  );
+  await db.query(
+    "update console_notification_preferences set email=$2 where key=$1",
+    [preferenceId, `changed-preference-${marker}@example.invalid`],
+  );
+  beforePreferences = sentNotices().length;
+  await drain();
+  ok(
+    sentNotices().length === beforePreferences &&
+      (await notices(i.id)).find((row) => row.id === frozenNotice.id).status ===
+        "skipped",
+    "Troca de destinatário cancela repetição congelada sem reenviar ao endereço antigo ou duplicar no novo",
+  );
+  await db.query("delete from console_notification_preferences where key=$1", [
+    preferenceId,
+  ]);
+  await db.query("update console_invoices set status='paid' where id=$1", [
+    i.id,
+  ]);
   flags({ approved: true });
 }

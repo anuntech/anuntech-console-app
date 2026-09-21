@@ -17,20 +17,25 @@ import {
   useSelectedLayoutSegments,
 } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
-import { Bell, PlugZap, UserRound, Users, X } from "lucide-react";
+import { Building2, Bell, PlugZap, UserRound, Users, X } from "lucide-react";
 import { profileAvatarSource } from "./profile-avatar";
 import { SignOutButton } from "@/components/auth-buttons";
 import styles from "./preferences-dialog.module.css";
 
 export type PreferenceSection =
-  "account" | "members" | "integrations" | "notifications";
+  "account" | "company" | "members" | "integrations" | "notifications";
 const sections = {
+  company: {
+    href: "/configuracoes/empresa",
+    label: "Dados da empresa",
+    icon: Building2,
+  },
   account: { href: "/conta", label: "Minha conta", icon: UserRound },
   members: { href: "/configuracoes/membros", label: "Membros", icon: Users },
   integrations: { href: "/configuracoes", label: "Integrações", icon: PlugZap },
   notifications: {
     href: "/configuracoes/notificacoes",
-    label: "Avisos de chamados",
+    label: "Notificações",
     icon: Bell,
   },
 };
@@ -246,8 +251,13 @@ export function PreferencesDialog({
             </p>
             <div className={styles.categoryLinks}>
               {(admin
-                ? (["members", "integrations", "notifications"] as const)
-                : (["members"] as const)
+                ? ([
+                    "company",
+                    "members",
+                    "notifications",
+                    "integrations",
+                  ] as const)
+                : (["company", "members"] as const)
               ).map((item) => {
                 const { href, label, icon: Icon } = sections[item];
                 return (

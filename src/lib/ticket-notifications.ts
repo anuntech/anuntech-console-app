@@ -3,16 +3,18 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, lt, lte, sql } from "drizzle-orm";
 import { after } from "next/server";
 import { db } from "./db";
-import { companies, user, ticketNotices } from "@/db/schema";
+import { companies, ticketNotices, tickets } from "@/db/schema";
+import {
+  getNoticePreferences,
+  preferenceKey,
+  whatsappDestination,
+} from "./notification-preferences";
 import { APP_LOCALE, APP_TIME_ZONE } from "./dates";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Notice = typeof ticketNotices.$inferSelect;
 const activeStatuses = ["pending", "processing", "accepted", "sent"];
 const delay = (minutes: number) => new Date(Date.now() + minutes * 60000);
-const adminEmail = () =>
-  process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase() || "";
-
 // Runs in the same transaction as the ticket mutation. No external I/O here.
 export async function enqueueTicketNotice(
   tx: Tx,
@@ -22,11 +24,16 @@ export async function enqueueTicketNotice(
   movement: string,
 ) {
   const [company] = await tx
-    .select({ name: companies.name })
+    .select({ name: companies.name, archived: companies.archived })
     .from(companies)
     .where(eq(companies.id, ticket.companyId));
-  const email = adminEmail();
-  const [admin] = await tx.select().from(user).where(eq(user.email, email));
+  if (!company || company.archived) return;
+  const recipients = await Promise.all(
+    [null, ticket.companyId].map(async (companyId) => ({
+      key: preferenceKey(companyId, "tickets"),
+      preferences: await getNoticePreferences(companyId, "tickets", tx),
+    })),
+  );
   const base =
     process.env.BETTER_AUTH_URL?.replace(/\/$/, "") ||
     "https://console.anuntech.com";
@@ -35,14 +42,30 @@ export async function enqueueTicketNotice(
     timeStyle: "short",
     timeZone: APP_TIME_ZONE,
   }).format(new Date());
-  const emailId = randomUUID(),
-    whatsappId = randomUUID();
-  const phone = admin?.phoneNumberVerified ? admin.phoneNumber || "" : "";
-  await tx
-    .insert(ticketNotices)
-    .values([
+  const queued: (typeof ticketNotices.$inferInsert)[] = [];
+  for (const { key, preferences } of recipients) {
+    if (
+      key !== "console:tickets" &&
+      !preferences.emailEnabled &&
+      !preferences.whatsappEnabled
+    )
+      continue;
+    const email = preferences.email;
+    const emailId = randomUUID(),
+      whatsappId = randomUUID();
+    const phone = preferences.phone
+      ? `+${whatsappDestination(preferences.phone)}`
+      : "";
+    queued.push(
       {
         id: emailId,
+        preferenceKey: key,
+        ...(!preferences.emailEnabled || !email
+          ? {
+              status: "cancelled",
+              error: "E-mail desativado ou sem destinatário nas preferências.",
+            }
+          : {}),
         eventId,
         ticketId: ticket.id,
         channel: "email",
@@ -56,6 +79,7 @@ export async function enqueueTicketNotice(
       },
       {
         id: whatsappId,
+        preferenceKey: key,
         eventId,
         ticketId: ticket.id,
         channel: "whatsapp",
@@ -68,16 +92,26 @@ export async function enqueueTicketNotice(
           senderId: whatsappId,
           options: { enableBot: false },
         },
-        ...(!phone
+        ...(!phone || !preferences.whatsappEnabled
           ? {
               status: "cancelled",
               error:
-                "WhatsApp do administrador não está verificado. Vincule em Minha conta.",
+                "WhatsApp desativado ou sem destinatário nas preferências.",
             }
           : {}),
       },
-    ])
-    .onConflictDoNothing();
+    );
+  }
+  if (queued.length)
+    await tx
+      .insert(ticketNotices)
+      .values(
+        queued.sort(
+          (a, b) =>
+            Number(a.status === "cancelled") - Number(b.status === "cancelled"),
+        ),
+      )
+      .onConflictDoNothing();
 }
 
 export function scheduleTicketNotices() {
@@ -131,18 +165,23 @@ async function approvedTemplates() {
   );
 }
 async function currentRecipient(row: Notice) {
-  if (row.channel === "email") return row.destination === adminEmail();
-  const [admin] = await db
-    .select()
-    .from(user)
-    .where(eq(user.email, adminEmail()));
-  return (
-    !!admin?.emailVerified &&
-    admin.phoneNumberVerified &&
-    admin.phoneNumber === row.destination
-  );
+  const [ticket] = await db
+    .select({ companyId: tickets.companyId, archived: companies.archived })
+    .from(tickets)
+    .innerJoin(companies, eq(companies.id, tickets.companyId))
+    .where(eq(tickets.id, row.ticketId));
+  if (!ticket || ticket.archived) return false;
+  const companyId =
+    row.preferenceKey && row.preferenceKey !== "console:tickets"
+      ? ticket.companyId
+      : null;
+  const preferences = await getNoticePreferences(companyId, "tickets");
+  return row.channel === "email"
+    ? preferences.emailEnabled && row.destination === preferences.email
+    : preferences.whatsappEnabled &&
+        whatsappDestination(row.destination) ===
+          whatsappDestination(preferences.phone);
 }
-
 async function sendEmail(row: Notice) {
   if (!process.env.RESEND_API_KEY || !row.payload.from || !row.destination) {
     await save(row, {
@@ -387,14 +426,13 @@ export async function processTicketNotices() {
       return candidate;
     });
     if (!row) break;
-    if (!(await currentRecipient(row)))
+    if (row.channel === "whatsapp" && row.providerId) await checkWhatsapp(row);
+    else if (!(await currentRecipient(row)))
       await save(row, {
         status: "cancelled",
-        error:
-          "Destinatário não corresponde mais ao administrador ou WhatsApp verificado.",
+        error: "Canal desativado, destinatário alterado ou empresa arquivada.",
       });
     else if (row.channel === "email") await sendEmail(row);
-    else if (row.providerId) await checkWhatsapp(row);
     else await sendWhatsapp(row, templates);
     processed++;
   }

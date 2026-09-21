@@ -21,9 +21,13 @@ export function CompanyBillingFields({
   company,
   inviteToken,
   lockDocument = false,
+  fiscalSettings = true,
+  lookupEnabled = true,
 }: {
   inviteToken?: string;
   lockDocument?: boolean;
+  fiscalSettings?: boolean;
+  lookupEnabled?: boolean;
   company?: {
     name: string;
     document: string;
@@ -71,6 +75,7 @@ export function CompanyBillingFields({
     [],
   );
   async function lookup(kind: LookupKind, before = { ...edits.current }) {
+    if (!lookupEnabled) return;
     cancel();
     const value = digits(current.current[kind === "cnpj" ? "document" : "cep"]);
     if (value.length !== (kind === "cnpj" ? 14 : 8)) return;
@@ -162,7 +167,11 @@ export function CompanyBillingFields({
         <div className="form-grid">
           <Field
             label="CPF ou CNPJ"
-            hint="Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
+            hint={
+              lookupEnabled
+                ? "Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
+                : undefined
+            }
           >
             <NumberFormatBase
               format={formatDocument}
@@ -247,7 +256,11 @@ export function CompanyBillingFields({
         <div className="form-grid">
           <Field
             label="CEP"
-            hint="Ao completar os 8 dígitos, o endereço é consultado automaticamente."
+            hint={
+              lookupEnabled
+                ? "Ao completar os 8 dígitos, o endereço é consultado automaticamente."
+                : undefined
+            }
           >
             <input
               name="cep"
@@ -343,7 +356,7 @@ export function CompanyBillingFields({
           {lookupFeedback?.kind === "cep" ? lookupFeedback.message : ""}
         </p>
       </section>
-      {!inviteToken && (
+      {!inviteToken && fiscalSettings && (
         <section className="form-section">
           <div className="section-heading">
             <h2>Nota fiscal</h2>

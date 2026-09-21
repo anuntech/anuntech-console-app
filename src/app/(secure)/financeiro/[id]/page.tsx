@@ -1,3 +1,4 @@
+import { getNoticePreferences } from "@/lib/notification-preferences";
 import {
   CalendarDays,
   CheckCircle2,
@@ -73,6 +74,9 @@ export default async function Invoice({
       )[0]
     : null;
   const scheduled = i.status === "draft" && sub?.status === "active";
+  const noticePreferences = actor.admin
+    ? await getNoticePreferences(row.company.id, "billing")
+    : null;
   const notices = actor.admin
     ? await db
         .select()
@@ -375,11 +379,17 @@ export default async function Invoice({
               <div className={styles.contact}>
                 <div>
                   <Mail size={16} aria-hidden="true" />
-                  <span>E-mail: {row.company.billingEmail}</span>
+                  <span>
+                    E-mail: {noticePreferences?.email || "Não cadastrado"}
+                    {noticePreferences?.emailEnabled ? "" : " · Desativado"}
+                  </span>
                 </div>
                 <div>
                   <MessageCircle size={16} aria-hidden="true" />
-                  <span>WhatsApp: {row.company.phone || "Não cadastrado"}</span>
+                  <span>
+                    WhatsApp: {noticePreferences?.phone || "Não cadastrado"}
+                    {noticePreferences?.whatsappEnabled ? "" : " · Desativado"}
+                  </span>
                 </div>
               </div>
               <p className={styles.helpText}>

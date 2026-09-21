@@ -13,7 +13,8 @@ assert.match(
   /^\/console_test_[a-f0-9]+$/,
   "Use scripts/test-isolated.mjs para criar um banco descartável",
 );
-const base = "http://127.0.0.1:3101";
+const port = process.env.CONSOLE_TEST_HTTP_PORT || "3101";
+const base = `http://127.0.0.1:${port}`;
 const marker = randomUUID().slice(0, 8);
 const adminEmail = `qa-admin-${marker}@example.invalid`;
 const database = new pg.Pool({
@@ -205,7 +206,7 @@ try {
       "--hostname",
       "127.0.0.1",
       "--port",
-      "3101",
+      port,
     ],
     {
       env: {
@@ -1653,10 +1654,10 @@ try {
     ok(
       notices.every(
         (n) =>
-          n.destination ===
-          (n.channel === "email" ? adminEmail : "+5511999990001"),
+          n.destination.replace(/^\+/, "") ===
+          (n.channel === "email" ? adminEmail : "5511999990001"),
       ),
-      "Avisos vão somente ao administrador interno, nunca aos clientes",
+      "Sem preferência ativa, avisos continuam somente na operação",
     );
     ok(
       notices.every((n) => n.status === "accepted"),
@@ -1818,6 +1819,70 @@ try {
         )
       ).rows[0].status === "cancelled",
       "WhatsApp desvinculado deixa de receber avisos pendentes",
+    );
+    // Company recipients are opt-in and do not replace the operational queue.
+    const clientPreferenceKey = `${ids.a}:tickets`;
+    const clientDestination = `support-preference-${marker}@example.invalid`;
+    await database.query(
+      "insert into console_notification_preferences(key,company_id,topic,email,phone,email_enabled,whatsapp_enabled) values($1,$2,'tickets',$3,'11988887777',true,false)",
+      [clientPreferenceKey, ids.a, clientDestination],
+    );
+    await submitForm(`/chamados/${created.id}`, "manager", "manager", "body", {
+      ticketId: created.id,
+      body: "Aviso ao atendimento da empresa",
+    });
+    await drain();
+    const clientRows = (await noticeRows()).filter(
+      (row) => row.preference_key === clientPreferenceKey,
+    );
+    ok(
+      clientRows.some(
+        (row) =>
+          row.channel === "email" &&
+          row.destination === clientDestination &&
+          row.status === "accepted",
+      ) &&
+        clientRows.every(
+          (row) => row.channel !== "whatsapp" || row.status === "cancelled",
+        ),
+      "Atendimento opt-in envia ao contato da empresa e respeita canais desativados",
+    );
+    flags({ approved: true, email503: true });
+    await submitForm(`/chamados/${created.id}`, "manager", "manager", "body", {
+      ticketId: created.id,
+      body: "Contato trocado antes da repetição",
+    });
+    await drain();
+    const pendingClient = (await noticeRows()).find(
+      (row) =>
+        row.preference_key === clientPreferenceKey &&
+        row.channel === "email" &&
+        row.status === "pending",
+    );
+    assert.ok(pendingClient);
+    const pendingCount = sentNotices().filter(
+      (row) => row.key === `ticket-${pendingClient.id}`,
+    ).length;
+    await database.query(
+      "update console_notification_preferences set email=$2 where key=$1",
+      [clientPreferenceKey, `new-support-${marker}@example.invalid`],
+    );
+    await database.query(
+      "update console_ticket_notices set next_attempt_at=now() where id=$1",
+      [pendingClient.id],
+    );
+    flags({ approved: true });
+    await drain();
+    ok(
+      (await noticeRows()).find((row) => row.id === pendingClient.id).status ===
+        "cancelled" &&
+        sentNotices().filter((row) => row.key === `ticket-${pendingClient.id}`)
+          .length === pendingCount,
+      "Contato de atendimento alterado cancela repetição para o destinatário antigo",
+    );
+    await database.query(
+      "delete from console_notification_preferences where key=$1",
+      [clientPreferenceKey],
     );
   }
   await runBillingTests({

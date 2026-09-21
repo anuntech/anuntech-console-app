@@ -1,6 +1,7 @@
 import "server-only";
 import { getActor, requireAdmin } from "@/lib/access";
 import { canManageMembers, requireMemberManager } from "@/lib/member-access";
+import { CompanyContent } from "./company-content";
 import { AccountContent } from "./account-content";
 import { IntegrationsContent } from "./integrations-content";
 import { NotificationsContent } from "./notifications-content";
@@ -11,6 +12,10 @@ import {
 } from "./preferences-dialog";
 
 const copy = {
+  company: {
+    title: "Dados da empresa",
+    description: "Cadastro e preferências de comunicação por assunto.",
+  },
   account: {
     title: "Minha conta",
     description: "Seu perfil, contatos e segurança de acesso.",
@@ -24,8 +29,8 @@ const copy = {
     description: "Conexões que mantêm o Console em funcionamento.",
   },
   notifications: {
-    title: "Avisos de chamados",
-    description: "Destinatários e histórico das notificações da operação.",
+    title: "Notificações",
+    description: "Contatos e canais de recebimento, separados por assunto.",
   },
 };
 
@@ -39,7 +44,7 @@ export async function PreferencesPage({
 }) {
   const actor = await (section === "account"
     ? getActor()
-    : section === "members"
+    : section === "members" || section === "company"
       ? requireMemberManager()
       : requireAdmin());
   return (
@@ -58,7 +63,9 @@ export async function PreferencesPage({
       userImage={actor.user.image ?? null}
       intercepted={intercepted}
     >
-      {section === "account" ? (
+      {section === "company" ? (
+        <CompanyContent />
+      ) : section === "account" ? (
         <AccountContent />
       ) : section === "integrations" ? (
         <IntegrationsContent />

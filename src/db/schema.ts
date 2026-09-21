@@ -427,6 +427,7 @@ export const ticketNotices = pgTable(
       .notNull()
       .references(() => tickets.id, { onDelete: "cascade" }),
     channel: text("channel", { enum: ["email", "whatsapp"] }).notNull(),
+    preferenceKey: text("preference_key"),
     destination: text("destination").notNull(),
     payload: jsonb("payload").$type<TicketNoticePayload>().notNull(),
     status: text("status").notNull().default("pending"),
@@ -531,4 +532,23 @@ export const billingNotices = pgTable(
     ),
     index("console_billing_notice_pending_idx").on(t.status, t.nextAttemptAt),
   ],
+);
+
+/** Missing rows retain existing delivery defaults; client ticket notices are opt-in. */
+export const notificationPreferences = pgTable(
+  "console_notification_preferences",
+  {
+    key: text("key").primaryKey(),
+    companyId: text("company_id").references(() => companies.id, {
+      onDelete: "cascade",
+    }),
+    topic: text("topic", { enum: ["billing", "tickets"] }).notNull(),
+    email: text("email").notNull(),
+    phone: text("phone").notNull(),
+    emailEnabled: boolean("email_enabled").notNull(),
+    whatsappEnabled: boolean("whatsapp_enabled").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
 );

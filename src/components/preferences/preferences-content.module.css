@@ -410,3 +410,15 @@
     border: 1px solid CanvasText;
   }
 }
+.channelChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 0;
+  padding: 12px 0;
+  border: 0;
+}
+.channelChoices legend {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
