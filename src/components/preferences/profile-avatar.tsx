@@ -3,7 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Camera, Trash2, Smile } from "lucide-react";
+import { Camera, Trash2, Pencil } from "lucide-react";
 import { toast } from "@/components/notifications";
 import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/avatar-catalog";
 import {
@@ -163,7 +163,8 @@ export function ProfileAvatar({
           )}
         </span>
         <span className={styles.overlay} aria-hidden="true">
-          <Camera size={24} />
+          <Camera size={20} />
+          <span>Enviar foto</span>
         </span>
       </button>
       {children && <div className={styles.identity}>{children}</div>}
@@ -183,19 +184,25 @@ export function ProfileAvatar({
         <button
           type="button"
           className={`button ghost ${styles.button}`}
+          aria-label="Escolher avatar"
+          title="Escolher avatar"
           disabled={!!pending}
           onClick={() => setGalleryOpen(true)}
         >
-          <Smile size={14} aria-hidden="true" /> Escolher avatar
+          <Pencil size={18} aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          className={`button ghost ${styles.button}`}
-          disabled={!!pending}
-          onClick={() => inputRef.current?.click()}
-        >
-          <Camera size={14} aria-hidden="true" /> Enviar foto
-        </button>
+        {source && !isCatalogAvatar(current) && (
+          <button
+            type="button"
+            className={`button ghost ${styles.button}`}
+            aria-label="Remover foto"
+            title="Remover foto"
+            aria-disabled={!!pending}
+            onClick={() => void update(null)}
+          >
+            <Trash2 size={18} aria-hidden="true" />
+          </button>
+        )}
       </div>
       <Dialog
         open={galleryOpen}
@@ -226,18 +233,6 @@ export function ProfileAvatar({
           <p role="status">{pending === "select" ? "Salvando avatar…" : ""}</p>
         </DialogContent>
       </Dialog>
-      {source && !isCatalogAvatar(current) && (
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className={`button ghost ${styles.button}`}
-            aria-disabled={!!pending}
-            onClick={() => void update(null)}
-          >
-            <Trash2 size={14} aria-hidden="true" /> Remover foto
-          </button>
-        </div>
-      )}
       <div role="status" aria-atomic="true" className={styles.progress}>
         {pending && (
           <>

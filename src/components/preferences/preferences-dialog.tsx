@@ -313,9 +313,9 @@ export function PreferencesDialog({
           </span>
         </Link>
         <div className={styles.category}>
-          <p className={styles.categoryTitle}>Usuário</p>
+          <p className={styles.categoryTitle}>Conta</p>
           <div className={styles.categoryLinks}>
-            {(["account", "appearance", "security"] as const).map(item => {
+            {(["account", "appearance", "security", ...(admin || canManageMembers ? ["notifications" as const] : [])] as const).map(item => {
               const { href, label, icon: Icon } = sections[item];
               return <Link key={item} href={href} replace scroll={false} className={styles.navLink} aria-current={section === item ? "page" : undefined}>
                 <span className={styles.categoryIcon}><Icon size={17} aria-hidden="true" /></span><span>{label}</span>
@@ -333,10 +333,9 @@ export function PreferencesDialog({
                 ? ([
                     "company",
                     "members",
-                    "notifications",
                     "integrations",
                   ] as const)
-                : (["company", "members", "notifications"] as const)
+                : (["company", "members"] as const)
               ).map((item) => {
                 const { href, label, icon: Icon } = sections[item];
                 return (

@@ -34,7 +34,10 @@
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  font-size: 0.625rem;
   border-radius: inherit;
   background: rgb(1 30 65 / 76%);
   color: #fff;
@@ -69,8 +72,10 @@
 }
 .button {
   min-height: 44px;
+  width: 44px;
+  border-radius: 50%;
   max-width: 100%;
-  padding: 6px 10px;
+  padding: 10px;
   color: var(--muted-foreground);
   font-size: 0.75rem;
   white-space: normal;
@@ -116,6 +121,9 @@
     background: var(--primary);
     color: var(--primary-foreground);
     opacity: 1;
+  }
+  .overlay span {
+    display: none;
   }
   .overlay svg {
     width: 17px;
