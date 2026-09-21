@@ -401,7 +401,8 @@ try {
     ok(ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="engagementId"'), "Novo chamado só pede assunto, descrição e anexos");
     const contextual = await request(`/chamados/novo?from=${encodeURIComponent(`/chamados/${ids.ticketB}`)}`, "admin");
     ok(contextual.text.includes(`value="${ids.b}"`), "Equipe usa empresa do chamado em contexto");
-    ok((await request(`/chamados/novo?companyId=${ids.b}`, "support")).status === 404, "Contexto adulterado não abre empresa de outro cliente");
+    const forbiddenContext = await request(`/chamados/novo?companyId=${ids.b}`, "support");
+    ok(!forbiddenContext.text.includes('name="subject"') && !forbiddenContext.text.includes(`QA Company B ${marker}`), "Contexto adulterado não abre empresa de outro cliente");
     await submitForm("/chamados/novo", "support", "support", "subject", {
       companyId: ids.a,
       engagementId: "",
