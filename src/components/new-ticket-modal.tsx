@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
+import { AttachmentPicker } from "./attachment-picker";
 import { TicketActionForm } from "./ticket-action-form";
 import { Field } from "./ui";
 import { createTicket } from "@/lib/actions";
@@ -75,17 +76,10 @@ export function NewTicketModal({
                 placeholder="Descreva o que precisa."
               />
             </Field>
-            <Field
-              label="Anexos (opcional)"
-              hint="Até 5 arquivos, com 20 MB no total. Fotos são otimizadas automaticamente."
-            >
-              <input
-                name="files"
-                type="file"
-                accept="application/pdf,image/png,image/jpeg,image/webp"
-                multiple
-              />
-            </Field>
+            <div className="stack">
+              <span>Anexos (opcional)</span>
+              <AttachmentPicker />
+            </div>
           </TicketActionForm>
         ) : (
           <div className={styles.empty}>

@@ -206,3 +206,10 @@ O resultado do CI e a identificação do deploy estão na seção “Revisão co
 A referência React fornecida foi adaptada em `src/components/ui/bottom-menu.tsx`, com estilos em `bottom-menu.module.css`. O alias `@/components/ui` já corresponde à pasta `src/components/ui`; não se cria uma segunda pasta na raiz. O projeto usa TypeScript, CSS Modules e tokens semânticos, sem Tailwind. A adaptação usa Lucide e Base UI já instalados: não precisa das dependências de demonstração, medidas ocultas duplicadas ou imagens de estoque. O painel possui título acessível, fechamento por Escape/clique externo e retorno de foco; respeita movimento reduzido. Somente destinos reais e autorizados são mostrados.
 
 O dock fica abaixo do conteúdo com reserva inferior e safe area; tooltips e painel abrem acima. Minha conta e todas as categorias compartilham X de 44 px fixo no canto superior direito. O texto Ajustes foi removido da lateral; o título acessível da seção permanece. Em celular, a navegação continua acima do conteúdo e Sair fica à esquerda do X.
+
+
+### Criação em contexto
+
+Abrir chamado, cadastrar empresa, adicionar produto/projeto, criar cobrança e criar contrato usam modais de rota. A navegação interna preserva a página de origem; o fechamento volta para ela. No acesso direto, o fechamento leva à listagem correspondente. Os formulários compartilham bloqueio de fechamento durante o envio, retenção de dados em erros e o botão circular de fechar.
+
+Anexos de chamados usam seleção por clique ou arrastar, lista de arquivos com tamanho e remoção individual antes do envio. Limite de cinco arquivos e 20 MB por abertura; imagens são otimizadas.

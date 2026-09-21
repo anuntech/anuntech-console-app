@@ -1,3 +1,4 @@
+import { AttachmentPicker } from "@/components/attachment-picker";
 import { TicketActionForm } from "@/components/ticket-action-form";
 import type { Metadata } from "next";
 import { DownloadLink } from "@/components/download-link";
@@ -186,15 +187,7 @@ export default async function Ticket({
                 reset
               >
                 <input type="hidden" name="ticketId" value={id} />
-                <Field label="Arquivo">
-                  <input
-                    name="file"
-                    type="file"
-                    aria-describedby="attachment-requirements"
-                    required
-                    accept=".pdf,.png,.jpg,.jpeg"
-                  />
-                </Field>
+                <AttachmentPicker name="file" multiple={false} required />
               </TicketActionForm>
             )}
           </section>

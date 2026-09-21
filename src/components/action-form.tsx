@@ -8,6 +8,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useCreationBusy } from "./creation-modal";
 import { focusFirstInvalid } from "./field";
 
 import { useRouter } from "next/navigation";
@@ -57,6 +58,7 @@ export function ActionForm({
   onSuccess,
   cancel,
 }: ActionFormProps) {
+  const setCreationBusy = useCreationBusy();
   const [state, formAction, actionPending] = useActionState(action, {});
   const [preparing, setPreparing] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -110,7 +112,8 @@ export function ActionForm({
   }, [state, router, reset, onSuccess]);
   useEffect(() => {
     onPendingChange?.(pending);
-  }, [pending, onPendingChange]);
+    setCreationBusy?.(pending);
+  }, [pending, onPendingChange, setCreationBusy]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (submissionLock.current || pending) {
