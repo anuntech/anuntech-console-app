@@ -115,21 +115,38 @@ export function ProfileAvatar({
 
   return (
     <div className={styles.profile}>
-      <div className={styles.avatar}>
-        {source && source !== failedSource ? (
-          <Image
-            key={source}
-            src={source}
-            alt={`Foto de perfil de ${name}`}
-            width={88}
-            height={88}
-            unoptimized
-            onError={() => setFailedSource(source)}
-          />
-        ) : (
-          <span aria-label={`Iniciais de ${name}`}>{initials || "?"}</span>
-        )}
-      </div>
+      <button
+        ref={uploadRef}
+        type="button"
+        className={styles.avatar}
+        aria-label={
+          source ? "Alterar foto de perfil" : "Adicionar foto de perfil"
+        }
+        aria-disabled={!!pending}
+        aria-describedby={`${id}-hint${feedback?.kind === "error" ? ` ${id}-feedback` : ""}`}
+        onClick={() => {
+          if (!lock.current) inputRef.current?.click();
+        }}
+      >
+        <span className={styles.portrait} aria-hidden="true">
+          {source && source !== failedSource ? (
+            <Image
+              key={source}
+              src={source}
+              alt=""
+              width={88}
+              height={88}
+              unoptimized
+              onError={() => setFailedSource(source)}
+            />
+          ) : (
+            <span>{initials || "?"}</span>
+          )}
+        </span>
+        <span className={styles.overlay} aria-hidden="true">
+          <Camera size={24} />
+        </span>
+      </button>
       {children && <div className={styles.identity}>{children}</div>}
       <input
         ref={inputRef}
@@ -143,21 +160,8 @@ export function ProfileAvatar({
           if (file) void update(file);
         }}
       />
-      <div className={styles.actions}>
-        <button
-          ref={uploadRef}
-          type="button"
-          className={`button ${styles.button}`}
-          aria-disabled={!!pending}
-          aria-describedby={`${id}-hint${feedback?.kind === "error" ? ` ${id}-feedback` : ""}`}
-          onClick={() => {
-            if (!lock.current) inputRef.current?.click();
-          }}
-        >
-          <Camera size={16} aria-hidden="true" />
-          {source ? "Alterar foto" : "Adicionar foto"}
-        </button>
-        {source && (
+      {source && (
+        <div className={styles.actions}>
           <button
             type="button"
             className={`button ghost ${styles.button}`}
@@ -167,10 +171,10 @@ export function ProfileAvatar({
             }
             onClick={() => void update(null)}
           >
-            <Trash2 size={16} aria-hidden="true" /> Remover foto
+            <Trash2 size={14} aria-hidden="true" /> Remover foto
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <p id={`${id}-hint`} className={styles.hint}>
         PNG, JPEG ou WebP. Até 2 MB.
       </p>

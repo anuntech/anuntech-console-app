@@ -7,18 +7,47 @@
   max-width: 100%;
 }
 .avatar {
+  position: relative;
   display: grid;
   place-items: center;
   flex: none;
   width: 88px;
   height: 88px;
-  overflow: hidden;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--accent);
   color: var(--primary);
   font-size: 1.875rem;
   font-weight: 600;
+  cursor: pointer;
+}
+.portrait {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: rgb(1 30 65 / 76%);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.avatar:hover .overlay,
+.avatar:focus-visible .overlay,
+.avatar[aria-disabled="true"] .overlay {
+  opacity: 1;
+}
+.avatar[aria-disabled="true"] {
+  cursor: progress;
 }
 .identity {
   min-width: 0;
@@ -39,10 +68,11 @@
   max-width: 100%;
 }
 .button {
-  min-height: 40px;
+  min-height: 44px;
   max-width: 100%;
-  padding: 8px 12px;
-  font-size: 0.8125rem;
+  padding: 6px 10px;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -77,10 +107,35 @@
   width: 100%;
   text-align: left;
 }
+@media (hover: none), (pointer: coarse) {
+  .overlay {
+    inset: auto 0 0 auto;
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--card);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    opacity: 1;
+  }
+  .overlay svg {
+    width: 17px;
+    height: 17px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    transition: none;
+  }
+}
 @media (forced-colors: active) {
   .avatar {
     border-color: CanvasText;
     color: CanvasText;
     background: Canvas;
+  }
+  .overlay {
+    color: HighlightText;
+    background: Highlight;
+    forced-color-adjust: none;
   }
 }

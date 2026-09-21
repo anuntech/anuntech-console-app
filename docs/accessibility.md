@@ -4,17 +4,17 @@ Revisão de 20/09/2026. Este documento descreve os padrões implementados, a cob
 
 ## Escopo
 
-O inventário contém **26 arquivos `page.tsx`**, incluindo o redirecionamento de `/` para `/painel`. A página compartilhada `not-found.tsx`, os dois limites de erro e o carregamento da área autenticada são estados adicionais. O [inventário do design system](./design-system.md#inventário-de-interfaces) relaciona cada rota.
+O inventário atual contém **28 rotas de página**, incluindo o redirecionamento de `/` para `/painel`, e quatro entradas interceptadas das preferências, totalizando 32 arquivos `page.tsx`. A página compartilhada `not-found.tsx`, os dois limites de erro e o carregamento da área autenticada são estados adicionais. O [inventário do design system](./design-system.md#inventário-de-interfaces) relaciona as interfaces; a verificação em duas etapas e Membros ampliam o inventário inicial de 26 rotas.
 
 | Grupo                     | Rotas                                                                                                                           | Estados e interações relevantes                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Entrada                   | `/`                                                                                                                             | Redirecionamento e destino autenticado                                                                 |
-| Público e acesso          | `/entrar`, `/acesso-pendente`, `/cadastro/empresa/[token]`, `/pagar/[publicId]`                                                 | OTP, ausência de acesso, convite aberto/recebido/inválido, pagamento pendente/confirmado/indisponível  |
+| Público e acesso          | `/entrar`, `/verificar-acesso`, `/acesso-pendente`, `/cadastro/empresa/[token]`, `/pagar/[publicId]`                            | OTP, segunda etapa, ausência de acesso, convite aberto/recebido/inválido, pagamento pendente/confirmado/indisponível |
 | Empresas e produtos       | `/empresas`, `/empresas/nova`, `/empresas/[id]`, `/empresas/convites`, `/empresas/convites/[id]`, `/produtos`, `/produtos/novo` | Listas e vazios, cadastro longo, consultas de CNPJ/CEP, acesso de pessoas, atualização de situação     |
 | Atendimento               | `/chamados`, `/chamados/novo`, `/chamados/[id]`                                                                                 | Lista e vazio, abertura, conversa, anexos, encerramento                                                |
 | Financeiro                | `/financeiro`, `/financeiro/nova`, `/financeiro/[id]`, `/financeiro/envios`                                                     | Busca, filtros, paginação, rascunho/agendada/emitida/paga/cancelada, edição curta, recorrência, avisos |
 | Contratos                 | `/contratos`, `/contratos/novo`, `/contratos/[id]`                                                                              | Lista e vazio, formulário longo, publicação, retirada e download                                       |
-| Navegação e administração | `/painel`, `/conta`, `/configuracoes`, `/configuracoes/notificacoes`                                                            | Menu móvel, resumos, WhatsApp da conta, integrações, histórico de avisos                               |
+| Navegação e administração | `/painel`, `/conta`, `/configuracoes`, `/configuracoes/membros`, `/configuracoes/notificacoes`                                  | Dock, resumos, perfil e contatos, membros por permissão, integrações, histórico de avisos              |
 
 A autorização continua no servidor. A revisão de acessibilidade não altera destinatários, permissões, valores, vencimentos, emissão bancária ou regras de envio.
 
@@ -42,6 +42,8 @@ Para janelas modais, o comportamento esperado inclui foco dentro da janela, nave
 - `autocomplete` identifica e-mail, telefone, organização, endereço e código de uso único quando aplicável.
 - `Notification` mantém resultados e erros relevantes visíveis. `ActionForm` mantém erros de servidor no formulário e apresenta o estado de envio; toast transitório não é a única forma de entender uma falha.
 - Consultas de CNPJ/CEP anunciam andamento e resultado em uma região de estado associada ao campo. A consulta é auxiliar: a falha permite preenchimento manual. Cópia de link/código e falhas de download têm feedback no contexto.
+- Nome, e-mail principal e telefone da conta são campos de edição direta, com Salvar e Cancelar quando alterados. Erros permanecem no formulário e a validação local move o foco ao primeiro campo inválido. A troca de e-mail abre uma confirmação com dois códigos; a confirmação de telefone permanece junto do campo, preservando o número salvo até o sucesso.
+- O avatar é um botão com nome acessível e foco visível. A câmera aparece em hover/foco e permanece indicada em dispositivos de toque; a ativação abre o seletor de arquivos nativo. A ação separada de remover foto mantém feedback no contexto.
 
 ### Formulários, modais e confirmações
 
@@ -56,7 +58,7 @@ Cadastros de empresa, criação de fatura, abertura de chamado e edição de con
 - O OTP usa um campo de seis dígitos, aceita colagem e `autocomplete="one-time-code"`. O destino e o código têm rótulos, dicas e erros associados.
 - A interface dirige o foco para o código após a solicitação e para o campo correspondente quando a API rejeita a entrada. A contagem para reenvio continua visível, sem anunciar cada segundo.
 - Vencimentos usam `<input type="date">` e seleções usam `<select>` nativo. O navegador oferece o calendário, as opções e a navegação por teclado conforme o sistema operacional. `Field` mantém rótulo, indicação de obrigatório e erros associados; o servidor valida a data civil ISO sem conversão de fuso.
-- O dock permanece no canto superior direito para todos os perfis, com links de ícones em uma linha. Cada link tem nome acessível, tooltip ao foco/hover e estado ativo em texto assistivo/indicador visual. Tab percorre as áreas; em telas estreitas o grupo de rotas rola, mantendo Ajustes visível. O diálogo devolve foco a Ajustes ao fechar. Minha conta e as configurações usam um Dialog com links laterais, título e descrição; permissões são verificadas novamente no servidor.
+- O dock permanece centralizado no topo para todos os perfis, com links de ícones em uma linha. Cada link tem nome acessível, tooltip ao foco/hover e estado ativo em texto assistivo/indicador visual. Tab percorre as áreas; em telas estreitas o grupo de rotas rola, mantendo Ajustes visível. O diálogo devolve foco a Ajustes ao fechar. Minha conta e as configurações usam um Dialog com links laterais, título e descrição; permissões são verificadas novamente no servidor.
 
 ### Tabelas, tamanho de texto, foco e contraste
 
@@ -165,3 +167,21 @@ QA em Chromium, com banco descartável e provedores simulados:
 - Endpoint de foto rejeita sessão ausente, origem externa e SVG; upload, leitura privada, remoção e resposta 404 posterior verificados. Storage real testado separadamente com imagem sintética: acesso autenticado com bytes iguais, acesso anônimo negado e objeto removido.
 
 Os testes de mensagens usam transportes simulados e não comprovam entrega de OTP a destinatários reais. Não foi realizada sessão completa com VoiceOver/NVDA nem uma nova matriz de navegadores ou zoom; permanecem os limites das rodadas anteriores.
+
+## Edição direta da conta e gestão de membros por cliente — 20/09/2026
+
+Esta rodada substitui a edição de nome por modal descrita acima: Nome, E-mail e Telefone agora são editados no próprio campo. A confirmação dos dois códigos do e-mail continua em diálogo; o código de telefone aparece no formulário. O avatar abre o seletor de arquivos ao ser ativado por ponteiro ou teclado, com câmera visível no hover/foco e indicador persistente em dispositivos de toque. O intervalo de reenvio de telefone é explicado também quando a pessoa cancela e começa outra edição.
+
+Membros aparece nos Ajustes do cliente com permissão Administrador do cliente. Tanto a consulta quanto as ações ficam restritas às empresas que ele administra, sem dados da equipe Anuntech. Atendimento e Financeiro não recebem essa opção. A interface explica a proteção do próprio acesso; o servidor bloqueia autorrevogação, autorrebaixamento e remoção ou rebaixamento do último administrador. Aliases pertencem à mesma identidade. Combinações legadas de Atendimento e Financeiro exigem escolha explícita ao editar, sem promoção automática a administrador.
+
+QA confirmado no Chromium, com banco descartável e provedores simulados:
+
+- Nome salvo diretamente no campo.
+- Telefone substituído somente após confirmação do código.
+- E-mail principal alterado após os dois códigos; consulta ao banco isolado confirmou encerramento de todas as sessões e preservação do alias anterior.
+- Campos inválidos de Nome, código do telefone e código de origem do e-mail receberam foco.
+- Cliente administrador viu somente a empresa da fixture Aurora, sem equipe Anuntech ou dados da empresa B.
+- Tela em 320 CSS px sem overflow horizontal.
+- Foco no avatar revelou a câmera; sua ativação abriu o seletor de arquivos.
+
+O CI final desta rodada ainda não está registrado. Os resultados acima não ampliam a evidência para entrega real de mensagens, leitores de tela ou navegadores não exercitados.

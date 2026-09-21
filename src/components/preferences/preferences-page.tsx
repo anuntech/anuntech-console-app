@@ -1,5 +1,6 @@
 import "server-only";
 import { getActor, requireAdmin } from "@/lib/access";
+import { canManageMembers, requireMemberManager } from "@/lib/member-access";
 import { AccountContent } from "./account-content";
 import { IntegrationsContent } from "./integrations-content";
 import { NotificationsContent } from "./notifications-content";
@@ -36,13 +37,23 @@ export async function PreferencesPage({
   section: PreferenceSection;
   intercepted?: boolean;
 }) {
-  const actor = await (section === "account" ? getActor() : requireAdmin());
+  const actor = await (section === "account"
+    ? getActor()
+    : section === "members"
+      ? requireMemberManager()
+      : requireAdmin());
   return (
     <PreferencesDialog
       key={section}
       section={section}
       {...copy[section]}
+      description={
+        section === "members" && !actor.admin
+          ? "Pessoas e permissões das empresas que você administra."
+          : copy[section].description
+      }
       admin={actor.admin}
+      canManageMembers={canManageMembers(actor)}
       userName={actor.user.name}
       userImage={actor.user.image ?? null}
       intercepted={intercepted}

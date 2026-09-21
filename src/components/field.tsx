@@ -56,6 +56,17 @@ function validationMessage(
   return field.validationMessage || "Confira o valor informado neste campo.";
 }
 
+/** Field renders inline validation instead of the browser bubble. Restore focus after errors render. */
+export function focusFirstInvalid(form: HTMLFormElement) {
+  requestAnimationFrame(() => {
+    form
+      .querySelector<HTMLElement>(
+        "input:invalid, select:invalid, textarea:invalid",
+      )
+      ?.focus();
+  });
+}
+
 export function Field({
   label,
   children,

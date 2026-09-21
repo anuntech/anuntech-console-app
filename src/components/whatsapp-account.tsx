@@ -1,10 +1,9 @@
 "use client";
-import { Notification } from "./notifications";
+
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { Field, Badge } from "./ui";
-import { MessageCircle, ShieldCheck } from "lucide-react";
+import { Field, focusFirstInvalid } from "./field";
 import { normalizePhone, useCooldown } from "./otp-login";
 import {
   AlertDialog,
@@ -13,32 +12,28 @@ import {
   AlertDialogDescription,
   AlertDialogCancel,
 } from "./ui/alert-dialog";
-import modalStyles from "./ui/modal.module.css";
+import modal from "./ui/modal.module.css";
+import styles from "./preferences/account-fields.module.css";
 
 export function WhatsappAccount({
   phone,
-  className = "",
-  headingLevel = 2,
   securityEnabled = false,
 }: {
   phone: string | null;
-  className?: string;
-  headingLevel?: 2 | 3;
   securityEnabled?: boolean;
 }) {
-  const Title = headingLevel === 3 ? "h3" : "h2";
   const router = useRouter();
   const id = useId();
   const numberInput = useRef<HTMLInputElement>(null);
   const codeInput = useRef<HTMLInputElement>(null);
-  const removeTrigger = useRef<HTMLButtonElement>(null);
-  const cancelButton = useRef<HTMLButtonElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
-  const unlinked = useRef(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [number, setNumber] = useState("");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const lock = useRef(false);
+  const [saved, setSaved] = useState(phone || "");
+  const [number, setNumber] = useState(phone || "");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -46,205 +41,216 @@ export function WhatsappAccount({
     null,
   );
   const [seconds, startCooldown] = useCooldown();
-  const errorId = `${id}-error`;
+  const normalized = number.trim() ? normalizePhone(number) : "";
+  const changed = normalized !== saved;
+
   function clearFeedback() {
     setError("");
     setInvalidField(null);
     setMessage("");
   }
+  function cancel() {
+    setNumber(saved);
+    setCode("");
+    setSent(false);
+    clearFeedback();
+    numberInput.current?.focus();
+  }
+  function fail(message: string, field?: "number" | "code") {
+    setError(message);
+    setInvalidField(field || null);
+    requestAnimationFrame(() => {
+      if (field) (field === "code" ? codeInput : numberInput).current?.focus();
+      else errorRef.current?.focus();
+    });
+  }
   async function act(action: "send" | "verify" | "remove") {
-    if (securityEnabled || busy || (action === "send" && seconds > 0))
+    if (securityEnabled || lock.current) return false;
+    if (action === "send" && seconds > 0) {
+      fail("Aguarde um minuto entre os envios de código.");
       return false;
+    }
+    if (action !== "remove" && (!changed || !normalized)) return false;
+    if (action !== "remove" && !/^\+[1-9]\d{9,14}$/.test(normalized)) {
+      fail(
+        "Informe um telefone válido com DDD. Para outro país, use + e o DDI.",
+        "number",
+      );
+      return false;
+    }
+    lock.current = true;
     setBusy(true);
     clearFeedback();
     try {
       const result =
         action === "send"
           ? await authClient.phoneNumber.sendOtp(
-              { phoneNumber: normalizePhone(number) },
+              { phoneNumber: normalized },
               { headers: { "x-console-purpose": "bind" } },
             )
           : action === "verify"
             ? await authClient.phoneNumber.verify({
-                phoneNumber: normalizePhone(number),
+                phoneNumber: normalized,
                 code,
                 updatePhoneNumber: true,
                 disableSession: true,
               })
             : await authClient.updateUser({ phoneNumber: null });
       if (result.error) {
-        setError(
-          result.error.status === 401
-            ? "Para alterar seu WhatsApp, saia e entre novamente por e-mail ou Google. Faça a vinculação nos primeiros 10 minutos após entrar."
-            : result.error.status === 429
-              ? "Aguarde antes de pedir outro código."
-              : "Não foi possível concluir. Confira o número e o código. O número não pode estar vinculado a outra conta.",
-        );
-        if (
-          result.error.status !== 401 &&
-          result.error.status !== 429 &&
-          action !== "remove"
-        ) {
-          setInvalidField(action === "verify" ? "code" : "number");
-          (action === "verify" ? codeInput : numberInput).current?.focus();
-        }
+        const errorCode = result.error.code;
+        if (result.error.status === 401)
+          fail(
+            "Entre novamente para alterar seu telefone. Confirme a alteração nos primeiros 10 minutos após entrar.",
+          );
+        else if (result.error.status === 429)
+          fail("Aguarde antes de pedir outro código.");
+        else if (errorCode === "PHONE_NUMBER_EXIST") {
+          setSent(false);
+          setCode("");
+          fail(
+            "Este telefone já está vinculado a uma conta. Informe outro número e solicite um novo código.",
+            "number",
+          );
+        } else if (result.error.status >= 500)
+          fail(
+            "O envio ou a confirmação está indisponível. Aguarde e tente novamente.",
+          );
+        else if (action === "verify")
+          fail(
+            "Código inválido ou expirado. Confira o código ou solicite outro.",
+            "code",
+          );
+        else
+          fail(
+            "Não foi possível alterar o telefone. Confira o número e tente novamente.",
+            "number",
+          );
         return false;
       }
       if (action === "send") {
         setSent(true);
         setCode("");
         startCooldown();
-        setMessage("Código enviado. Ele vale por 5 minutos.");
+        setMessage("Código enviado pelo WhatsApp. Ele vale por 5 minutos.");
         requestAnimationFrame(() => codeInput.current?.focus());
       } else {
+        const next = action === "remove" ? "" : normalized;
+        setSaved(next);
+        setNumber(next);
         setSent(false);
         setCode("");
-        setNumber("");
         setMessage(
           action === "remove"
-            ? "WhatsApp desvinculado."
-            : "WhatsApp confirmado. Você já pode usá-lo para entrar.",
+            ? "Telefone removido."
+            : "Telefone confirmado e atualizado.",
         );
-        if (action === "remove") unlinked.current = true;
-        else heading.current?.focus();
+        numberInput.current?.focus();
         router.refresh();
       }
       return true;
     } catch {
-      setError("Não foi possível conectar. Tente novamente.");
+      fail("Não foi possível conectar. Tente novamente.");
       return false;
     } finally {
+      lock.current = false;
       setBusy(false);
     }
   }
+
   return (
-    <section
-      className={`panel form-panel whatsapp-settings ${className}`}
-      aria-labelledby={`${id}-title`}
-    >
-      <div className="card-top">
-        <Title
-          ref={heading}
-          id={`${id}-title`}
-          className="detail-section-title"
-          tabIndex={-1}
+    <>
+      <form
+        onInvalidCapture={(event) => focusFirstInvalid(event.currentTarget)}
+        className={`${styles.fieldRow} ${styles.divider}`}
+        aria-label="Telefone"
+        aria-busy={busy}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!changed || securityEnabled || busy) return;
+          if (!normalized && saved) {
+            clearFeedback();
+            setConfirmOpen(true);
+          } else void act(sent ? "verify" : "send");
+        }}
+      >
+        <Field
+          label="Telefone"
+          hint={
+            securityEnabled
+              ? "Desative a verificação em duas etapas antes de alterar seu telefone."
+              : changed
+                ? "Confirme o novo número com um código enviado pelo WhatsApp."
+                : undefined
+          }
         >
-          <MessageCircle size={20} aria-hidden="true" /> Acesso pelo WhatsApp
-        </Title>
-        <Badge status={phone ? "active" : ""}>
-          {phone ? "Vinculado" : "Não vinculado"}
-        </Badge>
-      </div>
-      <p className="muted">
-        Confirme seu número para entrar usando um código recebido pelo WhatsApp.
-        Seu e-mail continuará disponível para acesso.
-      </p>
-      {securityEnabled && (
-        <p className="muted">
-          Desative a verificação em duas etapas antes de alterar seu número.
-        </p>
-      )}
-      {phone ? (
-        <div className="form">
-          <p className="verified-number">
-            <ShieldCheck size={18} aria-hidden="true" />
-            <span>
-              <small>Número verificado</small>
-              <strong>{phone}</strong>
-            </span>
-          </p>
-          <button
-            ref={removeTrigger}
-            type="button"
-            className="button danger"
-            aria-haspopup="dialog"
+          <input
+            ref={numberInput}
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            maxLength={25}
+            value={number}
+            placeholder="(11) 99999-9999"
+            readOnly={sent || busy}
             disabled={securityEnabled}
-            aria-disabled={busy || securityEnabled}
-            onClick={() => {
-              if (busy || securityEnabled) return;
-              unlinked.current = false;
+            aria-invalid={invalidField === "number" || undefined}
+            aria-describedby={error ? `${id}-error` : undefined}
+            onChange={(event) => {
+              setNumber(event.target.value);
               clearFeedback();
-              setConfirmOpen(true);
             }}
-          >
-            Desvincular WhatsApp
-          </button>
-        </div>
-      ) : (
-        <form
-          className="form"
-          aria-label="Vincular WhatsApp"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void act(sent ? "verify" : "send");
-          }}
-        >
+          />
+        </Field>
+        {sent && (
           <Field
-            label="Seu número com DDD"
-            hint="Para outro país, comece com + e o DDI."
+            label="Código de confirmação"
+            hint="Digite os 6 números recebidos. Válido por 5 minutos."
           >
             <input
-              ref={numberInput}
-              id={`${id}-number`}
-              name="phone"
-              type="tel"
-              autoComplete="tel"
+              ref={codeInput}
+              name="otp"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               required
-              maxLength={25}
-              readOnly={sent || busy}
-              placeholder="(11) 99999-9999"
-              value={number}
-              aria-invalid={invalidField === "number" || undefined}
-              aria-describedby={error ? errorId : undefined}
+              pattern="[0-9]{6}"
+              maxLength={6}
+              value={code}
+              readOnly={busy}
+              aria-invalid={invalidField === "code" || undefined}
+              aria-describedby={error ? `${id}-error` : undefined}
               onChange={(event) => {
-                setNumber(event.target.value);
-                if (invalidField === "number") clearFeedback();
+                setCode(event.target.value.replace(/\D/g, ""));
+                clearFeedback();
               }}
             />
           </Field>
-          {sent && (
-            <Field
-              label="Código recebido"
-              hint="Digite os 6 números enviados pelo WhatsApp. O código vale por 5 minutos."
-            >
-              <input
-                ref={codeInput}
-                id={`${id}-code`}
-                name="otp"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                required
-                readOnly={busy}
-                pattern="[0-9]{6}"
-                minLength={6}
-                maxLength={6}
-                value={code}
-                aria-invalid={invalidField === "code" || undefined}
-                aria-describedby={error ? errorId : undefined}
-                onChange={(event) => {
-                  setCode(event.target.value.replace(/\D/g, ""));
-                  if (invalidField === "code") clearFeedback();
-                }}
-              />
-            </Field>
-          )}
-          <button
-            className="button primary"
-            aria-disabled={busy || (!sent && seconds > 0)}
+        )}
+        {error && !confirmOpen && (
+          <p
+            ref={errorRef}
+            id={`${id}-error`}
+            className="form-error"
+            role="alert"
+            tabIndex={-1}
           >
-            {busy
-              ? "Aguarde…"
-              : sent
-                ? "Confirmar WhatsApp"
-                : seconds
-                  ? "Aguarde para reenviar"
-                  : "Receber código no WhatsApp"}
-          </button>
-          {sent && (
-            <div className="otp-actions">
+            {error}
+          </p>
+        )}
+        {changed && !securityEnabled && (
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className="button"
+              disabled={busy}
+              onClick={cancel}
+            >
+              Cancelar
+            </button>
+            {sent && (
               <button
                 type="button"
-                aria-disabled={busy || seconds > 0}
+                className="button"
+                disabled={busy || seconds > 0}
                 aria-label={
                   seconds
                     ? "Reenviar código. Aguarde um minuto entre envios."
@@ -256,39 +262,31 @@ export function WhatsappAccount({
                   {seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
                 </span>
               </button>
-              <button
-                type="button"
-                aria-disabled={busy}
-                onClick={() => {
-                  if (busy) return;
-                  setSent(false);
-                  setCode("");
-                  clearFeedback();
-                  requestAnimationFrame(() => numberInput.current?.focus());
-                }}
-              >
-                Alterar número
-              </button>
-            </div>
-          )}
-        </form>
-      )}
-      {error && !confirmOpen && (
-        <Notification id={errorId} kind="error" message={error} />
-      )}
-      {message && (
-        <Notification kind={sent ? "info" : "success"} message={message} />
-      )}
-      <p
-        className="sr-only"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        {busy && !confirmOpen
-          ? "Processando sua solicitação de WhatsApp. Aguarde."
-          : ""}
-      </p>
+            )}
+            <button
+              className="button primary"
+              disabled={busy || (!sent && seconds > 0 && !!normalized)}
+            >
+              {busy
+                ? "Aguarde…"
+                : sent
+                  ? "Confirmar telefone"
+                  : !normalized
+                    ? "Remover telefone"
+                    : seconds > 0
+                      ? `Aguarde ${seconds}s`
+                      : "Salvar telefone"}
+            </button>
+          </div>
+        )}
+        <p role="status" aria-atomic="true" className={styles.feedback}>
+          {busy && !confirmOpen
+            ? "Processando a alteração do telefone…"
+            : !sent && changed && normalized && seconds > 0
+              ? "Aguarde um minuto entre os envios de código antes de salvar outro telefone."
+              : message}
+        </p>
+      </form>
       <AlertDialog
         open={confirmOpen}
         onOpenChange={(open, details) => {
@@ -296,28 +294,27 @@ export function WhatsappAccount({
           else setConfirmOpen(open);
         }}
       >
-        <AlertDialogContent
-          initialFocus={cancelButton}
-          finalFocus={() =>
-            unlinked.current ? heading.current : removeTrigger.current
-          }
-        >
-          <div className={modalStyles.header}>
-            <AlertDialogTitle className={modalStyles.title}>
-              Desvincular WhatsApp?
+        <AlertDialogContent initialFocus={cancelRef} finalFocus={numberInput}>
+          <div className={modal.header}>
+            <AlertDialogTitle className={modal.title}>
+              Remover telefone?
             </AlertDialogTitle>
-            <AlertDialogDescription className={modalStyles.description}>
-              O número {phone} deixará de ser usado para entrar. Você poderá
+            <AlertDialogDescription className={modal.description}>
+              O número {saved} deixará de ser usado para entrar. Você poderá
               continuar acessando por e-mail ou Google.
             </AlertDialogDescription>
           </div>
-          {error && <Notification id={errorId} kind="error" message={error} />}
-          <p className={modalStyles.pending} role="status">
-            {busy ? "Desvinculando WhatsApp…" : ""}
+          {error && (
+            <p ref={errorRef} className="form-error" role="alert" tabIndex={-1}>
+              {error}
+            </p>
+          )}
+          <p className={modal.pending} role="status">
+            {busy ? "Removendo telefone…" : ""}
           </p>
-          <div className={modalStyles.footer}>
+          <div className={modal.footer}>
             <AlertDialogCancel
-              ref={cancelButton}
+              ref={cancelRef}
               className="button"
               disabled={busy}
             >
@@ -331,11 +328,11 @@ export function WhatsappAccount({
                 if (await act("remove")) setConfirmOpen(false);
               }}
             >
-              Desvincular WhatsApp
+              Remover telefone
             </button>
           </div>
         </AlertDialogContent>
       </AlertDialog>
-    </section>
+    </>
   );
 }

@@ -1,5 +1,5 @@
 "use server";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -10,12 +10,13 @@ import {
   memberships,
   user,
 } from "@/db/schema";
-import { getActor } from "./access";
-import { resolveAccountIdentity } from "./account-identity";
+import { getActor, type Actor } from "./access";
+import { getAccountEmails, resolveAccountIdentity } from "./account-identity";
 import type { ActionState } from "./action-state";
 import { getConsoleStaffAccess } from "./console-members";
 import { db } from "./db";
 import { normalizeEmail } from "./permissions";
+import { canManageMembers, managedCompanyIds } from "./member-access";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const emailInput = z
@@ -90,6 +91,86 @@ function refreshMembers(companyId?: string) {
   if (companyId) revalidatePath(`/empresas/${companyId}`);
 }
 
+/** A company lock serializes grants, demotions and revocations before authorization. */
+async function lockManagedCompany(
+  tx: Transaction,
+  actor: Actor,
+  companyId: string,
+) {
+  const [company] = await tx
+    .select({ id: companies.id })
+    .from(companies)
+    .where(
+      and(
+        eq(companies.id, companyId),
+        actor.admin
+          ? undefined
+          : inArray(companies.id, managedCompanyIds(actor)),
+      ),
+    )
+    .for("update");
+  if (!company) throw new AccessChangeError(blocked.error);
+  if (actor.admin) return;
+  // A form opened before a revocation cannot keep using the old manager grant.
+  const emails = await getAccountEmails(actor.user.id, actor.user.email, tx);
+  const [manager] = await tx
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.companyId, companyId),
+        inArray(memberships.email, emails),
+        eq(memberships.role, "manager"),
+        eq(memberships.active, true),
+      ),
+    )
+    .limit(1);
+  if (!manager) throw new AccessChangeError(blocked.error);
+}
+
+async function protectCompanyAdministration(
+  tx: Transaction,
+  actor: Actor,
+  companyId: string,
+  identity: Awaited<ReturnType<typeof lockedIdentity>>,
+  nextRole: "manager" | "support" | "finance" | null,
+) {
+  if (nextRole === "manager") return;
+  if (!actor.admin && identity.userId === actor.user.id)
+    throw new AccessChangeError(
+      "Você não pode revogar ou reduzir seu próprio acesso de administrador.",
+    );
+  const [currentManager] = await tx
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.companyId, companyId),
+        inArray(memberships.email, identity.emails),
+        eq(memberships.role, "manager"),
+        eq(memberships.active, true),
+      ),
+    )
+    .limit(1);
+  if (!currentManager) return;
+  const [otherManager] = await tx
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.companyId, companyId),
+        notInArray(memberships.email, identity.emails),
+        eq(memberships.role, "manager"),
+        eq(memberships.active, true),
+      ),
+    )
+    .limit(1);
+  if (!otherManager)
+    throw new AccessChangeError(
+      "Mantenha pelo menos um administrador nesta empresa. Adicione outro antes de alterar este acesso.",
+    );
+}
+
 export async function saveConsoleStaffMember(
   _: ActionState,
   form: FormData,
@@ -132,14 +213,12 @@ export async function saveConsoleStaffMember(
           },
         })
         .returning();
-      await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          action: "staff.granted",
-          entityId: member.id,
-          details: { email: identity.primaryEmail },
-        });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        action: "staff.granted",
+        entityId: member.id,
+        details: { email: identity.primaryEmail },
+      });
       return true;
     });
     refreshMembers();
@@ -188,14 +267,12 @@ export async function revokeConsoleStaffMember(
           email: consoleStaffMembers.email,
         });
       for (const member of changed)
-        await tx
-          .insert(auditEvents)
-          .values({
-            actorId: actor.user.id,
-            action: "staff.revoked",
-            entityId: member.id,
-            details: { email: member.email },
-          });
+        await tx.insert(auditEvents).values({
+          actorId: actor.user.id,
+          action: "staff.revoked",
+          entityId: member.id,
+          details: { email: member.email },
+        });
     });
     refreshMembers();
     return {
@@ -212,7 +289,7 @@ export async function saveCompanyMember(
   form: FormData,
 ): Promise<ActionState> {
   const actor = await getActor();
-  if (!actor.admin) return blocked;
+  if (!canManageMembers(actor)) return blocked;
   try {
     const input = z
       .object({
@@ -222,13 +299,15 @@ export async function saveCompanyMember(
       })
       .parse(Object.fromEntries(form));
     await db.transaction(async (tx) => {
-      const [company] = await tx
-        .select({ id: companies.id })
-        .from(companies)
-        .where(eq(companies.id, input.companyId));
-      if (!company)
-        throw new AccessChangeError("A empresa não foi encontrada.");
+      await lockManagedCompany(tx, actor, input.companyId);
       const identity = await lockedIdentity(tx, input.email);
+      await protectCompanyAdministration(
+        tx,
+        actor,
+        input.companyId,
+        identity,
+        input.role,
+      );
       const previous = await tx
         .select({
           id: memberships.id,
@@ -262,15 +341,13 @@ export async function saveCompanyMember(
           set: { role: input.role, active: true },
         })
         .returning();
-      await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          companyId: input.companyId,
-          action: "membership.granted",
-          entityId: member.id,
-          details: { email: identity.primaryEmail, role: input.role, previous },
-        });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: input.companyId,
+        action: "membership.granted",
+        entityId: member.id,
+        details: { email: identity.primaryEmail, role: input.role, previous },
+      });
     });
     refreshMembers(input.companyId);
     return {
@@ -287,17 +364,31 @@ export async function revokeCompanyMember(
   form: FormData,
 ): Promise<ActionState> {
   const actor = await getActor();
-  if (!actor.admin) return blocked;
+  if (!canManageMembers(actor)) return blocked;
   try {
     const id = idInput.parse(form.get("id"));
     const companyId = await db.transaction(async (tx) => {
       const [entry] = await tx
         .select({ email: memberships.email, companyId: memberships.companyId })
         .from(memberships)
-        .where(eq(memberships.id, id));
-      if (!entry)
-        throw new AccessChangeError("Este acesso não foi encontrado.");
+        .where(
+          and(
+            eq(memberships.id, id),
+            actor.admin
+              ? undefined
+              : inArray(memberships.companyId, managedCompanyIds(actor)),
+          ),
+        );
+      if (!entry) throw new AccessChangeError(blocked.error);
+      await lockManagedCompany(tx, actor, entry.companyId);
       const identity = await lockedIdentity(tx, entry.email);
+      await protectCompanyAdministration(
+        tx,
+        actor,
+        entry.companyId,
+        identity,
+        null,
+      );
       const changed = await tx
         .update(memberships)
         .set({ active: false })
@@ -310,15 +401,13 @@ export async function revokeCompanyMember(
         )
         .returning({ id: memberships.id, email: memberships.email });
       for (const member of changed)
-        await tx
-          .insert(auditEvents)
-          .values({
-            actorId: actor.user.id,
-            companyId: entry.companyId,
-            action: "membership.revoked",
-            entityId: member.id,
-            details: { email: member.email },
-          });
+        await tx.insert(auditEvents).values({
+          actorId: actor.user.id,
+          companyId: entry.companyId,
+          action: "membership.revoked",
+          entityId: member.id,
+          details: { email: member.email },
+        });
       return entry.companyId;
     });
     refreshMembers(companyId);

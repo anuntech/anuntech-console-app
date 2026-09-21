@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { focusFirstInvalid } from "./field";
 import { toast } from "./notifications";
 import { useRouter } from "next/navigation";
 import type { ActionState, FormAction } from "@/lib/action-state";
@@ -149,7 +150,10 @@ export function ActionForm({
         ref={ref}
         onSubmit={handleSubmit}
         onInvalidCapture={(event) => {
-          if (!confirmationOpen) return;
+          if (!confirmationOpen) {
+            focusFirstInvalid(event.currentTarget);
+            return;
+          }
           // Revalidation may fail if data changed while the confirmation was open.
           // Close first so the user can reach and repair the underlying field.
           event.preventDefault();

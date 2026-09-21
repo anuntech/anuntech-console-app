@@ -157,6 +157,7 @@ export function PreferencesDialog({
   title,
   description,
   admin,
+  canManageMembers,
   userName,
   userImage,
   intercepted = false,
@@ -166,6 +167,7 @@ export function PreferencesDialog({
   title: string;
   description: string;
   admin: boolean;
+  canManageMembers: boolean;
   userName: string;
   userImage: string | null;
   intercepted?: boolean;
@@ -241,30 +243,33 @@ export function PreferencesDialog({
             <span>Minha conta</span>
           </span>
         </Link>
-        {admin && (
+        {(admin || canManageMembers) && (
           <div className={styles.category}>
-            <p className={styles.categoryTitle}>Console</p>
+            <p className={styles.categoryTitle}>
+              {admin ? "Console" : "Empresa"}
+            </p>
             <div className={styles.categoryLinks}>
-              {(["members", "integrations", "notifications"] as const).map(
-                (item) => {
-                  const { href, label, icon: Icon } = sections[item];
-                  return (
-                    <Link
-                      key={item}
-                      href={href}
-                      replace
-                      scroll={false}
-                      className={styles.navLink}
-                      aria-current={section === item ? "page" : undefined}
-                    >
-                      <span className={styles.categoryIcon}>
-                        <Icon size={17} aria-hidden="true" />
-                      </span>
-                      <span>{label}</span>
-                    </Link>
-                  );
-                },
-              )}
+              {(admin
+                ? (["members", "integrations", "notifications"] as const)
+                : (["members"] as const)
+              ).map((item) => {
+                const { href, label, icon: Icon } = sections[item];
+                return (
+                  <Link
+                    key={item}
+                    href={href}
+                    replace
+                    scroll={false}
+                    className={styles.navLink}
+                    aria-current={section === item ? "page" : undefined}
+                  >
+                    <span className={styles.categoryIcon}>
+                      <Icon size={17} aria-hidden="true" />
+                    </span>
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         )}

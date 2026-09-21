@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, isNotNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { Building2, ShieldCheck, UserRound } from "lucide-react";
 import {
   accountEmails,
@@ -8,9 +8,8 @@ import {
   memberships,
   user,
 } from "@/db/schema";
-import { requireAdmin } from "@/lib/access";
 import { resolveAccountIdentity } from "@/lib/account-identity";
-import { getConsoleStaffAccess } from "@/lib/console-members";
+import { managedCompanyIds, requireMemberManager } from "@/lib/member-access";
 import { db } from "@/lib/db";
 import { roleLabels } from "@/lib/format";
 import {
@@ -30,9 +29,12 @@ function RoleField({ defaultValue = "support" }: { defaultValue?: string }) {
   return (
     <Field
       label="Permissão"
-      hint="Atendimento acessa chamados. Financeiro acessa faturas e contratos. Administrador do cliente acessa ambas as áreas."
+      hint="Atendimento acessa chamados. Financeiro acessa faturas e contratos. Administrador do cliente acessa ambas as áreas e gerencia os membros da empresa."
     >
       <select name="role" defaultValue={defaultValue} required>
+        <option value="" disabled>
+          Selecione uma permissão
+        </option>
         <option value="support">Atendimento</option>
         <option value="finance">Financeiro</option>
         <option value="manager">Administrador do cliente</option>
@@ -42,36 +44,41 @@ function RoleField({ defaultValue = "support" }: { defaultValue?: string }) {
 }
 
 export async function MembersContent() {
-  const actor = await requireAdmin();
-  const { owner } = await getConsoleStaffAccess(actor.user.email);
-  const configuredOwner = process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase();
+  const actor = await requireMemberManager();
+  const owner = actor.owner;
+  const companyIds = managedCompanyIds(actor);
+  const configuredOwner = actor.admin
+    ? process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase()
+    : undefined;
   const [team, grants, companyOptions, ownerIdentity] = await Promise.all([
-    db
-      .select({
-        member: consoleStaffMembers,
-        userId: user.id,
-        name: user.name,
-        currentEmail: user.email,
-      })
-      .from(consoleStaffMembers)
-      .leftJoin(
-        accountEmails,
-        and(
-          eq(accountEmails.email, consoleStaffMembers.email),
-          isNotNull(accountEmails.verifiedAt),
-        ),
-      )
-      .leftJoin(
-        user,
-        or(
-          eq(user.email, consoleStaffMembers.email),
-          eq(user.id, accountEmails.userId),
-        ),
-      )
-      .orderBy(
-        desc(consoleStaffMembers.active),
-        asc(consoleStaffMembers.email),
-      ),
+    actor.admin
+      ? db
+          .select({
+            member: consoleStaffMembers,
+            userId: user.id,
+            name: user.name,
+            currentEmail: user.email,
+          })
+          .from(consoleStaffMembers)
+          .leftJoin(
+            accountEmails,
+            and(
+              eq(accountEmails.email, consoleStaffMembers.email),
+              isNotNull(accountEmails.verifiedAt),
+            ),
+          )
+          .leftJoin(
+            user,
+            or(
+              eq(user.email, consoleStaffMembers.email),
+              eq(user.id, accountEmails.userId),
+            ),
+          )
+          .orderBy(
+            desc(consoleStaffMembers.active),
+            asc(consoleStaffMembers.email),
+          )
+      : Promise.resolve([]),
     db
       .select({
         member: memberships,
@@ -97,6 +104,9 @@ export async function MembersContent() {
           eq(user.id, accountEmails.userId),
         ),
       )
+      .where(
+        actor.admin ? undefined : inArray(memberships.companyId, companyIds),
+      )
       .orderBy(
         desc(memberships.active),
         asc(memberships.email),
@@ -109,6 +119,7 @@ export async function MembersContent() {
         archived: companies.archived,
       })
       .from(companies)
+      .where(actor.admin ? undefined : inArray(companies.id, companyIds))
       .orderBy(asc(companies.name)),
     configuredOwner ? resolveAccountIdentity(configuredOwner) : null,
   ]);
@@ -142,127 +153,129 @@ export async function MembersContent() {
 
   return (
     <div className={preferences.content}>
-      <section className={preferences.section}>
-        <div className={preferences.sectionHeading}>
-          <h2>Equipe Anuntech</h2>
-          <span>
-            {staffRows.filter((row) => row.member.active).length +
-              (configuredOwner ? 1 : 0)}{" "}
-            com acesso
-          </span>
-        </div>
-        <ul className={`${preferences.card} ${styles.memberList}`}>
-          {configuredOwner && (
-            <li className={styles.memberRow}>
-              <div className={styles.identity}>
-                <span className={styles.icon}>
-                  <ShieldCheck size={18} aria-hidden="true" />
-                </span>
-                <div>
-                  <h3>
-                    {actor.owner
-                      ? actor.user.name
-                      : ownerIdentity?.primaryEmail || configuredOwner}
-                  </h3>
-                  {actor.owner && <p>{actor.user.email}</p>}
-                  <p>Proprietário do Console</p>
-                  <p className={styles.detail}>
-                    Acesso protegido. Somente o proprietário gerencia
-                    administradores.
-                  </p>
-                </div>
-              </div>
-              <Badge status="active">Proprietário</Badge>
-            </li>
-          )}
-          {staffRows.map(({ member, name, currentEmail }) => (
-            <li className={styles.memberRow} key={member.id}>
-              <div className={styles.identity}>
-                <span className={styles.icon}>
-                  <UserRound size={18} aria-hidden="true" />
-                </span>
-                <div>
-                  <h3>{name || currentEmail || member.email}</h3>
-                  {name && <p>{currentEmail || member.email}</p>}
-                  <p>Administrador do Console</p>
-                </div>
-              </div>
-              <div className={styles.rowActions}>
-                <Badge status={member.active ? "active" : "paused"}>
-                  {member.active ? "Ativo" : "Revogado"}
-                </Badge>
-                {owner &&
-                  (member.active ? (
-                    <ActionForm
-                      action={revokeConsoleStaffMember}
-                      label="Revogar administração"
-                      submitAriaLabel={`Revogar administração de ${currentEmail || member.email}`}
-                      danger
-                      className={styles.action}
-                      confirm={{
-                        title: "Revogar administração?",
-                        description: `${currentEmail || member.email} perderá o acesso administrativo ao Console. Vínculos específicos com empresas serão preservados.`,
-                      }}
-                    >
-                      <input type="hidden" name="id" value={member.id} />
-                    </ActionForm>
-                  ) : (
-                    <ActionForm
-                      action={saveConsoleStaffMember}
-                      label="Reativar administração"
-                      submitAriaLabel={`Reativar administração de ${currentEmail || member.email}`}
-                      className={styles.action}
-                      confirm={{
-                        title: "Reativar administração?",
-                        description: `${currentEmail || member.email} poderá gerenciar clientes, chamados, contratos, cobranças e integrações do Console.`,
-                      }}
-                    >
-                      <input
-                        type="hidden"
-                        name="email"
-                        value={currentEmail || member.email}
-                      />
-                    </ActionForm>
-                  ))}
-              </div>
-            </li>
-          ))}
-        </ul>
-        <p className={preferences.groupNote}>
-          Administradores gerenciam a operação de todas as empresas. Eles não
-          podem conceder administração do Console a outras pessoas.
-        </p>
-        {owner && (
-          <div className={styles.sectionAction}>
-            <FormModal
-              trigger="Adicionar administrador"
-              title="Adicionar administrador"
-              description="A pessoa terá acesso administrativo a todas as empresas, incluindo cobranças e integrações. Somente você poderá gerenciar esse acesso."
-              action={saveConsoleStaffMember}
-              label="Liberar administração"
-              reset
-            >
-              <Field label="E-mail de acesso">
-                <input
-                  type="email"
-                  name="email"
-                  autoComplete="off"
-                  required
-                  maxLength={254}
-                  placeholder="nome@anuntech.com"
-                />
-              </Field>
-              <p className="form-footnote">
-                O cadastro libera o acesso. Nenhum convite ou mensagem será
-                enviado.
-              </p>
-            </FormModal>
+      {actor.admin && (
+        <section className={preferences.section}>
+          <div className={preferences.sectionHeading}>
+            <h2>Equipe Anuntech</h2>
+            <span>
+              {staffRows.filter((row) => row.member.active).length +
+                (configuredOwner ? 1 : 0)}{" "}
+              com acesso
+            </span>
           </div>
-        )}
-      </section>
+          <ul className={`${preferences.card} ${styles.memberList}`}>
+            {configuredOwner && (
+              <li className={styles.memberRow}>
+                <div className={styles.identity}>
+                  <span className={styles.icon}>
+                    <ShieldCheck size={18} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h3>
+                      {actor.owner
+                        ? actor.user.name
+                        : ownerIdentity?.primaryEmail || configuredOwner}
+                    </h3>
+                    {actor.owner && <p>{actor.user.email}</p>}
+                    <p>Proprietário do Console</p>
+                    <p className={styles.detail}>
+                      Acesso protegido. Somente o proprietário gerencia
+                      administradores.
+                    </p>
+                  </div>
+                </div>
+                <Badge status="active">Proprietário</Badge>
+              </li>
+            )}
+            {staffRows.map(({ member, name, currentEmail }) => (
+              <li className={styles.memberRow} key={member.id}>
+                <div className={styles.identity}>
+                  <span className={styles.icon}>
+                    <UserRound size={18} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h3>{name || currentEmail || member.email}</h3>
+                    {name && <p>{currentEmail || member.email}</p>}
+                    <p>Administrador do Console</p>
+                  </div>
+                </div>
+                <div className={styles.rowActions}>
+                  <Badge status={member.active ? "active" : "paused"}>
+                    {member.active ? "Ativo" : "Revogado"}
+                  </Badge>
+                  {owner &&
+                    (member.active ? (
+                      <ActionForm
+                        action={revokeConsoleStaffMember}
+                        label="Revogar administração"
+                        submitAriaLabel={`Revogar administração de ${currentEmail || member.email}`}
+                        danger
+                        className={styles.action}
+                        confirm={{
+                          title: "Revogar administração?",
+                          description: `${currentEmail || member.email} perderá o acesso administrativo ao Console. Vínculos específicos com empresas serão preservados.`,
+                        }}
+                      >
+                        <input type="hidden" name="id" value={member.id} />
+                      </ActionForm>
+                    ) : (
+                      <ActionForm
+                        action={saveConsoleStaffMember}
+                        label="Reativar administração"
+                        submitAriaLabel={`Reativar administração de ${currentEmail || member.email}`}
+                        className={styles.action}
+                        confirm={{
+                          title: "Reativar administração?",
+                          description: `${currentEmail || member.email} poderá gerenciar clientes, chamados, contratos, cobranças e integrações do Console.`,
+                        }}
+                      >
+                        <input
+                          type="hidden"
+                          name="email"
+                          value={currentEmail || member.email}
+                        />
+                      </ActionForm>
+                    ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className={preferences.groupNote}>
+            Administradores gerenciam a operação de todas as empresas. Eles não
+            podem conceder administração do Console a outras pessoas.
+          </p>
+          {owner && (
+            <div className={styles.sectionAction}>
+              <FormModal
+                trigger="Adicionar administrador"
+                title="Adicionar administrador"
+                description="A pessoa terá acesso administrativo a todas as empresas, incluindo cobranças e integrações. Somente você poderá gerenciar esse acesso."
+                action={saveConsoleStaffMember}
+                label="Liberar administração"
+                reset
+              >
+                <Field label="E-mail de acesso">
+                  <input
+                    type="email"
+                    name="email"
+                    autoComplete="off"
+                    required
+                    maxLength={254}
+                    placeholder="nome@anuntech.com"
+                  />
+                </Field>
+                <p className="form-footnote">
+                  O cadastro libera o acesso. Nenhum convite ou mensagem será
+                  enviado.
+                </p>
+              </FormModal>
+            </div>
+          )}
+        </section>
+      )}
       <section className={preferences.section}>
         <div className={preferences.sectionHeading}>
-          <h2>Acessos de clientes</h2>
+          <h2>{actor.admin ? "Acessos de clientes" : "Membros da empresa"}</h2>
           <span>
             {clientRows.filter((row) => row.member.active).length} vínculos
             ativos
@@ -271,7 +284,15 @@ export async function MembersContent() {
         {clientRows.length ? (
           <ul className={`${preferences.card} ${styles.memberList}`}>
             {clientRows.map(
-              ({ member, company, archived, name, currentEmail, roles }) => (
+              ({
+                member,
+                company,
+                archived,
+                name,
+                currentEmail,
+                roles,
+                userId,
+              }) => (
                 <li className={styles.memberRow} key={member.id}>
                   <div className={styles.identity}>
                     <span className={styles.icon}>
@@ -294,50 +315,66 @@ export async function MembersContent() {
                     <Badge status={member.active ? "active" : "paused"}>
                       {member.active ? "Ativo" : "Revogado"}
                     </Badge>
-                    <FormModal
-                      trigger={
-                        member.active ? "Editar permissão" : "Reativar acesso"
-                      }
-                      triggerAriaLabel={`${member.active ? "Editar permissão" : "Reativar acesso"} de ${currentEmail || member.email} em ${company}`}
-                      title={
-                        member.active ? "Editar permissão" : "Reativar acesso"
-                      }
-                      description={`${currentEmail || member.email} — ${company}. A alteração vale somente para esta empresa.`}
-                      action={saveCompanyMember}
-                      label="Salvar permissão"
-                      submitAriaLabel={`Salvar permissão de ${currentEmail || member.email} em ${company}`}
-                      triggerClassName={`button ${styles.editButton}`}
-                    >
-                      <input
-                        type="hidden"
-                        name="companyId"
-                        value={member.companyId}
-                      />
-                      <input
-                        type="hidden"
-                        name="email"
-                        value={currentEmail || member.email}
-                      />
-                      <RoleField
-                        defaultValue={
-                          roles.length > 1 ? "manager" : member.role
-                        }
-                      />
-                    </FormModal>
-                    {member.active && (
-                      <ActionForm
-                        action={revokeCompanyMember}
-                        label="Revogar acesso"
-                        submitAriaLabel={`Revogar acesso de ${currentEmail || member.email} a ${company}`}
-                        danger
-                        className={styles.action}
-                        confirm={{
-                          title: "Revogar acesso à empresa?",
-                          description: `${currentEmail || member.email} perderá as permissões de ${company}. Outros vínculos e registros serão preservados.`,
-                        }}
-                      >
-                        <input type="hidden" name="id" value={member.id} />
-                      </ActionForm>
+                    {!actor.admin && userId === actor.user.id ? (
+                      <p className={styles.protectedAccess}>
+                        Seu acesso de administrador
+                      </p>
+                    ) : (
+                      <>
+                        <FormModal
+                          trigger={
+                            member.active
+                              ? "Editar permissão"
+                              : "Reativar acesso"
+                          }
+                          triggerAriaLabel={`${member.active ? "Editar permissão" : "Reativar acesso"} de ${currentEmail || member.email} em ${company}`}
+                          title={
+                            member.active
+                              ? "Editar permissão"
+                              : "Reativar acesso"
+                          }
+                          description={`${currentEmail || member.email} — ${company}. A alteração vale somente para esta empresa.`}
+                          action={saveCompanyMember}
+                          label="Salvar permissão"
+                          submitAriaLabel={`Salvar permissão de ${currentEmail || member.email} em ${company}`}
+                          triggerClassName={`button ${styles.editButton}`}
+                        >
+                          <input
+                            type="hidden"
+                            name="companyId"
+                            value={member.companyId}
+                          />
+                          <input
+                            type="hidden"
+                            name="email"
+                            value={currentEmail || member.email}
+                          />
+                          <RoleField
+                            defaultValue={
+                              roles.includes("manager")
+                                ? "manager"
+                                : roles.length > 1
+                                  ? ""
+                                  : member.role
+                            }
+                          />
+                        </FormModal>
+                        {member.active && (
+                          <ActionForm
+                            action={revokeCompanyMember}
+                            label="Revogar acesso"
+                            submitAriaLabel={`Revogar acesso de ${currentEmail || member.email} a ${company}`}
+                            danger
+                            className={styles.action}
+                            confirm={{
+                              title: "Revogar acesso à empresa?",
+                              description: `${currentEmail || member.email} perderá as permissões de ${company}. Outros vínculos e registros serão preservados.`,
+                            }}
+                          >
+                            <input type="hidden" name="id" value={member.id} />
+                          </ActionForm>
+                        )}
+                      </>
                     )}
                   </div>
                 </li>
@@ -348,20 +385,27 @@ export async function MembersContent() {
           <div className={preferences.card}>
             <Empty
               headingLevel={3}
-              title="Nenhum acesso de cliente"
+              title={actor.admin ? "Nenhum acesso de cliente" : "Nenhum membro"}
               description="Escolha uma empresa e a permissão para liberar o acesso de uma pessoa."
             />
           </div>
         )}
         <p className={preferences.groupNote}>
           Cada permissão vale apenas para a empresa escolhida. Uma pessoa pode
-          ter acessos diferentes em várias empresas.
+          ter acessos diferentes em várias empresas. Mantenha pelo menos um
+          administrador em cada empresa.
+          {!actor.admin &&
+            " Você não pode revogar ou reduzir seu próprio acesso."}
         </p>
         {companyOptions.length ? (
           <div className={styles.sectionAction}>
             <FormModal
-              trigger="Adicionar acesso de cliente"
-              title="Adicionar acesso de cliente"
+              trigger={
+                actor.admin ? "Adicionar acesso de cliente" : "Adicionar membro"
+              }
+              title={
+                actor.admin ? "Adicionar acesso de cliente" : "Adicionar membro"
+              }
               description="Escolha o e-mail, a empresa e a permissão. Um vínculo existente para essa pessoa e empresa será atualizado."
               action={saveCompanyMember}
               label="Liberar acesso"

@@ -3,7 +3,8 @@ import { PreferencesPage } from "@/components/preferences/preferences-page";
 
 export const metadata: Metadata = {
   title: "Membros",
-  description: "Gerencie a equipe e as permissões de acesso às empresas no Console.",
+  description:
+    "Gerencie os membros e as permissões das empresas que você administra.",
 };
 
 export default function MembersPage() {

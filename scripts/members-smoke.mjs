@@ -57,6 +57,7 @@ const decode = (value) =>
 async function request(path, who, options = {}) {
   const response = await fetch(base + path, {
     redirect: "manual",
+    signal: AbortSignal.timeout(30000),
     ...options,
     headers: {
       ...(who ? { Cookie: people[who].cookie } : {}),
@@ -69,6 +70,11 @@ async function request(path, who, options = {}) {
     text: await response.text(),
   };
 }
+// Next can stream the shell before notFound(), retaining HTTP 200 for the error UI.
+const deniedPage = (response) =>
+  (response.status === 404 ||
+    response.text.includes("NEXT_HTTP_ERROR_FALLBACK;404")) &&
+  response.text.includes("Página não encontrada");
 async function capturedForm(identifier, reader = "owner") {
   const response = await request(page, reader);
   const forms = [
@@ -99,6 +105,7 @@ async function api(path, body) {
   const response = await fetch(`${base}/api/auth${path}`, {
     method: "POST",
     redirect: "manual",
+    signal: AbortSignal.timeout(30000),
     headers: { "Content-Type": "application/json", Origin: base },
     body: JSON.stringify(body),
   });
@@ -148,6 +155,9 @@ async function activeGrants(addresses, companyId) {
 try {
   await makePerson("owner");
   await makePerson("client");
+  await makePerson("support");
+  await makePerson("finance");
+  await makePerson("colleague");
   await makePerson("unverified", false);
   for (const [index, id] of companyIds.entries())
     await db.query(
@@ -162,6 +172,16 @@ try {
   await db.query(
     "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')",
     [randomUUID(), companyIds[1], people.client.email],
+  );
+  for (const role of ["support", "finance"])
+    await db.query(
+      "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,$4)",
+      [randomUUID(), companyIds[1], people[role].email, role],
+    );
+  const outsideGrant = randomUUID();
+  await db.query(
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'support')",
+    [outsideGrant, companyIds[0], email("outside-member")],
   );
   await db.query(
     "insert into console_tickets(id,company_id,subject,author_id) values($1,$2,$3,$4)",
@@ -271,6 +291,66 @@ try {
       !staffPage.text.includes(">Adicionar administrador<"),
     "Dynamic administrator sees client management without owner controls",
   );
+  const managerPage = await request(page, "client");
+  ok(
+    managerPage.status === 200 &&
+      managerPage.text.includes("Membros da empresa") &&
+      managerPage.text.includes(`Members company 1 ${marker}`) &&
+      !managerPage.text.includes(`Members company 0 ${marker}`) &&
+      !managerPage.text.includes(companyIds[0]) &&
+      !managerPage.text.includes(email("outside-member")) &&
+      !managerPage.text.includes("Equipe Anuntech") &&
+      !managerPage.text.includes(ownerEmail) &&
+      !managerPage.text.includes(staffEmail),
+    "Company manager sees only tenant members, without other company or Console staff data",
+  );
+  ok(
+    (await request("/conta", "client")).text.includes(
+      'href="/configuracoes/membros"',
+    ),
+    "Company manager can reach Members from account settings",
+  );
+  ok(
+    deniedPage(await request("/configuracoes", "client")) &&
+      deniedPage(await request("/configuracoes/notificacoes", "client")),
+    "Company member administration does not grant access to Console integrations or notices",
+  );
+  for (const role of ["support", "finance"]) {
+    ok(
+      deniedPage(await request(page, role)) &&
+        !(await request("/conta", role)).text.includes(
+          'href="/configuracoes/membros"',
+        ),
+      `${role} has no member-management page or navigation link`,
+    );
+  }
+  const supportAlias = email("support-finance-alias");
+  await db.query(
+    "insert into console_account_emails(id,user_id,email,verified_at) values($1,$2,$3,now())",
+    [randomUUID(), people.support.id, supportAlias],
+  );
+  await db.query(
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'finance')",
+    [randomUUID(), companyIds[1], supportAlias],
+  );
+  ok(
+    deniedPage(await request(page, "support")),
+    "Combining support and finance through aliases does not grant member administration",
+  );
+  const combinedPermissionForm = await capturedForm(
+    `Salvar permissão de ${people.support.email} em Members company 1 ${marker}`,
+    "client",
+  );
+  const combinedPermissionSelect = combinedPermissionForm.match(
+    /<select\b[^>]*name="role"[^>]*>([\s\S]*?)<\/select>/,
+  )?.[1];
+  const selectedPermission = [
+    ...(combinedPermissionSelect || "").matchAll(/<option\b[^>]*>/g),
+  ].find(([tag]) => /\bselected(?:=|\s|>)/.test(tag))?.[0];
+  ok(
+    selectedPermission?.includes('value=""'),
+    "Editing combined legacy permissions requires a choice instead of defaulting to company administrator",
+  );
   await post(grantStaff, "staff", { email: email("escalation") });
   await post(grantStaff, "client", { email: email("client-escalation") });
   ok(
@@ -334,6 +414,150 @@ try {
   );
 
   const grantClient = await capturedForm("Liberar acesso", "staff");
+  const managerGrant = await capturedForm("Liberar acesso", "client");
+  const managedEmail = email("managed-member");
+  await post(managerGrant, "client", {
+    email: managedEmail,
+    companyId: companyIds[1],
+    role: "support",
+  });
+  ok(
+    (await activeGrants([managedEmail], companyIds[1]))[0]?.role === "support",
+    "Company manager grants access only to the chosen tenant",
+  );
+  await post(managerGrant, "client", {
+    email: managedEmail,
+    companyId: companyIds[1],
+    role: "finance",
+  });
+  ok(
+    (await activeGrants([managedEmail], companyIds[1]))[0]?.role === "finance",
+    "Company manager changes a tenant member's permission",
+  );
+  for (const role of ["support", "finance"])
+    await post(managerGrant, role, {
+      email: email(`${role}-forged-grant`),
+      companyId: companyIds[1],
+      role: "manager",
+    });
+  ok(
+    (
+      await activeGrants(
+        [email("support-forged-grant"), email("finance-forged-grant")],
+        companyIds[1],
+      )
+    ).length === 0,
+    "Support and finance cannot invoke a captured manager action",
+  );
+  await post(managerGrant, "client", {
+    email: people.colleague.email,
+    companyId: companyIds[1],
+    role: "manager",
+  });
+  ok(
+    (await activeGrants([people.colleague.email], companyIds[1]))[0]?.role ===
+      "manager" && (await request(page, "colleague")).status === 200,
+    "Company manager can add another company administrator",
+  );
+  const managerAlias = email("manager-alias");
+  await db.query(
+    "insert into console_account_emails(id,user_id,email,verified_at) values($1,$2,$3,now())",
+    [randomUUID(), people.client.id, managerAlias],
+  );
+  const selfGrant = (
+    await activeGrants([people.client.email], companyIds[1])
+  )[0];
+  const managerRevoke = await capturedForm(
+    `Revogar acesso de ${managedEmail} a Members company 1 ${marker}`,
+    "client",
+  );
+  await post(managerGrant, "client", {
+    email: managerAlias,
+    companyId: companyIds[1],
+    role: "finance",
+  });
+  await post(managerRevoke, "client", { id: selfGrant.id });
+  ok(
+    (await activeGrants([people.client.email, managerAlias], companyIds[1]))[0]
+      ?.role === "manager",
+    "Manager cannot demote or revoke self, including aliases and with another administrator present",
+  );
+  await post(managerRevoke, "client", { id: outsideGrant });
+  ok(
+    (
+      await db.query("select active from console_memberships where id=$1", [
+        outsideGrant,
+      ])
+    ).rows[0].active,
+    "Forged membership ID cannot revoke a different company's member",
+  );
+  const colleagueGrant = (
+    await activeGrants([people.colleague.email], companyIds[1])
+  )[0];
+  await post(managerRevoke, "client", { id: colleagueGrant.id });
+  ok(
+    (await activeGrants([people.colleague.email], companyIds[1])).length ===
+      0 && deniedPage(await request(page, "colleague")),
+    "Manager revokes another manager while retaining one administrator",
+  );
+  await post(managerGrant, "colleague", {
+    email: email("stale-manager"),
+    companyId: companyIds[1],
+    role: "manager",
+  });
+  ok(
+    (await activeGrants([email("stale-manager")], companyIds[1])).length === 0,
+    "Revoked manager cannot reuse a previously captured form",
+  );
+  // Two legacy rows for one verified identity must not satisfy the last-admin rule.
+  await db.query(
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')",
+    [randomUUID(), companyIds[1], managerAlias],
+  );
+  await post(grantClient, "staff", {
+    email: people.client.email,
+    companyId: companyIds[1],
+    role: "finance",
+  });
+  await post(managerRevoke, "staff", { id: selfGrant.id });
+  ok(
+    (
+      await activeGrants([people.client.email, managerAlias], companyIds[1])
+    ).every((entry) => entry.role === "manager") &&
+      (await activeGrants([people.client.email, managerAlias], companyIds[1]))
+        .length === 2,
+    "Console staff cannot remove the final company administrator; aliases are not another administrator",
+  );
+  await post(managerGrant, "client", {
+    email: managerAlias,
+    companyId: companyIds[1],
+    role: "manager",
+  });
+  ok(
+    (await activeGrants([people.client.email, managerAlias], companyIds[1]))
+      .length === 1,
+    "Keeping the manager role consolidates the administrator's legacy aliases",
+  );
+  await db.query(
+    "update console_memberships set active=(email=$1) where company_id=$2 and email=any($3::text[])",
+    [managerAlias, companyIds[1], [managerAlias, people.client.email]],
+  );
+  await post(managerGrant, "client", {
+    email: managerAlias,
+    companyId: companyIds[1],
+    role: "manager",
+  });
+  ok(
+    (await activeGrants([people.client.email, managerAlias], companyIds[1]))[0]
+      ?.email === people.client.email,
+    "A manager grant on a verified alias authorizes and consolidates through the current account",
+  );
+  const managedGrant = (await activeGrants([managedEmail], companyIds[1]))[0];
+  await post(managerRevoke, "client", { id: managedGrant.id });
+  ok(
+    (await activeGrants([managedEmail], companyIds[1])).length === 0,
+    "Company manager revokes an ordinary tenant member",
+  );
   await post(grantClient, "client", {
     email: people.client.email,
     companyId: companyIds[0],
@@ -341,7 +565,7 @@ try {
   });
   ok(
     (await activeGrants([people.client.email], companyIds[0])).length === 0,
-    "Client cannot forge a company access grant",
+    "Company manager cannot grant access in another company",
   );
   await post(grantClient, "staff", {
     email: people.client.email,
@@ -352,6 +576,12 @@ try {
     (await activeGrants([people.client.email], companyIds[0]))[0]?.role ===
       "finance",
     "Delegated admin grants the chosen client permission",
+  );
+  ok(
+    !(await request(page, "client")).text.includes(
+      `Members company 0 ${marker}`,
+    ),
+    "A manager's finance access to another company does not expose that company's members",
   );
   const alias = email("client-old");
   await db.query(
@@ -427,6 +657,110 @@ try {
   ok(
     (await activeGrants([unknown], companyIds[0])).length === 0,
     "Unknown global role is rejected by the client permission schema",
+  );
+  await post(managerGrant, "client", {
+    email: unknown,
+    companyId: companyIds[1],
+    role: "admin",
+  });
+  ok(
+    (await activeGrants([unknown], companyIds[1])).length === 0,
+    "Company manager cannot submit a global administrator role",
+  );
+
+  await makePerson("race-other");
+  const raceCompany = randomUUID();
+  companyIds.push(raceCompany);
+  await db.query(
+    "insert into console_companies(id,name,document,billing_email) values($1,$2,$3,$4)",
+    [
+      raceCompany,
+      `Members concurrency ${marker}`,
+      raceCompany.replaceAll("-", "").slice(0, 14),
+      email("race-company"),
+    ],
+  );
+  for (const who of ["colleague", "race-other"])
+    await post(grantClient, "staff", {
+      email: people[who].email,
+      companyId: raceCompany,
+      role: "manager",
+    });
+  await Promise.all(
+    ["colleague", "race-other"].map((who) =>
+      post(grantClient, "staff", {
+        email: people[who].email,
+        companyId: raceCompany,
+        role: "finance",
+      }),
+    ),
+  );
+  const raceRows = await activeGrants(
+    [people.colleague.email, people["race-other"].email],
+    raceCompany,
+  );
+  ok(
+    raceRows.filter((row) => row.role === "manager").length === 1 &&
+      raceRows.filter((row) => row.role === "finance").length === 1,
+    "Concurrent demotions cannot remove every company administrator",
+  );
+  const winner =
+    raceRows.find((row) => row.role === "manager").email ===
+    people.colleague.email
+      ? "colleague"
+      : "race-other";
+  const other = winner === "colleague" ? "race-other" : "colleague";
+  await post(grantClient, "staff", {
+    email: people[other].email,
+    companyId: raceCompany,
+    role: "manager",
+  });
+  const queuedForm = await capturedForm("Liberar acesso", winner);
+  const lock = await db.connect();
+  let queuedRequest;
+  try {
+    await lock.query("begin");
+    const locker = (await lock.query("select pg_backend_pid() as pid")).rows[0]
+      .pid;
+    await lock.query(
+      "select id from console_companies where id=$1 for update",
+      [raceCompany],
+    );
+    queuedRequest = post(queuedForm, winner, {
+      email: email("queued-manager-grant"),
+      companyId: raceCompany,
+      role: "manager",
+    });
+    let waiting = false;
+    for (let i = 0; i < 100; i++) {
+      const result = await db.query(
+        "select exists(select 1 from pg_stat_activity where datname=current_database() and $1::int=any(pg_blocking_pids(pid))) as waiting",
+        [locker],
+      );
+      if (result.rows[0].waiting) {
+        waiting = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.ok(
+      waiting,
+      "Manager action waits on the company's serialization lock",
+    );
+    await lock.query(
+      "update console_memberships set role='finance' where company_id=$1 and email=$2",
+      [raceCompany, people[winner].email],
+    );
+    await lock.query("commit");
+  } finally {
+    await lock.query("rollback");
+    lock.release();
+    if (queuedRequest) await queuedRequest;
+  }
+  ok(
+    (await activeGrants([email("queued-manager-grant")], raceCompany))
+      .length === 0,
+    "Queued manager mutation rechecks permission after a concurrent revocation",
   );
 
   const staffCurrent = email("staff-current");
