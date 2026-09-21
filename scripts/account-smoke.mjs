@@ -386,34 +386,9 @@ try {
       ).rowCount === 1,
     "Email proof is single-use",
   );
-  const primaryId = (await rowFor(people.client.email)).id;
-  result = await action("removeAccountEmail", "client", { id: primaryId });
-  ok(
-    !!result.value.error && !!(await rowFor(people.client.email)),
-    "Principal email cannot be removed",
-  );
-  result = await action("removeAccountEmail", "other", {
-    id: (await rowFor(target)).id,
-  });
-  ok(
-    !!result.value.error && !!(await rowFor(target)),
-    "Another account cannot remove a verified email",
-  );
-  result = await action("removeAccountEmail", "client", {
-    id: (await rowFor(target)).id,
-  });
-  ok(
-    !!result.value.success && !(await rowFor(target)),
-    "Unlinked additional email can be removed",
-  );
-  ok(
-    (
-      await db.query("select id from console_session where user_id=$1", [
-        people.client.id,
-      ])
-    ).rows.every((row) => row.id === people.client.sessionId),
-    "Removing an email revokes other sessions while retaining the current one",
-  );
+  ok(!actionIds.removeAccountEmail, "Email removal is not exposed as a public action");
+  const accountPage = await request("/conta", "client");
+  ok(!accountPage.text.includes("Adicionar e-mail"), "Account offers replacement instead of additional emails");
 
   proof = await begin("client", address("expired"));
   await db.query(
@@ -501,21 +476,6 @@ try {
     "A sixth email is rejected before delivery",
   );
 
-  const historyEmail = address("historical"),
-    historyId = randomUUID();
-  await db.query(
-    "insert into console_account_emails(id,user_id,email,verified_at) values($1,$2,$3,now())",
-    [historyId, people.client.id, historyEmail],
-  );
-  await db.query(
-    "insert into console_memberships(id,company_id,email,role,active) values($1,$2,$3,'support',false)",
-    [randomUUID(), companyId, historyEmail],
-  );
-  result = await action("removeAccountEmail", "client", { id: historyId });
-  ok(
-    !!result.value.error && !!(await rowFor(historyEmail)),
-    "Historical membership identity remains protected after revocation",
-  );
   await addSession("owner", "owner-second");
   const newOwner = address("owner-new");
   proof = await begin("owner", newOwner, true);
@@ -580,13 +540,6 @@ try {
   ok(
     ownerPage.status === 200 && ownerPage.text.includes("Convidar pessoa"),
     "Configured owner retains administration through the verified previous email",
-  );
-  result = await action("removeAccountEmail", "owner-new", {
-    id: (await rowFor(ownerEmail)).id,
-  });
-  ok(
-    !!result.value.error && !!(await rowFor(ownerEmail)),
-    "Configured owner identity cannot be removed as an alias",
   );
   await db.query(
     "update console_session set created_at=now()-interval '11 minutes' where user_id=$1",
