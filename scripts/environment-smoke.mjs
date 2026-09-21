@@ -148,6 +148,33 @@ try {
         companyName,
         who === "owner" ? "Anuntech" : `Account QA ${marker}`,
       );
+      await page.locator('input[name="document"]').fill("52998224725");
+      await page.locator('input[name="phone"]').fill("11966665555");
+      await page
+        .getByRole("button", { name: "Salvar dados da empresa", exact: true })
+        .click();
+      await page
+        .getByText("Dados da empresa atualizados.", { exact: true })
+        .waitFor();
+      const savedProfile = (
+        await db.query(
+          who === "owner"
+            ? "select name,document from console_environment_profile where id='console'"
+            : "select name,document from console_companies where id=$1",
+          who === "owner" ? [] : [companyId],
+        )
+      ).rows[0];
+      assert.equal(savedProfile.name, companyName);
+      assert.equal(savedProfile.document, "52998224725");
+      assert.equal(
+        (
+          await db.query("select name from console_companies where id=$1", [
+            companyId,
+          ])
+        ).rows[0].name,
+        `Account QA ${marker}`,
+        "Internal company settings never overwrite a customer",
+      );
       await page.screenshot({ path: `.next/environment-company-${who}.png` });
       await page
         .getByRole("link", { name: "Notificações", exact: true })

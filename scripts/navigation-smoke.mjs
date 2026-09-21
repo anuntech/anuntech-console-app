@@ -176,7 +176,7 @@ try {
       ]) {
         await page
           .getByRole("navigation", { name: "Categorias dos ajustes" })
-          .getByRole("link", { name, exact: name !== "Minha conta" })
+          .getByRole("link", { name, exact: true })
           .click();
         await page.waitForURL(base + path);
         await page
