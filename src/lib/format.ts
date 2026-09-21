@@ -48,6 +48,8 @@ export const auditLabels: Record<string, string> = {
   "membership.revoked": "Acesso revogado",
   "engagement.created": "Produto ou projeto cadastrado",
   "engagement.status_changed": "Situação do produto ou projeto alterada",
+  "bookmark.created": "Bookmark adicionado",
+  "bookmark.deleted": "Bookmark removido",
   "ticket.created": "Chamado aberto",
   "ticket.updated": "Chamado atualizado",
   "ticket.replied": "Resposta adicionada",

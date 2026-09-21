@@ -12,7 +12,7 @@ export async function NewTicketPage({
   intercepted?: boolean;
 }) {
   const actor = await getActor();
-  const available = await accessibleCompanies(actor, "support");
+  const available = [...new Map((await accessibleCompanies(actor, "support")).map(company => [company.id, company])).values()];
   const query = await searchParams;
   let companyId = query.companyId;
   const context = query.from?.match(

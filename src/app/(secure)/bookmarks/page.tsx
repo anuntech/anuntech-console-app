@@ -18,7 +18,7 @@ export default async function Bookmarks({
   searchParams: Promise<{ q?: string; company?: string; page?: string }>;
 }) {
   const actor = await getActor();
-  const available = await accessibleCompanies(actor);
+  const available = [...new Map((await accessibleCompanies(actor)).map(company => [company.id, company])).values()];
   const ids = available.map((c) => c.id);
   const { q = "", company = "", page = "1" } = await searchParams;
   const pageNumber = Math.min(
