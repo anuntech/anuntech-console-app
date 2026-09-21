@@ -1,7 +1,11 @@
 import { getActor, allowedIds } from "@/lib/access";
 import { WorkspaceHeader } from "@/components/sidebar";
 import { redirect } from "next/navigation";
-import { PreferencesNavigationProvider } from "@/components/preferences/preferences-dialog";
+import { canManageMembers } from "@/lib/member-access";
+import {
+  PreferencesNavigationProvider,
+  PreferencesWorkspace,
+} from "@/components/preferences/preferences-dialog";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function ConsoleLayout({
@@ -15,20 +19,22 @@ export default async function ConsoleLayout({
   if (!actor.admin && !actor.grants.length) redirect("/acesso-pendente");
   return (
     <PreferencesNavigationProvider>
-      <div className="console-shell">
-        <div className="workspace">
+      <PreferencesWorkspace
+        admin={actor.admin}
+        canManageMembers={canManageMembers(actor)}
+        userName={actor.user.name}
+        userImage={actor.user.image ?? null}
+        preferences={preferences}
+        header={
           <WorkspaceHeader
             admin={actor.admin}
             support={!!allowedIds(actor, "support").length}
             finance={!!allowedIds(actor, "finance").length}
           />
-          <main className="page-content" id="main-content" tabIndex={-1}>
-            {children}
-          </main>
-          <footer className="app-footer">Anuntech Console</footer>
-        </div>
-        {preferences}
-      </div>
+        }
+      >
+        {children}
+      </PreferencesWorkspace>
     </PreferencesNavigationProvider>
   );
 }

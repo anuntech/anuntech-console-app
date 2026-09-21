@@ -1,4 +1,5 @@
 import styles from "@/components/public-layout.module.css";
+// Keep this fallback below workspace routes, outside the settings dialog.
 export default function Loading() {
   return (
     <div className={styles.skeletonPage} role="status" aria-atomic="true">

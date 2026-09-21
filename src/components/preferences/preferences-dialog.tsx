@@ -22,6 +22,7 @@ import { IllustratedAvatar } from "./illustrated-avatar";
 import { isCatalogAvatar } from "@/lib/avatar-catalog";
 import { profileAvatarSource } from "./profile-avatar";
 import { SignOutButton } from "@/components/auth-buttons";
+import { preferenceCopy } from "./preferences-copy";
 import styles from "./preferences-dialog.module.css";
 
 export type PreferenceSection =
@@ -159,6 +160,64 @@ export function PreferencesNavigationProvider({
   );
 }
 
+/** The dialog belongs to the persistent layout, not to a replaceable route page. */
+export function PreferencesWorkspace({
+  children,
+  preferences,
+  header,
+  admin,
+  canManageMembers,
+  userName,
+  userImage,
+}: {
+  children: ReactNode;
+  preferences: ReactNode;
+  header: ReactNode;
+  admin: boolean;
+  canManageMembers: boolean;
+  userName: string;
+  userImage: string | null;
+}) {
+  const pathname = usePathname();
+  const navigation = useContext(NavigationContext);
+  const section = (Object.keys(sections) as PreferenceSection[]).find(
+    (key) => sections[key].href === pathname,
+  );
+  return (
+    <div className="console-shell">
+      <div className="workspace">
+        {header}
+        <main className="page-content" id="main-content" tabIndex={-1}>
+          {navigation.directEntry ? (
+            <div className={styles.background} />
+          ) : (
+            children
+          )}
+        </main>
+        <footer className="app-footer">Anuntech Console</footer>
+      </div>
+      {section && (
+        <PreferencesDialog
+          section={section}
+          {...preferenceCopy[section]}
+          description={
+            section === "members" && !admin
+              ? "Pessoas e permissões das empresas que você administra."
+              : preferenceCopy[section].description
+          }
+          admin={admin}
+          canManageMembers={canManageMembers}
+          userName={userName}
+          userImage={userImage}
+          intercepted={navigation.intercepted}
+        >
+          {navigation.intercepted ? preferences : children}
+        </PreferencesDialog>
+      )}
+    </div>
+  );
+}
+
 export function PreferencesDialog({
   section,
   title,
@@ -189,6 +248,10 @@ export function PreferencesDialog({
   const pathname = usePathname();
   const navigation = useContext(NavigationContext);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    contentRef.current?.scrollTo({ top: 0 });
+  }, [section]);
   const sectionPath = sections[section].href;
   const visible =
     pathname === sectionPath && (intercepted || !navigation.intercepted);
@@ -289,22 +352,18 @@ export function PreferencesDialog({
       </div>
     </aside>
   );
-  const background = !intercepted ? (
-    <div className={styles.background} aria-hidden="true" />
-  ) : null;
-  if (!visible) return background;
+  if (!visible) return null;
 
   // The server view keeps forms and authorization results in the rendered HTML.
   // Hydration replaces this single view with Base UI's focus-managed dialog.
   if (!hydrated) {
     return (
       <>
-        {background}
         <div className={styles.fallbackBackdrop} aria-hidden="true" />
         <section className={styles.popup} aria-labelledby="preferences-title">
           {closeControl}
           {sidebar}
-          <div className={styles.content}>
+          <div className={styles.content} ref={contentRef}>
             <header className={styles.header} data-section={section}>
               <h1 id="preferences-title" className={styles.title}>
                 {title}
@@ -319,7 +378,6 @@ export function PreferencesDialog({
   }
   return (
     <>
-      {background}
       <Dialog.Root
         open
         onOpenChange={(open) => {
@@ -336,7 +394,7 @@ export function PreferencesDialog({
           >
             {closeControl}
             {sidebar}
-            <div className={styles.content}>
+            <div className={styles.content} ref={contentRef}>
               <header className={styles.header} data-section={section}>
                 <Dialog.Title
                   render={<h1 />}
