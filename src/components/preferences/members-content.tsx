@@ -1,267 +1,206 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
-import { Building2 } from "lucide-react";
-import { accountEmails, companies, memberships, user } from "@/db/schema";
-import { managedCompanyIds, requireMemberManager } from "@/lib/member-access";
+import { and, asc, eq, isNotNull, or } from "drizzle-orm";
+import { UserRound } from "lucide-react";
+import { accountEmails, memberships, user } from "@/db/schema";
+import { settingsEnvironment } from "@/lib/environment";
 import { db } from "@/lib/db";
-import { roleLabels } from "@/lib/format";
+import { isCatalogAvatar } from "@/lib/avatar-catalog";
 import { revokeCompanyMember, saveCompanyMember } from "@/lib/members-actions";
 import { ActionForm } from "@/components/action-form";
 import { FormModal } from "@/components/form-modal";
 import { Badge, Empty, Field } from "@/components/ui";
 import { StaffMembersContent } from "./staff-members-content";
+import { MemberTabs } from "./member-tabs";
+import { IllustratedAvatar } from "./illustrated-avatar";
 import preferences from "./preferences-content.module.css";
 import styles from "./members-content.module.css";
-
-function RoleField({ defaultValue = "support" }: { defaultValue?: string }) {
+const labels: Record<string, string> = {
+  manager: "Administrador",
+  support: "Atendimento",
+  finance: "Financeiro",
+};
+function RoleField({ defaultValue = "manager" }: { defaultValue?: string }) {
   return (
-    <Field
-      label="Permissão"
-      hint="Atendimento acessa chamados. Financeiro acessa faturas e contratos. Administrador do cliente acessa ambas as áreas e gerencia os membros da empresa."
-    >
+    <Field label="Permissão">
       <select name="role" defaultValue={defaultValue} required>
         <option value="" disabled>
           Selecione uma permissão
         </option>
+        <option value="manager">Administrador</option>
         <option value="support">Atendimento</option>
         <option value="finance">Financeiro</option>
-        <option value="manager">Administrador do cliente</option>
       </select>
     </Field>
   );
 }
-
 export async function MembersContent() {
-  const actor = await requireMemberManager();
+  const { actor, companyId } = await settingsEnvironment();
   if (actor.admin) return <StaffMembersContent actor={actor} />;
-  const companyIds = managedCompanyIds(actor);
-  const [grants, companyOptions] = await Promise.all([
-    db
-      .select({
-        member: memberships,
-        company: companies.name,
-        archived: companies.archived,
-        userId: user.id,
-        name: user.name,
-        currentEmail: user.email,
-      })
-      .from(memberships)
-      .innerJoin(companies, eq(companies.id, memberships.companyId))
-      .leftJoin(
-        accountEmails,
-        and(
-          eq(accountEmails.email, memberships.email),
-          isNotNull(accountEmails.verifiedAt),
-        ),
-      )
-      .leftJoin(
-        user,
-        or(
-          eq(user.email, memberships.email),
-          eq(user.id, accountEmails.userId),
-        ),
-      )
-      .where(inArray(memberships.companyId, companyIds))
-      .orderBy(
-        desc(memberships.active),
-        asc(memberships.email),
-        asc(companies.name),
+  const entries = await db
+    .select({
+      member: memberships,
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+      verified: user.emailVerified,
+    })
+    .from(memberships)
+    .leftJoin(
+      accountEmails,
+      and(
+        eq(accountEmails.email, memberships.email),
+        isNotNull(accountEmails.verifiedAt),
       ),
-    db
-      .select({
-        id: companies.id,
-        name: companies.name,
-        archived: companies.archived,
-      })
-      .from(companies)
-      .where(inArray(companies.id, companyIds))
-      .orderBy(asc(companies.name)),
-  ]);
-  const grantsByPerson = new Map<
+    )
+    .leftJoin(
+      user,
+      or(eq(user.email, memberships.email), eq(user.id, accountEmails.userId)),
+    )
+    .where(
+      and(eq(memberships.companyId, companyId!), eq(memberships.active, true)),
+    )
+    .orderBy(asc(memberships.email));
+  const unique = new Map<
     string,
-    (typeof grants)[number] & { roles: string[] }
+    (typeof entries)[number] & { roles: string[] }
   >();
-  for (const entry of grants) {
-    const key = `${entry.userId || entry.member.email}:${entry.member.companyId}`;
-    const existing = grantsByPerson.get(key);
-    if (!existing)
-      grantsByPerson.set(key, { ...entry, roles: [entry.member.role] });
-    else if (entry.member.active && !existing.roles.includes(entry.member.role))
-      existing.roles.push(entry.member.role);
+  for (const row of entries) {
+    const key = row.userId || row.member.email;
+    const current = unique.get(key);
+    if (!current) unique.set(key, { ...row, roles: [row.member.role] });
+    else if (!current.roles.includes(row.member.role))
+      current.roles.push(row.member.role);
   }
-  const clientRows = [...grantsByPerson.values()];
+  const rows = [...unique.values()],
+    members = rows.filter((row) => row.userId && row.verified),
+    invited = rows.filter((row) => !row.userId || !row.verified);
+  const list = (items: typeof rows, pending = false) =>
+    items.length ? (
+      <ul className={`${preferences.card} ${styles.memberList}`}>
+        {items.map(({ member, userId, name, email, image, roles }) => (
+          <li key={member.id} className={styles.memberRow}>
+            <div className={styles.identity}>
+              <span className={styles.personAvatar}>
+                {image && isCatalogAvatar(image) ? (
+                  <IllustratedAvatar image={image} size={40} />
+                ) : (
+                  <UserRound size={20} />
+                )}
+              </span>
+              <div>
+                <h3>
+                  {name || email || member.email}
+                  {userId === actor.user.id ? " (você)" : ""}
+                </h3>
+                {name && <p>{email || member.email}</p>}
+                <p className={styles.detail}>
+                  {pending
+                    ? "Aguardando primeiro acesso"
+                    : roles.map((role) => labels[role]).join(" + ")}
+                </p>
+              </div>
+            </div>
+            <div className={styles.rowActions}>
+              {userId === actor.user.id ? (
+                <Badge status="active">Administrador</Badge>
+              ) : (
+                <>
+                  {!pending && (
+                    <FormModal
+                      trigger="Editar permissão"
+                      title="Editar permissão"
+                      description={email || member.email}
+                      action={saveCompanyMember}
+                      label="Salvar permissão"
+                      submitAriaLabel={`Salvar permissão de ${email || member.email} em ${actor.grants.find((grant) => grant.company.id === companyId)?.company.name}`}
+                      triggerClassName={`button ${styles.editButton}`}
+                    >
+                      <input
+                        type="hidden"
+                        name="companyId"
+                        value={companyId!}
+                      />
+                      <input
+                        type="hidden"
+                        name="email"
+                        value={email || member.email}
+                      />
+                      <RoleField
+                        defaultValue={
+                          roles.includes("manager")
+                            ? "manager"
+                            : roles.length > 1
+                              ? ""
+                              : member.role
+                        }
+                      />
+                    </FormModal>
+                  )}
+                  <ActionForm
+                    action={revokeCompanyMember}
+                    label={pending ? "Cancelar convite" : "Expulsar"}
+                    submitAriaLabel={`${pending ? "Cancelar convite" : "Expulsar"} de ${email || member.email}`}
+                    danger
+                    className={styles.action}
+                    confirm={{
+                      title: pending ? "Cancelar convite?" : "Expulsar membro?",
+                      description: `${email || member.email} perderá o acesso ao ambiente.`,
+                      confirmLabel: pending ? "Cancelar convite" : "Expulsar",
+                    }}
+                  >
+                    <input type="hidden" name="id" value={member.id} />
+                  </ActionForm>
+                </>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <div className={preferences.card}>
+        <Empty
+          headingLevel={3}
+          title={pending ? "Nenhum convite pendente" : "Nenhum membro"}
+          description={
+            pending
+              ? "As pessoas convidadas aparecerão aqui até o primeiro acesso."
+              : "Convide uma pessoa para seu ambiente."
+          }
+        />
+      </div>
+    );
   return (
     <div className={preferences.content}>
-      <section className={preferences.section}>
-        <div className={preferences.sectionHeading}>
-          <h2>Membros da empresa</h2>
-          <span>
-            {clientRows.filter((row) => row.member.active).length} vínculos
-            ativos
-          </span>
-        </div>
-        {clientRows.length ? (
-          <ul className={`${preferences.card} ${styles.memberList}`}>
-            {clientRows.map(
-              ({
-                member,
-                company,
-                archived,
-                name,
-                currentEmail,
-                roles,
-                userId,
-              }) => (
-                <li className={styles.memberRow} key={member.id}>
-                  <div className={styles.identity}>
-                    <span className={styles.icon}>
-                      <Building2 size={18} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h3>{name || currentEmail || member.email}</h3>
-                      {name && <p>{currentEmail || member.email}</p>}
-                      <p>
-                        {company}
-                        {archived ? " · Empresa arquivada" : ""}
-                      </p>
-                      <p className={styles.detail}>
-                        {roles.map((role) => roleLabels[role]).join(" + ")}
-                        {roles.length > 1 ? " · E-mails vinculados" : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <div className={styles.rowActions}>
-                    <Badge status={member.active ? "active" : "paused"}>
-                      {member.active ? "Ativo" : "Revogado"}
-                    </Badge>
-                    {!actor.admin && userId === actor.user.id ? (
-                      <p className={styles.protectedAccess}>
-                        Seu acesso de administrador
-                      </p>
-                    ) : (
-                      <>
-                        <FormModal
-                          trigger={
-                            member.active
-                              ? "Editar permissão"
-                              : "Reativar acesso"
-                          }
-                          triggerAriaLabel={`${member.active ? "Editar permissão" : "Reativar acesso"} de ${currentEmail || member.email} em ${company}`}
-                          title={
-                            member.active
-                              ? "Editar permissão"
-                              : "Reativar acesso"
-                          }
-                          description={`${currentEmail || member.email} — ${company}. A alteração vale somente para esta empresa.`}
-                          action={saveCompanyMember}
-                          label="Salvar permissão"
-                          submitAriaLabel={`Salvar permissão de ${currentEmail || member.email} em ${company}`}
-                          triggerClassName={`button ${styles.editButton}`}
-                        >
-                          <input
-                            type="hidden"
-                            name="companyId"
-                            value={member.companyId}
-                          />
-                          <input
-                            type="hidden"
-                            name="email"
-                            value={currentEmail || member.email}
-                          />
-                          <RoleField
-                            defaultValue={
-                              roles.includes("manager")
-                                ? "manager"
-                                : roles.length > 1
-                                  ? ""
-                                  : member.role
-                            }
-                          />
-                        </FormModal>
-                        {member.active && (
-                          <ActionForm
-                            action={revokeCompanyMember}
-                            label="Revogar acesso"
-                            submitAriaLabel={`Revogar acesso de ${currentEmail || member.email} a ${company}`}
-                            danger
-                            className={styles.action}
-                            confirm={{
-                              title: "Revogar acesso à empresa?",
-                              description: `${currentEmail || member.email} perderá as permissões de ${company}. Outros vínculos e registros serão preservados.`,
-                            }}
-                          >
-                            <input type="hidden" name="id" value={member.id} />
-                          </ActionForm>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </li>
-              ),
-            )}
-          </ul>
-        ) : (
-          <div className={preferences.card}>
-            <Empty
-              headingLevel={3}
-              title="Nenhum membro"
-              description="Escolha uma empresa e a permissão para liberar o acesso de uma pessoa."
-            />
-          </div>
-        )}
-        <p className={preferences.groupNote}>
-          Cada permissão vale apenas para a empresa escolhida. Uma pessoa pode
-          ter acessos diferentes em várias empresas. Mantenha pelo menos um
-          administrador em cada empresa.
-          {!actor.admin &&
-            " Você não pode revogar ou reduzir seu próprio acesso."}
-        </p>
-        {companyOptions.length ? (
-          <div className={styles.sectionAction}>
-            <FormModal
-              trigger="Adicionar membro"
-              title="Adicionar membro"
-              description="Escolha o e-mail, a empresa e a permissão. Um vínculo existente para essa pessoa e empresa será atualizado."
-              action={saveCompanyMember}
-              label="Liberar acesso"
-              reset
-            >
-              <Field label="E-mail de acesso">
-                <input
-                  type="email"
-                  name="email"
-                  autoComplete="off"
-                  required
-                  maxLength={254}
-                  placeholder="nome@empresa.com.br"
-                />
-              </Field>
-              <Field label="Empresa">
-                <select name="companyId" required defaultValue="">
-                  <option value="" disabled>
-                    Selecione a empresa
-                  </option>
-                  {companyOptions.map((company) => (
-                    <option key={company.id} value={company.id}>
-                      {company.name}
-                      {company.archived ? " (arquivada)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <RoleField />
-              <p className="form-footnote">
-                O cadastro libera o acesso. Nenhum convite ou mensagem será
-                enviado.
-              </p>
-            </FormModal>
-          </div>
-        ) : (
-          <p className={preferences.groupNote}>
-            Cadastre uma empresa antes de liberar acessos de clientes.
-          </p>
-        )}
-      </section>
+      <MemberTabs
+        memberCount={members.length}
+        invitedCount={invited.length}
+        members={list(members)}
+        invited={list(invited, true)}
+        action={
+          <FormModal
+            trigger="Convidar pessoa"
+            title="Convidar pessoa"
+            description="Adicione uma pessoa ao seu ambiente."
+            action={saveCompanyMember}
+            label="Adicionar"
+            reset
+          >
+            <input type="hidden" name="companyId" value={companyId!} />
+            <Field label="E-mail">
+              <input
+                type="email"
+                name="email"
+                required
+                maxLength={254}
+                autoComplete="off"
+                placeholder="nome@empresa.com.br"
+              />
+            </Field>
+            <RoleField />
+          </FormModal>
+        }
+      />
     </div>
   );
 }

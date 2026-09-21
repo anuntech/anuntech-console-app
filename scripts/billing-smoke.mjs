@@ -504,7 +504,7 @@ export async function runBillingTests({
   );
   const resetInitial = async () =>
     db.query(
-      "update console_billing_notices set status='pending', payload=null, attempts=0, first_attempt_at=null, provider_id=null, provider_status=null, locked_until=null, next_attempt_at=now() where invoice_id=$1 and kind='initial'",
+      "update console_billing_notices set recipient='', status='pending', payload=null, attempts=0, first_attempt_at=null, provider_id=null, provider_status=null, locked_until=null, next_attempt_at=now() where invoice_id=$1 and kind='initial'",
       [i.id],
     );
   const preferenceId = `${ids.a}:billing`;
@@ -565,6 +565,45 @@ export async function runBillingTests({
       (await notices(i.id)).find((row) => row.id === frozenNotice.id).status ===
         "skipped",
     "Troca de destinatário cancela repetição congelada sem reenviar ao endereço antigo ou duplicar no novo",
+  );
+  flags({ approved: true, bankUnpaid: true, billingBankDue: offset(2) });
+  const extraEmails = [
+      `multi-one-${marker}@example.invalid`,
+      `multi-two-${marker}@example.invalid`,
+    ],
+    extraPhones = ["11966665555", "11955554444"];
+  await db.query(
+    "update console_notification_preferences set emails=$2::jsonb,phones=$3::jsonb,email_enabled=true,whatsapp_enabled=true where key=$1",
+    [preferenceId, JSON.stringify(extraEmails), JSON.stringify(extraPhones)],
+  );
+  await db.query(
+    "delete from console_billing_notices where invoice_id=$1 and kind='initial'",
+    [i.id],
+  );
+  for (const channel of ["email", "whatsapp"])
+    await submitForm(
+      `/financeiro/${i.id}`,
+      "admin",
+      "admin",
+      `Enviar cobrança por ${channel === "email" ? "e-mail" : "WhatsApp"}`,
+      { id: i.id, channel },
+    );
+  await drain();
+  const multiple = (await notices(i.id)).filter(
+    (row) =>
+      extraEmails.includes(row.recipient) ||
+      extraPhones.map((phone) => `55${phone}`).includes(row.recipient),
+  );
+  ok(
+    multiple.length === 4 &&
+      multiple.every((row) => ["accepted", "delivered"].includes(row.status)),
+    "Financeiro envia uma mensagem separada para cada um dos dois e-mails e dois telefones",
+  );
+  ok(
+    multiple
+      .filter((row) => row.channel === "email")
+      .every((row) => row.payload.to.length === 1),
+    "E-mails de outros destinatários não são expostos na mensagem",
   );
   await db.query("delete from console_notification_preferences where key=$1", [
     preferenceId,

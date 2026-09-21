@@ -7,6 +7,8 @@ import { resolveAccountIdentity } from "./account-identity";
 type Executor = Pick<typeof db, "select">;
 export type NotificationTopic = "billing" | "tickets";
 export type NoticePreferences = {
+  emails?: string[] | null;
+  phones?: string[] | null;
   email: string;
   phone: string;
   emailEnabled: boolean;
@@ -73,4 +75,23 @@ export async function lockCompanyNotifications(
       ? sql`select pg_advisory_xact_lock(hashtext(${key}))`
       : sql`select pg_advisory_xact_lock_shared(hashtext(${key}))`,
   );
+}
+
+export function noticeEmails(preferences: NoticePreferences) {
+  return [
+    ...new Set(
+      (preferences.emails ?? [preferences.email])
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ];
+}
+export function noticePhones(preferences: NoticePreferences) {
+  return [
+    ...new Set(
+      (preferences.phones ?? [preferences.phone])
+        .map(whatsappDestination)
+        .filter(Boolean),
+    ),
+  ];
 }

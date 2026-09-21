@@ -93,3 +93,15 @@ Confirmações de salvamento usam notificações flutuantes compartilhadas. Erro
 Os ajustes separam Usuário (Minha conta, Aparência e Segurança) de Empresa. Minha conta contém perfil e contatos. Segurança reúne a verificação em duas etapas e as últimas 20 sessões, com a sessão atual destacada. Só a própria pessoa pode consultar suas sessões; a consulta não seleciona tokens. Sessões completas novas geram `account.session.started`, sem códigos nem tokens, e continuam no histórico depois do encerramento. A primeira etapa de um acesso com duas etapas não entra nesse histórico. Sessões anteriores ainda presentes aparecem; acessos já encerrados antes da atualização não podem ser reconstruídos. Horários exibidos em Brasília, com “última atualização” conforme o registro de sessão do provedor.
 
 Aparência permite claro, escuro ou tema do sistema e menu embaixo, em cima, à esquerda ou à direita. Preferências são persistidas por um ano em cookies do navegador, com valores validados e aplicados no HTML inicial para evitar troca de cores na abertura. Em telas até 640px o menu fica embaixo. O tema usa cores semânticas e mantém foco visível e controles nativos; notificações acompanham o tema.
+
+## Um ambiente por conta — 21/09/2026
+
+Cada identidade, incluindo seus e-mails verificados, pertence a um único ambiente. Convites e troca/verificação de e-mail compartilham um lock de atribuição e recusam vínculos que misturem ambientes. A operação Anuntech continua administrando clientes pelo cadastro de empresas; os próprios Ajustes mostram somente o cadastro interno, armazenado separadamente dos clientes. Gestores clientes veem somente seu ambiente, sem seletor de empresa.
+
+Dados da empresa contém apenas o cadastro. Notificações permite até dez e-mails e dez telefones por assunto, com canais independentes. Clientes têm Financeiro e Chamados; a operação Anuntech mantém seu controle de chamados. O histórico do ambiente combina seus envios financeiros e de chamados, com vinte itens por página. Destinatários não recebem acesso ao Console por serem adicionados à lista.
+
+Cada destinatário tem sua própria entrega e chave de idempotência. E-mails são enviados individualmente, sem divulgar outros contatos. Repetições mantêm o destino original e são canceladas quando esse contato é removido ou o canal desativado. Adicionar contatos não reenvia eventos antigos automaticamente. A migração 0013 mantém as preferências antigas como fallback e resolve destinatários de instâncias antigas antes da checagem de unicidade durante a publicação.
+
+Membros de clientes seguem o mesmo layout de Membros e Convidados da operação, com avatar, convite e expulsão. A permissão continua restrita ao ambiente; não é possível remover o próprio acesso nem o último administrador. Permissões legadas combinadas exigem escolha explícita na edição.
+
+Ao revalidar os Ajustes, o proxy evita que uma página retida seja interceptada por ela mesma (next-url igual ao caminho solicitado). Isso mantém o modal e a confirmação de salvamento sem recarregar o documento. Navegações entre seções e entrada a partir do painel continuam usando as rotas existentes.

@@ -96,7 +96,10 @@ function formData(form, values) {
     if (name && tag.includes('type="hidden"'))
       body.set(decode(name[1]), decode(value?.[1] || ""));
   }
-  for (const [name, value] of Object.entries(values)) body.set(name, value);
+  for (const [name, value] of Object.entries(values)) {
+    if (Array.isArray(value)) value.forEach((item) => body.append(name, item));
+    else body.set(name, value);
+  }
   return body;
 }
 const post = (form, who, values) =>
@@ -249,7 +252,7 @@ try {
   assert.ok(ready, "Members test server starts");
 
   const settingsPath = "/configuracoes/empresa";
-  const noticesPath = settingsPath;
+  const noticesPath = "/configuracoes/notificacoes";
   const companyForm = await capturedForm(
     "Salvar dados da empresa",
     "client",
@@ -336,6 +339,34 @@ try {
       !(await savedPreferences())[0]?.whatsapp_enabled,
     "Company notification contacts and enabled channels persist independently",
   );
+  await post(notificationForm, "client", {
+    companyId: companyIds[1],
+    topic: "billing",
+    emails: [email("one"), email("two"), email("one")],
+    phones: ["11988887777", "11977776666"],
+    emailEnabled: "yes",
+    whatsappEnabled: "yes",
+  });
+  const multi = (await savedPreferences())[0];
+  ok(
+    multi.emails.length === 2 &&
+      multi.phones.length === 2 &&
+      multi.email_enabled &&
+      multi.whatsapp_enabled,
+    "Multiple emails and phones are normalized, deduplicated and persisted",
+  );
+  await post(notificationForm, "client", {
+    companyId: companyIds[1],
+    topic: "billing",
+    emails: Array.from({ length: 11 }, (_, i) => email(`many-${i}`)),
+    phones: ["11988887777"],
+    emailEnabled: "yes",
+  });
+  ok(
+    (await savedPreferences())[0].emails.length === 2,
+    "Contact limits are enforced by the server",
+  );
+  await post(notificationForm, "client", prefValues);
   await post(notificationForm, "client", {
     ...prefValues,
     companyId: companyIds[0],
@@ -443,8 +474,7 @@ try {
   const managerPage = await request(page, "client");
   ok(
     managerPage.status === 200 &&
-      managerPage.text.includes("Membros da empresa") &&
-      managerPage.text.includes(`Members company 1 ${marker}`) &&
+      managerPage.text.includes("Pessoas do ambiente") &&
       !managerPage.text.includes(`Members company 0 ${marker}`) &&
       !managerPage.text.includes(companyIds[0]) &&
       !managerPage.text.includes(email("outside-member")) &&
@@ -461,8 +491,8 @@ try {
   );
   ok(
     deniedPage(await request("/configuracoes", "client")) &&
-      deniedPage(await request("/configuracoes/notificacoes", "client")),
-    "Company manager cannot access Console integrations or operational notices",
+      (await request("/configuracoes/notificacoes", "client")).status === 200,
+    "Company manager sees own notifications but cannot access Console integrations",
   );
   for (const role of ["support", "finance"]) {
     ok(
@@ -560,8 +590,47 @@ try {
     "Owner protection survives a principal email change",
   );
 
-  const grantClient = await capturedForm("Liberar acesso", "client");
-  const managerGrant = await capturedForm("Liberar acesso", "client");
+  const grantClient = await capturedForm("Adicionar", "client");
+  const managerGrant = await capturedForm("Adicionar", "client");
+  const crossEnvironmentEmail = email("cross-environment-race");
+  await Promise.all(
+    companyIds
+      .slice(0, 2)
+      .map((companyId) =>
+        post(grantClient, "staff", {
+          email: crossEnvironmentEmail,
+          companyId,
+          role: "support",
+        }),
+      ),
+  );
+  ok(
+    (
+      await db.query(
+        "select count(distinct company_id)::int n from console_memberships where email=$1 and active",
+        [crossEnvironmentEmail],
+      )
+    ).rows[0].n === 1,
+    "Concurrent invitations cannot assign one account to two environments",
+  );
+  const staffRaceEmail = email("staff-environment-race");
+  await Promise.all([
+    post(grantStaff, "owner", { email: staffRaceEmail }),
+    post(grantClient, "staff", {
+      email: staffRaceEmail,
+      companyId: companyIds[0],
+      role: "support",
+    }),
+  ]);
+  ok(
+    (
+      await db.query(
+        "select count(*)::int n from (select 'console' from console_staff_members where email=$1 and active union all select company_id from console_memberships where email=$1 and active) access",
+        [staffRaceEmail],
+      )
+    ).rows[0].n === 1,
+    "Staff and client invitations cannot mix environments for the same identity",
+  );
   const managedEmail = email("managed-member");
   await post(managerGrant, "client", {
     email: managedEmail,
@@ -615,7 +684,7 @@ try {
     await activeGrants([people.client.email], companyIds[1])
   )[0];
   const managerRevoke = await capturedForm(
-    `Revogar acesso de ${managedEmail} a Members company 1 ${marker}`,
+    `Cancelar convite de ${managedEmail}`,
     "client",
   );
   await post(managerGrant, "client", {
@@ -720,9 +789,8 @@ try {
     role: "finance",
   });
   ok(
-    (await activeGrants([people.client.email], companyIds[0]))[0]?.role ===
-      "finance",
-    "Delegated admin grants the chosen client permission",
+    (await activeGrants([people.client.email], companyIds[0])).length === 0,
+    "Even Console staff cannot assign a client to a second environment",
   );
   ok(
     !(await request(page, "client")).text.includes(
@@ -730,10 +798,11 @@ try {
     ),
     "A manager's finance access to another company does not expose that company's members",
   );
+  await makePerson("alias-client");
   const alias = email("client-old");
   await db.query(
     "insert into console_account_emails(id,user_id,email,verified_at) values($1,$2,$3,now())",
-    [randomUUID(), people.client.id, alias],
+    [randomUUID(), people["alias-client"].id, alias],
   );
   const aliasGrant = randomUUID();
   await db.query(
@@ -745,19 +814,23 @@ try {
     companyId: companyIds[0],
     role: "finance",
   });
-  let active = await activeGrants([alias, people.client.email], companyIds[0]);
+  let active = await activeGrants(
+    [alias, people["alias-client"].email],
+    companyIds[0],
+  );
   ok(
     active.length === 1 &&
-      active[0].email === people.client.email &&
+      active[0].email === people["alias-client"].email &&
       active[0].role === "finance",
     "Permission update consolidates verified aliases into one effective role",
   );
   ok(
-    (await request(`/api/anexos/${attachment}`, "client")).status === 404,
+    (await request(`/api/anexos/${attachment}`, "alias-client")).status === 404,
     "Old alias cannot retain revoked support permission",
   );
   ok(
-    (await request(`/api/contratos/${contract}/pdf`, "client")).status === 200,
+    (await request(`/api/contratos/${contract}/pdf`, "alias-client")).status ===
+      200,
     "Consolidated finance permission permits the published contract PDF",
   );
   // Reuse the same tenant action captured as a manager; global admins retain
@@ -765,16 +838,17 @@ try {
   const revokeClient = managerRevoke;
   await post(revokeClient, "staff", { id: aliasGrant });
   ok(
-    (await activeGrants([alias, people.client.email], companyIds[0])).length ===
-      0,
+    (await activeGrants([alias, people["alias-client"].email], companyIds[0]))
+      .length === 0,
     "Revoking through an old alias removes all access to that company",
   );
   ok(
     (await activeGrants([people.client.email], companyIds[1])).length === 1,
-    "Revoking one company preserves the client's other company",
+    "Revoking another member preserves the original manager's environment",
   );
   ok(
-    (await request(`/api/contratos/${contract}/pdf`, "client")).status === 404,
+    (await request(`/api/contratos/${contract}/pdf`, "alias-client")).status ===
+      404,
     "Existing client session immediately loses the revoked download",
   );
   await Promise.all([
@@ -784,12 +858,15 @@ try {
       role: "support",
     }),
     post(grantClient, "staff", {
-      email: people.client.email,
+      email: people["alias-client"].email,
       companyId: companyIds[0],
       role: "finance",
     }),
   ]);
-  active = await activeGrants([alias, people.client.email], companyIds[0]);
+  active = await activeGrants(
+    [alias, people["alias-client"].email],
+    companyIds[0],
+  );
   ok(
     active.length === 1 && ["finance", "support"].includes(active[0].role),
     "Concurrent alias edits cannot leave multiple effective permissions",
@@ -861,7 +938,7 @@ try {
     companyId: raceCompany,
     role: "manager",
   });
-  const queuedForm = await capturedForm("Liberar acesso", winner);
+  const queuedForm = await capturedForm("Adicionar", winner);
   const lock = await db.connect();
   let queuedRequest;
   try {

@@ -1,20 +1,21 @@
 import "server-only";
 import Link from "next/link";
-import { count, desc, eq, isNull, or } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { NotificationToggle } from "./notification-toggle";
 import { ticketNotificationsEnabled } from "@/lib/notification-settings";
-import controls from "./notifications-content.module.css";
-import { requireAdmin } from "@/lib/access";
+import { settingsEnvironment } from "@/lib/environment";
+import { NotificationTopicForm } from "./notification-settings";
 import { db } from "@/lib/db";
-import { ticketNotices, tickets, companies, auditEvents } from "@/db/schema";
 import { Badge, Empty } from "@/components/ui";
 import { auditLabels } from "@/lib/format";
 import { APP_LOCALE, APP_TIME_ZONE } from "@/lib/dates";
+import controls from "./notifications-content.module.css";
 import styles from "./preferences-content.module.css";
-
 const labels: Record<string, string> = {
+  waiting: "Aguardando",
   pending: "Aguardando",
   processing: "Processando",
+  sending: "Enviando",
   accepted: "Aceito pelo provedor",
   sent: "Enviado",
   delivered: "Entregue",
@@ -22,57 +23,65 @@ const labels: Record<string, string> = {
   failed: "Falha",
   uncertain: "Sem confirmação",
   cancelled: "Não enviado",
+  skipped: "Não enviado",
   expired: "Prazo expirado",
 };
-
+type HistoryRow = {
+  id: string;
+  channel: string;
+  destination: string;
+  status: string;
+  error: string | null;
+  created_at: Date;
+  subject: string;
+  href: string;
+  action: string;
+};
 export async function NotificationsContent({
   page: requestedPage,
 }: {
   page?: string | string[];
 }) {
-  await requireAdmin();
-  const [enabled, [totalRow]] = await Promise.all([
-    ticketNotificationsEnabled(),
-    db
-      .select({ total: count() })
-      .from(ticketNotices)
-      .where(
-        or(
-          isNull(ticketNotices.preferenceKey),
-          eq(ticketNotices.preferenceKey, "console:tickets"),
-        ),
-      ),
+  const { actor, companyId } = await settingsEnvironment();
+  const ticketScope = companyId
+    ? sql`t.company_id=${companyId} and n.preference_key=${`${companyId}:tickets`}`
+    : sql`(n.preference_key is null or n.preference_key='console:tickets')`;
+  const history = sql`select n.id,n.channel,n.destination,n.status,n.error,n.created_at,t.subject,'/chamados/'||t.id as href,a.action
+    from console_ticket_notices n join console_tickets t on t.id=n.ticket_id join console_audit_events a on a.id=n.event_id where ${ticketScope}
+    ${companyId ? sql`union all select n.id,n.channel,coalesce(nullif(n.recipient,''),case when jsonb_typeof(n.payload->'to')='array' then n.payload->'to'->>0 else n.payload->>'to' end,''),n.status,n.error,n.created_at,i.description,'/financeiro/'||i.id,'billing.notice' from console_billing_notices n join console_invoices i on i.id=n.invoice_id where i.company_id=${companyId}` : sql``}`;
+  const [enabled, counts] = await Promise.all([
+    actor.admin ? ticketNotificationsEnabled() : Promise.resolve(false),
+    db.execute<{ total: number }>(
+      sql`select count(*)::int total from (${history}) history`,
+    ),
   ]);
-  const total = totalRow.total;
-  const pageCount = Math.max(1, Math.ceil(total / 20));
+  const total = counts.rows[0].total,
+    pageCount = Math.max(1, Math.ceil(total / 20));
   const raw =
-    typeof requestedPage === "string" && /^[1-9]\d{0,6}$/.test(requestedPage)
-      ? Number(requestedPage)
-      : 1;
-  const page = Math.min(raw, pageCount);
-  const rows = await db
-    .select({
-      notice: ticketNotices,
-      subject: tickets.subject,
-      company: companies.name,
-      action: auditEvents.action,
-    })
-    .from(ticketNotices)
-    .innerJoin(tickets, eq(tickets.id, ticketNotices.ticketId))
-    .innerJoin(companies, eq(companies.id, tickets.companyId))
-    .innerJoin(auditEvents, eq(auditEvents.id, ticketNotices.eventId))
-    .where(
-      or(
-        isNull(ticketNotices.preferenceKey),
-        eq(ticketNotices.preferenceKey, "console:tickets"),
-      ),
-    )
-    .orderBy(desc(ticketNotices.createdAt), desc(ticketNotices.id))
-    .limit(20)
-    .offset((page - 1) * 20);
+      typeof requestedPage === "string" && /^[1-9]\d{0,6}$/.test(requestedPage)
+        ? Number(requestedPage)
+        : 1,
+    page = Math.min(raw, pageCount);
+  const { rows } = await db.execute<HistoryRow>(
+    sql`select * from (${history}) history order by created_at desc,id desc limit 20 offset ${(page - 1) * 20}`,
+  );
   return (
     <div className={styles.content}>
-      <NotificationToggle enabled={enabled} />
+      {actor.admin && <NotificationToggle enabled={enabled} />}
+      {companyId && (
+        <NotificationTopicForm
+          companyId={companyId}
+          topic="billing"
+          title="Financeiro"
+          description="Faturas, vencimentos e lembretes."
+        />
+      )}
+      <NotificationTopicForm
+        companyId={companyId}
+        topic="tickets"
+        title="Chamados"
+        description="Abertura, respostas e atualizações."
+      />
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <h2>Histórico de envios</h2>
@@ -87,37 +96,39 @@ export async function NotificationsContent({
           >
             <table className={`${styles.table} ${controls.history}`}>
               <caption className="sr-only">
-                Histórico dos avisos de chamados e confirmações de entrega
+                Histórico de notificações e confirmações de entrega
               </caption>
               <thead>
                 <tr>
                   <th scope="col">Movimentação</th>
-                  <th scope="col">Canal</th>
+                  <th scope="col">Destinatário</th>
                   <th scope="col">Situação</th>
                   <th scope="col">Data</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ notice: n, subject, company, action }) => (
-                  <tr key={n.id} data-notice-id={n.id}>
+                {rows.map((row) => (
+                  <tr key={row.id} data-notice-id={row.id}>
                     <td>
-                      <Link
-                        href={`/chamados/${n.ticketId}`}
-                        aria-label={`${subject} — ${company}`}
-                      >
-                        {subject}
-                      </Link>
+                      <Link href={row.href}>{row.subject}</Link>
                       <p className={styles.cellDetail}>
-                        {company} · {auditLabels[action] || action}
+                        {row.action === "billing.notice"
+                          ? "Financeiro"
+                          : auditLabels[row.action] || row.action}
                       </p>
                     </td>
-                    <td>{n.channel === "email" ? "E-mail" : "WhatsApp"}</td>
                     <td>
-                      <Badge status={n.status}>
-                        {labels[n.status] || n.status}
+                      {row.destination || "—"}
+                      <p className={styles.cellDetail}>
+                        {row.channel === "email" ? "E-mail" : "WhatsApp"}
+                      </p>
+                    </td>
+                    <td>
+                      <Badge status={row.status}>
+                        {labels[row.status] || row.status}
                       </Badge>
-                      {n.error && (
-                        <p className={styles.cellDetail}>{n.error}</p>
+                      {row.error && (
+                        <p className={styles.cellDetail}>{row.error}</p>
                       )}
                     </td>
                     <td>
@@ -125,7 +136,7 @@ export async function NotificationsContent({
                         timeZone: APP_TIME_ZONE,
                         dateStyle: "short",
                         timeStyle: "short",
-                      }).format(n.createdAt)}
+                      }).format(new Date(row.created_at))}
                     </td>
                   </tr>
                 ))}
@@ -137,7 +148,7 @@ export async function NotificationsContent({
             <Empty
               headingLevel={3}
               title="Nenhum aviso registrado"
-              description="As próximas movimentações dos chamados aparecerão aqui."
+              description="Os próximos envios aparecerão aqui."
             />
           </div>
         )}

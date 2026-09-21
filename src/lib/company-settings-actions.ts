@@ -2,10 +2,16 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auditEvents, companies, notificationPreferences } from "@/db/schema";
+import {
+  auditEvents,
+  companies,
+  notificationPreferences,
+  environmentProfile,
+} from "@/db/schema";
 import { getActor } from "./access";
 import type { ActionState } from "./action-state";
 import { db } from "./db";
+import { lockTicketNotifications } from "./notification-settings";
 import { companyIdentity, companyEmail, companyPhone } from "./company-input";
 import { companyBillingInput } from "./company-billing";
 import { AccessChangeError, lockManagedCompany } from "./company-management";
@@ -34,10 +40,25 @@ export async function saveCompanySettings(
   const actor = await getActor();
   try {
     const input = companyIdentity
-      .extend({ id: z.string().uuid() })
+      .extend({ id: z.union([z.string().uuid(), z.literal("console")]) })
       .parse(Object.fromEntries(form));
+    if (actor.admin && input.id !== "console") return blocked;
     const { billingAddress } = companyBillingInput(form);
     await db.transaction(async (tx) => {
+      if (input.id === "console") {
+        if (!actor.admin) throw new AccessChangeError(blocked.error);
+        const values = { ...input, billingAddress, updatedAt: new Date() };
+        await tx
+          .insert(environmentProfile)
+          .values(values)
+          .onConflictDoUpdate({ target: environmentProfile.id, set: values });
+        await tx.insert(auditEvents).values({
+          actorId: actor.user.id,
+          action: "environment.updated",
+          entityId: "console",
+        });
+        return;
+      }
       await lockManagedCompany(tx, actor, input.id);
       const [before] = await tx
         .select()
@@ -78,23 +99,47 @@ export async function saveNotificationPreferences(
     if (!companyId && (!actor.admin || topic !== "tickets")) return blocked;
     const emailEnabled = form.get("emailEnabled") === "yes";
     const whatsappEnabled = form.get("whatsappEnabled") === "yes";
-    const emailRaw = String(form.get("email") || "").trim();
-    const phoneRaw = String(form.get("phone") || "").trim();
-    const email = emailRaw || emailEnabled ? companyEmail.parse(emailRaw) : "";
-    const phone =
-      phoneRaw || whatsappEnabled ? companyPhone.parse(phoneRaw) : "";
+    if (form.getAll("emails").length > 10 || form.getAll("phones").length > 10)
+      return { error: "Cadastre até 10 e-mails e 10 telefones por assunto." };
+    const readContacts = (
+      name: string,
+      legacy: string,
+      schema: typeof companyEmail | typeof companyPhone,
+    ) => {
+      const raw = form.has(name) ? form.getAll(name) : form.getAll(legacy);
+      if (raw.length > 10) throw new Error("Limite de contatos excedido");
+      return [
+        ...new Set(
+          raw
+            .map((value) => String(value).trim())
+            .filter(Boolean)
+            .map((value) => schema.parse(value)),
+        ),
+      ];
+    };
+    const emails = readContacts("emails", "email", companyEmail);
+    const phones = readContacts("phones", "phone", companyPhone);
+    if (emailEnabled && !emails.length)
+      return { error: "Adicione um e-mail ou desative esse canal." };
+    if (whatsappEnabled && !phones.length)
+      return { error: "Adicione um telefone ou desative esse canal." };
+    const email = emails[0] || "",
+      phone = phones[0] || "";
     const key = preferenceKey(companyId, topic);
     await db.transaction(async (tx) => {
       if (companyId) {
         await lockCompanyNotifications(tx, companyId, true);
         await lockManagedCompany(tx, actor, companyId);
       }
+      if (!companyId) await lockTicketNotifications(tx, true);
       const values = {
         key,
         companyId,
         topic,
         email,
         phone,
+        emails,
+        phones,
         emailEnabled,
         whatsappEnabled,
         updatedAt: new Date(),

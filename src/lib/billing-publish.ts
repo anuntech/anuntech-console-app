@@ -1,16 +1,11 @@
 import "server-only";
+import { enqueueBillingNotice } from "./billing-notice-queue";
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { saoPauloDate } from "./dates";
 import { db } from "./db";
-import {
-  invoices,
-  companies,
-  auditEvents,
-  subscriptions,
-  billingNotices,
-} from "@/db/schema";
+import { invoices, companies, auditEvents, subscriptions } from "@/db/schema";
 import { interApi, interBase, interToken, ProviderError } from "./integrations";
 import { payerAddress, bankReference } from "./billing-rules";
 import { advanceSubscription } from "./billing-publication";
@@ -89,18 +84,14 @@ export async function publishInvoice(
       } else if (scheduled)
         throw new Error("Emissão automática exige recorrência.");
       if (sendNotifications)
-        await tx
-          .insert(billingNotices)
-          .values(
-            (["email", "whatsapp"] as const).map((channel) => ({
-              id: crypto.randomUUID(),
-              invoiceId: i.id,
-              actorId,
-              channel,
-              kind: "initial" as const,
-            })),
-          )
-          .onConflictDoNothing();
+        for (const channel of ["email", "whatsapp"] as const)
+          await enqueueBillingNotice(tx, {
+            invoiceId: i.id,
+            companyId: i.companyId,
+            actorId,
+            channel,
+            kind: "initial",
+          });
       const location = savedAddress.data;
       const data = {
         seuNumero: bankReference(i.id),

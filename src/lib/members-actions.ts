@@ -1,4 +1,8 @@
 "use server";
+import {
+  assertSingleEnvironment,
+  lockEnvironmentAssignments,
+} from "./environment-access";
 import { and, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -143,7 +147,9 @@ export async function saveConsoleStaffMember(
   try {
     const email = emailInput.parse(form.get("email"));
     const changed = await db.transaction(async (tx) => {
+      await lockEnvironmentAssignments(tx);
       const identity = await lockedIdentity(tx, email);
+      await assertSingleEnvironment(tx, identity.emails, "console");
       if (ownsConsole(identity.emails))
         throw new AccessChangeError(
           "O proprietário já possui administração permanente do Console.",
@@ -204,6 +210,7 @@ export async function revokeConsoleStaffMember(
   try {
     const id = idInput.parse(form.get("id"));
     await db.transaction(async (tx) => {
+      await lockEnvironmentAssignments(tx);
       const [entry] = await tx
         .select({ email: consoleStaffMembers.email })
         .from(consoleStaffMembers)
@@ -261,8 +268,10 @@ export async function saveCompanyMember(
       })
       .parse(Object.fromEntries(form));
     await db.transaction(async (tx) => {
+      await lockEnvironmentAssignments(tx);
       await lockManagedCompany(tx, actor, input.companyId);
       const identity = await lockedIdentity(tx, input.email);
+      await assertSingleEnvironment(tx, identity.emails, input.companyId);
       await protectCompanyAdministration(
         tx,
         actor,
@@ -330,6 +339,7 @@ export async function revokeCompanyMember(
   try {
     const id = idInput.parse(form.get("id"));
     const companyId = await db.transaction(async (tx) => {
+      await lockEnvironmentAssignments(tx);
       const [entry] = await tx
         .select({ email: memberships.email, companyId: memberships.companyId })
         .from(memberships)

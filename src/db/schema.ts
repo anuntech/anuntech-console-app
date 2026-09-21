@@ -494,6 +494,7 @@ export const billingNotices = pgTable(
       .notNull()
       .references(() => user.id),
     channel: text("channel", { enum: ["email", "whatsapp"] }).notNull(),
+    recipient: text("recipient").notNull().default(""),
     kind: text("kind")
       .$type<import("@/lib/billing-notice-rules").BillingNoticeKind>()
       .notNull(),
@@ -529,6 +530,7 @@ export const billingNotices = pgTable(
       t.invoiceId,
       t.channel,
       t.kind,
+      t.recipient,
     ),
     index("console_billing_notice_pending_idx").on(t.status, t.nextAttemptAt),
   ],
@@ -545,6 +547,8 @@ export const notificationPreferences = pgTable(
     topic: text("topic", { enum: ["billing", "tickets"] }).notNull(),
     email: text("email").notNull(),
     phone: text("phone").notNull(),
+    emails: jsonb("emails").$type<string[]>(),
+    phones: jsonb("phones").$type<string[]>(),
     emailEnabled: boolean("email_enabled").notNull(),
     whatsappEnabled: boolean("whatsapp_enabled").notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -559,6 +563,21 @@ export const notificationSettings = pgTable("console_notification_settings", {
   updatedBy: text("updated_by").references(() => user.id, {
     onDelete: "set null",
   }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const environmentProfile = pgTable("console_environment_profile", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  document: text("document").notNull(),
+  billingEmail: text("billing_email").notNull(),
+  phone: text("phone"),
+  billingAddress:
+    jsonb("billing_address").$type<
+      import("@/lib/company-billing").CompanyAddress
+    >(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

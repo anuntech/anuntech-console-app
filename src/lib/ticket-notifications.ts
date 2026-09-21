@@ -10,6 +10,8 @@ import {
 } from "./notification-settings";
 import {
   getNoticePreferences,
+  noticeEmails,
+  noticePhones,
   preferenceKey,
   whatsappDestination,
   lockCompanyNotifications,
@@ -59,57 +61,59 @@ export async function enqueueTicketNotice(
       !preferences.whatsappEnabled
     )
       continue;
-    const email = preferences.email;
-    const emailId = randomUUID(),
-      whatsappId = randomUUID();
-    const phone = preferences.phone
-      ? `+${whatsappDestination(preferences.phone)}`
-      : "";
-    queued.push(
-      {
-        id: emailId,
+    for (const email of noticeEmails(preferences).length
+      ? noticeEmails(preferences)
+      : [""]) {
+      queued.push({
+        id: randomUUID(),
         preferenceKey: key,
+        eventId,
+        ticketId: ticket.id,
+        channel: "email",
+        destination: email,
         ...(!preferences.emailEnabled || !email
           ? {
               status: "cancelled",
               error: "E-mail desativado ou sem destinatário nas preferências.",
             }
           : {}),
-        eventId,
-        ticketId: ticket.id,
-        channel: "email",
-        destination: email,
         payload: {
           from: process.env.EMAIL_FROM || "",
           to: email,
           subject: `${movement} · ${ticket.subject}`,
           text: `${movement}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nResponsável pela movimentação: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
         },
-      },
-      {
-        id: whatsappId,
+      });
+    }
+    for (const destination of noticePhones(preferences).length
+      ? noticePhones(preferences)
+      : [""]) {
+      const id = randomUUID(),
+        phone = destination ? `+${destination}` : "";
+      queued.push({
+        id,
         preferenceKey: key,
         eventId,
         ticketId: ticket.id,
         channel: "whatsapp",
         destination: phone,
-        payload: {
-          from: process.env.FLW_SENDER_NUMBER || "",
-          to: phone.replace(/^\+/, ""),
-          templateId: process.env.FLW_TICKET_TEMPLATE_ID || "",
-          parameters: { "[nome_do_cliente]": company.name },
-          senderId: whatsappId,
-          options: { enableBot: false },
-        },
-        ...(!phone || !preferences.whatsappEnabled
+        ...(!preferences.whatsappEnabled || !phone
           ? {
               status: "cancelled",
               error:
                 "WhatsApp desativado ou sem destinatário nas preferências.",
             }
           : {}),
-      },
-    );
+        payload: {
+          from: process.env.FLW_SENDER_NUMBER || "",
+          to: destination,
+          templateId: process.env.FLW_TICKET_TEMPLATE_ID || "",
+          parameters: { "[nome_do_cliente]": company.name },
+          senderId: id,
+          options: { enableBot: false },
+        },
+      });
+    }
   }
   if (queued.length)
     await tx
@@ -194,10 +198,12 @@ async function currentRecipient(
     connection,
   );
   return row.channel === "email"
-    ? preferences.emailEnabled && row.destination === preferences.email
+    ? preferences.emailEnabled &&
+        noticeEmails(preferences).includes(row.destination)
     : preferences.whatsappEnabled &&
-        whatsappDestination(row.destination) ===
-          whatsappDestination(preferences.phone);
+        noticePhones(preferences).includes(
+          whatsappDestination(row.destination),
+        );
 }
 async function sendEmail(row: Notice, connection: Tx) {
   if (!process.env.RESEND_API_KEY || !row.payload.from || !row.destination) {

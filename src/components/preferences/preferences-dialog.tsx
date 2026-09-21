@@ -204,7 +204,7 @@ export function PreferencesWorkspace({
           {...preferenceCopy[section]}
           description={
             section === "members" && !admin
-              ? "Pessoas e permissões das empresas que você administra."
+              ? "Pessoas do seu ambiente."
               : preferenceCopy[section].description
           }
           admin={admin}
@@ -337,7 +337,7 @@ export function PreferencesDialog({
                     "notifications",
                     "integrations",
                   ] as const)
-                : (["company", "members"] as const)
+                : (["company", "members", "notifications"] as const)
               ).map((item) => {
                 const { href, label, icon: Icon } = sections[item];
                 return (

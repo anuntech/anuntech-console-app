@@ -3,7 +3,7 @@ export const preferenceCopy = {
   security: { title: "Segurança", description: "Proteção da conta e sessões recentes." },
   company: {
     title: "Dados da empresa",
-    description: "Cadastro e preferências de comunicação por assunto.",
+    description: "Informações cadastrais do seu ambiente.",
   },
   account: {
     title: "Minha conta",

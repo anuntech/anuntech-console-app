@@ -1,10 +1,12 @@
 import "server-only";
 import {
   getNoticePreferences,
+  noticeEmails,
+  noticePhones,
   whatsappDestination,
   lockCompanyNotifications,
 } from "./notification-preferences";
-import { randomUUID } from "node:crypto";
+import { enqueueBillingNotice } from "./billing-notice-queue";
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
@@ -73,7 +75,11 @@ async function approvedTemplates() {
 export async function queueBillingReminders() {
   const today = saoPauloDate();
   const sources = await db
-    .select({ source: billingNotices, due: invoices.dueDate })
+    .select({
+      source: billingNotices,
+      due: invoices.dueDate,
+      companyId: invoices.companyId,
+    })
     .from(billingNotices)
     .innerJoin(invoices, eq(invoices.id, billingNotices.invoiceId))
     .where(
@@ -84,22 +90,25 @@ export async function queueBillingReminders() {
         sql`${invoices.dueDate} > ${today}::date - interval '30 days'`,
       ),
     );
-  const values = sources.flatMap(({ source, due }) => {
+  const groups = new Map(
+    sources.map((row) => [
+      `${row.source.invoiceId}:${row.source.channel}`,
+      row,
+    ]),
+  );
+  for (const { source, due, companyId } of groups.values()) {
     const kind = reminderKind(due, today);
-    return kind
-      ? [
-          {
-            id: randomUUID(),
-            invoiceId: source.invoiceId,
-            actorId: source.actorId,
-            channel: source.channel,
-            kind,
-          },
-        ]
-      : [];
-  });
-  if (values.length)
-    await db.insert(billingNotices).values(values).onConflictDoNothing();
+    if (kind)
+      await db.transaction((tx) =>
+        enqueueBillingNotice(tx, {
+          invoiceId: source.invoiceId,
+          actorId: source.actorId,
+          channel: source.channel,
+          companyId,
+          kind,
+        }),
+      );
+  }
 }
 export async function processBillingNotices(deadline = Date.now() + 180000) {
   // A worker interrupted after a WhatsApp POST cannot safely retry that POST.
@@ -188,25 +197,33 @@ export async function processBillingNotice(
       return;
     }
     let preferences = await getNoticePreferences(row.c.id, "billing");
-    const recipientAllowed = () => {
-      if (notice.channel === "email")
-        return (
-          preferences.emailEnabled &&
-          !!preferences.email &&
+    // Existing retries keep their original payload; every new notice has one recipient.
+    const destination =
+      notice.recipient ||
+      (notice.payload
+        ? Array.isArray(notice.payload.to)
+          ? notice.payload.to[0]
+          : notice.payload.to
+        : notice.channel === "email"
+          ? noticeEmails(preferences)[0]
+          : noticePhones(preferences)[0]) ||
+      "";
+    const recipientAllowed = () =>
+      notice.channel === "email"
+        ? preferences.emailEnabled &&
+          noticeEmails(preferences).includes(destination) &&
           (!notice.payload ||
             (Array.isArray(notice.payload.to) &&
               notice.payload.to.length === 1 &&
-              notice.payload.to[0] === preferences.email))
-        );
-      return (
-        preferences.whatsappEnabled &&
-        !!preferences.phone &&
-        (!notice.payload ||
-          (typeof notice.payload.to === "string" &&
-            whatsappDestination(notice.payload.to) ===
-              whatsappDestination(preferences.phone)))
-      );
-    };
+              notice.payload.to[0] === destination))
+        : preferences.whatsappEnabled &&
+          noticePhones(preferences).includes(
+            whatsappDestination(destination),
+          ) &&
+          (!notice.payload ||
+            (typeof notice.payload.to === "string" &&
+              whatsappDestination(notice.payload.to) ===
+                whatsappDestination(destination)));
     if (!recipientAllowed()) {
       await save({
         status: "skipped",
@@ -304,7 +321,7 @@ export async function processBillingNotice(
                 "complained",
                 "suppressed",
               ]),
-              sql`${billingNotices.payload}->'to' @> ${JSON.stringify([preferences.email])}::jsonb`,
+              sql`${billingNotices.payload}->'to' @> ${JSON.stringify([destination])}::jsonb`,
             ),
           )
           .limit(1);
@@ -351,7 +368,7 @@ export async function processBillingNotice(
       else if (notice.channel === "email")
         payload = {
           from: billingEmailFrom(process.env.EMAIL_FROM!),
-          to: [preferences.email],
+          to: [destination],
           ...billingEmailTemplate({
             ...data,
             url: paymentUrl(data.publicId),
@@ -359,7 +376,7 @@ export async function processBillingNotice(
           }),
         };
       else {
-        let phone = (preferences.phone || "").replace(/\D/g, "");
+        let phone = destination.replace(/\D/g, "");
         if (phone.length === 10 || phone.length === 11) phone = `55${phone}`;
         if (!/^55\d{10,11}$/.test(phone)) {
           await save({

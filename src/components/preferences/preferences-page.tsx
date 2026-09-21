@@ -21,7 +21,9 @@ export async function PreferencesPage({
 }) {
   await (["account", "appearance", "security"].includes(section)
     ? getActor()
-    : section === "members" || section === "company"
+    : section === "members" ||
+        section === "company" ||
+        section === "notifications"
       ? requireMemberManager()
       : requireAdmin());
   return (

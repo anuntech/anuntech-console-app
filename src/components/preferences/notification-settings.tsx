@@ -1,9 +1,11 @@
 import "server-only";
 import { ActionForm } from "@/components/action-form";
-import { Field } from "@/components/ui";
+import { NotificationContacts } from "./notification-contacts";
 import { saveNotificationPreferences } from "@/lib/company-settings-actions";
 import {
   getNoticePreferences,
+  noticeEmails,
+  noticePhones,
   type NotificationTopic,
   type NoticePreferences,
 } from "@/lib/notification-preferences";
@@ -38,27 +40,14 @@ export async function NotificationTopicForm({
           <input type="hidden" name="companyId" value={companyId || ""} />
           <input type="hidden" name="topic" value={topic} />
           <div className="form-grid">
-            <Field label="E-mail para notificações">
-              <input
-                name="email"
-                type="email"
-                maxLength={254}
-                autoComplete="off"
-                defaultValue={preferences.email}
-              />
-            </Field>
-            <Field
-              label="Telefone"
-              hint="DDD e número para receber pelo WhatsApp."
-            >
-              <input
-                name="phone"
-                type="tel"
-                maxLength={30}
-                autoComplete="off"
-                defaultValue={preferences.phone}
-              />
-            </Field>
+            <NotificationContacts
+              kind="email"
+              values={noticeEmails(preferences)}
+            />
+            <NotificationContacts
+              kind="phone"
+              values={noticePhones(preferences)}
+            />
           </div>
           <fieldset className={styles.channelChoices}>
             <legend>Receber por</legend>

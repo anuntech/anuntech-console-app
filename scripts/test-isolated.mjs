@@ -36,6 +36,7 @@ try {
       "--members-only",
       "--account-only",
       "--navigation-only",
+      "--environment-only",
       "--notifications-only",
     ].some((flag) => process.argv.includes(flag))
   ) {
@@ -74,6 +75,7 @@ try {
     "--members-only": "scripts/members-smoke.mjs",
     "--account-only": "scripts/account-smoke.mjs",
     "--navigation-only": "scripts/navigation-smoke.mjs",
+    "--environment-only": "scripts/environment-smoke.mjs",
     "--notifications-only": "scripts/notifications-smoke.mjs",
     "--billing-only": "scripts/smoke.mjs",
     "--regression-only": "scripts/smoke.mjs",

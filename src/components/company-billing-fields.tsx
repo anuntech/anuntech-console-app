@@ -23,11 +23,13 @@ export function CompanyBillingFields({
   lockDocument = false,
   fiscalSettings = true,
   lookupEnabled = true,
+  environmentSettings = false,
 }: {
   inviteToken?: string;
   lockDocument?: boolean;
   fiscalSettings?: boolean;
   lookupEnabled?: boolean;
+  environmentSettings?: boolean;
   company?: {
     name: string;
     document: string;
@@ -161,7 +163,9 @@ export function CompanyBillingFields({
         <div className="section-heading">
           <h2>Identificação e contato</h2>
           <p className="muted">
-            Dados da empresa e canais para comunicação financeira.
+            {environmentSettings
+              ? "Informações de identificação do seu ambiente."
+              : "Dados da empresa e canais para comunicação financeira."}
           </p>
         </div>
         <div className="form-grid">
@@ -200,7 +204,11 @@ export function CompanyBillingFields({
               onChange={handleChange}
             />
           </Field>
-          <Field label="E-mail financeiro">
+          <Field
+            label={
+              environmentSettings ? "E-mail de contato" : "E-mail financeiro"
+            }
+          >
             <input
               name="billingEmail"
               type="email"
@@ -246,11 +254,17 @@ export function CompanyBillingFields({
       </section>
       <section className="form-section">
         <div className="section-heading">
-          <h2>Endereço de cobrança e nota fiscal</h2>
+          <h2>
+            {environmentSettings
+              ? "Endereço"
+              : "Endereço de cobrança e nota fiscal"}
+          </h2>
           <p className="muted">
-            {inviteToken
-              ? "Preencha o endereço completo para cobrança e nota fiscal."
-              : "Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode completar depois, antes de emitir uma cobrança."}
+            {environmentSettings
+              ? "Endereço cadastral da empresa."
+              : inviteToken
+                ? "Preencha o endereço completo para cobrança e nota fiscal."
+                : "Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode completar depois, antes de emitir uma cobrança."}
           </p>
         </div>
         <div className="form-grid">

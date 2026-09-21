@@ -141,10 +141,11 @@ async function makePerson(name) {
   userIds.push(id);
   people[name] = { id, email };
   await addSession(name, name);
-  await db.query(
-    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')",
-    [randomUUID(), companyId, email],
-  );
+  if (name !== "owner")
+    await db.query(
+      "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')",
+      [randomUUID(), companyId, email],
+    );
 }
 async function rowFor(email) {
   return (
@@ -250,6 +251,19 @@ try {
     }
   }
   assert.ok(ready, "Account test server starts");
+
+  const foreignEmail = address("foreign-environment");
+  await db.query(
+    "insert into console_staff_members(id,email,created_by) values($1,$2,$3)",
+    [randomUUID(), foreignEmail, people.owner.id],
+  );
+  const foreignProof = await begin("client", foreignEmail);
+  assert.ok(foreignProof.id, "Can prove ownership before access validation");
+  const foreignResult = await confirm("client", foreignProof);
+  ok(
+    !!foreignResult.value.error && !(await rowFor(foreignEmail)),
+    "Verified alias cannot combine client and console environments",
+  );
 
   // Bundled avatars use the same authorization and transaction as uploads.
   const chosen = "/brand/avatars/avatar-01.svg";
@@ -386,16 +400,40 @@ try {
       ).rowCount === 1,
     "Email proof is single-use",
   );
-  ok(!actionIds.removeAccountEmail, "Email removal is not exposed as a public action");
+  ok(
+    !actionIds.removeAccountEmail,
+    "Email removal is not exposed as a public action",
+  );
   const securityPage = await request("/configuracoes/seguranca", "client");
-  ok(securityPage.status === 200 && securityPage.text.includes("Esta sessão"), "Member sees security settings and current session");
-  const tokens = (await db.query("select token from console_session where user_id=any($1::text[])", [[people.client.id, people.other.id]])).rows;
-  ok(tokens.every(({token}) => !securityPage.text.includes(token)), "Security page never exposes session tokens");
-  ok(!securityPage.text.includes(people.other.sessionId), "Another account session is absent from security page");
+  ok(
+    securityPage.status === 200 && securityPage.text.includes("Esta sessão"),
+    "Member sees security settings and current session",
+  );
+  const tokens = (
+    await db.query(
+      "select token from console_session where user_id=any($1::text[])",
+      [[people.client.id, people.other.id]],
+    )
+  ).rows;
+  ok(
+    tokens.every(({ token }) => !securityPage.text.includes(token)),
+    "Security page never exposes session tokens",
+  );
+  ok(
+    !securityPage.text.includes(people.other.sessionId),
+    "Another account session is absent from security page",
+  );
   const appearancePage = await request("/configuracoes/aparencia", "client");
-  ok(appearancePage.status === 200 && appearancePage.text.includes("Posição do menu"), "Member can open appearance settings");
+  ok(
+    appearancePage.status === 200 &&
+      appearancePage.text.includes("Posição do menu"),
+    "Member can open appearance settings",
+  );
   const accountPage = await request("/conta", "client");
-  ok(!accountPage.text.includes("Adicionar e-mail"), "Account offers replacement instead of additional emails");
+  ok(
+    !accountPage.text.includes("Adicionar e-mail"),
+    "Account offers replacement instead of additional emails",
+  );
 
   proof = await begin("client", address("expired"));
   await db.query(
@@ -512,8 +550,8 @@ try {
           "select id from console_memberships where email=$1 and active",
           [ownerEmail],
         )
-      ).rowCount === 1,
-    "Previous verified identity and company grants are retained",
+      ).rowCount === 0,
+    "Previous verified owner identity is retained without a client environment",
   );
   ok(
     !(await api("/get-session", undefined, people.owner.cookie)).body?.user,
@@ -582,6 +620,10 @@ try {
   try {
     await db.query(
       "delete from console_audit_events where actor_id=any($1::text[])",
+      [userIds],
+    );
+    await db.query(
+      "delete from console_staff_members where created_by=any($1::text[])",
       [userIds],
     );
     await db.query("delete from console_memberships where company_id=$1", [

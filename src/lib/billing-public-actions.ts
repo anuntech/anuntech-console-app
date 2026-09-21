@@ -1,5 +1,6 @@
 "use server";
-import { randomBytes, randomUUID } from "node:crypto";
+import { enqueueBillingNotice } from "./billing-notice-queue";
+import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { after } from "next/server";
@@ -40,16 +41,13 @@ export async function sendInvoiceNotice(
           .update(invoices)
           .set({ publicId: randomBytes(32).toString("base64url") })
           .where(eq(invoices.id, id));
-      await tx
-        .insert(billingNotices)
-        .values({
-          id: randomUUID(),
-          invoiceId: id,
-          actorId: actor.user.id,
-          channel,
-          kind: "initial",
-        })
-        .onConflictDoNothing();
+      await enqueueBillingNotice(tx, {
+        invoiceId: id,
+        companyId: i.companyId,
+        actorId: actor.user.id,
+        channel,
+        kind: "initial",
+      });
       await tx
         .update(billingNotices)
         .set({ status: "pending", nextAttemptAt: new Date() })

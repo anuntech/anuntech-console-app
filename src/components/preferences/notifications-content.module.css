@@ -113,5 +113,6 @@
 }
 
 .history td:nth-child(2) {
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  min-width: 10rem;
 }

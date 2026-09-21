@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { enqueueBillingNotice } from "../src/lib/billing-notice-queue";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/lib/db";
 import {
   ticketNotices,
   notificationSettings,
   notificationPreferences,
+  billingNotices,
+  invoices,
+  auditEvents,
 } from "../src/db/schema";
 import {
   enqueueTicketNotice,
@@ -69,17 +74,15 @@ try {
     assert.equal((await processTicketNotices()).processed, 0);
     assert.equal(requests, 0);
     const key = `${fixture.companyId}:tickets`;
-    await db
-      .insert(notificationPreferences)
-      .values({
-        key,
-        companyId: fixture.companyId,
-        topic: "tickets",
-        email: "support@example.invalid",
-        phone: "11988887777",
-        emailEnabled: true,
-        whatsappEnabled: false,
-      });
+    await db.insert(notificationPreferences).values({
+      key,
+      companyId: fixture.companyId,
+      topic: "tickets",
+      email: "support@example.invalid",
+      phone: "11988887777",
+      emailEnabled: true,
+      whatsappEnabled: false,
+    });
     await db.transaction((tx) =>
       enqueueTicketNotice(
         tx,
@@ -145,6 +148,143 @@ try {
     await db
       .delete(ticketNotices)
       .where(eq(ticketNotices.eventId, fixture.eventId));
+    await db
+      .update(notificationPreferences)
+      .set({
+        emails: [
+          "first@example.invalid",
+          "second@example.invalid",
+          "first@example.invalid",
+        ],
+        phones: ["11988887777", "11977776666"],
+        emailEnabled: true,
+        whatsappEnabled: true,
+      })
+      .where(eq(notificationPreferences.key, key));
+    await db.transaction((tx) =>
+      enqueueTicketNotice(
+        tx,
+        fixture.eventId,
+        {
+          id: fixture.ticketId,
+          companyId: fixture.companyId,
+          subject: "Multiple recipients",
+        },
+        "QA",
+        "Resposta",
+      ),
+    );
+    await db.transaction((tx) =>
+      enqueueTicketNotice(
+        tx,
+        fixture.eventId,
+        {
+          id: fixture.ticketId,
+          companyId: fixture.companyId,
+          subject: "Multiple recipients",
+        },
+        "QA",
+        "Resposta",
+      ),
+    );
+    let multiple = await db
+      .select()
+      .from(ticketNotices)
+      .where(eq(ticketNotices.eventId, fixture.eventId));
+    assert.equal(
+      multiple.length,
+      4,
+      "Two emails and two phones receive separate, deduplicated notices",
+    );
+    await processTicketNotices();
+    multiple = await db
+      .select()
+      .from(ticketNotices)
+      .where(eq(ticketNotices.eventId, fixture.eventId));
+    assert.ok(
+      multiple.every((row) => row.status === "accepted" && row.attempts === 1),
+    );
+    const removed = multiple.find(
+      (row) => row.destination === "second@example.invalid",
+    )!;
+    await db
+      .update(notificationPreferences)
+      .set({ emails: ["first@example.invalid"] })
+      .where(eq(notificationPreferences.key, key));
+    await db
+      .update(ticketNotices)
+      .set({ status: "pending", providerId: null, nextAttemptAt: new Date() })
+      .where(eq(ticketNotices.id, removed.id));
+    const before = requests;
+    await processTicketNotices();
+    assert.equal(
+      requests,
+      before,
+      "Removed contact cannot receive frozen retry",
+    );
+    const [cancelledRecipient] = await db
+      .select()
+      .from(ticketNotices)
+      .where(eq(ticketNotices.id, removed.id));
+    assert.equal(cancelledRecipient.status, "cancelled");
+    await db
+      .delete(ticketNotices)
+      .where(eq(ticketNotices.eventId, fixture.eventId));
+    const [event] = await db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.id, fixture.eventId));
+    const invoiceId = randomUUID();
+    await db
+      .insert(invoices)
+      .values({
+        id: invoiceId,
+        companyId: fixture.companyId,
+        description: "Multiple contacts QA",
+        amountCents: 10000,
+        dueDate: "2099-01-01",
+      });
+    const billingKey = `${fixture.companyId}:billing`;
+    await db
+      .insert(notificationPreferences)
+      .values({
+        key: billingKey,
+        companyId: fixture.companyId,
+        topic: "billing",
+        email: "first@example.invalid",
+        phone: "11988887777",
+        emails: ["first@example.invalid", "second@example.invalid"],
+        phones: ["11988887777", "11977776666"],
+        emailEnabled: true,
+        whatsappEnabled: true,
+      });
+    for (let attempt = 0; attempt < 2; attempt++)
+      for (const channel of ["email", "whatsapp"] as const)
+        await db.transaction((tx) =>
+          enqueueBillingNotice(tx, {
+            invoiceId,
+            companyId: fixture.companyId,
+            actorId: event.actorId!,
+            channel,
+            kind: "initial",
+          }),
+        );
+    const billing = await db
+      .select()
+      .from(billingNotices)
+      .where(eq(billingNotices.invoiceId, invoiceId));
+    assert.equal(billing.length, 4);
+    assert.equal(new Set(billing.map((row) => row.recipient)).size, 4);
+    await db
+      .delete(billingNotices)
+      .where(eq(billingNotices.invoiceId, invoiceId));
+    await db.delete(invoices).where(eq(invoices.id, invoiceId));
+    await db
+      .delete(notificationPreferences)
+      .where(eq(notificationPreferences.key, billingKey));
+    console.log(
+      "PASS Multiple contacts: independent deliveries, no duplicate queue entries and removed recipients blocked",
+    );
     await db
       .delete(notificationPreferences)
       .where(eq(notificationPreferences.key, key));

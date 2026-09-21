@@ -1,4 +1,9 @@
 "use server";
+import { AccessChangeError } from "./company-management";
+import {
+  assertSingleEnvironment,
+  lockEnvironmentAssignments,
+} from "./environment-access";
 
 import {
   createHmac,
@@ -52,7 +57,8 @@ const refresh = () => {
   revalidatePath("/", "layout");
 };
 const errorMessage = (e: unknown) =>
-  e instanceof Error && e.message.startsWith("Entre novamente")
+  e instanceof AccessChangeError ||
+  (e instanceof Error && e.message.startsWith("Entre novamente"))
     ? e.message
     : "Não foi possível concluir. Confira os dados e tente novamente.";
 
@@ -166,6 +172,7 @@ export async function confirmAccountEmail(
       .regex(/^\d{6}$/)
       .parse(form.get("targetCode"));
     const result = await db.transaction(async (tx) => {
+      await lockEnvironmentAssignments(tx);
       const [lockedUser] = await tx
         .select()
         .from(user)
@@ -236,6 +243,11 @@ export async function confirmAccountEmail(
         !contacts.some((contact) => contact.email === proof.email)
       )
         return { error: "Sua conta pode ter até 5 e-mails." };
+      await assertSingleEnvironment(tx, [
+        ...contacts.map((contact) => contact.email),
+        lockedUser.email,
+        proof.email,
+      ]);
       // The registry has a global unique email constraint, including all primary addresses.
       await tx
         .insert(accountEmails)
