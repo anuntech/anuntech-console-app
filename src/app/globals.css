@@ -608,8 +608,12 @@ hr {
 .signout:hover {
   color: var(--destructive);
 }
+html:has(.console-shell) {
+  scroll-padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
 .workspace {
   min-width: 0;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   min-height: 100dvh;

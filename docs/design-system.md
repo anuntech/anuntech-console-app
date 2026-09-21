@@ -45,7 +45,7 @@ A fonte única dos tokens é `src/app/globals.css`. Novas telas devem usar token
 
 | Componente/padrão    | Localização                                                          | Responsabilidade                                                              |
 | -------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Navegação            | `src/components/sidebar.tsx`                                         | Dock horizontal com ícones, tooltips, item ativo e permissões                 |
+| Navegação            | `src/components/ui/bottom-menu.tsx`                                         | Dock horizontal com ícones, tooltips, item ativo e permissões                 |
 | Preferências         | `src/components/preferences/`                                        | Minha conta, integrações e avisos em modal com navegação lateral              |
 | Card                 | `src/components/ui/card.tsx`                                         | Superfície com cabeçalho, título, descrição e conteúdo                        |
 | Heading              | `src/components/ui.tsx`                                              | Título da página, contexto e ação principal                                   |
@@ -121,7 +121,7 @@ Produtos e projetos continuam em cartões, adequados à descrição e à atualiz
 
 - Links navegam e botões executam ações. Controles somente com ícone precisam de nome acessível.
 - `aria-current` identifica a página/filtro atual; estados também têm texto visível.
-- A navegação autenticada usa um dock flutuante centralizado no topo, com ícones lado a lado. Os atalhos são links nativos com nome acessível, tooltip e marcador de página ativa. Em telas estreitas, as áreas rolam horizontalmente e Ajustes permanece visível. Não há botão de expansão, breadcrumb no canto esquerdo, logo ou selo de administração.
+- A navegação autenticada usa um dock flutuante centralizado na parte inferior, com ícones lado a lado. Os atalhos são links nativos com nome acessível, tooltip e marcador de página ativa. Em telas estreitas, as áreas rolam horizontalmente e Ajustes permanece visível. O botão Criar abre um painel acima com links de ações permitidas ao perfil. Não há breadcrumb no canto esquerdo, logo ou selo de administração.
 - Minha conta, Integrações e Avisos de chamados ficam em um Dialog com navegação lateral e agrupamento inspirado nos Ajustes da Apple. O perfil aparece em destaque; cards reúnem informações pessoais, acesso e segurança, dados e acesso, comunicação, financeiro/fiscal e entrega de avisos. Sair fica nos Ajustes. Rotas interceptadas preservam a tela de origem; abrir a URL diretamente mantém a apresentação de preferências e oferece retorno ao painel. A autorização continua no servidor.
 - Toda seleção usa `<select>` nativo e toda data editável usa `<input type="date">`. A aparência do seletor/calendário e o formato mostrado seguem o navegador e o sistema operacional. O servidor recebe a data civil em ISO (`YYYY-MM-DD`), sem conversão de fuso horário. Não substituir esses controles por Select, combobox ou calendário personalizado.
 - O menu de cada fatura usa Radix Dropdown Menu, preservando navegação por teclado e semântica de itens.
@@ -199,3 +199,10 @@ Interações e estados verificados no navegador com fixtures descartáveis e int
 A suíte de integração usa provedores simulados; não comprova nova entrega real de mensagens ou transação bancária. A revisão não gerou cobranças nem enviou mensagens para clientes. Erro e carregamento foram revisados no código e build; não foram provocadas falhas artificiais em produção.
 
 O resultado do CI e a identificação do deploy estão na seção “Revisão completa do design system” da wiki `Console/05 - Estado da implementação.md`.
+
+
+### BottomMenu e fechamento das preferências — 20/09/2026
+
+A referência React fornecida foi adaptada em `src/components/ui/bottom-menu.tsx`, com estilos em `bottom-menu.module.css`. O alias `@/components/ui` já corresponde à pasta `src/components/ui`; não se cria uma segunda pasta na raiz. O projeto usa TypeScript, CSS Modules e tokens semânticos, sem Tailwind. A adaptação usa Lucide e Base UI já instalados: não precisa das dependências de demonstração, medidas ocultas duplicadas ou imagens de estoque. O painel possui título acessível, fechamento por Escape/clique externo e retorno de foco; respeita movimento reduzido. Somente destinos reais e autorizados são mostrados.
+
+O dock fica abaixo do conteúdo com reserva inferior e safe area; tooltips e painel abrem acima. Minha conta e todas as categorias compartilham X de 44 px fixo no canto superior direito. O texto Ajustes foi removido da lateral; o título acessível da seção permanece. Em celular, a navegação continua acima do conteúdo e Sair fica à esquerda do X.

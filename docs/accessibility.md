@@ -58,7 +58,7 @@ Cadastros de empresa, criação de fatura, abertura de chamado e edição de con
 - O OTP usa um campo de seis dígitos, aceita colagem e `autocomplete="one-time-code"`. O destino e o código têm rótulos, dicas e erros associados.
 - A interface dirige o foco para o código após a solicitação e para o campo correspondente quando a API rejeita a entrada. A contagem para reenvio continua visível, sem anunciar cada segundo.
 - Vencimentos usam `<input type="date">` e seleções usam `<select>` nativo. O navegador oferece o calendário, as opções e a navegação por teclado conforme o sistema operacional. `Field` mantém rótulo, indicação de obrigatório e erros associados; o servidor valida a data civil ISO sem conversão de fuso.
-- O dock permanece centralizado no topo para todos os perfis, com links de ícones em uma linha. Cada link tem nome acessível, tooltip ao foco/hover e estado ativo em texto assistivo/indicador visual. Tab percorre as áreas; em telas estreitas o grupo de rotas rola, mantendo Ajustes visível. O diálogo devolve foco a Ajustes ao fechar. Minha conta e as configurações usam um Dialog com links laterais, título e descrição; permissões são verificadas novamente no servidor.
+- O dock permanece centralizado na parte inferior para todos os perfis, com links de ícones em uma linha. Cada link tem nome acessível, tooltip ao foco/hover e estado ativo em texto assistivo/indicador visual. Tab percorre as áreas; em telas estreitas o grupo de rotas rola, mantendo Ajustes visível. O diálogo devolve foco a Ajustes ao fechar. Minha conta e as configurações usam um Dialog com links laterais, título e descrição; permissões são verificadas novamente no servidor.
 
 ### Tabelas, tamanho de texto, foco e contraste
 
@@ -185,3 +185,8 @@ QA confirmado no Chromium, com banco descartável e provedores simulados:
 - Foco no avatar revelou a câmera; sua ativação abriu o seletor de arquivos.
 
 O CI final desta rodada ainda não está registrado. Os resultados acima não ampliam a evidência para entrega real de mensagens, leitores de tela ou navegadores não exercitados.
+
+
+## Dock inferior e fechamento à direita — 20/09/2026
+
+Dock com alvos de 44 px, nomes acessíveis, rotas filtradas por permissão e painel Criar operável por teclado. Painel usa Popover do Base UI, com fechamento por Escape/clique externo e animação desativada quando há preferência por movimento reduzido. Conteúdo reserva espaço inferior e scroll-padding para o dock. Preferências mantêm título de seção e close de 44 px no canto superior direito, fora das regiões roláveis. O rótulo visual Ajustes foi removido, preservando o nome acessível Fechar ajustes.

@@ -207,10 +207,6 @@ export function PreferencesDialog({
   );
   const sidebar = (
     <aside className={styles.sidebar}>
-      <div className={styles.sidebarToolbar}>
-        {closeControl}
-        <span className={styles.sidebarTitle}>Ajustes</span>
-      </div>
       <nav className={styles.navigation} aria-label="Categorias dos ajustes">
         <Link
           href="/conta"
@@ -292,6 +288,7 @@ export function PreferencesDialog({
         {background}
         <div className={styles.fallbackBackdrop} aria-hidden="true" />
         <section className={styles.popup} aria-labelledby="preferences-title">
+          {closeControl}
           {sidebar}
           <div className={styles.content}>
             <header className={styles.header} data-section={section}>
@@ -323,6 +320,7 @@ export function PreferencesDialog({
             // The provider restores focus only when returning to the background page.
             finalFocus={false}
           >
+            {closeControl}
             {sidebar}
             <div className={styles.content}>
               <header className={styles.header} data-section={section}>
