@@ -14,17 +14,15 @@ export async function AccountContent() {
     : null;
   return (
     <div className={styles.content}>
-      <section className={styles.profile} aria-label="Seu perfil">
-        <ProfileAvatar name={actor.user.name} image={actor.user.image ?? null}>
-          <h2>{actor.user.name}</h2>
-          <p>{actor.user.email}</p>
-        </ProfileAvatar>
-      </section>
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <h2>Informações pessoais</h2>
         </div>
-        <div className={styles.card}>
+        <div className={`${styles.card} ${styles.accountCard}`}>
+          <div className={styles.accountPhoto} aria-label="Foto de perfil">
+            <ProfileAvatar name={actor.user.name} image={actor.user.image ?? null} />
+          </div>
+          <div className={styles.accountFields}>
           <AccountName name={actor.user.name} />
           <AccountEmails
             primaryEmail={actor.user.email}
@@ -32,6 +30,7 @@ export async function AccountContent() {
 
           />
           <WhatsappAccount phone={phone} securityEnabled={enabled} />
+          </div>
         </div>
       </section>
 

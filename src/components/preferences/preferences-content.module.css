@@ -422,3 +422,12 @@
   font-size: 0.8125rem;
   font-weight: 600;
 }
+
+.accountCard { display: grid; grid-template-columns: 144px minmax(0, 1fr); align-items: start; }
+.accountPhoto { display: flex; justify-content: center; padding: 24px 8px; }
+.accountFields { min-width: 0; border-left: 1px solid var(--border); }
+@container preferences-content (max-width: 620px) {
+  .accountCard { grid-template-columns: minmax(0, 1fr); }
+  .accountPhoto { justify-content: flex-start; padding: 18px 12px 8px; }
+  .accountFields { border-left: 0; border-top: 1px solid var(--border); }
+}
