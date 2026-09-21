@@ -11,7 +11,6 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   usePathname,
   useRouter,
@@ -28,9 +27,6 @@ import {
   Palette,
   ShieldCheck,
 } from "lucide-react";
-import { IllustratedAvatar } from "./illustrated-avatar";
-import { isCatalogAvatar } from "@/lib/avatar-catalog";
-import { profileAvatarSource } from "./profile-avatar";
 import { SignOutButton } from "@/components/auth-buttons";
 import { preferenceCopy } from "./preferences-copy";
 import styles from "./preferences-dialog.module.css";
@@ -294,13 +290,6 @@ export function PreferencesDialog({
       router.replace(returnPath || "/painel");
     else router.back();
   };
-  const initials = userName
-    .trim()
-    .split(/\s+/)
-    .filter((_, index, parts) => index === 0 || index === parts.length - 1)
-    .map((part) => part[0])
-    .join("")
-    .toLocaleUpperCase("pt-BR");
   const closeControl = hydrated ? (
     <Dialog.Close className={styles.close} aria-label="Fechar ajustes">
       <X size={16} aria-hidden="true" />
@@ -313,38 +302,6 @@ export function PreferencesDialog({
   const sidebar = (
     <aside className={styles.sidebar}>
       <nav className={styles.navigation} aria-label="Categorias dos ajustes">
-        <Link
-          href="/conta"
-          replace
-          scroll={false}
-          className={styles.profileLink}
-        >
-          <span className={styles.avatar} aria-hidden="true">
-            {userImage && isCatalogAvatar(userImage) ? (
-              <IllustratedAvatar image={userImage} size={42} />
-            ) : profileAvatarSource(userImage) ? (
-              <Image
-                src={profileAvatarSource(userImage)!}
-                alt=""
-                width={42}
-                height={42}
-                unoptimized
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  borderRadius: "50%",
-                }}
-              />
-            ) : (
-              initials
-            )}
-          </span>
-          <span className={styles.profileText}>
-            <strong>{userName}</strong>
-            <span>Minha conta</span>
-          </span>
-        </Link>
         <div className={styles.category}>
           <p className={styles.categoryTitle}>Conta</p>
           <div className={styles.categoryLinks}>
@@ -382,7 +339,7 @@ export function PreferencesDialog({
             <p className={styles.categoryTitle}>Empresa</p>
             <div className={styles.categoryLinks}>
               {(admin
-                ? (["company", "members", "integrations"] as const)
+                ? (["company", "members"] as const)
                 : (["company", "members"] as const)
               ).map((item) => {
                 const { href, label, icon: Icon } = sections[item];
