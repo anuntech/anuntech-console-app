@@ -120,10 +120,10 @@ export function SecuritySettings({
   return (
     <section className={styles.settings} aria-labelledby={`${id}-title`}>
       <div className={styles.heading}>
-        <h3 id={`${id}-title`} tabIndex={-1} ref={heading}>
+        <h2 id={`${id}-title`} tabIndex={-1} ref={heading}>
           <ShieldCheck size={18} aria-hidden="true" /> Verificação em duas
           etapas
-        </h3>
+        </h2>
         <Badge status={enabled ? "active" : ""}>
           {enabled ? "Ativada" : "Desativada"}
         </Badge>
