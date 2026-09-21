@@ -46,6 +46,9 @@ function PrimaryEmail({
         onInvalidCapture={(event) => focusFirstInvalid(event.currentTarget)}
         action={action}
         className={fields.fieldRow}
+        data-account-order="3"
+        data-account-changed={changed && !disabled}
+        data-account-attention={open || !!error}
         aria-label="E-mail principal"
         aria-busy={pending}
         onSubmit={(event) => {
@@ -83,7 +86,7 @@ function PrimaryEmail({
             {error}
           </p>
         )}
-        {(changed || pending) && !disabled && (
+        {!disabled && (
           <div className={fields.actions}>
             <button
               type="button"
@@ -97,12 +100,12 @@ function PrimaryEmail({
             >
               Cancelar
             </button>
-            <button className="button primary" disabled={pending}>
+            <button className="button primary" disabled={pending || !changed}>
               {pending ? "Enviando códigos…" : "Salvar e-mail"}
             </button>
           </div>
         )}
-        <p className={fields.feedback} role="status">
+        <p className="sr-only" role="status">
           {pending
             ? "Enviando os códigos de confirmação para os dois endereços…"
             : ""}
@@ -179,14 +182,21 @@ function PrimaryEmail({
   );
 }
 
-export function AccountEmails({ primaryEmail, securityEnabled }: {
+export function AccountEmails({
+  primaryEmail,
+  securityEnabled,
+}: {
   primaryEmail: string;
   securityEnabled: boolean;
 }) {
   return (
     <div className={styles.contacts}>
       <PrimaryEmail email={primaryEmail} disabled={securityEnabled} />
-      {securityEnabled && <p className={styles.footer}>Desative a verificação em duas etapas para trocar o e-mail.</p>}
+      {securityEnabled && (
+        <p className={styles.footer}>
+          Desative a verificação em duas etapas para trocar o e-mail.
+        </p>
+      )}
     </div>
   );
 }

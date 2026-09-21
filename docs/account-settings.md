@@ -113,3 +113,8 @@ O rodapé do ambiente autenticado foi removido. O dock usa Headset para Chamados
 Bookmarks reúne links HTTP(S) e arquivos privados de até 1 MB, com empresa e projeto opcional, busca e paginação. Membros acessam somente empresas autorizadas; autor, administrador da empresa ou equipe Anuntech podem remover itens. Downloads autenticados usam attachment, no-store e não executam conteúdo no navegador.
 
 Abrir chamado usa um modal com assunto, descrição e até 5 anexos opcionais (PDF/PNG/JPEG, 1 MB total). Clientes usam a empresa da conta; a equipe usa o contexto da empresa de origem. Sem contexto, a equipe acessa a empresa antes de abrir o chamado. Prioridade inicial normal e projeto opcional no servidor; anexos iniciais são validados antes da transação e salvos com chamado e mensagem.
+
+
+## 21/09/2026 — Formulários e imagens
+
+Formulários hidratados preservam os campos e arquivos em falhas de validação, sem o reset automático do React. Chamados usam modal sem painel lateral e anexos de até 20 MB no total (até 5 arquivos). Upload em partes de 1 MB para respeitar o transporte da hospedagem; arquivos temporários pertencem ao usuário e expiram em uma hora, com limpeza na próxima inicialização de envio. A confirmação consome os arquivos na mesma transação que salva o chamado. Fotos são reduzidas para até 2048 px e convertidas para WebP; PDFs mantêm o conteúdo original. Download em streaming. Foto de perfil aceita entrada de até 20 MB no navegador, otimizada para 512 px antes do envio e novamente normalizada pelo servidor.

@@ -38,11 +38,19 @@ export async function GET(
     .select()
     .from(attachments)
     .where(eq(attachments.id, id));
-  return new Response(new Uint8Array(file.content), {
+  let offset = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= file.content.length) { controller.close(); return; }
+      const end = Math.min(offset + 64 * 1024, file.content.length);
+      controller.enqueue(new Uint8Array(file.content.subarray(offset, end)));
+      offset = end;
+    },
+  });
+  return new Response(stream, {
     headers: {
       "Content-Type": file.mime,
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-      "Content-Length": String(file.size),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'; sandbox",

@@ -94,7 +94,7 @@ export async function normalizeProfileAvatar(
     const result = await image
       .rotate()
       .resize(512, 512, { fit: "cover", position: "centre" })
-      .webp({ quality: 84, effort: 4 })
+      .webp({ quality: 78, effort: 4 })
       .timeout({ seconds: 10 })
       .toBuffer();
     if (result.length > MAX_AVATAR_BYTES)

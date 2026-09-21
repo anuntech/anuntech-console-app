@@ -163,6 +163,9 @@ export function WhatsappAccount({
       <form
         onInvalidCapture={(event) => focusFirstInvalid(event.currentTarget)}
         className={`${styles.fieldRow} ${styles.divider}`}
+        data-account-order="2"
+        data-account-changed={changed && !securityEnabled}
+        data-account-attention={sent || confirmOpen || !!error}
         aria-label="Telefone"
         aria-busy={busy}
         onSubmit={(event) => {
@@ -237,8 +240,8 @@ export function WhatsappAccount({
             {error}
           </p>
         )}
-        {changed && !securityEnabled && (
-          <div className={styles.actions}>
+        {!securityEnabled && (
+          <div className={styles.actions} data-verification={sent || undefined}>
             <button
               type="button"
               className="button"
@@ -266,7 +269,9 @@ export function WhatsappAccount({
             )}
             <button
               className="button primary"
-              disabled={busy || (!sent && seconds > 0 && !!normalized)}
+              disabled={
+                busy || !changed || (!sent && seconds > 0 && !!normalized)
+              }
             >
               {busy
                 ? "Aguarde…"
@@ -282,7 +287,7 @@ export function WhatsappAccount({
         )}
         <p role="status" aria-atomic="true" className={styles.feedback}>
           {busy && !confirmOpen
-            ? "Processando a alteração do telefone…"
+            ? ""
             : !sent && changed && normalized && seconds > 0
               ? "Aguarde um minuto entre os envios de código antes de salvar outro telefone."
               : message}
@@ -310,7 +315,7 @@ export function WhatsappAccount({
               {error}
             </p>
           )}
-          <p className={modal.pending} role="status">
+          <p className="sr-only" role="status">
             {busy ? "Removendo telefone…" : ""}
           </p>
           <div className={modal.footer}>

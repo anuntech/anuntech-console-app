@@ -1,14 +1,16 @@
 "use client";
 import {
   useActionState,
+  startTransition,
   useEffect,
   useId,
   useRef,
   useState,
   type FormEvent,
 } from "react";
+import { useCreationBusy } from "./creation-modal";
 import { focusFirstInvalid } from "./field";
-import { toast } from "./notifications";
+
 import { useRouter } from "next/navigation";
 import type { ActionState, FormAction } from "@/lib/action-state";
 import {
@@ -28,6 +30,7 @@ export type ActionConfirmation = {
 };
 export type ActionFormProps = {
   action: FormAction;
+  prepare?: (form: FormData) => Promise<FormData>;
   children: React.ReactNode;
   label?: string;
   submitAriaLabel?: string;
@@ -43,6 +46,7 @@ export type ActionFormProps = {
 
 export function ActionForm({
   action,
+  prepare,
   children,
   label = "Salvar",
   submitAriaLabel,
@@ -54,7 +58,11 @@ export function ActionForm({
   onSuccess,
   cancel,
 }: ActionFormProps) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const setCreationBusy = useCreationBusy();
+  const [state, formAction, actionPending] = useActionState(action, {});
+  const [preparing, setPreparing] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const pending = actionPending || preparing;
   const [confirmationFor, setConfirmationFor] = useState<ActionState | null>(
     null,
   );
@@ -94,8 +102,7 @@ export function ActionForm({
     if (state.error) {
       errorRef.current?.focus();
     }
-    if (state.success)
-      toast.success(state.success);
+    if (state.success) setCompleted(true);
     if (state.success || state.href) onSuccess?.();
     if (state.href) router.push(state.href);
     else if (state.success) {
@@ -105,7 +112,8 @@ export function ActionForm({
   }, [state, router, reset, onSuccess]);
   useEffect(() => {
     onPendingChange?.(pending);
-  }, [pending, onPendingChange]);
+    setCreationBusy?.(pending);
+  }, [pending, onPendingChange, setCreationBusy]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (submissionLock.current || pending) {
@@ -126,10 +134,41 @@ export function ActionForm({
       setConfirmationFor(state);
       return;
     }
+    event.preventDefault();
     setValidationError("");
+    setCompleted(false);
     invalidReturnFocus.current = null;
     submissionLock.current = true;
     onPendingChange?.(true);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const form = new FormData(
+      event.currentTarget,
+      submitter instanceof HTMLButtonElement ||
+        submitter instanceof HTMLInputElement
+        ? submitter
+        : undefined,
+    );
+    if (!prepare) startTransition(() => formAction(form));
+    else {
+      setPreparing(true);
+      startTransition(async () => {
+        try {
+          const prepared = await prepare(form);
+          startTransition(() => formAction(prepared));
+        } catch (error) {
+          submissionLock.current = false;
+          setValidationError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível enviar. Seus dados foram mantidos; tente novamente.",
+          );
+          onPendingChange?.(false);
+          requestAnimationFrame(() => errorRef.current?.focus());
+        } finally {
+          setPreparing(false);
+        }
+      });
+    }
   }
   function confirmSubmission() {
     if (pending || submissionLock.current) return;
@@ -152,6 +191,7 @@ export function ActionForm({
         className={className}
         ref={ref}
         onSubmit={handleSubmit}
+        onChange={() => setCompleted(false)}
         onInvalidCapture={(event) => {
           if (!confirmationOpen) {
             focusFirstInvalid(event.currentTarget);
@@ -191,15 +231,16 @@ export function ActionForm({
             ref={submitRef}
             className={danger ? "button danger" : "button primary"}
             aria-disabled={pending || undefined}
-            aria-label={submitAriaLabel}
+            aria-label={pending ? "Salvando" : completed ? "Salvo" : submitAriaLabel}
+            aria-live="polite"
             aria-haspopup={confirmation ? "dialog" : undefined}
           >
-            {pending ? "Salvando…" : label}
+            {pending ? "Salvando…" : completed ? "Salvo ✓" : label}
           </button>
         </div>
       </form>
       <p
-        className={styles.status}
+        className="sr-only"
         data-form-feedback=""
         role="status"
         aria-live="polite"
@@ -235,7 +276,7 @@ export function ActionForm({
                 {confirmation.description}
               </AlertDialogDescription>
             </div>
-            <p className={styles.pending} role="status" aria-live="polite">
+            <p className="sr-only" role="status" aria-live="polite">
               {pending
                 ? "Processando a solicitação. Aguarde para fechar esta janela."
                 : ""}

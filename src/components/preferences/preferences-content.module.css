@@ -1,7 +1,7 @@
 .content {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: var(--settings-section-gap, 24px);
   min-width: 0;
   container: preferences-content / inline-size;
 }
@@ -14,7 +14,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 16px;
-  margin: 0 4px 9px;
+  margin: 0 0 12px;
 }
 .sectionHeading h2,
 .linkSection h2 {
@@ -421,4 +421,13 @@
 .channelChoices legend {
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+.accountCard { display: flex; flex-direction: column; }
+.accountPhoto { display: grid; grid-template-columns: minmax(100px, .55fr) minmax(0, 1.45fr); align-items: center; gap: 18px; padding: 20px 18px; }
+.accountPhotoLabel { font-size: .8125rem; font-weight: 600; color: var(--foreground); }
+.accountPhotoControl { display: flex; justify-content: flex-start; min-width: 0; }
+.accountFields { min-width: 0; border-top: 1px solid var(--border); }
+@container preferences-content (max-width: 440px) {
+  .accountPhoto { grid-template-columns: 1fr auto; gap: 12px; }
 }

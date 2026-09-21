@@ -221,10 +221,7 @@ export function CompanyBillingFields({
               onChange={handleChange}
             />
           </Field>
-          <Field
-            label="Telefone"
-            hint="Informe o DDD e o número. Ex.: (11) 99999-9999."
-          >
+          <Field label="Telefone">
             <NumberFormatBase
               format={formatPhone}
               removeFormatting={phoneDigits}
@@ -268,14 +265,7 @@ export function CompanyBillingFields({
           </p>
         </div>
         <div className="form-grid">
-          <Field
-            label="CEP"
-            hint={
-              lookupEnabled
-                ? "Ao completar os 8 dígitos, o endereço é consultado automaticamente."
-                : undefined
-            }
-          >
+          <Field label="CEP">
             <input
               name="cep"
               aria-describedby={`${feedbackId}-cep`}
@@ -349,15 +339,11 @@ export function CompanyBillingFields({
               ))}
             </select>
           </Field>
-          <Field label="Código IBGE do município (opcional)">
-            <input
-              name="codigoMunicipio"
-              inputMode="numeric"
-              maxLength={7}
-              value={values.codigoMunicipio}
-              onChange={handleChange}
-            />
-          </Field>
+          <input
+            type="hidden"
+            name="codigoMunicipio"
+            value={values.codigoMunicipio}
+          />
         </div>
         <p
           id={`${feedbackId}-cep`}

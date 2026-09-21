@@ -1,3 +1,5 @@
+import { AttachmentPicker } from "@/components/attachment-picker";
+import { TicketActionForm } from "@/components/ticket-action-form";
 import type { Metadata } from "next";
 import { DownloadLink } from "@/components/download-link";
 import { Notification } from "@/components/notifications";
@@ -158,7 +160,7 @@ export default async function Ticket({
               Anexos <span className="collection-count">{files.length}</span>
             </h2>
             <p id="attachment-requirements" className="muted">
-              PDF, PNG ou JPEG. Até 1 MB por arquivo e 20 arquivos por chamado.
+              PDF, PNG, JPEG ou WebP. Até 20 MB por arquivo. Fotos são otimizadas.
             </p>
             <div className="attachment-list">
               {!files.length && (
@@ -179,22 +181,14 @@ export default async function Ticket({
               ))}
             </div>
             {t.status !== "closed" && (
-              <ActionForm
+              <TicketActionForm fileField="file"
                 action={uploadAttachment}
                 label="Adicionar arquivo"
                 reset
               >
                 <input type="hidden" name="ticketId" value={id} />
-                <Field label="Arquivo">
-                  <input
-                    name="file"
-                    type="file"
-                    aria-describedby="attachment-requirements"
-                    required
-                    accept=".pdf,.png,.jpg,.jpeg"
-                  />
-                </Field>
-              </ActionForm>
+                <AttachmentPicker name="file" multiple={false} required />
+              </TicketActionForm>
             )}
           </section>
         </aside>

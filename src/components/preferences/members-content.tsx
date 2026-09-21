@@ -180,6 +180,7 @@ export async function MembersContent() {
         action={
           <FormModal
             trigger="Convidar pessoa"
+            triggerClassName="button primary"
             title="Convidar pessoa"
             description="Adicione uma pessoa ao seu ambiente."
             action={saveCompanyMember}

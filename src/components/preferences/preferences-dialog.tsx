@@ -6,30 +6,50 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   usePathname,
   useRouter,
   useSelectedLayoutSegments,
 } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
-import { Building2, Bell, PlugZap, UserRound, Users, X, Palette, ShieldCheck } from "lucide-react";
-import { IllustratedAvatar } from "./illustrated-avatar";
-import { isCatalogAvatar } from "@/lib/avatar-catalog";
-import { profileAvatarSource } from "./profile-avatar";
+import {
+  Building2,
+  Bell,
+  PlugZap,
+  UserRound,
+  Users,
+  X,
+  Palette,
+  ShieldCheck,
+} from "lucide-react";
 import { SignOutButton } from "@/components/auth-buttons";
 import { preferenceCopy } from "./preferences-copy";
 import styles from "./preferences-dialog.module.css";
 
 export type PreferenceSection =
-  "appearance" | "security" | "account" | "company" | "members" | "integrations" | "notifications";
+  | "appearance"
+  | "security"
+  | "account"
+  | "company"
+  | "members"
+  | "integrations"
+  | "notifications";
 const sections = {
-  appearance: { href: "/configuracoes/aparencia", label: "Aparência", icon: Palette },
-  security: { href: "/configuracoes/seguranca", label: "Segurança", icon: ShieldCheck },
+  appearance: {
+    href: "/configuracoes/aparencia",
+    label: "Aparência",
+    icon: Palette,
+  },
+  security: {
+    href: "/configuracoes/seguranca",
+    label: "Segurança",
+    icon: ShieldCheck,
+  },
   company: {
     href: "/configuracoes/empresa",
     label: "Dados da empresa",
@@ -185,21 +205,28 @@ export function PreferencesWorkspace({
   const section = (Object.keys(sections) as PreferenceSection[]).find(
     (key) => sections[key].href === pathname,
   );
+  const [retained, setRetained] = useState<{
+    node: ReactNode;
+    path: string;
+  } | null>(null);
+  useLayoutEffect(() => {
+    if (!section && !navigation.directEntry)
+      setRetained({ node: children, path: pathname });
+  }, [children, pathname, section, navigation.directEntry]);
   return (
     <div className="console-shell">
       <div className="workspace">
         {header}
         <main className="page-content" id="main-content" tabIndex={-1}>
-          {navigation.directEntry ? (
-            <div className={styles.background} />
-          ) : (
-            children
-          )}
+          {navigation.directEntry
+            ? retained?.node || <div className={styles.background} />
+            : children}
         </main>
       </div>
       {section && (
         <PreferencesDialog
           section={section}
+          returnPath={retained?.path}
           {...preferenceCopy[section]}
           description={
             section === "members" && !admin
@@ -223,6 +250,7 @@ export function PreferencesDialog({
   section,
   title,
   description,
+  returnPath,
   admin,
   canManageMembers,
   userName,
@@ -233,6 +261,7 @@ export function PreferencesDialog({
   section: PreferenceSection;
   title: string;
   description: string;
+  returnPath?: string;
   admin: boolean;
   canManageMembers: boolean;
   userName: string;
@@ -257,16 +286,10 @@ export function PreferencesDialog({
   const visible =
     pathname === sectionPath && (intercepted || !navigation.intercepted);
   const close = () => {
-    if (!intercepted || navigation.directEntry) router.replace("/painel");
+    if (!intercepted || navigation.directEntry)
+      router.replace(returnPath || "/painel");
     else router.back();
   };
-  const initials = userName
-    .trim()
-    .split(/\s+/)
-    .filter((_, index, parts) => index === 0 || index === parts.length - 1)
-    .map((part) => part[0])
-    .join("")
-    .toLocaleUpperCase("pt-BR");
   const closeControl = hydrated ? (
     <Dialog.Close className={styles.close} aria-label="Fechar ajustes">
       <X size={16} aria-hidden="true" />
@@ -279,61 +302,44 @@ export function PreferencesDialog({
   const sidebar = (
     <aside className={styles.sidebar}>
       <nav className={styles.navigation} aria-label="Categorias dos ajustes">
-        <Link
-          href="/conta"
-          replace
-          scroll={false}
-          className={styles.profileLink}
-        >
-          <span className={styles.avatar} aria-hidden="true">
-            {userImage && isCatalogAvatar(userImage) ? (
-              <IllustratedAvatar image={userImage} size={42} />
-            ) : profileAvatarSource(userImage) ? (
-              <Image
-                src={profileAvatarSource(userImage)!}
-                alt=""
-                width={42}
-                height={42}
-                unoptimized
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  borderRadius: "50%",
-                }}
-              />
-            ) : (
-              initials
-            )}
-          </span>
-          <span className={styles.profileText}>
-            <strong>{userName}</strong>
-            <span>Minha conta</span>
-          </span>
-        </Link>
         <div className={styles.category}>
           <p className={styles.categoryTitle}>Conta</p>
           <div className={styles.categoryLinks}>
-            {(["account", "appearance", "security", ...(admin || canManageMembers ? ["notifications" as const] : [])] as const).map(item => {
+            {(
+              [
+                "account",
+                "appearance",
+                "security",
+                ...(admin || canManageMembers
+                  ? ["notifications" as const]
+                  : []),
+              ] as const
+            ).map((item) => {
               const { href, label, icon: Icon } = sections[item];
-              return <Link key={item} href={href} replace scroll={false} className={styles.navLink} aria-current={section === item ? "page" : undefined}>
-                <span className={styles.categoryIcon}><Icon size={17} aria-hidden="true" /></span><span>{label}</span>
-              </Link>;
+              return (
+                <Link
+                  key={item}
+                  href={href}
+                  replace
+                  scroll={false}
+                  className={styles.navLink}
+                  aria-current={section === item ? "page" : undefined}
+                >
+                  <span className={styles.categoryIcon}>
+                    <Icon size={17} aria-hidden="true" />
+                  </span>
+                  <span>{label}</span>
+                </Link>
+              );
             })}
           </div>
         </div>
         {(admin || canManageMembers) && (
           <div className={styles.category}>
-            <p className={styles.categoryTitle}>
-              Empresa
-            </p>
+            <p className={styles.categoryTitle}>Empresa</p>
             <div className={styles.categoryLinks}>
               {(admin
-                ? ([
-                    "company",
-                    "members",
-                    "integrations",
-                  ] as const)
+                ? (["company", "members"] as const)
                 : (["company", "members"] as const)
               ).map((item) => {
                 const { href, label, icon: Icon } = sections[item];
@@ -378,7 +384,7 @@ export function PreferencesDialog({
               <h1 id="preferences-title" className={styles.title}>
                 {title}
               </h1>
-              <p className={styles.description}>{description}</p>
+              <p className="sr-only">{description}</p>
             </header>
             <div className={styles.body}>{children}</div>
           </div>
@@ -414,7 +420,7 @@ export function PreferencesDialog({
                 >
                   {title}
                 </Dialog.Title>
-                <Dialog.Description className={styles.description}>
+                <Dialog.Description className="sr-only">
                   {description}
                 </Dialog.Description>
               </header>

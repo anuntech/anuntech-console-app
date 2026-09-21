@@ -143,13 +143,7 @@ export function Field({
       onChangeCapture={updateValidation}
     >
       <label className="field-label" htmlFor={controlId}>
-        <span>{label}</span>
-        {control?.props.required && (
-          <span className="field-required" aria-hidden="true">
-            {" "}
-            (obrigatório)
-          </span>
-        )}
+        <span>{label.replace(/\s*\((opcional|obrigatório)\)/gi, "")}</span>
       </label>
       {items.map((child) =>
         child === control

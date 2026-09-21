@@ -206,3 +206,21 @@ O resultado do CI e a identificação do deploy estão na seção “Revisão co
 A referência React fornecida foi adaptada em `src/components/ui/bottom-menu.tsx`, com estilos em `bottom-menu.module.css`. O alias `@/components/ui` já corresponde à pasta `src/components/ui`; não se cria uma segunda pasta na raiz. O projeto usa TypeScript, CSS Modules e tokens semânticos, sem Tailwind. A adaptação usa Lucide e Base UI já instalados: não precisa das dependências de demonstração, medidas ocultas duplicadas ou imagens de estoque. O painel possui título acessível, fechamento por Escape/clique externo e retorno de foco; respeita movimento reduzido. Somente destinos reais e autorizados são mostrados.
 
 O dock fica abaixo do conteúdo com reserva inferior e safe area; tooltips e painel abrem acima. Minha conta e todas as categorias compartilham X de 44 px fixo no canto superior direito. O texto Ajustes foi removido da lateral; o título acessível da seção permanece. Em celular, a navegação continua acima do conteúdo e Sair fica à esquerda do X.
+
+
+### Criação em contexto
+
+Abrir chamado, cadastrar empresa, adicionar produto/projeto, criar cobrança e criar contrato usam modais de rota. A navegação interna preserva a página de origem; o fechamento volta para ela. No acesso direto, o fechamento leva à listagem correspondente. Os formulários compartilham bloqueio de fechamento durante o envio, retenção de dados em erros e o botão circular de fechar.
+
+Anexos de chamados usam seleção por clique ou arrastar, lista de arquivos com tamanho e remoção individual antes do envio. Limite de cinco arquivos e 20 MB por abertura; imagens são otimizadas.
+
+
+### Padrão visual de formulários e preferências
+
+Usar `ui/form-pattern.module.css` nos formulários de criação e preferências: superfície neutra, card com a cor `--card`, campos com `--field-background`, rótulo à esquerda e controle à direita, divisórias leves e ações à direita. Em espaços estreitos os rótulos ficam acima dos campos. O título da aba é a referência principal; evitar repetir subtítulos genéricos e títulos redundantes. Minha conta mantém a foto como a primeira linha do card. Aparência usa linhas para tema e posição do menu. Segurança separa proteção e sessões em cards. Anexos opcionais ficam recolhidos.
+
+
+Botões de salvar ficam visíveis na conta e desabilitados quando não há mudanças. Não exibir marcadores de obrigatório/opcional nos rótulos; manter validação nativa e mensagens de erro. Preferir controles compactos para canais, mantendo apenas um canal preferencial de verificação selecionado. A verificação continua exigindo confirmação antes de alterar a configuração; contas já protegidas não são desativadas por mudanças visuais.
+
+
+Configurações: todas as abas usam título de 18 px, peso 600, entrelinha 1,4 e margem inferior de 24 px; nenhuma exceção por aba. Grupos usam espaçamento de 24 px, linhas 18 px, rótulos 13 px e campos 14 px. Ações de criação/convite usam o botão primário; ações secundárias mantêm o botão neutro.

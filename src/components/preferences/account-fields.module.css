@@ -1,6 +1,6 @@
 .fieldRow {
   min-width: 0;
-  padding: 16px 18px;
+  padding: var(--settings-row-padding, 18px);
   display: grid;
   gap: 12px;
 }
@@ -67,3 +67,10 @@
     grid-column: 1;
   }
 }
+
+/* One account-level save action; confirmation dialogs retain their own actions. */
+:global(form[data-account-order]) > .actions { display: none; }
+.saveFooter { padding: 18px; border-top: 1px solid var(--border); }
+
+:global(form[data-account-order]) > .actions[data-verification] { display: flex; }
+:global(form[data-account-order]) > .actions[data-verification] > :global(.primary) { display: none; }

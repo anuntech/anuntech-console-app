@@ -1,5 +1,5 @@
 "use server";
-import { prepareTicketFiles } from "./ticket-files";
+import { prepareTicketFiles, takeTicketUploads } from "./ticket-files";
 import { z } from "zod";
 import { and, eq, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -179,6 +179,8 @@ export async function createTicket(
     try { files = await prepareTicketFiles(form.getAll("files")); }
     catch (error) { return { error: error instanceof Error ? error.message : "Anexos inválidos." }; }
     const ticket = await db.transaction(async (tx) => {
+      const uploaded = await takeTicketUploads(tx, actor.user.id, form);
+      if (files.length + uploaded.length > 5 || files.reduce((n, f) => n + f.size, 0) + uploaded.reduce((n, f) => n + f.size, 0) > 20 * 1024 * 1024) throw new Error("Limite de anexos excedido.");
       if (input.engagementId) {
         const [eng] = await tx
           .select()
@@ -206,7 +208,7 @@ export async function createTicket(
         authorId: actor.user.id,
         body: input.body,
       });
-      if (files.length) await tx.insert(attachments).values(files.map(file => ({ ...file, ticketId: row.id, authorId: actor.user.id })));
+      if (files.length || uploaded.length) await tx.insert(attachments).values([...files, ...uploaded].map(file => ({ ...file, ticketId: row.id, authorId: actor.user.id })));
       const [event] = await tx
         .insert(auditEvents)
         .values({
@@ -511,21 +513,9 @@ export async function uploadAttachment(
   const actor = await getActor();
   try {
     const ticketId = id.parse(form.get("ticketId"));
-    const file = form.get("file");
-    if (!(file instanceof File) || !file.size || file.size > 1024 * 1024)
-      return { error: "Escolha um arquivo de até 1 MB." };
-    const content = Buffer.from(await file.arrayBuffer());
-    const mime =
-      content.subarray(0, 5).toString() === "%PDF-"
-        ? "application/pdf"
-        : content
-              .subarray(0, 8)
-              .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-          ? "image/png"
-          : content[0] === 255 && content[1] === 216 && content[2] === 255
-            ? "image/jpeg"
-            : null;
-    if (!mime) return { error: "Envie um PDF, PNG ou JPEG válido." };
+    let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
+    try { direct = await prepareTicketFiles(form.getAll("file")); }
+    catch (error) { return { error: error instanceof Error ? error.message : "Anexo inválido." }; }
     const result = await db.transaction(async (tx) => {
       const [ticket] = await tx
         .select()
@@ -536,25 +526,12 @@ export async function uploadAttachment(
         return blocked;
       if (ticket.status === "closed")
         return { error: "Chamado encerrado não recebe novos anexos." };
-      const [total] = await tx
-        .select({ n: sql<number>`count(*)::int` })
-        .from(attachments)
-        .where(eq(attachments.ticketId, ticketId));
-      if (total.n >= 20)
-        return { error: "Limite de 20 anexos por chamado atingido." };
-      const [row] = await tx
-        .insert(attachments)
-        .values({
-          ticketId,
-          authorId: actor.user.id,
-          name:
-            file.name.replace(/[^\p{L}\p{N} ._()-]/gu, "_").slice(0, 150) ||
-            "anexo",
-          mime,
-          size: file.size,
-          content,
-        })
-        .returning({ id: attachments.id });
+      const uploaded = await takeTicketUploads(tx, actor.user.id, form);
+      const files = [...direct, ...uploaded];
+      if (files.length !== 1) throw new Error("Selecione um arquivo.");
+      const [total] = await tx.select({ n: sql<number>`count(*)::int` }).from(attachments).where(eq(attachments.ticketId, ticketId));
+      if (total.n >= 20) throw new Error("Limite de 20 anexos por chamado atingido.");
+      const [row] = await tx.insert(attachments).values({ ticketId, authorId: actor.user.id, ...files[0] }).returning({ id: attachments.id });
       const [event] = await tx
         .insert(auditEvents)
         .values({
