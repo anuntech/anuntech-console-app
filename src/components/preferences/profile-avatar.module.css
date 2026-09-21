@@ -159,16 +159,11 @@
   background: var(--accent);
   cursor: pointer;
 }
-.option img {
-  width: 100%;
-  height: auto;
-  border-radius: 50%;
-}
 .option[aria-pressed="true"] {
   border-color: var(--primary);
 }
 .option:hover {
-  background: var(--muted);
+  border-color: var(--primary);
 }
 .option:focus-visible {
   outline: 2px solid var(--ring);

@@ -12,6 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { IllustratedAvatar } from "./illustrated-avatar";
 import styles from "./profile-avatar.module.css";
 
 /** The private proxy always resolves the current user's photo on the server. */
@@ -149,7 +150,9 @@ export function ProfileAvatar({
         }}
       >
         <span className={styles.portrait} aria-hidden="true">
-          {source && source !== failedSource ? (
+          {source && isCatalogAvatar(current) ? (
+            <IllustratedAvatar image={source} />
+          ) : source && source !== failedSource ? (
             <Image
               key={source}
               src={source}
@@ -220,13 +223,7 @@ export function ProfileAvatar({
                 disabled={!!pending}
                 onClick={() => void update(null, avatar.image)}
               >
-                <Image
-                  src={avatar.image}
-                  alt=""
-                  width={72}
-                  height={72}
-                  unoptimized
-                />
+                <IllustratedAvatar image={avatar.image} size={72} />
               </button>
             ))}
           </div>

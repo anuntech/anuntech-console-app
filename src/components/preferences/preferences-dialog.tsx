@@ -18,6 +18,8 @@ import {
 } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Bell, PlugZap, UserRound, Users, X } from "lucide-react";
+import { IllustratedAvatar } from "./illustrated-avatar";
+import { isCatalogAvatar } from "@/lib/avatar-catalog";
 import { profileAvatarSource } from "./profile-avatar";
 import { SignOutButton } from "@/components/auth-buttons";
 import styles from "./preferences-dialog.module.css";
@@ -216,7 +218,9 @@ export function PreferencesDialog({
           aria-current={section === "account" ? "page" : undefined}
         >
           <span className={styles.avatar} aria-hidden="true">
-            {profileAvatarSource(userImage) ? (
+            {userImage && isCatalogAvatar(userImage) ? (
+              <IllustratedAvatar image={userImage} size={42} />
+            ) : profileAvatarSource(userImage) ? (
               <Image
                 src={profileAvatarSource(userImage)!}
                 alt=""
