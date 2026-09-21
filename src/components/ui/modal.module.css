@@ -155,3 +155,7 @@
     transition: none;
   }
 }
+
+/* Modal actions keep the primary action at the right edge on every viewport. */
+.popup .actions, .popup :global(.form-actions) { justify-content: flex-end; }
+.popup .actions > button, .popup :global(.form-actions) > button { flex: 0 1 auto; width: auto; }

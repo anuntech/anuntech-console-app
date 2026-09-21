@@ -1,4 +1,5 @@
 "use client";
+import { Paperclip, ChevronDown } from "lucide-react";
 import { useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -76,10 +77,10 @@ export function NewTicketModal({
                 placeholder="Descreva o que precisa."
               />
             </Field>
-            <div className="stack">
-              <span>Anexos (opcional)</span>
+            <details className={styles.attachments}>
+              <summary><Paperclip size={18} aria-hidden="true" /> Adicionar anexos <ChevronDown size={16} aria-hidden="true" /></summary>
               <AttachmentPicker />
-            </div>
+            </details>
           </TicketActionForm>
         ) : (
           <div className={styles.empty}>
