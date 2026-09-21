@@ -21,6 +21,7 @@ import { normalizeEmail } from "./permissions";
 import { z } from "zod";
 import { consoleTwoStep } from "./security-plugin";
 import { rememberOAuthEmail } from "./oauth-identity";
+import { randomProfileAvatar } from "./default-avatar";
 export const auth = betterAuth({
   appName: "Anuntech Console",
   baseURL: process.env.BETTER_AUTH_URL,
@@ -196,7 +197,7 @@ export const auth = betterAuth({
             throw new APIError("FORBIDDEN", {
               message: "Acesso disponível somente para usuários autorizados.",
             });
-          return { data: { ...newUser, email } };
+          return { data: { ...newUser, email, image: randomProfileAvatar() } };
         },
       },
     },

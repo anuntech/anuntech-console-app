@@ -59,3 +59,9 @@ Executar `npm test`, `npm run lint`, `npm run build` e `npm run test:integration
 QA local confirmado em Chromium, com banco descartável e transportes simulados: salvamento do nome; substituição do telefone após código; mudança do principal após os dois códigos, com zero sessões restantes e alias anterior preservado em consulta ao banco. Validação inválida direcionou foco a Nome, código do telefone e código de origem do e-mail. O cliente administrador viu somente sua empresa, sem equipe Anuntech ou dados de outra empresa. Em 320 CSS px não houve overflow horizontal; o foco no avatar exibiu a câmera e acionou o seletor de arquivos.
 
 Essas evidências não comprovam entrega de mensagens reais. O CI final desta rodada ainda não está registrado neste documento.
+
+## Avatares ilustrados
+
+O perfil oferece uma galeria de 89 SVGs da pasta Identidade visual/Ilustrações/SVG/Avatars e mantém o envio de foto. O catálogo público tem caminhos fixos; PATCH /api/conta/foto aceita somente essas opções, com sessão completa, origem validada e atualização transacional. O mapa de arquivos originais está em avatar-sources.json.
+
+A criação da conta (inclusive primeiro acesso de convidados e Google) grava um avatar aleatório uma única vez. Convites não criam usuários antecipadamente. Remover uma foto atribui um novo avatar do catálogo. Fotos já enviadas permanecem inalteradas e privadas; imagens do catálogo são públicas.

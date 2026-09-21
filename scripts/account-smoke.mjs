@@ -251,6 +251,97 @@ try {
   }
   assert.ok(ready, "Account test server starts");
 
+  // Bundled avatars use the same authorization and transaction as uploads.
+  const chosen = "/brand/avatars/avatar-01.svg";
+  const avatarRequest = (who, image, origin = base) =>
+    request("/api/conta/foto", who, {
+      method: "PATCH",
+      headers: { Origin: origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ image }),
+    });
+  ok(
+    (await avatarRequest(null, chosen)).status === 401,
+    "Avatar selection requires authentication",
+  );
+  ok(
+    (await avatarRequest("client", chosen, "https://evil.invalid")).status ===
+      403,
+    "Avatar selection rejects cross-origin requests",
+  );
+  for (const value of [
+    "https://evil.invalid/x.svg",
+    "/brand/avatars/../x.svg",
+    "/brand/avatars/avatar-90.svg",
+    null,
+  ])
+    ok(
+      (await avatarRequest("client", value)).status === 400,
+      "Avatar selection rejects values outside the catalog",
+    );
+  ok(
+    (await avatarRequest("client", chosen)).status === 200,
+    "Member can select an illustrated avatar",
+  );
+  ok(
+    (
+      await db.query("select image from console_user where id=$1", [
+        people.client.id,
+      ])
+    ).rows[0].image === chosen,
+    "Selected avatar is persisted",
+  );
+  ok(
+    (
+      await db.query("select image from console_user where id=$1", [
+        people.other.id,
+      ])
+    ).rows[0].image === null,
+    "Avatar change leaves another account untouched",
+  );
+  ok(
+    (await request("/conta", "client")).text.includes(chosen),
+    "Account renders the selected avatar",
+  );
+  ok(
+    (await request(chosen)).status === 200,
+    "Bundled illustration is served successfully",
+  );
+  const removed = await request("/api/conta/foto", "client", {
+    method: "DELETE",
+    headers: { Origin: base },
+  });
+  ok(
+    removed.status === 200 &&
+      /^\/brand\/avatars\/avatar-\d{2}\.svg$/.test(
+        JSON.parse(removed.text).image,
+      ),
+    "Removing a photo assigns a default avatar",
+  );
+  const freshEmail = address("invited-avatar");
+  await db.query(
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'support')",
+    [randomUUID(), companyId, freshEmail],
+  );
+  await limits();
+  await api("/email-otp/send-verification-otp", {
+    email: freshEmail,
+    type: "sign-in",
+  });
+  const fresh = await api("/sign-in/email-otp", {
+    email: freshEmail,
+    otp: messages().at(-1).code,
+  });
+  ok(
+    fresh.status === 200 &&
+      /^\/brand\/avatars\/avatar-\d{2}\.svg$/.test(fresh.body.user?.image),
+    "Invited user's first login creates an account with a random avatar",
+  );
+  ok(
+    (await api("/get-session", undefined, fresh.cookie)).body?.user.image ===
+      fresh.body.user.image,
+    "Default avatar remains stable across session reads",
+  );
+
   const target = address("additional");
   let proof = await begin("client", target);
   ok(

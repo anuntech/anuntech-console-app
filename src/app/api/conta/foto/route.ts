@@ -14,6 +14,9 @@ import {
   storeProfileAvatar,
 } from "@/lib/profile-avatar";
 
+import { isCatalogAvatar } from "@/lib/avatar-catalog";
+import { randomProfileAvatar } from "@/lib/default-avatar";
+
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const privateHeaders = { "Cache-Control": "private, no-store", Vary: "Cookie" };
@@ -145,14 +148,41 @@ export async function DELETE(request: Request) {
   const actor = await getAccountSession();
   if (!actor) return fail("Entre para alterar sua foto.", 401);
   try {
-    const previous = await replaceAvatar(actor, null);
+    const image = randomProfileAvatar();
+    const previous = await replaceAvatar(actor, image);
     await cleanup(previous, actor.user.id);
     revalidatePath("/conta");
     revalidatePath("/", "layout");
-    return Response.json({ image: null }, { headers: privateHeaders });
+    return Response.json({ image }, { headers: privateHeaders });
   } catch (error) {
     if (error instanceof ProfileAvatarError)
       return fail(error.message, error.status);
     return fail("Não foi possível remover a foto. Tente novamente.", 503);
+  }
+}
+
+export async function PATCH(request: Request) {
+  if (!sameOrigin(request)) return fail("Solicitação não permitida.", 403);
+  const actor = await getAccountSession();
+  if (!actor) return fail("Entre para alterar sua foto.", 401);
+  try {
+    const bytes = await readAvatarBytes(request.body);
+    let payload;
+    try {
+      payload = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      return fail("Selecione um avatar válido.", 400);
+    }
+    if (!isCatalogAvatar(payload?.image))
+      return fail("Selecione um avatar válido.", 400);
+    const previous = await replaceAvatar(actor, payload.image);
+    await cleanup(previous, actor.user.id);
+    revalidatePath("/conta");
+    revalidatePath("/", "layout");
+    return Response.json({ image: payload.image }, { headers: privateHeaders });
+  } catch (error) {
+    if (error instanceof ProfileAvatarError)
+      return fail(error.message, error.status);
+    return fail("Não foi possível salvar o avatar. Tente novamente.", 503);
   }
 }

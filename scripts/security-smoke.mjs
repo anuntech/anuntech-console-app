@@ -274,7 +274,7 @@ try {
       "whatsapp",
     "Primeira etapa e-mail exige WhatsApp na segunda",
   );
-  for (const method of ["GET", "POST", "DELETE"]) {
+  for (const method of ["GET", "POST", "PATCH", "DELETE"]) {
     const response = await fetch(base + "/api/conta/foto", {
       method,
       headers: { Cookie: pendingEmail, Origin: base },
