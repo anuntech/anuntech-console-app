@@ -102,7 +102,7 @@ export default function BottomMenu({
         <Tooltip.Provider delay={350} closeDelay={100}>
           <nav className={styles.dock} aria-label="Navegação principal">
             {(admin || support) && (
-              <Popover.Root key={pathname}>
+              <Popover.Root key={`create:${pathname}`}>
                 <Popover.Trigger
                   className={`${styles.link} ${styles.create}`}
                   aria-label="Criar"
@@ -184,7 +184,7 @@ export default function BottomMenu({
               ))}
             </div>
             <span className={styles.divider} aria-hidden="true" />
-            <DockAccountMenu key={pathname} name={userName} image={userImage} canManageMembers={canManageMembers} />
+            <DockAccountMenu key={`account:${pathname}`} name={userName} image={userImage} canManageMembers={canManageMembers} />
           </nav>
         </Tooltip.Provider>
       </div>

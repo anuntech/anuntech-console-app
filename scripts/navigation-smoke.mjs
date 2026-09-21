@@ -144,9 +144,14 @@ try {
         await route.continue();
       });
       await page.goto(base + entry);
-      if (entry === "/painel")
-        await page.getByRole("button", { name: "Menu da conta", exact: true }).click();
-        await page.getByRole("menuitem", { name: "Meu perfil", exact: true }).click();
+      if (entry === "/painel") {
+        await page
+          .getByRole("button", { name: "Menu da conta", exact: true })
+          .click();
+        await page
+          .getByRole("menuitem", { name: "Meu perfil", exact: true })
+          .click();
+      }
       await page.getByRole("dialog").waitFor();
       await page.locator('[data-preference-content="account"]').waitFor();
       await page.evaluate(() => {
@@ -236,6 +241,40 @@ try {
         1,
         "Closing and history navigation keep the document",
       );
+      const dock = page.getByRole("navigation", {
+        name: "Navegação principal",
+      });
+      for (const [label, path] of [
+        ["Chamados", "/chamados"],
+        ["Produtos e projetos", "/produtos"],
+        ["Visão geral", "/painel"],
+        ["Chamados", "/chamados"],
+        ["Financeiro", "/financeiro"],
+        ["Visão geral", "/painel"],
+      ]) {
+        await dock.getByRole("link", { name: label, exact: true }).click();
+        await page.waitForURL(base + path);
+        assert.equal(
+          await dock
+            .getByRole("button", { name: "Criar", exact: true })
+            .count(),
+          1,
+          "Exactly one create shortcut survives navigation",
+        );
+        assert.equal(
+          await dock
+            .getByRole("button", { name: "Menu da conta", exact: true })
+            .count(),
+          1,
+          "Exactly one account menu survives navigation",
+        );
+      }
+      await dock.getByRole("button", { name: "Criar", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Fechar atalhos", exact: true })
+        .waitFor();
+      await page.keyboard.press("Escape");
+      console.log(`DOCK stable after repeated navigation at ${width}px`);
       await context.close();
     }
   } finally {
