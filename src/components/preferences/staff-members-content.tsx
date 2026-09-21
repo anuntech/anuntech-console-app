@@ -137,6 +137,7 @@ export async function StaffMembersContent({ actor }: { actor: Actor }) {
           actor.owner && (
             <FormModal
               trigger="Convidar pessoa"
+              triggerClassName="button primary"
               title="Convidar pessoa"
               description="A pessoa terá acesso de administrador ao ambiente Anuntech."
               action={saveConsoleStaffMember}

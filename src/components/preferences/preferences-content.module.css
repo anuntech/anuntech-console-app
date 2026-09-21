@@ -1,7 +1,7 @@
 .content {
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: var(--settings-section-gap, 24px);
   min-width: 0;
   container: preferences-content / inline-size;
 }
@@ -14,7 +14,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 16px;
-  margin: 0 4px 9px;
+  margin: 0 0 12px;
 }
 .sectionHeading h2,
 .linkSection h2 {

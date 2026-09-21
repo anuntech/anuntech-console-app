@@ -1,6 +1,6 @@
 .fieldRow {
   min-width: 0;
-  padding: 16px 18px;
+  padding: var(--settings-row-padding, 18px);
   display: grid;
   gap: 12px;
 }

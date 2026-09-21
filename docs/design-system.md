@@ -221,3 +221,6 @@ Usar `ui/form-pattern.module.css` nos formulários de criação e preferências:
 
 
 Botões de salvar ficam visíveis na conta e desabilitados quando não há mudanças. Não exibir marcadores de obrigatório/opcional nos rótulos; manter validação nativa e mensagens de erro. Preferir controles compactos para canais, mantendo apenas um canal preferencial de verificação selecionado. A verificação continua exigindo confirmação antes de alterar a configuração; contas já protegidas não são desativadas por mudanças visuais.
+
+
+Configurações: todas as abas usam título de 18 px, peso 600, entrelinha 1,4 e margem inferior de 24 px; nenhuma exceção por aba. Grupos usam espaçamento de 24 px, linhas 18 px, rótulos 13 px e campos 14 px. Ações de criação/convite usam o botão primário; ações secundárias mantêm o botão neutro.

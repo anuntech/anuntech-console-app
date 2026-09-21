@@ -179,7 +179,7 @@
 .header {
   position: relative;
   padding-right: 40px;
-  margin-bottom: 26px;
+  margin-bottom: 24px;
 }
 .title {
   margin: 0;
@@ -196,23 +196,6 @@
   color: var(--muted-foreground);
   font-size: 0.8125rem;
   line-height: 1.6;
-}
-.header[data-section="account"] {
-  margin-bottom: 10px;
-}
-.header[data-section="account"] .title {
-  font-size: 0.875rem;
-}
-.header[data-section="account"] .description {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 .body {
   min-width: 0;
@@ -281,7 +264,7 @@
     padding: 20px 16px 28px;
   }
   .header {
-    margin-bottom: 22px;
+    margin-bottom: 24px;
   }
 }
 @media (pointer: coarse) {
@@ -322,4 +305,32 @@
     outline: 3px solid Highlight;
     outline-offset: -3px;
   }
+}
+
+/* Shared settings rhythm: no section-specific heading or action sizes. */
+.body {
+  --settings-section-gap: 24px;
+  --settings-row-padding: 18px;
+  --settings-label-size: 0.8125rem;
+}
+.body :global(.button) {
+  min-height: 40px;
+  font-size: 0.8125rem;
+}
+.body :global(.field-label) {
+  font-size: var(--settings-label-size);
+  font-weight: 600;
+}
+.body :global(.form) {
+  gap: 18px;
+}
+.body
+  :global(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(
+        [type="file"]
+      )
+  ),
+.body :global(select),
+.body :global(textarea) {
+  font-size: 0.875rem;
 }
