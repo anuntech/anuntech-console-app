@@ -17,15 +17,15 @@ const copy = {
   },
   members: {
     title: "Membros",
-    description: "Pessoas da equipe e acessos às empresas.",
+    description: "Pessoas do seu ambiente.",
   },
   integrations: {
     title: "Integrações",
     description: "Conexões que mantêm o Console em funcionamento.",
   },
   notifications: {
-    title: "Avisos de chamados",
-    description: "Destinatários e histórico das notificações da operação.",
+    title: "Notificações",
+    description: "Preferências e histórico de envios.",
   },
 };
 
@@ -33,9 +33,11 @@ const copy = {
 export async function PreferencesPage({
   section,
   intercepted = false,
+  notificationPage,
 }: {
   section: PreferenceSection;
   intercepted?: boolean;
+  notificationPage?: string | string[];
 }) {
   const actor = await (section === "account"
     ? getActor()
@@ -65,7 +67,7 @@ export async function PreferencesPage({
       ) : section === "members" ? (
         <MembersContent />
       ) : (
-        <NotificationsContent />
+        <NotificationsContent page={notificationPage} />
       )}
     </PreferencesDialog>
   );

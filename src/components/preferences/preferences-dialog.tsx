@@ -30,7 +30,7 @@ const sections = {
   integrations: { href: "/configuracoes", label: "Integrações", icon: PlugZap },
   notifications: {
     href: "/configuracoes/notificacoes",
-    label: "Avisos de chamados",
+    label: "Notificações",
     icon: Bell,
   },
 };

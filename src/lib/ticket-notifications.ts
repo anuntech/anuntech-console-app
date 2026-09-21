@@ -4,6 +4,10 @@ import { and, eq, inArray, lt, lte, sql } from "drizzle-orm";
 import { after } from "next/server";
 import { db } from "./db";
 import { companies, user, ticketNotices } from "@/db/schema";
+import {
+  lockTicketNotifications,
+  ticketNotificationsEnabled,
+} from "./notification-settings";
 import { APP_LOCALE, APP_TIME_ZONE } from "./dates";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -21,6 +25,8 @@ export async function enqueueTicketNotice(
   actorName: string,
   movement: string,
 ) {
+  await lockTicketNotifications(tx);
+  if (!(await ticketNotificationsEnabled(tx))) return;
   const [company] = await tx
     .select({ name: companies.name })
     .from(companies)
@@ -94,8 +100,9 @@ export function scheduleTicketNotices() {
 async function save(
   row: Notice,
   changes: Partial<typeof ticketNotices.$inferInsert>,
+  connection: Tx,
 ) {
-  await db
+  await connection
     .update(ticketNotices)
     .set({ ...changes, lockedAt: null, updatedAt: new Date() })
     .where(eq(ticketNotices.id, row.id));
@@ -130,9 +137,9 @@ async function approvedTemplates() {
       .map((t: { id: string }) => t.id),
   );
 }
-async function currentRecipient(row: Notice) {
+async function currentRecipient(row: Notice, connection: Tx) {
   if (row.channel === "email") return row.destination === adminEmail();
-  const [admin] = await db
+  const [admin] = await connection
     .select()
     .from(user)
     .where(eq(user.email, adminEmail()));
@@ -143,13 +150,17 @@ async function currentRecipient(row: Notice) {
   );
 }
 
-async function sendEmail(row: Notice) {
+async function sendEmail(row: Notice, connection: Tx) {
   if (!process.env.RESEND_API_KEY || !row.payload.from || !row.destination) {
-    await save(row, {
-      status: "pending",
-      nextAttemptAt: delay(5),
-      error: "Configure o e-mail do administrador e o Resend.",
-    });
+    await save(
+      row,
+      {
+        status: "pending",
+        nextAttemptAt: delay(5),
+        error: "Configure o e-mail do administrador e o Resend.",
+      },
+      connection,
+    );
     return;
   }
   try {
@@ -166,64 +177,88 @@ async function sendEmail(row: Notice) {
     });
     const data = await r.json().catch(() => null);
     if (r.ok && data?.id) {
-      await save(row, {
-        status: "accepted",
-        providerId: data.id,
-        providerStatus: "accepted",
-        error: null,
-      });
+      await save(
+        row,
+        {
+          status: "accepted",
+          providerId: data.id,
+          providerStatus: "accepted",
+          error: null,
+        },
+        connection,
+      );
       return;
     }
     const retry = r.status === 429 || r.status >= 500 || r.ok;
-    await save(row, {
-      status: retry ? "pending" : "failed",
-      nextAttemptAt: delay(Math.min(60, 2 ** Math.min(row.attempts, 6))),
-      error: `Resend não confirmou o envio (HTTP ${r.status}).`,
-    });
+    await save(
+      row,
+      {
+        status: retry ? "pending" : "failed",
+        nextAttemptAt: delay(Math.min(60, 2 ** Math.min(row.attempts, 6))),
+        error: `Resend não confirmou o envio (HTTP ${r.status}).`,
+      },
+      connection,
+    );
   } catch {
-    await save(row, {
-      status: "pending",
-      nextAttemptAt: delay(5),
-      error:
-        "Resposta do Resend não confirmada; a nova tentativa usará a mesma chave de envio.",
-    });
+    await save(
+      row,
+      {
+        status: "pending",
+        nextAttemptAt: delay(5),
+        error:
+          "Resposta do Resend não confirmada; a nova tentativa usará a mesma chave de envio.",
+      },
+      connection,
+    );
   }
 }
 async function sendWhatsapp(
   row: Notice,
   templates: () => Promise<Set<string>>,
+  connection: Tx,
 ) {
   if (!process.env.FLW_SYNOVA || !row.payload.from || !row.payload.templateId) {
-    await save(row, {
-      status: "pending",
-      nextAttemptAt: delay(5),
-      error: "Configure remetente e modelo de chamados no FLW.",
-    });
+    await save(
+      row,
+      {
+        status: "pending",
+        nextAttemptAt: delay(5),
+        error: "Configure remetente e modelo de chamados no FLW.",
+      },
+      connection,
+    );
     return;
   }
   try {
     if (!(await templates()).has(row.payload.templateId)) {
-      await save(row, {
-        status: "pending",
-        nextAttemptAt: delay(5),
-        error: "Modelo de WhatsApp ainda não aprovado ou indisponível no FLW.",
-      });
+      await save(
+        row,
+        {
+          status: "pending",
+          nextAttemptAt: delay(5),
+          error:
+            "Modelo de WhatsApp ainda não aprovado ou indisponível no FLW.",
+        },
+        connection,
+      );
       return;
     }
   } catch {
-    await save(row, {
-      status: "pending",
-      nextAttemptAt: delay(5),
-      error: "Aguardando consulta de aprovação do modelo no FLW.",
-    });
+    await save(
+      row,
+      {
+        status: "pending",
+        nextAttemptAt: delay(5),
+        error: "Aguardando consulta de aprovação do modelo no FLW.",
+      },
+      connection,
+    );
     return;
   }
   // FLW documents senderId as correlation, not as a deduplication guarantee.
   // An ambiguous POST must never be blindly retried.
-  await db
-    .update(ticketNotices)
-    .set({ attempts: row.attempts + 1 })
-    .where(eq(ticketNotices.id, row.id));
+  // The claim commits the attempt marker before any network I/O. A worker
+  // crash must never roll it back and allow an ambiguous WhatsApp resend.
   try {
     const r = await fetch("https://api.wts.chat/chat/v1/send/template", {
       method: "POST",
@@ -235,34 +270,46 @@ async function sendWhatsapp(
     const data = await r.json().catch(() => null);
     if (r.ok && data?.id) {
       const state = whatsappState(data.status);
-      await save(row, {
-        status: state,
-        providerId: data.id,
-        providerStatus: String(data.status || "UNKNOWN"),
-        nextAttemptAt: delay(5),
-        error:
-          state === "failed"
-            ? "O FLW informou falha na mensagem. Consulte o provedor."
-            : null,
-      });
+      await save(
+        row,
+        {
+          status: state,
+          providerId: data.id,
+          providerStatus: String(data.status || "UNKNOWN"),
+          nextAttemptAt: delay(5),
+          error:
+            state === "failed"
+              ? "O FLW informou falha na mensagem. Consulte o provedor."
+              : null,
+        },
+        connection,
+      );
       return;
     }
-    await save(row, {
-      status:
-        r.status === 429
-          ? "pending"
-          : r.status >= 400 && r.status < 500
-            ? "failed"
-            : "uncertain",
-      nextAttemptAt: delay(5),
-      error: `FLW não confirmou o envio (HTTP ${r.status}).${r.status >= 500 || r.ok ? " Confira no provedor antes de reenviar." : ""}`,
-    });
+    await save(
+      row,
+      {
+        status:
+          r.status === 429
+            ? "pending"
+            : r.status >= 400 && r.status < 500
+              ? "failed"
+              : "uncertain",
+        nextAttemptAt: delay(5),
+        error: `FLW não confirmou o envio (HTTP ${r.status}).${r.status >= 500 || r.ok ? " Confira no provedor antes de reenviar." : ""}`,
+      },
+      connection,
+    );
   } catch {
-    await save(row, {
-      status: "uncertain",
-      error:
-        "Envio ao FLW sem confirmação. Confira no provedor antes de reenviar.",
-    });
+    await save(
+      row,
+      {
+        status: "uncertain",
+        error:
+          "Envio ao FLW sem confirmação. Confira no provedor antes de reenviar.",
+      },
+      connection,
+    );
   }
 }
 function whatsappState(status: string) {
@@ -272,7 +319,7 @@ function whatsappState(status: string) {
   if (status === "SENT") return "sent";
   return "accepted";
 }
-async function checkWhatsapp(row: Notice) {
+async function checkWhatsapp(row: Notice, connection: Tx) {
   try {
     const r = await fetch(
       `https://api.wts.chat/chat/v1/send/message/${encodeURIComponent(row.providerId!)}`,
@@ -286,31 +333,44 @@ async function checkWhatsapp(row: Notice) {
     const data = await r.json().catch(() => null);
     if (r.ok && data?.id === row.providerId) {
       const status = whatsappState(data.status);
-      await save(row, {
-        status,
-        providerStatus: String(data.status || "UNKNOWN"),
-        nextAttemptAt: delay(5),
-        error:
-          status === "failed"
-            ? "O FLW informou falha na entrega. Consulte o provedor."
-            : null,
-      });
+      await save(
+        row,
+        {
+          status,
+          providerStatus: String(data.status || "UNKNOWN"),
+          nextAttemptAt: delay(5),
+          error:
+            status === "failed"
+              ? "O FLW informou falha na entrega. Consulte o provedor."
+              : null,
+        },
+        connection,
+      );
     } else
-      await save(row, {
+      await save(
+        row,
+        {
+          status: row.status,
+          nextAttemptAt: delay(5),
+          error: "Não foi possível consultar a situação no FLW.",
+        },
+        connection,
+      );
+  } catch {
+    await save(
+      row,
+      {
         status: row.status,
         nextAttemptAt: delay(5),
-        error: "Não foi possível consultar a situação no FLW.",
-      });
-  } catch {
-    await save(row, {
-      status: row.status,
-      nextAttemptAt: delay(5),
-      error: "Consulta de entrega temporariamente indisponível.",
-    });
+        error: "Consulta de entrega temporariamente indisponível.",
+      },
+      connection,
+    );
   }
 }
 
 export async function processTicketNotices() {
+  if (!(await ticketNotificationsEnabled())) return { processed: 0 };
   // Recover interrupted workers. Email may retry within Resend's 24-hour key TTL.
   const stale = new Date(Date.now() - 5 * 60000);
   await db
@@ -379,23 +439,44 @@ export async function processTicketNotices() {
         .set({
           status: "processing",
           lockedAt: new Date(),
-          ...(candidate.channel === "email"
-            ? { attempts: candidate.attempts + 1 }
-            : {}),
+          attempts: candidate.attempts + 1,
         })
         .where(eq(ticketNotices.id, candidate.id));
       return candidate;
     });
     if (!row) break;
-    if (!(await currentRecipient(row)))
-      await save(row, {
-        status: "cancelled",
-        error:
-          "Destinatário não corresponde mais ao administrador ou WhatsApp verificado.",
-      });
-    else if (row.channel === "email") await sendEmail(row);
-    else if (row.providerId) await checkWhatsapp(row);
-    else await sendWhatsapp(row, templates);
+    await db.transaction(async (tx) => {
+      await lockTicketNotifications(tx);
+      const [claimed] = await tx
+        .select({ status: ticketNotices.status })
+        .from(ticketNotices)
+        .where(eq(ticketNotices.id, row.id));
+      if (claimed?.status !== "processing") return;
+      if (!(await ticketNotificationsEnabled(tx))) {
+        await save(
+          row,
+          {
+            status: row.providerId ? row.status : "cancelled",
+            error: "Notificações desativadas.",
+          },
+          tx,
+        );
+        return;
+      }
+      if (!(await currentRecipient(row, tx)))
+        await save(
+          row,
+          {
+            status: "cancelled",
+            error:
+              "Destinatário não corresponde mais ao administrador ou WhatsApp verificado.",
+          },
+          tx,
+        );
+      else if (row.channel === "email") await sendEmail(row, tx);
+      else if (row.providerId) await checkWhatsapp(row, tx);
+      else await sendWhatsapp(row, templates, tx);
+    });
     processed++;
   }
   return { processed };

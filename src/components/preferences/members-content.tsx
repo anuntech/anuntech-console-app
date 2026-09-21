@@ -1,27 +1,15 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNotNull, or } from "drizzle-orm";
-import { Building2, ShieldCheck, UserRound } from "lucide-react";
-import {
-  accountEmails,
-  companies,
-  consoleStaffMembers,
-  memberships,
-  user,
-} from "@/db/schema";
-import { resolveAccountIdentity } from "@/lib/account-identity";
+import { Building2 } from "lucide-react";
+import { accountEmails, companies, memberships, user } from "@/db/schema";
 import { managedCompanyIds, requireMemberManager } from "@/lib/member-access";
 import { db } from "@/lib/db";
 import { roleLabels } from "@/lib/format";
-import {
-  revokeCompanyMember,
-  revokeConsoleStaffMember,
-  saveCompanyMember,
-  saveConsoleStaffMember,
-} from "@/lib/members-actions";
+import { revokeCompanyMember, saveCompanyMember } from "@/lib/members-actions";
 import { ActionForm } from "@/components/action-form";
 import { FormModal } from "@/components/form-modal";
 import { Badge, Empty, Field } from "@/components/ui";
-import { MemberLoginLink } from "./member-login-link";
+import { StaffMembersContent } from "./staff-members-content";
 import preferences from "./preferences-content.module.css";
 import styles from "./members-content.module.css";
 
@@ -45,40 +33,9 @@ function RoleField({ defaultValue = "support" }: { defaultValue?: string }) {
 
 export async function MembersContent() {
   const actor = await requireMemberManager();
-  const owner = actor.owner;
+  if (actor.admin) return <StaffMembersContent actor={actor} />;
   const companyIds = managedCompanyIds(actor);
-  const configuredOwner = actor.admin
-    ? process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase()
-    : undefined;
-  const [team, grants, companyOptions, ownerIdentity] = await Promise.all([
-    actor.admin
-      ? db
-          .select({
-            member: consoleStaffMembers,
-            userId: user.id,
-            name: user.name,
-            currentEmail: user.email,
-          })
-          .from(consoleStaffMembers)
-          .leftJoin(
-            accountEmails,
-            and(
-              eq(accountEmails.email, consoleStaffMembers.email),
-              isNotNull(accountEmails.verifiedAt),
-            ),
-          )
-          .leftJoin(
-            user,
-            or(
-              eq(user.email, consoleStaffMembers.email),
-              eq(user.id, accountEmails.userId),
-            ),
-          )
-          .orderBy(
-            desc(consoleStaffMembers.active),
-            asc(consoleStaffMembers.email),
-          )
-      : Promise.resolve([]),
+  const [grants, companyOptions] = await Promise.all([
     db
       .select({
         member: memberships,
@@ -104,9 +61,7 @@ export async function MembersContent() {
           eq(user.id, accountEmails.userId),
         ),
       )
-      .where(
-        actor.admin ? undefined : inArray(memberships.companyId, companyIds),
-      )
+      .where(inArray(memberships.companyId, companyIds))
       .orderBy(
         desc(memberships.active),
         asc(memberships.email),
@@ -119,21 +74,9 @@ export async function MembersContent() {
         archived: companies.archived,
       })
       .from(companies)
-      .where(actor.admin ? undefined : inArray(companies.id, companyIds))
+      .where(inArray(companies.id, companyIds))
       .orderBy(asc(companies.name)),
-    configuredOwner ? resolveAccountIdentity(configuredOwner) : null,
   ]);
-  // Older verified addresses belong to the same person, not separate members.
-  const teamByPerson = new Map<string, (typeof team)[number]>();
-  for (const entry of team) {
-    if (
-      entry.member.email === configuredOwner ||
-      (ownerIdentity?.userId && ownerIdentity.userId === entry.userId)
-    )
-      continue;
-    const key = entry.userId || entry.member.email;
-    if (!teamByPerson.has(key)) teamByPerson.set(key, entry);
-  }
   const grantsByPerson = new Map<
     string,
     (typeof grants)[number] & { roles: string[] }
@@ -146,136 +89,12 @@ export async function MembersContent() {
     else if (entry.member.active && !existing.roles.includes(entry.member.role))
       existing.roles.push(entry.member.role);
   }
-  const staffRows = [...teamByPerson.values()];
   const clientRows = [...grantsByPerson.values()];
-  const base = process.env.BETTER_AUTH_URL;
-  const loginUrl = base ? new URL("/entrar", base).toString() : null;
-
   return (
     <div className={preferences.content}>
-      {actor.admin && (
-        <section className={preferences.section}>
-          <div className={preferences.sectionHeading}>
-            <h2>Equipe Anuntech</h2>
-            <span>
-              {staffRows.filter((row) => row.member.active).length +
-                (configuredOwner ? 1 : 0)}{" "}
-              com acesso
-            </span>
-          </div>
-          <ul className={`${preferences.card} ${styles.memberList}`}>
-            {configuredOwner && (
-              <li className={styles.memberRow}>
-                <div className={styles.identity}>
-                  <span className={styles.icon}>
-                    <ShieldCheck size={18} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h3>
-                      {actor.owner
-                        ? actor.user.name
-                        : ownerIdentity?.primaryEmail || configuredOwner}
-                    </h3>
-                    {actor.owner && <p>{actor.user.email}</p>}
-                    <p>Proprietário do Console</p>
-                    <p className={styles.detail}>
-                      Acesso protegido. Somente o proprietário gerencia
-                      administradores.
-                    </p>
-                  </div>
-                </div>
-                <Badge status="active">Proprietário</Badge>
-              </li>
-            )}
-            {staffRows.map(({ member, name, currentEmail }) => (
-              <li className={styles.memberRow} key={member.id}>
-                <div className={styles.identity}>
-                  <span className={styles.icon}>
-                    <UserRound size={18} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h3>{name || currentEmail || member.email}</h3>
-                    {name && <p>{currentEmail || member.email}</p>}
-                    <p>Administrador do Console</p>
-                  </div>
-                </div>
-                <div className={styles.rowActions}>
-                  <Badge status={member.active ? "active" : "paused"}>
-                    {member.active ? "Ativo" : "Revogado"}
-                  </Badge>
-                  {owner &&
-                    (member.active ? (
-                      <ActionForm
-                        action={revokeConsoleStaffMember}
-                        label="Revogar administração"
-                        submitAriaLabel={`Revogar administração de ${currentEmail || member.email}`}
-                        danger
-                        className={styles.action}
-                        confirm={{
-                          title: "Revogar administração?",
-                          description: `${currentEmail || member.email} perderá o acesso administrativo ao Console. Vínculos específicos com empresas serão preservados.`,
-                        }}
-                      >
-                        <input type="hidden" name="id" value={member.id} />
-                      </ActionForm>
-                    ) : (
-                      <ActionForm
-                        action={saveConsoleStaffMember}
-                        label="Reativar administração"
-                        submitAriaLabel={`Reativar administração de ${currentEmail || member.email}`}
-                        className={styles.action}
-                        confirm={{
-                          title: "Reativar administração?",
-                          description: `${currentEmail || member.email} poderá gerenciar clientes, chamados, contratos, cobranças e integrações do Console.`,
-                        }}
-                      >
-                        <input
-                          type="hidden"
-                          name="email"
-                          value={currentEmail || member.email}
-                        />
-                      </ActionForm>
-                    ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-          <p className={preferences.groupNote}>
-            Administradores gerenciam a operação de todas as empresas. Eles não
-            podem conceder administração do Console a outras pessoas.
-          </p>
-          {owner && (
-            <div className={styles.sectionAction}>
-              <FormModal
-                trigger="Adicionar administrador"
-                title="Adicionar administrador"
-                description="A pessoa terá acesso administrativo a todas as empresas, incluindo cobranças e integrações. Somente você poderá gerenciar esse acesso."
-                action={saveConsoleStaffMember}
-                label="Liberar administração"
-                reset
-              >
-                <Field label="E-mail de acesso">
-                  <input
-                    type="email"
-                    name="email"
-                    autoComplete="off"
-                    required
-                    maxLength={254}
-                    placeholder="nome@anuntech.com"
-                  />
-                </Field>
-                <p className="form-footnote">
-                  O cadastro libera o acesso. Nenhum convite ou mensagem será
-                  enviado.
-                </p>
-              </FormModal>
-            </div>
-          )}
-        </section>
-      )}
       <section className={preferences.section}>
         <div className={preferences.sectionHeading}>
-          <h2>{actor.admin ? "Acessos de clientes" : "Membros da empresa"}</h2>
+          <h2>Membros da empresa</h2>
           <span>
             {clientRows.filter((row) => row.member.active).length} vínculos
             ativos
@@ -385,7 +204,7 @@ export async function MembersContent() {
           <div className={preferences.card}>
             <Empty
               headingLevel={3}
-              title={actor.admin ? "Nenhum acesso de cliente" : "Nenhum membro"}
+              title="Nenhum membro"
               description="Escolha uma empresa e a permissão para liberar o acesso de uma pessoa."
             />
           </div>
@@ -400,12 +219,8 @@ export async function MembersContent() {
         {companyOptions.length ? (
           <div className={styles.sectionAction}>
             <FormModal
-              trigger={
-                actor.admin ? "Adicionar acesso de cliente" : "Adicionar membro"
-              }
-              title={
-                actor.admin ? "Adicionar acesso de cliente" : "Adicionar membro"
-              }
+              trigger="Adicionar membro"
+              title="Adicionar membro"
               description="Escolha o e-mail, a empresa e a permissão. Um vínculo existente para essa pessoa e empresa será atualizado."
               action={saveCompanyMember}
               label="Liberar acesso"
@@ -447,21 +262,6 @@ export async function MembersContent() {
           </p>
         )}
       </section>
-      {loginUrl && (
-        <section className={preferences.section}>
-          <div className={preferences.sectionHeading}>
-            <h2>Compartilhar acesso</h2>
-          </div>
-          <div className={`${preferences.card} ${styles.shareCard}`}>
-            <p>
-              A pessoa deve entrar com o e-mail autorizado e solicitar um código
-              de acesso ou usar o Google. O link, sozinho, não concede
-              permissões.
-            </p>
-            <MemberLoginLink url={loginUrl} />
-          </div>
-        </section>
-      )}
     </div>
   );
 }

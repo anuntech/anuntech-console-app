@@ -1,0 +1,117 @@
+.control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.125rem 1.25rem;
+}
+.control h2 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.control p {
+  margin: 0.25rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+.control .error {
+  color: var(--destructive);
+}
+.switch {
+  position: relative;
+  display: grid;
+  align-items: center;
+  flex: none;
+  width: 3.5rem;
+  height: 2.75rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.switch::before {
+  content: "";
+  position: absolute;
+  inset: 0.375rem 0;
+  border-radius: 2rem;
+  background: var(--muted-foreground);
+  opacity: 0.45;
+  transition:
+    background 120ms ease,
+    opacity 120ms ease;
+}
+.switch[aria-checked="true"]::before {
+  background: var(--primary);
+  opacity: 1;
+}
+.switch span {
+  position: relative;
+  margin-left: 0.1875rem;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px #0003;
+  transition: transform 140ms ease;
+}
+.switch[aria-checked="true"] span {
+  transform: translateX(1.5rem);
+}
+.switch:active span {
+  box-shadow: 0 1px 4px #0006;
+}
+.switch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 2rem;
+}
+.switch:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  flex-wrap: wrap;
+}
+.pagination div {
+  display: flex;
+  gap: 0.5rem;
+}
+.pagination a {
+  min-height: 44px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch span,
+  .switch::before {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .switch::before {
+    border: 1px solid ButtonText;
+    background: Canvas;
+  }
+  .switch span {
+    background: ButtonText;
+  }
+  .switch[aria-checked="true"]::before {
+    background: Highlight;
+    opacity: 1;
+  }
+}
+
+.history td:nth-child(2) {
+  white-space: nowrap;
+}

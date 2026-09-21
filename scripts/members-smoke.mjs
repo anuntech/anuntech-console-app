@@ -242,7 +242,7 @@ try {
   }
   assert.ok(ready, "Members test server starts");
 
-  const grantStaff = await capturedForm("Liberar administração");
+  const grantStaff = await capturedForm("Adicionar");
   await post(grantStaff, "unverified", { email: email("blocked") });
   ok(
     (
@@ -287,9 +287,11 @@ try {
   const staffPage = await request(page, "staff");
   ok(
     staffPage.status === 200 &&
-      staffPage.text.includes("Acessos de clientes") &&
-      !staffPage.text.includes(">Adicionar administrador<"),
-    "Dynamic administrator sees client management without owner controls",
+      !staffPage.text.includes("Acessos de clientes") &&
+      staffPage.text.includes("Pessoas do ambiente") &&
+      !staffPage.text.includes("Compartilhar acesso") &&
+      !staffPage.text.includes(">Convidar pessoa<"),
+    "Dynamic administrator sees only environment members without owner controls",
   );
   const managerPage = await request(page, "client");
   ok(
@@ -382,9 +384,7 @@ try {
     "Client cannot call the administrative lookup API",
   );
 
-  const revokeStaff = await capturedForm(
-    `Revogar administração de ${staffEmail}`,
-  );
+  const revokeStaff = await capturedForm(`Expulsar de ${staffEmail}`);
   await db.query(
     "insert into console_staff_members(id,email,active,created_by) values($1,$2,true,$3)",
     [ownerStaff, ownerEmail, people.owner.id],
@@ -413,7 +413,7 @@ try {
     "Owner protection survives a principal email change",
   );
 
-  const grantClient = await capturedForm("Liberar acesso", "staff");
+  const grantClient = await capturedForm("Liberar acesso", "client");
   const managerGrant = await capturedForm("Liberar acesso", "client");
   const managedEmail = email("managed-member");
   await post(managerGrant, "client", {
@@ -613,10 +613,9 @@ try {
     (await request(`/api/contratos/${contract}/pdf`, "client")).status === 200,
     "Consolidated finance permission permits the published contract PDF",
   );
-  const revokeClient = await capturedForm(
-    `Revogar acesso de ${people.client.email} a Members company 0 ${marker}`,
-    "staff",
-  );
+  // Reuse the same tenant action captured as a manager; global admins retain
+  // server authority while their Members screen no longer lists client access.
+  const revokeClient = managerRevoke;
   await post(revokeClient, "staff", { id: aliasGrant });
   ok(
     (await activeGrants([alias, people.client.email], companyIds[0])).length ===

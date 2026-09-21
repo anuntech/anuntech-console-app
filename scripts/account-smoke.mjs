@@ -578,8 +578,7 @@ try {
   people["owner-new"] = { ...people.owner, cookie: login.cookie };
   const ownerPage = await request("/configuracoes/membros", "owner-new");
   ok(
-    ownerPage.status === 200 &&
-      ownerPage.text.includes("Liberar administração"),
+    ownerPage.status === 200 && ownerPage.text.includes("Convidar pessoa"),
     "Configured owner retains administration through the verified previous email",
   );
   result = await action("removeAccountEmail", "owner-new", {
