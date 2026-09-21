@@ -127,8 +127,8 @@ export async function IntegrationsContent() {
           <Bell size={18} aria-hidden="true" />
         </span>
         <div className={styles.rowContent}>
-          <h2>Avisos de chamados</h2>
-          <p>Destinatários, tentativas e confirmações de entrega da equipe.</p>
+          <h2>Notificações</h2>
+          <p>Preferências e histórico de envios.</p>
         </div>
         <Link
           href="/configuracoes/notificacoes"
@@ -136,7 +136,7 @@ export async function IntegrationsContent() {
           scroll={false}
           className={styles.textLink}
         >
-          Ver destinatário e envios
+          Gerenciar notificações
           <ArrowUpRight size={15} aria-hidden="true" />
         </Link>
       </section>

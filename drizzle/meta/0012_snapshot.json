@@ -1,6 +1,6 @@
 {
   "id": "5fe114ff-afd4-44d1-8882-42a18499522d",
-  "prevId": "1ed4e17c-5f17-4416-824f-76e58ce564f5",
+  "prevId": "9695f9b9-89eb-422a-977a-3fa526effa67",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2547,6 +2547,59 @@
         }
       },
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.console_notification_settings": {
+      "name": "console_notification_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "console_notification_settings_updated_by_console_user_id_fk": {
+          "name": "console_notification_settings_updated_by_console_user_id_fk",
+          "tableFrom": "console_notification_settings",
+          "tableTo": "console_user",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},

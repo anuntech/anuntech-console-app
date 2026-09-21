@@ -65,3 +65,13 @@ Essas evidências não comprovam entrega de mensagens reais. O CI final desta ro
 O perfil oferece uma galeria de 89 SVGs da pasta Identidade visual/Ilustrações/SVG/Avatars e mantém o envio de foto. O catálogo público tem caminhos fixos; PATCH /api/conta/foto aceita somente essas opções, com sessão completa, origem validada e atualização transacional. O mapa de arquivos originais está em avatar-sources.json.
 
 A criação da conta (inclusive primeiro acesso de convidados e Google) grava um avatar aleatório uma única vez. Convites não criam usuários antecipadamente. Remover uma foto atribui um novo avatar do catálogo. Fotos já enviadas permanecem inalteradas e privadas; imagens do catálogo são públicas.
+
+## Membros do ambiente e notificações
+
+A página Membros dos administradores mostra exclusivamente a equipe Anuntech, em Membros (conta verificada existente) e Convidados (ainda sem primeiro acesso verificado). O proprietário pode convidar, cancelar convite e expulsar; o proprietário é protegido e a revogação preserva histórico e vínculos próprios com empresas. Não há envio automático de convite. Acessos de clientes permanecem no cadastro da empresa; gestores clientes continuam vendo somente as empresas que administram.
+
+Notificações substitui Avisos de chamados. A tela contém um interruptor para os avisos de chamados da operação Anuntech e histórico com 20 registros por página, ordenados por criação e ID decrescentes. Contatos ficam em Minha conta. Paginação é consultada no servidor e funciona tanto no acesso direto quanto no modal interceptado.
+
+A configuração persiste em console_notification_settings (migração 0011). Desativar aguarda os envios em andamento, cancela avisos ainda não enviados e impede enfileiramento enquanto desativado; reativar não recupera cancelados. O histórico é preservado. Tentativas de envio são registradas antes do contato com provedores para preservar a proteção contra reenvios incertos. Alterações exigem administrador e geram auditoria. Esta configuração é da operação Anuntech, não de eventuais preferências individuais por empresa.
+
+Validação: `npm run test:integration -- --members-only` e `--notifications-only` usam banco descartável. O teste de fila usa provedores simulados, nunca envia mensagens reais. Para QA visual opcional, `CONSOLE_PLAYWRIGHT_MODULE` aponta ao módulo Playwright disponível no ambiente.

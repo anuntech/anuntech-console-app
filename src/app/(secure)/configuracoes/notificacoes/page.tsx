@@ -3,10 +3,14 @@ import { PreferencesPage } from "@/components/preferences/preferences-page";
 
 export const metadata: Metadata = {
   title: "Notificações",
-  description:
-    "Acompanhe destinatários, tentativas e confirmações de entrega dos avisos de chamados.",
+  description: "Preferências e histórico de envios.",
 };
 
-export default function NotificationsPage() {
-  return <PreferencesPage section="notifications" />;
+export default async function NotificationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string | string[] }>;
+}) {
+  const { page } = await searchParams;
+  return <PreferencesPage section="notifications" notificationPage={page} />;
 }

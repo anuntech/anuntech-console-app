@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { companies, notificationPreferences, user } from "@/db/schema";
 import { db } from "./db";
 import { resolveAccountIdentity } from "./account-identity";
@@ -59,4 +59,18 @@ export async function getNoticePreferences(
     emailEnabled: true,
     whatsappEnabled: true,
   };
+}
+
+/** A completed preference change waits for a previously started delivery. */
+export async function lockCompanyNotifications(
+  connection: Pick<typeof db, "execute">,
+  companyId: string,
+  exclusive = false,
+) {
+  const key = `company-notifications:${companyId}`;
+  await connection.execute(
+    exclusive
+      ? sql`select pg_advisory_xact_lock(hashtext(${key}))`
+      : sql`select pg_advisory_xact_lock_shared(hashtext(${key}))`,
+  );
 }

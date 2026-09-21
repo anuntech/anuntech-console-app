@@ -552,3 +552,14 @@ export const notificationPreferences = pgTable(
       .defaultNow(),
   },
 );
+
+export const notificationSettings = pgTable("console_notification_settings", {
+  id: text("id").primaryKey(),
+  enabled: boolean("enabled").notNull().default(true),
+  updatedBy: text("updated_by").references(() => user.id, {
+    onDelete: "set null",
+  }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

@@ -9,7 +9,10 @@ import { db } from "./db";
 import { companyIdentity, companyEmail, companyPhone } from "./company-input";
 import { companyBillingInput } from "./company-billing";
 import { AccessChangeError, lockManagedCompany } from "./company-management";
-import { preferenceKey } from "./notification-preferences";
+import {
+  preferenceKey,
+  lockCompanyNotifications,
+} from "./notification-preferences";
 const blocked = { error: "Você não tem permissão para realizar esta ação." };
 function failure(error: unknown): ActionState {
   if (error instanceof z.ZodError) return { error: error.issues[0].message };
@@ -82,7 +85,10 @@ export async function saveNotificationPreferences(
       phoneRaw || whatsappEnabled ? companyPhone.parse(phoneRaw) : "";
     const key = preferenceKey(companyId, topic);
     await db.transaction(async (tx) => {
-      if (companyId) await lockManagedCompany(tx, actor, companyId);
+      if (companyId) {
+        await lockManagedCompany(tx, actor, companyId);
+        await lockCompanyNotifications(tx, companyId, true);
+      }
       const values = {
         key,
         companyId,
@@ -100,15 +106,13 @@ export async function saveNotificationPreferences(
           target: notificationPreferences.key,
           set: values,
         });
-      await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          companyId,
-          entityId: key,
-          action: "notifications.preferences_updated",
-          details: { topic, emailEnabled, whatsappEnabled },
-        });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId,
+        entityId: key,
+        action: "notifications.preferences_updated",
+        details: { topic, emailEnabled, whatsappEnabled },
+      });
     });
     refresh();
     return { success: "Preferências de notificações atualizadas." };

@@ -2,6 +2,7 @@ import "server-only";
 import {
   getNoticePreferences,
   whatsappDestination,
+  lockCompanyNotifications,
 } from "./notification-preferences";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
@@ -301,153 +302,160 @@ export async function processBillingNotice(
       });
       return;
     }
-    preferences = await getNoticePreferences(row.c.id, "billing");
-    if (!recipientAllowed()) {
-      await save({
-        status: "skipped",
-        error:
-          "Preferências alteradas durante o processamento; envio interrompido.",
-      });
-      return;
-    }
-    if (!row.i.pixCopyPaste && !row.i.boletoLine) {
-      await save({ error: "Aguardando dados de pagamento do Inter." });
-      return;
-    }
-    // Recheck the reminder against the date just confirmed by the bank.
-    if (!noticeIsCurrent(notice.kind, row.i.dueDate, today)) {
-      const future =
-        notice.kind !== "initial" &&
-        daysOverdue(row.i.dueDate, today) <
-          (notice.kind === "due"
-            ? 0
-            : Number(notice.kind.replace("overdue_", "")));
-      await save({
-        status: future ? "pending" : "skipped",
-        error: future
-          ? "Aviso aguardando a data confirmada pelo Inter."
-          : "O prazo deste aviso terminou. Somente o aviso vigente poderá ser enviado.",
-      });
-      return;
-    }
-    const data = {
-      name: row.c.name,
-      description: row.i.description,
-      amountCents: row.i.amountCents,
-      dueDate: row.i.dueDate,
-      publicId: row.i.publicId!,
-      today,
-      kind: notice.kind,
-    };
-    let payload: BillingNoticePayload;
-    if (notice.payload) payload = notice.payload;
-    else if (notice.channel === "email")
-      payload = {
-        from: billingEmailFrom(process.env.EMAIL_FROM!),
-        to: [preferences.email],
-        ...billingEmailTemplate({
-          ...data,
-          url: paymentUrl(data.publicId),
-          issuerDocument: process.env.FOCUS_NFE_ISSUER_CNPJ,
-        }),
-      };
-    else {
-      let phone = (preferences.phone || "").replace(/\D/g, "");
-      if (phone.length === 10 || phone.length === 11) phone = `55${phone}`;
-      if (!/^55\d{10,11}$/.test(phone)) {
+    await db.transaction(async (preferenceTx) => {
+      await lockCompanyNotifications(preferenceTx, row.c.id);
+      preferences = await getNoticePreferences(
+        row.c.id,
+        "billing",
+        preferenceTx,
+      );
+      if (!recipientAllowed()) {
         await save({
-          status: "failed",
-          error: "Confira o telefone brasileiro no cadastro do cliente.",
+          status: "skipped",
+          error:
+            "Preferências alteradas durante o processamento; envio interrompido.",
         });
         return;
       }
-      payload = {
-        from: billingSender,
-        to: phone,
-        templateId:
-          billingTemplates[
-            notice.kind.startsWith("overdue_")
-              ? "overdue"
-              : (notice.kind as "initial" | "due")
-          ].id,
-        parameters: billingWhatsappParameters(data),
-        senderId: notice.id,
-        options: { enableBot: false },
+      if (!row.i.pixCopyPaste && !row.i.boletoLine) {
+        await save({ error: "Aguardando dados de pagamento do Inter." });
+        return;
+      }
+      // Recheck the reminder against the date just confirmed by the bank.
+      if (!noticeIsCurrent(notice.kind, row.i.dueDate, today)) {
+        const future =
+          notice.kind !== "initial" &&
+          daysOverdue(row.i.dueDate, today) <
+            (notice.kind === "due"
+              ? 0
+              : Number(notice.kind.replace("overdue_", "")));
+        await save({
+          status: future ? "pending" : "skipped",
+          error: future
+            ? "Aviso aguardando a data confirmada pelo Inter."
+            : "O prazo deste aviso terminou. Somente o aviso vigente poderá ser enviado.",
+        });
+        return;
+      }
+      const data = {
+        name: row.c.name,
+        description: row.i.description,
+        amountCents: row.i.amountCents,
+        dueDate: row.i.dueDate,
+        publicId: row.i.publicId!,
+        today,
+        kind: notice.kind,
       };
-    }
-    // Freeze payload and persist attempt before crossing the network boundary.
-    const [attempt] = await db
-      .update(billingNotices)
-      .set({
-        payload,
-        status: notice.channel === "whatsapp" ? "sending" : "pending",
-        firstAttemptAt: notice.firstAttemptAt || new Date(),
-        attempts: notice.attempts + 1,
-      })
-      .where(eq(billingNotices.id, id))
-      .returning({ payload: billingNotices.payload });
-    postingWhatsapp = notice.channel === "whatsapp";
-    const response = await fetch(
-      postingWhatsapp
-        ? "https://api.wts.chat/chat/v1/send/template"
-        : "https://api.resend.com/emails",
-      {
-        method: "POST",
-        redirect: "error",
-        headers: postingWhatsapp
-          ? flwHeaders()
-          : {
-              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-              "Content-Type": "application/json",
-              "Idempotency-Key": `invoice-${id}`,
-            },
-        body: JSON.stringify(attempt.payload),
-        signal: AbortSignal.timeout(10000),
-      },
-    );
-    const result = await response.json().catch(() => null);
-    if (!response.ok || !result?.id) {
-      await save({
-        status:
-          response.status === 429
-            ? "pending"
-            : response.status >= 400 && response.status < 500
-              ? "failed"
-              : postingWhatsapp
-                ? "uncertain"
-                : "pending",
-        error: `${postingWhatsapp ? "Synova" : "Resend"} não confirmou o envio (HTTP ${response.status}).${postingWhatsapp && (response.ok || response.status >= 500) ? " Confira no provedor; não haverá reenvio automático." : ""}`,
-      });
-      return;
-    }
-    await db.transaction(async (tx) => {
-      await tx
+      let payload: BillingNoticePayload;
+      if (notice.payload) payload = notice.payload;
+      else if (notice.channel === "email")
+        payload = {
+          from: billingEmailFrom(process.env.EMAIL_FROM!),
+          to: [preferences.email],
+          ...billingEmailTemplate({
+            ...data,
+            url: paymentUrl(data.publicId),
+            issuerDocument: process.env.FOCUS_NFE_ISSUER_CNPJ,
+          }),
+        };
+      else {
+        let phone = (preferences.phone || "").replace(/\D/g, "");
+        if (phone.length === 10 || phone.length === 11) phone = `55${phone}`;
+        if (!/^55\d{10,11}$/.test(phone)) {
+          await save({
+            status: "failed",
+            error: "Confira o telefone brasileiro no cadastro do cliente.",
+          });
+          return;
+        }
+        payload = {
+          from: billingSender,
+          to: phone,
+          templateId:
+            billingTemplates[
+              notice.kind.startsWith("overdue_")
+                ? "overdue"
+                : (notice.kind as "initial" | "due")
+            ].id,
+          parameters: billingWhatsappParameters(data),
+          senderId: notice.id,
+          options: { enableBot: false },
+        };
+      }
+      // Freeze payload and persist attempt before crossing the network boundary.
+      const [attempt] = await db
         .update(billingNotices)
         .set({
-          status: ["FAILED", "DELETED"].includes(result.status)
-            ? "failed"
-            : "accepted",
-          providerId: result.id,
-          providerStatus:
-            notice.channel === "email"
-              ? "queued"
-              : String(result.status || "QUEUED"),
-          error: ["FAILED", "DELETED"].includes(result.status)
-            ? "Provedor informou falha na mensagem. Confira a entrega no provedor."
-            : null,
-          lockedUntil: null,
+          payload,
+          status: notice.channel === "whatsapp" ? "sending" : "pending",
+          firstAttemptAt: notice.firstAttemptAt || new Date(),
+          attempts: notice.attempts + 1,
         })
-        .where(eq(billingNotices.id, id));
-      await tx.insert(auditEvents).values({
-        actorId: notice.actorId,
-        companyId: row.i.companyId,
-        action: "invoice.notice_processed",
-        entityId: row.i.id,
-        details: {
-          channel: notice.channel,
-          kind: notice.kind,
-          providerId: result.id,
+        .where(eq(billingNotices.id, id))
+        .returning({ payload: billingNotices.payload });
+      postingWhatsapp = notice.channel === "whatsapp";
+      const response = await fetch(
+        postingWhatsapp
+          ? "https://api.wts.chat/chat/v1/send/template"
+          : "https://api.resend.com/emails",
+        {
+          method: "POST",
+          redirect: "error",
+          headers: postingWhatsapp
+            ? flwHeaders()
+            : {
+                Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+                "Idempotency-Key": `invoice-${id}`,
+              },
+          body: JSON.stringify(attempt.payload),
+          signal: AbortSignal.timeout(10000),
         },
+      );
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.id) {
+        await save({
+          status:
+            response.status === 429
+              ? "pending"
+              : response.status >= 400 && response.status < 500
+                ? "failed"
+                : postingWhatsapp
+                  ? "uncertain"
+                  : "pending",
+          error: `${postingWhatsapp ? "Synova" : "Resend"} não confirmou o envio (HTTP ${response.status}).${postingWhatsapp && (response.ok || response.status >= 500) ? " Confira no provedor; não haverá reenvio automático." : ""}`,
+        });
+        return;
+      }
+      await db.transaction(async (tx) => {
+        await tx
+          .update(billingNotices)
+          .set({
+            status: ["FAILED", "DELETED"].includes(result.status)
+              ? "failed"
+              : "accepted",
+            providerId: result.id,
+            providerStatus:
+              notice.channel === "email"
+                ? "queued"
+                : String(result.status || "QUEUED"),
+            error: ["FAILED", "DELETED"].includes(result.status)
+              ? "Provedor informou falha na mensagem. Confira a entrega no provedor."
+              : null,
+            lockedUntil: null,
+          })
+          .where(eq(billingNotices.id, id));
+        await tx.insert(auditEvents).values({
+          actorId: notice.actorId,
+          companyId: row.i.companyId,
+          action: "invoice.notice_processed",
+          entityId: row.i.id,
+          details: {
+            channel: notice.channel,
+            kind: notice.kind,
+            providerId: result.id,
+          },
+        });
       });
     });
   } catch {

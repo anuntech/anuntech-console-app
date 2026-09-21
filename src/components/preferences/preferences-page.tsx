@@ -22,7 +22,7 @@ const copy = {
   },
   members: {
     title: "Membros",
-    description: "Pessoas da equipe e acessos às empresas.",
+    description: "Pessoas do seu ambiente.",
   },
   integrations: {
     title: "Integrações",
@@ -30,7 +30,7 @@ const copy = {
   },
   notifications: {
     title: "Notificações",
-    description: "Contatos e canais de recebimento, separados por assunto.",
+    description: "Preferências e histórico de envios.",
   },
 };
 
@@ -38,9 +38,11 @@ const copy = {
 export async function PreferencesPage({
   section,
   intercepted = false,
+  notificationPage,
 }: {
   section: PreferenceSection;
   intercepted?: boolean;
+  notificationPage?: string | string[];
 }) {
   const actor = await (section === "account"
     ? getActor()
@@ -72,7 +74,7 @@ export async function PreferencesPage({
       ) : section === "members" ? (
         <MembersContent />
       ) : (
-        <NotificationsContent />
+        <NotificationsContent page={notificationPage} />
       )}
     </PreferencesDialog>
   );

@@ -30,9 +30,13 @@ try {
   console.log("Banco temporário criado e migrações aplicadas.");
   const bankEnv = {};
   if (
-    !["--otp-only", "--security-only", "--members-only", "--account-only"].some(
-      (flag) => process.argv.includes(flag),
-    )
+    ![
+      "--otp-only",
+      "--security-only",
+      "--members-only",
+      "--account-only",
+      "--notifications-only",
+    ].some((flag) => process.argv.includes(flag))
   ) {
     certDir = await mkdtemp(join(tmpdir(), "console-bank-test-"));
     const cert = join(certDir, "test.crt"),
@@ -68,6 +72,7 @@ try {
     "--security-only": "scripts/security-smoke.mjs",
     "--members-only": "scripts/members-smoke.mjs",
     "--account-only": "scripts/account-smoke.mjs",
+    "--notifications-only": "scripts/notifications-smoke.mjs",
     "--billing-only": "scripts/smoke.mjs",
     "--regression-only": "scripts/smoke.mjs",
   };
@@ -81,6 +86,7 @@ try {
         "scripts/security-smoke.mjs",
         "scripts/members-smoke.mjs",
         "scripts/account-smoke.mjs",
+        "scripts/notifications-smoke.mjs",
         "scripts/smoke.mjs",
       ];
   for (const script of scripts) {

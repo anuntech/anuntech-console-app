@@ -1,6 +1,17 @@
 import { PreferencesPage } from "@/components/preferences/preferences-page";
 export { metadata } from "../../../configuracoes/notificacoes/page";
 
-export default function NotificationPreferences() {
-  return <PreferencesPage section="notifications" intercepted />;
+export default async function NotificationPreferences({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string | string[] }>;
+}) {
+  const { page } = await searchParams;
+  return (
+    <PreferencesPage
+      section="notifications"
+      notificationPage={page}
+      intercepted
+    />
+  );
 }
