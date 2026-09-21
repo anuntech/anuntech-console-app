@@ -5,13 +5,13 @@ import { accountEmails, memberships, user } from "@/db/schema";
 import { settingsEnvironment } from "@/lib/environment";
 import { db } from "@/lib/db";
 import { isCatalogAvatar } from "@/lib/avatar-catalog";
-import { revokeCompanyMember, saveCompanyMember } from "@/lib/members-actions";
-import { ActionForm } from "@/components/action-form";
+import { saveCompanyMember } from "@/lib/members-actions";
 import { FormModal } from "@/components/form-modal";
 import { Badge, Empty, Field } from "@/components/ui";
 import { StaffMembersContent } from "./staff-members-content";
 import { MemberTabs } from "./member-tabs";
 import { IllustratedAvatar } from "./illustrated-avatar";
+import { MemberRowActions } from "./member-row-actions";
 import preferences from "./preferences-content.module.css";
 import styles from "./members-content.module.css";
 const labels: Record<string, string> = {
@@ -105,53 +105,23 @@ export async function MembersContent() {
               {userId === actor.user.id ? (
                 <Badge status="active">Administrador</Badge>
               ) : (
-                <>
-                  {!pending && (
-                    <FormModal
-                      trigger="Editar permissão"
-                      title="Editar permissão"
-                      description={email || member.email}
-                      action={saveCompanyMember}
-                      label="Salvar permissão"
-                      submitAriaLabel={`Salvar permissão de ${email || member.email} em ${actor.grants.find((grant) => grant.company.id === companyId)?.company.name}`}
-                      triggerClassName={`button ${styles.editButton}`}
-                    >
-                      <input
-                        type="hidden"
-                        name="companyId"
-                        value={companyId!}
-                      />
-                      <input
-                        type="hidden"
-                        name="email"
-                        value={email || member.email}
-                      />
-                      <RoleField
-                        defaultValue={
-                          roles.includes("manager")
-                            ? "manager"
-                            : roles.length > 1
-                              ? ""
-                              : member.role
-                        }
-                      />
-                    </FormModal>
-                  )}
-                  <ActionForm
-                    action={revokeCompanyMember}
-                    label={pending ? "Cancelar convite" : "Expulsar"}
-                    submitAriaLabel={`${pending ? "Cancelar convite" : "Expulsar"} de ${email || member.email}`}
-                    danger
-                    className={styles.action}
-                    confirm={{
-                      title: pending ? "Cancelar convite?" : "Expulsar membro?",
-                      description: `${email || member.email} perderá o acesso ao ambiente.`,
-                      confirmLabel: pending ? "Cancelar convite" : "Expulsar",
-                    }}
-                  >
-                    <input type="hidden" name="id" value={member.id} />
-                  </ActionForm>
-                </>
+                <MemberRowActions
+                  companyId={companyId!}
+                  companyName={
+                    actor.grants.find((grant) => grant.company.id === companyId)
+                      ?.company.name
+                  }
+                  email={email || member.email}
+                  memberId={member.id}
+                  pending={pending}
+                  roleDefaultValue={
+                    roles.includes("manager")
+                      ? "manager"
+                      : roles.length > 1
+                        ? ""
+                        : member.role
+                  }
+                />
               )}
             </div>
           </li>
