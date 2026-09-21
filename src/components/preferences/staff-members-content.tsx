@@ -1,5 +1,5 @@
 import "server-only";
-import Image from "next/image";
+import { IllustratedAvatar } from "./illustrated-avatar";
 import { and, asc, eq, isNotNull, or } from "drizzle-orm";
 import { UserRound } from "lucide-react";
 import { accountEmails, consoleStaffMembers, user } from "@/db/schema";
@@ -71,7 +71,7 @@ export async function StaffMembersContent({ actor }: { actor: Actor }) {
   const portrait = (image: string | null | undefined) => (
     <span className={styles.personAvatar}>
       {isCatalogAvatar(image) && image ? (
-        <Image src={image} alt="" width={40} height={40} unoptimized />
+        <IllustratedAvatar image={image} size={40} />
       ) : (
         <UserRound size={20} aria-hidden="true" />
       )}
