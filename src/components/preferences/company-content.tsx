@@ -28,7 +28,7 @@ export async function CompanyContent() {
       <div className={`${styles.card} ${styles.deliveryCard}`}>
         <ActionForm
           action={saveCompanySettings}
-          label="Salvar dados da empresa"
+          submitAriaLabel="Salvar dados da empresa"
         >
           <input type="hidden" name="id" value={companyId || "console"} />
           <CompanyBillingFields

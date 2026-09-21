@@ -170,7 +170,7 @@ export function CompanyBillingFields({
         </div>
         <div className="form-grid">
           <Field
-            label="CPF ou CNPJ"
+            label="CNPJ"
             hint={
               lookupEnabled
                 ? "Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
@@ -194,7 +194,7 @@ export function CompanyBillingFields({
               value={values.document}
             />
           </Field>
-          <Field label="Nome ou razão social">
+          <Field label="Razão social">
             <input
               name="name"
               autoComplete="organization"

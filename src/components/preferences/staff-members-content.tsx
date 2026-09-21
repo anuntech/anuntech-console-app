@@ -154,7 +154,8 @@ export async function StaffMembersContent({ actor }: { actor: Actor }) {
                 />
               </Field>
               <p className="form-footnote">
-                Acesso liberado por e-mail, sem envio automático de convite.
+                Um e-mail de convite é enviado automaticamente para essa
+                pessoa entrar.
               </p>
             </FormModal>
           )

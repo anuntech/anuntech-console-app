@@ -62,6 +62,35 @@ export async function deliverEmailOtp(email: string, otp: string) {
   if (!res.ok || !result?.id)
     throw new Error("Não foi possível enviar o código por e-mail.");
 }
+export async function deliverInviteEmail(
+  email: string,
+  scope: { kind: "console" } | { kind: "company"; companyName: string },
+) {
+  const loginUrl = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/entrar`;
+  const accessLine =
+    scope.kind === "console"
+      ? "Você agora tem acesso de administrador ao ambiente Anuntech."
+      : `Você agora tem acesso à empresa ${scope.companyName} na Anuntech Console.`;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    redirect: "error",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `invite-${randomUUID()}`,
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM,
+      to: [email],
+      subject: "Você ganhou acesso à Anuntech Console",
+      text: `${accessLine}\n\nPara entrar, acesse ${loginUrl} e informe este e-mail (${email}). Você vai receber um código de acesso por e-mail para confirmar o login.\n\nSe você não esperava este e-mail, ignore esta mensagem.\n\nAnuntech Console`,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const result = await res.json().catch(() => null);
+  if (!res.ok || !result?.id)
+    throw new Error("Não foi possível enviar o e-mail de convite.");
+}
 export async function deliverWhatsappOtp(phoneNumber: string, code: string) {
   if (
     !process.env.FLW_OTP_TEMPLATE_ID ||

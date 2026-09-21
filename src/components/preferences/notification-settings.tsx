@@ -34,7 +34,6 @@ export async function NotificationTopicForm({
         <p className={styles.helper}>{description}</p>
         <ActionForm
           action={saveNotificationPreferences}
-          label="Salvar preferências"
           submitAriaLabel={`Salvar preferências de ${title}`}
         >
           <input type="hidden" name="companyId" value={companyId || ""} />

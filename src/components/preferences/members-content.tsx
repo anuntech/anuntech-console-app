@@ -198,6 +198,10 @@ export async function MembersContent() {
               />
             </Field>
             <RoleField />
+            <p className="form-footnote">
+              Um e-mail de convite é enviado automaticamente para essa pessoa
+              entrar.
+            </p>
           </FormModal>
         }
       />

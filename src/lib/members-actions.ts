@@ -9,6 +9,7 @@ import { z } from "zod";
 import {
   accountEmails,
   auditEvents,
+  companies,
   consoleStaffMembers,
   memberships,
   user,
@@ -18,6 +19,7 @@ import { resolveAccountIdentity } from "./account-identity";
 import type { ActionState } from "./action-state";
 import { getConsoleStaffAccess } from "./console-members";
 import { db } from "./db";
+import { deliverInviteEmail } from "./otp-delivery";
 import { normalizeEmail } from "./permissions";
 import { canManageMembers, managedCompanyIds } from "./member-access";
 
@@ -190,9 +192,19 @@ export async function saveConsoleStaffMember(
       return true;
     });
     refreshMembers();
+    if (changed) {
+      try {
+        await deliverInviteEmail(email, { kind: "console" });
+      } catch {
+        return {
+          success:
+            "Administração liberada, mas não foi possível enviar o e-mail de convite. Avise a pessoa manualmente.",
+        };
+      }
+    }
     return {
       success: changed
-        ? "Administração liberada. Nenhuma mensagem foi enviada."
+        ? "Administração liberada. Um e-mail de convite foi enviado."
         : "Esta pessoa já possui administração do Console.",
     };
   } catch (error) {
@@ -267,7 +279,7 @@ export async function saveCompanyMember(
         role: z.enum(["manager", "support", "finance"]),
       })
       .parse(Object.fromEntries(form));
-    await db.transaction(async (tx) => {
+    const isNewAccess = await db.transaction(async (tx) => {
       await lockEnvironmentAssignments(tx);
       await lockManagedCompany(tx, actor, input.companyId);
       const identity = await lockedIdentity(tx, input.email);
@@ -319,11 +331,30 @@ export async function saveCompanyMember(
         entityId: member.id,
         details: { email: identity.primaryEmail, role: input.role, previous },
       });
+      return previous.length === 0;
     });
     refreshMembers(input.companyId);
+    if (isNewAccess) {
+      try {
+        const [company] = await db
+          .select({ name: companies.name })
+          .from(companies)
+          .where(eq(companies.id, input.companyId));
+        await deliverInviteEmail(input.email, {
+          kind: "company",
+          companyName: company?.name || "sua empresa",
+        });
+      } catch {
+        return {
+          success:
+            "Acesso liberado, mas não foi possível enviar o e-mail de convite. Avise a pessoa manualmente.",
+        };
+      }
+    }
     return {
-      success:
-        "Acesso liberado. A pessoa já pode entrar com esse e-mail usando um código de acesso ou Google. Nenhuma mensagem foi enviada.",
+      success: isNewAccess
+        ? "Acesso liberado. Um e-mail de convite foi enviado."
+        : "Acesso atualizado. A pessoa já tinha acesso a esta empresa.",
     };
   } catch (error) {
     return failure(error);
