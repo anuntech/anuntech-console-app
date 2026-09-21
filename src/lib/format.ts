@@ -23,9 +23,8 @@ export const invoiceLabels: Record<string, string> = {
   cancelled: "Cancelada",
 };
 export const roleLabels: Record<string, string> = {
-  manager: "Administrador do cliente",
-  support: "Atendimento",
-  finance: "Financeiro",
+  manager: "Administrador",
+  member: "Membro",
 };
 export const engagementLabels: Record<string, string> = {
   active: "Ativo",

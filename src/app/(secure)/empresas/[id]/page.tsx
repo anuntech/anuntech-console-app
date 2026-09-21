@@ -238,12 +238,9 @@ export default async function Company({
                 />
               </Field>
               <Field label="Permissão">
-                <select name="role" defaultValue="support">
-                  <option value="support">Atendimento</option>
-                  <option value="finance">Financeiro</option>
-                  <option value="manager">
-                    Administrador do cliente (ambas as áreas)
-                  </option>
+                <select name="role" defaultValue="member">
+                  <option value="member">Membro</option>
+                  <option value="manager">Administrador</option>
                 </select>
               </Field>
             </FormModal>

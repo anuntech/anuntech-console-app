@@ -16,19 +16,14 @@ import preferences from "./preferences-content.module.css";
 import styles from "./members-content.module.css";
 const labels: Record<string, string> = {
   manager: "Administrador",
-  support: "Atendimento",
-  finance: "Financeiro",
+  member: "Membro",
 };
-function RoleField({ defaultValue = "manager" }: { defaultValue?: string }) {
+function RoleField({ defaultValue = "member" }: { defaultValue?: string }) {
   return (
     <Field label="Permissão">
       <select name="role" defaultValue={defaultValue} required>
-        <option value="" disabled>
-          Selecione uma permissão
-        </option>
+        <option value="member">Membro</option>
         <option value="manager">Administrador</option>
-        <option value="support">Atendimento</option>
-        <option value="finance">Financeiro</option>
       </select>
     </Field>
   );
@@ -115,11 +110,7 @@ export async function MembersContent() {
                   memberId={member.id}
                   pending={pending}
                   roleDefaultValue={
-                    roles.includes("manager")
-                      ? "manager"
-                      : roles.length > 1
-                        ? ""
-                        : member.role
+                    roles.includes("manager") ? "manager" : "member"
                   }
                 />
               )}

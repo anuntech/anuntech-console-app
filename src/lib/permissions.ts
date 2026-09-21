@@ -1,7 +1,8 @@
-export type Role = "manager" | "support" | "finance";
+export type Role = "manager" | "member";
 export type Area = "overview" | "support" | "finance";
+/** Administradores veem tudo; membros só têm a área de chamados além do geral. */
 export function hasPermission(role: Role, area: Area): boolean {
-  return area === "overview" || role === "manager" || role === area;
+  return area === "overview" || role === "manager" || area === "support";
 }
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();

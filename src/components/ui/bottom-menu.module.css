@@ -37,8 +37,19 @@
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-padding-inline: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--muted-foreground) transparent;
+  scrollbar-width: none;
+}
+.routes::-webkit-scrollbar {
+  display: none;
+}
+@media (max-width: 480px) {
+  .dock {
+    gap: 2px;
+    padding: 5px;
+  }
+  .routes {
+    gap: 2px;
+  }
 }
 @supports (backdrop-filter: blur(12px)) {
   .dock {

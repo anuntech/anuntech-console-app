@@ -176,7 +176,7 @@ export const memberships = pgTable(
       .notNull()
       .references(() => companies.id),
     email: text("email").notNull(),
-    role: text("role", { enum: ["manager", "support", "finance"] }).notNull(),
+    role: text("role", { enum: ["manager", "member"] }).notNull(),
     active: boolean("active").notNull().default(true),
     createdAt: created(),
   },

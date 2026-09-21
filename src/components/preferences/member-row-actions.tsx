@@ -11,12 +11,8 @@ function RoleField({ defaultValue }: { defaultValue: string }) {
   return (
     <Field label="Permissão">
       <select name="role" defaultValue={defaultValue} required>
-        <option value="" disabled>
-          Selecione uma permissão
-        </option>
+        <option value="member">Membro</option>
         <option value="manager">Administrador</option>
-        <option value="support">Atendimento</option>
-        <option value="finance">Financeiro</option>
       </select>
     </Field>
   );

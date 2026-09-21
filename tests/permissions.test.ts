@@ -5,13 +5,12 @@ import {
   isAdministrator,
   moneyToCents,
 } from "../src/lib/permissions";
-test("permissões separam atendimento e financeiro", () => {
-  assert.equal(hasPermission("support", "finance"), false);
-  assert.equal(hasPermission("finance", "support"), false);
+test("administrador vê tudo; membro só tem chamados além do geral", () => {
   for (const area of ["overview", "support", "finance"] as const)
     assert.equal(hasPermission("manager", area), true);
-  assert.equal(hasPermission("support", "support"), true);
-  assert.equal(hasPermission("finance", "finance"), true);
+  assert.equal(hasPermission("member", "overview"), true);
+  assert.equal(hasPermission("member", "support"), true);
+  assert.equal(hasPermission("member", "finance"), false);
 });
 test("admin exige endereço exato e verificado", () => {
   assert.equal(

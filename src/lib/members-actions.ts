@@ -101,7 +101,7 @@ async function protectCompanyAdministration(
   actor: Actor,
   companyId: string,
   identity: Awaited<ReturnType<typeof lockedIdentity>>,
-  nextRole: "manager" | "support" | "finance" | null,
+  nextRole: "manager" | "member" | null,
 ) {
   if (nextRole === "manager") return;
   if (!actor.admin && identity.userId === actor.user.id)
@@ -276,7 +276,7 @@ export async function saveCompanyMember(
       .object({
         companyId: idInput,
         email: emailInput,
-        role: z.enum(["manager", "support", "finance"]),
+        role: z.enum(["manager", "member"]),
       })
       .parse(Object.fromEntries(form));
     const isNewAccess = await db.transaction(async (tx) => {
