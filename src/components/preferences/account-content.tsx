@@ -19,8 +19,11 @@ export async function AccountContent() {
           <h2>Informações pessoais</h2>
         </div>
         <div className={`${styles.card} ${styles.accountCard}`}>
-          <div className={styles.accountPhoto} aria-label="Foto de perfil">
+          <div className={styles.accountPhoto}>
+            <span className={styles.accountPhotoLabel}>Foto de perfil</span>
+            <div className={styles.accountPhotoControl}>
             <ProfileAvatar name={actor.user.name} image={actor.user.image ?? null} />
+            </div>
           </div>
           <div className={styles.accountFields}>
           <AccountName name={actor.user.name} />
