@@ -133,18 +133,8 @@ export function ProfileAvatar({
 
   return (
     <div className={styles.profile}>
-      <button
-        ref={uploadRef}
-        type="button"
-        className={styles.avatar}
-        aria-label={
-          source ? "Alterar foto de perfil" : "Adicionar foto de perfil"
-        }
-        aria-disabled={!!pending}
-        onClick={() => {
-          if (!lock.current) inputRef.current?.click();
-        }}
-      >
+      <div className={styles.avatarControls} role="group" aria-label="Foto de perfil" tabIndex={0}>
+        <div className={styles.avatar}>
         <span className={styles.portrait} aria-hidden="true">
           {source && isCatalogAvatar(current) ? (
             <IllustratedAvatar image={source} />
@@ -162,11 +152,39 @@ export function ProfileAvatar({
             <span>{initials || "?"}</span>
           )}
         </span>
-        <span className={styles.overlay} aria-hidden="true">
-          <Camera size={20} />
-          <span>Enviar foto</span>
-        </span>
-      </button>
+        </div>
+        <button
+          type="button"
+          className={`${styles.control} ${styles.edit}`}
+          aria-label="Escolher avatar"
+          title="Escolher avatar"
+          disabled={!!pending}
+          onClick={() => setGalleryOpen(true)}
+        >
+          <Pencil size={17} aria-hidden="true" />
+        </button>
+        <button
+          ref={uploadRef}
+          type="button"
+          className={`${styles.control} ${styles.upload}`}
+          aria-label="Enviar foto"
+          title="Enviar foto"
+          aria-disabled={!!pending}
+          onClick={() => { if (!lock.current) inputRef.current?.click(); }}
+        >
+          <Camera size={17} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={`${styles.control} ${styles.remove}`}
+          aria-label="Remover foto"
+          title={source && !isCatalogAvatar(current) ? "Remover foto" : "Nenhuma foto enviada para remover"}
+          disabled={!!pending || !source || isCatalogAvatar(current)}
+          onClick={() => void update(null)}
+        >
+          <Trash2 size={17} aria-hidden="true" />
+        </button>
+      </div>
       {children && <div className={styles.identity}>{children}</div>}
       <input
         ref={inputRef}
@@ -180,30 +198,6 @@ export function ProfileAvatar({
           if (file) void update(file);
         }}
       />
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={`button ghost ${styles.button}`}
-          aria-label="Escolher avatar"
-          title="Escolher avatar"
-          disabled={!!pending}
-          onClick={() => setGalleryOpen(true)}
-        >
-          <Pencil size={18} aria-hidden="true" />
-        </button>
-        {source && !isCatalogAvatar(current) && (
-          <button
-            type="button"
-            className={`button ghost ${styles.button}`}
-            aria-label="Remover foto"
-            title="Remover foto"
-            aria-disabled={!!pending}
-            onClick={() => void update(null)}
-          >
-            <Trash2 size={18} aria-hidden="true" />
-          </button>
-        )}
-      </div>
       <Dialog
         open={galleryOpen}
         onOpenChange={(open) => {
