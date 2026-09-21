@@ -61,4 +61,6 @@ export const auditLabels: Record<string, string> = {
   "invoice.draft_updated": "Rascunho atualizado",
   "invoice.draft_cancelled": "Rascunho cancelado",
   "access_notice.accepted": "Aviso de acesso aceito pelo Resend",
+  "assisted.started": "Acesso assistido iniciado por um administrador",
+  "assisted.ended": "Acesso assistido encerrado",
 };

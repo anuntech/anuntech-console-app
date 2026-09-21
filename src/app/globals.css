@@ -478,6 +478,28 @@ hr {
   display: block;
   min-height: 100dvh;
 }
+.assist-banner {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+  padding: 10px 20px;
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
+  color: var(--warning);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+.assist-banner .compact-form {
+  display: inline-flex;
+}
+.assist-banner .compact-form .button {
+  border-color: var(--warning-border);
+}
 .sidebar {
   position: sticky;
   top: 0;

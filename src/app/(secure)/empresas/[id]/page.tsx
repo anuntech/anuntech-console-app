@@ -17,6 +17,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { companies, memberships, auditEvents } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
+import { startAssistedSession } from "@/lib/assisted-actions";
 import {
   saveMembership,
   revokeMembership,
@@ -66,7 +67,27 @@ export default async function Company({
         title={company.name}
         description={`${company.document} · ${company.billingEmail}`}
       />
-      <p><Link className="button primary" href={`/chamados/novo?companyId=${id}`}>Abrir chamado</Link></p>
+      <div className="member-actions">
+        <Link
+          className="button primary"
+          href={`/chamados/novo?companyId=${id}`}
+        >
+          Abrir chamado
+        </Link>
+        <ActionForm
+          action={startAssistedSession}
+          className="compact-form"
+          label="Entrar como esta empresa"
+          submitAriaLabel={`Entrar como ${company.name}`}
+          confirm={{
+            title: "Entrar como esta empresa?",
+            description: `Você vai ver e usar o Console exatamente como ${company.name} vê, com acesso completo à empresa. Suas telas de administrador ficam ocultas até você sair do modo assistido.`,
+            confirmLabel: "Entrar como esta empresa",
+          }}
+        >
+          <input type="hidden" name="companyId" value={id} />
+        </ActionForm>
+      </div>
       <div className={styles.stack}>
         {company.archived && (
           <div>

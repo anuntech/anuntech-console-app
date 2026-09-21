@@ -6,6 +6,8 @@ import { eq, sql } from "drizzle-orm";
 import { companies, companyInvites } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
 import { Heading, Empty, Badge } from "@/components/ui";
+import { ActionForm } from "@/components/action-form";
+import { startAssistedSession } from "@/lib/assisted-actions";
 import styles from "./management.module.css";
 export const metadata: Metadata = {
   title: "Empresas",
@@ -100,13 +102,29 @@ export default async function Companies({
                       <td className={styles.cellMuted}>{c.document}</td>
                       <td className={styles.cellMuted}>{c.billingEmail}</td>
                       <td>
-                        <Link
-                          className={styles.rowAction}
-                          href={`/empresas/${c.id}`}
-                          aria-label={`Gerenciar ${c.name}`}
-                        >
-                          Gerenciar <ArrowRight size={15} aria-hidden="true" />
-                        </Link>
+                        <div className="member-actions">
+                          <Link
+                            className={styles.rowAction}
+                            href={`/empresas/${c.id}`}
+                            aria-label={`Gerenciar ${c.name}`}
+                          >
+                            Gerenciar{" "}
+                            <ArrowRight size={15} aria-hidden="true" />
+                          </Link>
+                          <ActionForm
+                            action={startAssistedSession}
+                            className="compact-form"
+                            label="Entrar como"
+                            submitAriaLabel={`Entrar como ${c.name}`}
+                            confirm={{
+                              title: "Entrar como esta empresa?",
+                              description: `Você vai ver e usar o Console exatamente como ${c.name} vê, com acesso completo à empresa. Suas telas de administrador ficam ocultas até você sair do modo assistido.`,
+                              confirmLabel: "Entrar como esta empresa",
+                            }}
+                          >
+                            <input type="hidden" name="companyId" value={c.id} />
+                          </ActionForm>
+                        </div>
                       </td>
                     </tr>
                   ))}

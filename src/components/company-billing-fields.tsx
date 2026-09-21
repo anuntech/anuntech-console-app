@@ -169,14 +169,7 @@ export function CompanyBillingFields({
           </p>
         </div>
         <div className="form-grid">
-          <Field
-            label="CNPJ"
-            hint={
-              lookupEnabled
-                ? "Ao completar um CNPJ, a razão social e o endereço são consultados automaticamente. CPF é preenchido manualmente."
-                : undefined
-            }
-          >
+          <Field label="CNPJ">
             <NumberFormatBase
               format={formatDocument}
               removeFormatting={onlyDigits}
@@ -256,13 +249,13 @@ export function CompanyBillingFields({
               ? "Endereço"
               : "Endereço de cobrança e nota fiscal"}
           </h2>
-          <p className="muted">
-            {environmentSettings
-              ? "Endereço cadastral da empresa."
-              : inviteToken
-                ? "Preencha o endereço completo para cobrança e nota fiscal."
-                : "Salvo no cadastro para uso nas cobranças e notas fiscais. Você pode completar depois, antes de emitir uma cobrança."}
-          </p>
+          {(environmentSettings || inviteToken) && (
+            <p className="muted">
+              {environmentSettings
+                ? "Endereço cadastral da empresa."
+                : "Preencha o endereço completo para cobrança e nota fiscal."}
+            </p>
+          )}
         </div>
         <div className="form-grid">
           <Field label="CEP">
@@ -365,17 +358,11 @@ export function CompanyBillingFields({
             <input
               type="checkbox"
               name="autoIssueNfse"
-              aria-describedby={`${feedbackId}-nfse`}
               value="yes"
               defaultChecked={company?.autoIssueNfse || false}
             />{" "}
             Emitir nota fiscal automaticamente para este cliente
           </label>
-          <p id={`${feedbackId}-nfse`} className="muted">
-            Desmarcado: nenhuma emissão automática. A preferência fica salva; a
-            emissão de NFS-e ainda depende da conclusão da integração fiscal e
-            dos dados do serviço da Anuntech.
-          </p>
         </section>
       )}
     </>

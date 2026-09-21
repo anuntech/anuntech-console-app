@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { eq, and, inArray } from "drizzle-orm";
 import { auth } from "./auth";
@@ -9,6 +9,7 @@ import { companies, memberships } from "@/db/schema";
 import { hasPermission, type Area } from "./permissions";
 import { getAccountEmails } from "./account-identity";
 import { getConsoleStaffAccess } from "./console-members";
+import { ASSIST_COOKIE } from "./assisted-session";
 export const getActor = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user.emailVerified) redirect("/entrar");
@@ -21,7 +22,34 @@ export const getActor = cache(async () => {
     .where(
       and(inArray(memberships.email, emails), eq(memberships.active, true)),
     );
-  return { user: session.user, owner, admin, grants };
+  const assistedCompanyId = admin
+    ? (await cookies()).get(ASSIST_COOKIE)?.value
+    : undefined;
+  const assisting = assistedCompanyId
+    ? (
+        await db
+          .select()
+          .from(companies)
+          .where(eq(companies.id, assistedCompanyId))
+      )[0]
+    : undefined;
+  if (assisting)
+    return {
+      user: session.user,
+      owner: false,
+      admin: false,
+      grants: [{ company: assisting, role: "manager" as const }],
+      assisting,
+      realAdmin: true,
+    };
+  return {
+    user: session.user,
+    owner,
+    admin,
+    grants,
+    assisting: null,
+    realAdmin: admin,
+  };
 });
 export type Actor = Awaited<ReturnType<typeof getActor>>;
 export async function requireAdmin() {
