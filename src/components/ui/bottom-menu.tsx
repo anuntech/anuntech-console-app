@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Popover } from "@base-ui/react/popover";
 import { Tooltip } from "@base-ui/react/tooltip";
@@ -45,6 +46,15 @@ const items = [
   { href: "/contratos", label: "Contratos", icon: FileText, area: "finance" },
 ];
 
+const desktopDockQuery = "(min-width: 641px)";
+function subscribeDockViewport(onChange: () => void) {
+  const query = window.matchMedia(desktopDockQuery);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const getDesktopDock = () => window.matchMedia(desktopDockQuery).matches;
+const getServerDesktopDock = () => false;
+
 function DockLink({
   href,
   label,
@@ -56,6 +66,9 @@ function DockLink({
   icon: LucideIcon;
   active: boolean;
 }) {
+  const { position } = useAppearance();
+  const desktop = useSyncExternalStore(subscribeDockViewport, getDesktopDock, getServerDesktopDock);
+  const side = !desktop ? "top" : position === "left" ? "right" : position === "right" ? "left" : position === "top" ? "bottom" : "top";
   return (
     <Tooltip.Root>
       <Tooltip.Trigger
@@ -68,7 +81,7 @@ function DockLink({
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Positioner
-          side="top"
+          side={side}
           sideOffset={9}
           collisionPadding={12}
           className={styles.tooltipPositioner}
