@@ -237,7 +237,7 @@ export function WhatsappAccount({
             {error}
           </p>
         )}
-        {changed && !securityEnabled && (
+        {!securityEnabled && (
           <div className={styles.actions}>
             <button
               type="button"
@@ -266,7 +266,9 @@ export function WhatsappAccount({
             )}
             <button
               className="button primary"
-              disabled={busy || (!sent && seconds > 0 && !!normalized)}
+              disabled={
+                busy || !changed || (!sent && seconds > 0 && !!normalized)
+              }
             >
               {busy
                 ? "Aguarde…"

@@ -37,3 +37,15 @@
 .heading h2 { font-size: .875rem; }
 .settings p { font-size: .8125rem; }
 .actions { justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border); }
+
+.channels { display: grid; gap: 0; }
+.channel { display: flex; align-items: center; gap: 12px; padding: 14px 0; font-size: .875rem; }
+.channel + .channel { border-top: 1px solid var(--border); }
+.channel > svg { color: var(--primary); }
+.channel > span { flex: 1; }
+.toggle { position: relative; width: 36px; height: 22px; min-height: 22px; padding: 2px; border: 0; border-radius: 999px; background: var(--muted-foreground); cursor: pointer; }
+.toggle > span { display: block; width: 18px; height: 18px; border-radius: 50%; background: var(--card); }
+.toggle[aria-checked="true"] { background: var(--primary); }
+.toggle[aria-checked="true"] > span { transform: translateX(14px); }
+.toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+.toggle:disabled { opacity: .5; cursor: wait; }

@@ -66,7 +66,7 @@ export function AccountName({ name }: { name: string }) {
           {visibleError}
         </p>
       )}
-      {(changed || pending) && (
+      {
         <div className={styles.actions}>
           <button
             type="button"
@@ -79,11 +79,11 @@ export function AccountName({ name }: { name: string }) {
           >
             Cancelar
           </button>
-          <button className="button primary" disabled={pending}>
+          <button className="button primary" disabled={pending || !changed}>
             {pending ? "Salvando…" : "Salvar nome"}
           </button>
         </div>
-      )}
+      }
       <p role="status" className="sr-only">
         {pending ? "Salvando nome…" : ""}
       </p>

@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Mail, Phone } from "lucide-react";
 import styles from "./notification-contacts.module.css";
 
 export function NotificationContacts({
@@ -17,7 +17,7 @@ export function NotificationContacts({
   const label = kind === "email" ? "E-mail" : "Telefone";
   return (
     <fieldset className={styles.group}>
-      <legend>{kind === "email" ? "E-mails" : "Telefones do WhatsApp"}</legend>
+      <legend><span className={styles.legend}>{kind === "email" ? <Mail size={16} aria-hidden="true" /> : <Phone size={16} aria-hidden="true" />}{kind === "email" ? "E-mails" : "Telefones"}</span></legend>
       {contacts.map((value, index) => (
         <div className={styles.row} key={index}>
           <label htmlFor={`${id}-${index}`} className="sr-only">

@@ -218,3 +218,6 @@ Anexos de chamados usam seleção por clique ou arrastar, lista de arquivos com 
 ### Padrão visual de formulários e preferências
 
 Usar `ui/form-pattern.module.css` nos formulários de criação e preferências: superfície neutra, card com a cor `--card`, campos com `--field-background`, rótulo à esquerda e controle à direita, divisórias leves e ações à direita. Em espaços estreitos os rótulos ficam acima dos campos. O título da aba é a referência principal; evitar repetir subtítulos genéricos e títulos redundantes. Minha conta mantém a foto como a primeira linha do card. Aparência usa linhas para tema e posição do menu. Segurança separa proteção e sessões em cards. Anexos opcionais ficam recolhidos.
+
+
+Botões de salvar ficam visíveis na conta e desabilitados quando não há mudanças. Não exibir marcadores de obrigatório/opcional nos rótulos; manter validação nativa e mensagens de erro. Preferir controles compactos para canais, mantendo apenas um canal preferencial de verificação selecionado. A verificação continua exigindo confirmação antes de alterar a configuração; contas já protegidas não são desativadas por mudanças visuais.

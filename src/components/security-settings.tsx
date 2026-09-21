@@ -1,7 +1,7 @@
 "use client";
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Mail, MessageCircle } from "lucide-react";
 import { Badge, Field } from "./ui";
 import { Notification, toast } from "./notifications";
 import { useCooldown } from "./otp-login";
@@ -26,7 +26,7 @@ export function SecuritySettings({
   const heading = useRef<HTMLHeadingElement>(null);
   const stepHeading = useRef<HTMLParagraphElement>(null);
   const [invalidCode, setInvalidCode] = useState(false);
-  const [preferred, setPreferred] = useState(channel);
+
   const [proof, setProof] = useState<Proof | null>(null);
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -37,6 +37,7 @@ export function SecuritySettings({
   const cooldownChannel = useRef<SecurityChannel | null>(null);
   async function act(
     action: "enable" | "disable" | "channel" | "send" | "verify",
+    selected: SecurityChannel = channel,
   ) {
     if (busy) return;
     if (
@@ -96,7 +97,7 @@ export function SecuritySettings({
       ) {
         const result = await securityRequest<Proof>("start-change", {
           action,
-          channel: preferred,
+          channel: selected,
         });
         setProof(result);
         requestAnimationFrame(() => stepHeading.current?.focus());
@@ -128,49 +129,45 @@ export function SecuritySettings({
           {enabled ? "Ativada" : "Desativada"}
         </Badge>
       </div>
-      <p className="muted">
-        Confirme o acesso com códigos no e-mail e no telefone, sem senha.
-      </p>
-      {!phone ? (
+      {!phone && (
         <p className="muted">
           Verifique seu telefone em Minha conta para ativar.
         </p>
-      ) : (
+      )}
+      {
         <>
           {!proof ? (
-            <div className="form">
-              <Field label="Segunda etapa ao entrar com Google">
-                <select
-                  value={preferred}
-                  onChange={(event) =>
-                    setPreferred(event.target.value as SecurityChannel)
-                  }
-                  disabled={busy}
-                >
-                  <option value="whatsapp">Código no WhatsApp</option>
-                  <option value="email">Código no e-mail</option>
-                </select>
-              </Field>
-              <div className={styles.actions}>
-                <button
-                  className={`button ${enabled ? "danger" : "primary"}`}
-                  type="button"
-                  aria-disabled={busy}
-                  onClick={() => void act(enabled ? "disable" : "enable")}
-                >
-                  {enabled ? "Desativar duas etapas" : "Ativar duas etapas"}
-                </button>
-                {enabled && preferred !== channel && (
-                  <button
-                    className="button"
-                    type="button"
-                    aria-disabled={busy}
-                    onClick={() => void act("channel")}
-                  >
-                    Alterar canal do Google
-                  </button>
-                )}
-              </div>
+            <div className={styles.channels}>
+              {(
+                [
+                  { value: "email", label: "E-mail", icon: Mail },
+                  { value: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+                ] as const
+              ).map(({ value, label, icon: Icon }) => {
+                const active = enabled && channel === value;
+                return (
+                  <div className={styles.channel} key={value}>
+                    <Icon size={20} aria-hidden="true" />
+                    <span>{label}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={active}
+                      aria-label={`${active ? "Desativar" : "Ativar"} verificação por ${label}`}
+                      disabled={busy || !phone}
+                      className={styles.toggle}
+                      onClick={() =>
+                        void act(
+                          active ? "disable" : enabled ? "channel" : "enable",
+                          value,
+                        )
+                      }
+                    >
+                      <span />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <form
@@ -257,7 +254,7 @@ export function SecuritySettings({
             </form>
           )}
         </>
-      )}
+      }
       {error && (
         <Notification id={`${id}-error`} kind="error" message={error} />
       )}

@@ -75,9 +75,6 @@ export function AppearanceContent() {
           </div>
         </fieldset>
       </div>
-      <p className="muted">
-        Salvo neste navegador. Em telas pequenas, o menu fica na parte inferior.
-      </p>
     </div>
   );
 }

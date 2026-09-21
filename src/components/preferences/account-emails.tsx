@@ -83,7 +83,7 @@ function PrimaryEmail({
             {error}
           </p>
         )}
-        {(changed || pending) && !disabled && (
+        {!disabled && (
           <div className={fields.actions}>
             <button
               type="button"
@@ -97,7 +97,7 @@ function PrimaryEmail({
             >
               Cancelar
             </button>
-            <button className="button primary" disabled={pending}>
+            <button className="button primary" disabled={pending || !changed}>
               {pending ? "Enviando códigos…" : "Salvar e-mail"}
             </button>
           </div>
@@ -179,14 +179,21 @@ function PrimaryEmail({
   );
 }
 
-export function AccountEmails({ primaryEmail, securityEnabled }: {
+export function AccountEmails({
+  primaryEmail,
+  securityEnabled,
+}: {
   primaryEmail: string;
   securityEnabled: boolean;
 }) {
   return (
     <div className={styles.contacts}>
       <PrimaryEmail email={primaryEmail} disabled={securityEnabled} />
-      {securityEnabled && <p className={styles.footer}>Desative a verificação em duas etapas para trocar o e-mail.</p>}
+      {securityEnabled && (
+        <p className={styles.footer}>
+          Desative a verificação em duas etapas para trocar o e-mail.
+        </p>
+      )}
     </div>
   );
 }

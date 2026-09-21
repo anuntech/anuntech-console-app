@@ -116,3 +116,9 @@
   overflow-wrap: anywhere;
   min-width: 10rem;
 }
+
+.switch { width: 36px; height: 32px; }
+.switch::before { inset: 5px 0; }
+.switch span { width: 18px; height: 18px; margin-left: 2px; }
+.switch[aria-checked="true"] span { transform: translateX(14px); }
+.control { padding: 16px 18px; gap: 16px; }
