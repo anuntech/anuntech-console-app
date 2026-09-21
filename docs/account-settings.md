@@ -75,3 +75,11 @@ Notificações substitui Avisos de chamados. A tela contém um interruptor para 
 A configuração persiste em console_notification_settings (migração 0011). Desativar aguarda os envios em andamento, cancela avisos ainda não enviados e impede enfileiramento enquanto desativado; reativar não recupera cancelados. O histórico é preservado. Tentativas de envio são registradas antes do contato com provedores para preservar a proteção contra reenvios incertos. Alterações exigem administrador e geram auditoria. Esta configuração é da operação Anuntech, não de eventuais preferências individuais por empresa.
 
 Validação: `npm run test:integration -- --members-only` e `--notifications-only` usam banco descartável. O teste de fila usa provedores simulados, nunca envia mensagens reais. Para QA visual opcional, `CONSOLE_PLAYWRIGHT_MODULE` aponta ao módulo Playwright disponível no ambiente.
+
+## Company settings and notification contacts
+
+`/configuracoes/empresa` is available to Console administrators and company managers. Managers can edit only companies for which they retain an active manager grant; grants are checked again inside the transaction under the same company lock used by member changes. The form edits name, CPF/CNPJ, billing contact and address, but never changes fiscal automation or grants access.
+
+Financial and support notification preferences have separate email, telephone and channel flags. Without a saved preference, financial notices retain the company billing contacts and enabled channels; client support notices remain off. Changes do not emit test messages or replay old events. The Anuntech operation switch and its paginated history remain separate from company recipients.
+
+Workers validate current destinations before delivery, honor disabled channels, and preserve immutable retry payloads. Changing a destination cancels an old pending retry instead of retargeting it. Already accepted deliveries remain eligible for delivery-status checks. Financial notices still require current Inter reconciliation and stop after payment. Preference writes synchronize with in-flight company dispatches.
