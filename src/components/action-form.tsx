@@ -9,7 +9,7 @@ import {
   type FormEvent,
 } from "react";
 import { focusFirstInvalid } from "./field";
-import { toast } from "./notifications";
+
 import { useRouter } from "next/navigation";
 import type { ActionState, FormAction } from "@/lib/action-state";
 import {
@@ -59,6 +59,7 @@ export function ActionForm({
 }: ActionFormProps) {
   const [state, formAction, actionPending] = useActionState(action, {});
   const [preparing, setPreparing] = useState(false);
+  const [completed, setCompleted] = useState(false);
   const pending = actionPending || preparing;
   const [confirmationFor, setConfirmationFor] = useState<ActionState | null>(
     null,
@@ -99,7 +100,7 @@ export function ActionForm({
     if (state.error) {
       errorRef.current?.focus();
     }
-    if (state.success) toast.success(state.success);
+    if (state.success) setCompleted(true);
     if (state.success || state.href) onSuccess?.();
     if (state.href) router.push(state.href);
     else if (state.success) {
@@ -132,6 +133,7 @@ export function ActionForm({
     }
     event.preventDefault();
     setValidationError("");
+    setCompleted(false);
     invalidReturnFocus.current = null;
     submissionLock.current = true;
     onPendingChange?.(true);
@@ -186,6 +188,7 @@ export function ActionForm({
         className={className}
         ref={ref}
         onSubmit={handleSubmit}
+        onChange={() => setCompleted(false)}
         onInvalidCapture={(event) => {
           if (!confirmationOpen) {
             focusFirstInvalid(event.currentTarget);
@@ -225,15 +228,16 @@ export function ActionForm({
             ref={submitRef}
             className={danger ? "button danger" : "button primary"}
             aria-disabled={pending || undefined}
-            aria-label={submitAriaLabel}
+            aria-label={pending ? "Salvando" : completed ? "Salvo" : submitAriaLabel}
+            aria-live="polite"
             aria-haspopup={confirmation ? "dialog" : undefined}
           >
-            {pending ? "Salvando…" : label}
+            {pending ? "Salvando…" : completed ? "Salvo ✓" : label}
           </button>
         </div>
       </form>
       <p
-        className={styles.status}
+        className="sr-only"
         data-form-feedback=""
         role="status"
         aria-live="polite"
@@ -269,7 +273,7 @@ export function ActionForm({
                 {confirmation.description}
               </AlertDialogDescription>
             </div>
-            <p className={styles.pending} role="status" aria-live="polite">
+            <p className="sr-only" role="status" aria-live="polite">
               {pending
                 ? "Processando a solicitação. Aguarde para fechar esta janela."
                 : ""}

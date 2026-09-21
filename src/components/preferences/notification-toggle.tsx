@@ -20,7 +20,7 @@ export function NotificationToggle({ enabled }: { enabled: boolean }) {
       <div>
         <h2 id="ticket-notifications-label">Notificações de chamados</h2>
         <p role="status">
-          {pending ? "Salvando…" : current ? "Ativadas" : "Desativadas"}
+          {current ? "Ativadas" : "Desativadas"}
         </p>
         {error && (
           <p role="alert" className={styles.error}>

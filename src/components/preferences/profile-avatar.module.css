@@ -41,8 +41,8 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 50%;
@@ -54,9 +54,9 @@
   transition: opacity 140ms ease;
   cursor: pointer;
 }
-.edit { bottom: -10px; left: -16px; }
-.upload { bottom: -10px; right: -16px; }
-.remove { top: -12px; right: -16px; }
+.edit { bottom: -2px; left: -4px; }
+.upload { bottom: -2px; right: -4px; }
+.remove { top: -2px; right: -4px; }
 .avatarControls:hover .control,
 .avatarControls:focus-within .control {
   opacity: 1;
@@ -141,3 +141,7 @@
   opacity: 0.6;
   cursor: progress;
 }
+
+.spinner { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

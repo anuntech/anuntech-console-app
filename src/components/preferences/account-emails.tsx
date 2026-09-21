@@ -102,7 +102,7 @@ function PrimaryEmail({
             </button>
           </div>
         )}
-        <p className={fields.feedback} role="status">
+        <p className="sr-only" role="status">
           {pending
             ? "Enviando os códigos de confirmação para os dois endereços…"
             : ""}

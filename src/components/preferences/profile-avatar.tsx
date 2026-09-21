@@ -3,7 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Camera, Trash2, Pencil } from "lucide-react";
+import { Camera, Trash2, Pencil, LoaderCircle } from "lucide-react";
 import { optimizeImage } from "@/lib/client-image";
 import { toast } from "@/components/notifications";
 import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/avatar-catalog";
@@ -163,7 +163,7 @@ export function ProfileAvatar({
           disabled={!!pending}
           onClick={() => setGalleryOpen(true)}
         >
-          <Pencil size={17} aria-hidden="true" />
+          <Pencil size={14} aria-hidden="true" />
         </button>
         <button
           ref={uploadRef}
@@ -174,9 +174,9 @@ export function ProfileAvatar({
           aria-disabled={!!pending}
           onClick={() => { if (!lock.current) inputRef.current?.click(); }}
         >
-          <Camera size={17} aria-hidden="true" />
+          {pending === "upload" ? <LoaderCircle size={14} className={styles.spinner} aria-hidden="true" /> : <Camera size={14} aria-hidden="true" />}
         </button>
-        <button
+        {source && !isCatalogAvatar(current) && <button
           type="button"
           className={`${styles.control} ${styles.remove}`}
           aria-label="Remover foto"
@@ -184,8 +184,8 @@ export function ProfileAvatar({
           disabled={!!pending || !source || isCatalogAvatar(current)}
           onClick={() => void update(null)}
         >
-          <Trash2 size={17} aria-hidden="true" />
-        </button>
+          {pending === "remove" ? <LoaderCircle size={14} className={styles.spinner} aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />}
+        </button>}
       </div>
       {children && <div className={styles.identity}>{children}</div>}
       <input
@@ -226,10 +226,10 @@ export function ProfileAvatar({
               </button>
             ))}
           </div>
-          <p role="status">{pending === "select" ? "Salvando avatar…" : ""}</p>
+          <p className="sr-only" role="status">{pending === "select" ? "Salvando avatar…" : ""}</p>
         </DialogContent>
       </Dialog>
-      <div role="status" aria-atomic="true" className={styles.progress}>
+      <div role="status" aria-atomic="true" className="sr-only">
         {pending && (
           <>
             <progress

@@ -282,7 +282,7 @@ export function WhatsappAccount({
         )}
         <p role="status" aria-atomic="true" className={styles.feedback}>
           {busy && !confirmOpen
-            ? "Processando a alteração do telefone…"
+            ? ""
             : !sent && changed && normalized && seconds > 0
               ? "Aguarde um minuto entre os envios de código antes de salvar outro telefone."
               : message}
@@ -310,7 +310,7 @@ export function WhatsappAccount({
               {error}
             </p>
           )}
-          <p className={modal.pending} role="status">
+          <p className="sr-only" role="status">
             {busy ? "Removendo telefone…" : ""}
           </p>
           <div className={modal.footer}>

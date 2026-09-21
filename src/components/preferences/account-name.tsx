@@ -84,7 +84,7 @@ export function AccountName({ name }: { name: string }) {
           </button>
         </div>
       )}
-      <p role="status" className={styles.feedback}>
+      <p role="status" className="sr-only">
         {pending ? "Salvando nome…" : ""}
       </p>
     </form>
