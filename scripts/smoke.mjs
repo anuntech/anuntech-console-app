@@ -397,12 +397,17 @@ try {
       "Sessão expirada negada",
     );
 
+    const ticketForm = await request("/chamados/novo", "support");
+    ok(ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="engagementId"'), "Novo chamado só pede assunto, descrição e anexos");
+    const contextual = await request(`/chamados/novo?from=${encodeURIComponent(`/chamados/${ids.ticketB}`)}`, "admin");
+    ok(contextual.text.includes(`value="${ids.b}"`), "Equipe usa empresa do chamado em contexto");
+    ok((await request(`/chamados/novo?companyId=${ids.b}`, "support")).status === 404, "Contexto adulterado não abre empresa de outro cliente");
     await submitForm("/chamados/novo", "support", "support", "subject", {
       companyId: ids.a,
       engagementId: "",
       subject: `Created through form ${marker}`,
       body: "Descrição criada pelo teste HTTP",
-      priority: "normal",
+      files: new File(["%PDF-1.7 test"], "initial.pdf", { type: "application/pdf" }),
     });
     const created = (
       await database.query(
@@ -411,6 +416,30 @@ try {
       )
     ).rows[0];
     ok(!!created, "Formulário de chamado grava no banco");
+    const initial = (await database.query("select t.priority, a.name from console_tickets t join console_attachments a on a.ticket_id=t.id where t.id=$1", [created.id])).rows[0];
+    ok(initial?.priority === "normal" && initial.name === "initial.pdf", "Chamado simples assume prioridade normal e salva anexo na abertura");
+    await submitForm("/chamados/novo", "support", "support", "subject", {
+      companyId: ids.a, subject: `Invalid file ${marker}`, body: "Invalid attachment", files: new File(["invalid"], "fake.pdf"),
+    });
+    ok((await database.query("select id from console_tickets where subject=$1", [`Invalid file ${marker}`])).rowCount === 0, "Anexo inválido impede criação parcial do chamado");
+    const bookmarkTitle = `Bookmark ${marker}`;
+    await submitForm("/bookmarks", "support", "support", "title", { companyId: ids.a, engagementId: "", title: bookmarkTitle, url: "https://example.com/project" });
+    const bookmark = (await database.query("select * from console_bookmarks where title=$1", [bookmarkTitle])).rows[0];
+    ok(bookmark?.company_id === ids.a, "Bookmark de link persistido na empresa autorizada");
+    await submitForm("/bookmarks", "support", "support", "title", { companyId: ids.b, engagementId: "", title: `Denied bookmark ${marker}`, url: "https://example.com" });
+    ok((await database.query("select id from console_bookmarks where title=$1", [`Denied bookmark ${marker}`])).rowCount === 0, "Bookmark não pode ser criado em outra empresa");
+    await submitForm("/bookmarks", "support", "support", "title", { companyId: ids.a, engagementId: "", title: `File bookmark ${marker}`, url: "", file: new File(["private project file"], "project.txt") });
+    const fileBookmark = (await database.query("select id from console_bookmarks where title=$1", [`File bookmark ${marker}`])).rows[0];
+    ok(!!fileBookmark, "Arquivo de projeto salvo em bookmark");
+    const download = await request(`/api/bookmarks/${fileBookmark.id}`, "support");
+    ok(download.status === 200 && download.text === "private project file" && download.headers.get("cache-control") === "private, no-store", "Download de bookmark privado retorna conteúdo correto");
+    ok((await request(`/api/bookmarks/${fileBookmark.id}`, "outsider")).status === 404, "Outra conta não pode baixar arquivo do bookmark");
+    ok((await request(`/api/bookmarks/${fileBookmark.id}`)).headers.get("location")?.includes("/entrar"), "Arquivo de bookmark exige autenticação");
+    await submitForm("/bookmarks", "support", "finance", "Remover " + bookmarkTitle, { id: bookmark.id });
+    ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 1, "Outro membro não remove bookmark de terceiro");
+    await submitForm("/bookmarks", "support", "support", "Remover " + bookmarkTitle, { id: bookmark.id });
+    ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 0, "Autor pode remover seu bookmark");
+
     await submitForm("/chamados/novo", "support", "support", "subject", {
       companyId: ids.b,
       engagementId: "",
@@ -485,7 +514,7 @@ try {
           "select id from console_attachments where ticket_id=$1",
           [created.id],
         )
-      ).rowCount === 0,
+      ).rowCount === 1,
       "Arquivo com MIME falso é recusado",
     );
     await submitForm(`/chamados/${created.id}`, "support", "support", "file", {
@@ -500,7 +529,7 @@ try {
           "select id from console_attachments where ticket_id=$1",
           [created.id],
         )
-      ).rowCount === 1,
+      ).rowCount === 2,
       "Upload de anexo é persistido com acesso privado",
     );
     await submitForm(`/financeiro/${drafted.id}`, "admin", "admin", "amount", {
@@ -1920,6 +1949,7 @@ try {
     "console_invoices",
     "console_subscriptions",
     "console_contracts",
+    "console_bookmarks",
   ])
     await database.query(
       `delete from ${table} where company_id=any($1::text[])`,

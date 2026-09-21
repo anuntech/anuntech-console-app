@@ -10,9 +10,10 @@ import {
   LayoutDashboard,
   Building2,
   Layers3,
-  MessagesSquare,
+  Headset,
   ReceiptText,
-  FileText,
+  Folders,
+  Bookmark,
   type LucideIcon,
 } from "lucide-react";
 import { useAppearance } from "@/components/appearance-provider";
@@ -34,7 +35,7 @@ const items = [
   {
     href: "/chamados",
     label: "Chamados",
-    icon: MessagesSquare,
+    icon: Headset,
     area: "support",
   },
   {
@@ -43,7 +44,8 @@ const items = [
     icon: ReceiptText,
     area: "finance",
   },
-  { href: "/contratos", label: "Contratos", icon: FileText, area: "finance" },
+  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
+  { href: "/contratos", label: "Contratos", icon: Folders, area: "finance" },
 ];
 
 const desktopDockQuery = "(min-width: 641px)";
@@ -144,9 +146,9 @@ export default function BottomMenu({
                       </div>
                       {[
                         {
-                          href: "/chamados/novo",
+                          href: `/chamados/novo?from=${encodeURIComponent(pathname)}`,
                           label: "Abrir chamado",
-                          icon: MessagesSquare,
+                          icon: Headset,
                           allowed: admin || support,
                         },
                         {
@@ -158,7 +160,7 @@ export default function BottomMenu({
                         {
                           href: "/contratos/novo",
                           label: "Novo contrato",
-                          icon: FileText,
+                          icon: Folders,
                           allowed: admin,
                         },
                         {

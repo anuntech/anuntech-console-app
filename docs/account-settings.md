@@ -105,3 +105,11 @@ Cada destinatário tem sua própria entrega e chave de idempotência. E-mails s�
 Membros de clientes seguem o mesmo layout de Membros e Convidados da operação, com avatar, convite e expulsão. A permissão continua restrita ao ambiente; não é possível remover o próprio acesso nem o último administrador. Permissões legadas combinadas exigem escolha explícita na edição.
 
 Ao revalidar os Ajustes, o proxy evita que uma página retida seja interceptada por ela mesma (next-url igual ao caminho solicitado). Isso mantém o modal e a confirmação de salvamento sem recarregar o documento. Navegações entre seções e entrada a partir do painel continuam usando as rotas existentes.
+
+## Atendimento e materiais dos projetos
+
+O rodapé do ambiente autenticado foi removido. O dock usa Headset para Chamados, Folders para Contratos e inclui Bookmarks.
+
+Bookmarks reúne links HTTP(S) e arquivos privados de até 1 MB, com empresa e projeto opcional, busca e paginação. Membros acessam somente empresas autorizadas; autor, administrador da empresa ou equipe Anuntech podem remover itens. Downloads autenticados usam attachment, no-store e não executam conteúdo no navegador.
+
+Abrir chamado usa um modal com assunto, descrição e até 5 anexos opcionais (PDF/PNG/JPEG, 1 MB total). Clientes usam a empresa da conta; a equipe usa o contexto da empresa de origem. Sem contexto, a equipe acessa a empresa antes de abrir o chamado. Prioridade inicial normal e projeto opcional no servidor; anexos iniciais são validados antes da transação e salvos com chamado e mensagem.

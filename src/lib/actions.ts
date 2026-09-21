@@ -1,4 +1,5 @@
 "use server";
+import { prepareTicketFiles } from "./ticket-files";
 import { z } from "zod";
 import { and, eq, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -167,13 +168,16 @@ export async function createTicket(
     const input = z
       .object({
         companyId: id,
-        engagementId: z.union([id, z.literal("")]),
+        engagementId: z.union([id, z.literal("")]).default(""),
         subject: str(160),
         body: str(10000),
-        priority: z.enum(["normal", "high"]),
+        priority: z.enum(["normal", "high"]).default("normal"),
       })
       .parse(Object.fromEntries(form));
     if (!canAccess(actor, input.companyId, "support")) return blocked;
+    let files: Awaited<ReturnType<typeof prepareTicketFiles>>;
+    try { files = await prepareTicketFiles(form.getAll("files")); }
+    catch (error) { return { error: error instanceof Error ? error.message : "Anexos inválidos." }; }
     const ticket = await db.transaction(async (tx) => {
       if (input.engagementId) {
         const [eng] = await tx
@@ -202,6 +206,7 @@ export async function createTicket(
         authorId: actor.user.id,
         body: input.body,
       });
+      if (files.length) await tx.insert(attachments).values(files.map(file => ({ ...file, ticketId: row.id, authorId: actor.user.id })));
       const [event] = await tx
         .insert(auditEvents)
         .values({

@@ -196,7 +196,6 @@ export function PreferencesWorkspace({
             children
           )}
         </main>
-        <footer className="app-footer">Anuntech Console</footer>
       </div>
       {section && (
         <PreferencesDialog

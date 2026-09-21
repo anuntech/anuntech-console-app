@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Archive,
   Building2,
@@ -65,6 +66,7 @@ export default async function Company({
         title={company.name}
         description={`${company.document} · ${company.billingEmail}`}
       />
+      <p><Link className="button primary" href={`/chamados/novo?companyId=${id}`}>Abrir chamado</Link></p>
       <div className={styles.stack}>
         {company.archived && (
           <div>

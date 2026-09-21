@@ -11,9 +11,11 @@ export const maxDuration = 60;
 export default async function ConsoleLayout({
   children,
   preferences,
+  ticket,
 }: {
   children: React.ReactNode;
   preferences: React.ReactNode;
+  ticket: React.ReactNode;
 }) {
   const actor = await getActor();
   if (!actor.admin && !actor.grants.length) redirect("/acesso-pendente");
@@ -37,6 +39,7 @@ export default async function ConsoleLayout({
         }
       >
         {children}
+        {ticket}
       </PreferencesWorkspace>
     </PreferencesNavigationProvider>
   );

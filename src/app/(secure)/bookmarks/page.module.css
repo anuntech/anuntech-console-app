@@ -1,0 +1,13 @@
+.toolbar { display:flex; align-items:end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:24px 0; }
+.filters { display:flex; align-items:center; gap:10px; flex:1; flex-wrap:wrap; }
+.filters input { width:min(340px,100%); }
+.filters select { width:auto; max-width:100%; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,310px),1fr)); gap:16px; }
+.card { display:flex; flex-direction:column; align-items:start; gap:14px; padding:24px; background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg); min-width:0; }
+.icon { display:grid; place-items:center; width:44px; height:44px; border-radius:12px; color:var(--primary); background:var(--accent); }
+.card h2 { margin:0 0 8px; font-size:1rem; overflow-wrap:anywhere; }
+.card h2 a { display:flex; align-items:center; gap:8px; }
+.card h2 svg { flex:none; }
+.card p,.file { color:var(--muted-foreground); font-size:.8125rem; overflow-wrap:anywhere; }
+.file { display:block; margin-top:8px; }
+.remove { margin-top:auto; }

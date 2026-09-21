@@ -582,3 +582,15 @@ export const environmentProfile = pgTable("console_environment_profile", {
     .notNull()
     .defaultNow(),
 });
+
+export const bookmarks = pgTable("console_bookmarks", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  companyId: text("company_id").notNull().references(() => companies.id),
+  engagementId: text("engagement_id").references(() => engagements.id),
+  title: text("title").notNull(),
+  url: text("url"),
+  fileName: text("file_name"),
+  content: bytea("content"),
+  authorId: text("author_id").notNull().references(() => user.id),
+  createdAt: created(),
+}, (t) => [index("console_bookmark_company_idx").on(t.companyId)]);
