@@ -1195,6 +1195,7 @@ tr:last-child td {
   font-weight: 400;
 }
 .checkbox-field input[type="checkbox"] {
+  appearance: none;
   display: inline-block;
   flex: 0 0 17px;
   width: 17px;
@@ -1202,8 +1203,33 @@ tr:last-child td {
   min-height: 0;
   padding: 0;
   margin: 3px 0 0;
-  accent-color: var(--primary);
+  border: 1.5px solid var(--input);
+  border-radius: 5px;
+  background: var(--card);
   box-shadow: none;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.checkbox-field input[type="checkbox"]:hover {
+  border-color: var(--primary);
+}
+.checkbox-field input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 11px;
+}
+.checkbox-field input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.checkbox-field input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .checkbox-field strong {
   display: block;

@@ -16,6 +16,7 @@ import {
 import { Field } from "./ui";
 import { payerAddress } from "@/lib/billing-rules";
 import type { CompanyAddress } from "@/lib/company-billing";
+import { toast } from "./notifications";
 
 export function CompanyBillingFields({
   company,
@@ -99,11 +100,10 @@ export function CompanyBillingFields({
       const data = await res.json();
       if (sequence !== generation.current) return;
       if (!res.ok) {
-        setLookupFeedback({
-          kind,
-          message:
-            data.error || "Não foi possível consultar. Preencha manualmente.",
-        });
+        const message =
+          data.error || "Não foi possível consultar. Preencha manualmente.";
+        setLookupFeedback({ kind, message });
+        toast.error(message);
         return;
       }
       const fields = lookupFields.parse(data.fields);
@@ -123,12 +123,12 @@ export function CompanyBillingFields({
             : "Endereço encontrado. Confira número, complemento e os campos que faltarem antes de salvar.",
       });
     } catch {
-      if (!controller.signal.aborted)
-        setLookupFeedback({
-          kind,
-          message:
-            "Não foi possível consultar. Você pode preencher os dados manualmente.",
-        });
+      if (!controller.signal.aborted) {
+        const message =
+          "Não foi possível consultar. Você pode preencher os dados manualmente.";
+        setLookupFeedback({ kind, message });
+        toast.error(message);
+      }
     }
   }
   function change(key: string, value: string) {
@@ -235,9 +235,7 @@ export function CompanyBillingFields({
           id={`${feedbackId}-cnpj`}
           role="status"
           aria-atomic="true"
-          className={
-            lookupFeedback?.kind === "cnpj" ? "form-footnote" : "sr-only"
-          }
+          className="sr-only"
         >
           {lookupFeedback?.kind === "cnpj" ? lookupFeedback.message : ""}
         </p>
@@ -342,9 +340,7 @@ export function CompanyBillingFields({
           id={`${feedbackId}-cep`}
           role="status"
           aria-atomic="true"
-          className={
-            lookupFeedback?.kind === "cep" ? "form-footnote" : "sr-only"
-          }
+          className="sr-only"
         >
           {lookupFeedback?.kind === "cep" ? lookupFeedback.message : ""}
         </p>
