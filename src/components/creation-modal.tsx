@@ -27,6 +27,7 @@ export function CreationModal({
   path,
   fallback,
   intercepted = false,
+  plain = false,
 }: {
   children: ReactNode;
   title: string;
@@ -34,6 +35,8 @@ export function CreationModal({
   path: string;
   fallback: string;
   intercepted?: boolean;
+  /** For forms that already render their own section cards. */
+  plain?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,7 +55,7 @@ export function CreationModal({
   const body = (
     <BusyContext.Provider value={setBusy}>
       <div
-        className={`${pattern.surface} ${pattern.rows} ${pattern.card} ${pattern.creation}`}
+        className={`${pattern.surface} ${pattern.rows} ${plain ? "" : pattern.card} ${pattern.creation}`}
       >
         {children}
       </div>

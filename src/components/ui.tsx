@@ -30,11 +30,16 @@ export function Heading({
       </div>
       {action && (
         <Link className="button primary" href={action.href}>
-          {action.label}
           {/nov|cadastr|abrir|criar|adicionar/i.test(action.label) ? (
-            <Plus size={16} aria-hidden="true" />
+            <>
+              <Plus size={16} aria-hidden="true" />
+              {action.label}
+            </>
           ) : (
-            <ArrowUpRight size={16} aria-hidden="true" />
+            <>
+              {action.label}
+              <ArrowUpRight size={16} aria-hidden="true" />
+            </>
           )}
         </Link>
       )}

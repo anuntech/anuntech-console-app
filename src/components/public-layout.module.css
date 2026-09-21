@@ -105,15 +105,6 @@
   padding: 64px 24px;
 }
 
-.registration {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.registrationIntro {
-  margin-bottom: 28px;
-}
-
 .eyebrow {
   margin: 0 0 12px;
   color: var(--primary);
@@ -122,39 +113,6 @@
   line-height: 1.4;
   letter-spacing: 0.11em;
   text-transform: uppercase;
-}
-
-.registrationIntro h1 {
-  margin: 0 0 12px;
-  font-size: 2rem;
-  letter-spacing: -0.035em;
-}
-
-.registrationIntro > p:last-child {
-  max-width: 620px;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: 0.875rem;
-  line-height: 1.7;
-}
-
-.registrationForm {
-  min-width: 0;
-}
-
-.registrationNote {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 16px 0 0;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-  line-height: 1.6;
-}
-
-.registrationNote svg {
-  flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .skeletonPage {
@@ -272,9 +230,6 @@
   }
   .inlineState {
     margin: 0;
-  }
-  .registrationIntro h1 {
-    font-size: 1.75rem;
   }
   .skeletonGrid {
     grid-template-columns: 1fr;

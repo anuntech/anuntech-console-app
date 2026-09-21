@@ -454,24 +454,6 @@ export const ticketNotices = pgTable(
   ],
 );
 
-export const companyInvites = pgTable("console_company_invites", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  label: text("label").notNull(),
-  tokenHash: text("token_hash").notNull().unique(),
-  status: text("status", { enum: ["open", "submitted", "approved", "revoked"] })
-    .notNull()
-    .default("open"),
-  payload:
-    jsonb("payload").$type<import("@/lib/company-input").CompanyRegistration>(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  submittedAt: timestamp("submitted_at", { withTimezone: true }),
-  companyId: text("company_id").references(() => companies.id),
-  lookupCount: integer("lookup_count").notNull().default(0),
-  createdAt: created(),
-});
-
 export type BillingNoticePayload = {
   from: string;
   to: string | string[];

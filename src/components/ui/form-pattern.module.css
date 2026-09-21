@@ -77,6 +77,22 @@
 .creation :global(.stack) {
   gap: 0;
 }
+/* Sectioned forms bring their own cards, so they keep real spacing and the
+   row dividers/padding the flat layout above adds are redundant inside them. */
+.creation :global(.form-sections) {
+  gap: 14px;
+  padding: 18px;
+}
+.creation :global(.panel) :global(.field) {
+  padding: 0;
+  border-bottom: 0;
+}
+.creation :global(.panel) :global(.section-heading) {
+  padding: 0;
+}
+.creation :global(.form-sections) + :global([data-form-actions]) {
+  padding-top: 0;
+}
 .creation :global(.form-section) h2 {
   font-size: 0.875rem;
   margin: 0;

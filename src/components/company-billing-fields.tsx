@@ -20,13 +20,11 @@ import { toast } from "./notifications";
 
 export function CompanyBillingFields({
   company,
-  inviteToken,
   lockDocument = false,
   fiscalSettings = true,
   lookupEnabled = true,
   environmentSettings = false,
 }: {
-  inviteToken?: string;
   lockDocument?: boolean;
   fiscalSettings?: boolean;
   lookupEnabled?: boolean;
@@ -92,10 +90,7 @@ export function CompanyBillingFields({
     try {
       const res = await fetch(
         `/api/cadastro/consulta?tipo=${kind}&valor=${value}`,
-        {
-          signal: controller.signal,
-          headers: inviteToken ? { "X-Company-Invite": inviteToken } : {},
-        },
+        { signal: controller.signal },
       );
       const data = await res.json();
       if (sequence !== generation.current) return;
@@ -158,7 +153,7 @@ export function CompanyBillingFields({
     );
   }
   return (
-    <div className="stack">
+    <div className="stack form-sections">
       <section className="panel padded">
         <div className="form-section">
           <div className="section-heading">
@@ -250,12 +245,8 @@ export function CompanyBillingFields({
                 ? "Endereço"
                 : "Endereço de cobrança e nota fiscal"}
             </h2>
-            {(environmentSettings || inviteToken) && (
-              <p className="muted">
-                {environmentSettings
-                  ? "Endereço cadastral da empresa."
-                  : "Preencha o endereço completo para cobrança e nota fiscal."}
-              </p>
+            {environmentSettings && (
+              <p className="muted">Endereço cadastral da empresa.</p>
             )}
           </div>
           <div className="form-grid">
@@ -263,7 +254,6 @@ export function CompanyBillingFields({
               <input
                 name="cep"
                 aria-describedby={`${feedbackId}-cep`}
-                required={!!inviteToken}
                 inputMode="numeric"
                 maxLength={9}
                 autoComplete="postal-code"
@@ -274,7 +264,6 @@ export function CompanyBillingFields({
             <Field label="Endereço">
               <input
                 name="endereco"
-                required={!!inviteToken}
                 maxLength={100}
                 value={values.endereco}
                 onChange={handleChange}
@@ -284,7 +273,6 @@ export function CompanyBillingFields({
             <Field label="Número">
               <input
                 name="numero"
-                required={!!inviteToken}
                 maxLength={10}
                 value={values.numero}
                 onChange={handleChange}
@@ -303,7 +291,6 @@ export function CompanyBillingFields({
               <input
                 name="bairro"
                 autoComplete="address-level3"
-                required={!!inviteToken}
                 maxLength={60}
                 value={values.bairro}
                 onChange={handleChange}
@@ -312,7 +299,6 @@ export function CompanyBillingFields({
             <Field label="Cidade">
               <input
                 name="cidade"
-                required={!!inviteToken}
                 maxLength={60}
                 value={values.cidade}
                 onChange={handleChange}
@@ -322,7 +308,6 @@ export function CompanyBillingFields({
             <Field label="UF">
               <select
                 name="uf"
-                required={!!inviteToken}
                 value={values.uf}
                 onChange={handleChange}
                 autoComplete="address-level1"
@@ -349,7 +334,7 @@ export function CompanyBillingFields({
           </p>
         </div>
       </section>
-      {!inviteToken && fiscalSettings && (
+      {fiscalSettings && (
         <section className="panel padded">
           <div className="form-section">
             <div className="section-heading">

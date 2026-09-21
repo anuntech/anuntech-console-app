@@ -17,6 +17,7 @@ export async function NewCompany({
       path="/empresas/nova"
       fallback="/empresas"
       intercepted={intercepted}
+      plain
     >
       <ActionForm action={createCompany} label="Cadastrar empresa">
         <CompanyBillingFields />
