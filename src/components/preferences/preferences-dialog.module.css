@@ -80,10 +80,6 @@
 .profileLink:hover {
   background: var(--card);
 }
-.profileLink[aria-current="page"] {
-  color: var(--primary-foreground);
-  background: var(--primary);
-}
 .avatar {
   display: grid;
   place-items: center;
@@ -317,7 +313,6 @@
   .categoryIcon {
     border: 1px solid CanvasText;
   }
-  .profileLink[aria-current="page"],
   .navLink[aria-current="page"] {
     outline: 2px solid Highlight;
     outline-offset: -2px;

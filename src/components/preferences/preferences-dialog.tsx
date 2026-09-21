@@ -285,7 +285,6 @@ export function PreferencesDialog({
           replace
           scroll={false}
           className={styles.profileLink}
-          aria-current={section === "account" ? "page" : undefined}
         >
           <span className={styles.avatar} aria-hidden="true">
             {userImage && isCatalogAvatar(userImage) ? (
