@@ -158,209 +158,215 @@ export function CompanyBillingFields({
     );
   }
   return (
-    <>
-      <section className="form-section">
-        <div className="section-heading">
-          <h2>Identificação e contato</h2>
-          <p className="muted">
-            {environmentSettings
-              ? "Informações de identificação do seu ambiente."
-              : "Dados da empresa e canais para comunicação financeira."}
-          </p>
-        </div>
-        <div className="form-grid">
-          <Field label="CNPJ">
-            <NumberFormatBase
-              format={formatDocument}
-              removeFormatting={onlyDigits}
-              valueIsNumericString
-              onValueChange={(v, info) => {
-                if (info.source === "event") change("document", v.value);
-              }}
-              name="document"
-              aria-describedby={`${feedbackId}-cnpj`}
-              autoComplete="off"
-              required
-              inputMode="numeric"
-              maxLength={18}
-              readOnly={lockDocument}
-              value={values.document}
-            />
-          </Field>
-          <Field label="Razão social">
-            <input
-              name="name"
-              autoComplete="organization"
-              required
-              maxLength={160}
-              value={values.name}
-              onChange={handleChange}
-            />
-          </Field>
-          <Field
-            label={
-              environmentSettings ? "E-mail de contato" : "E-mail financeiro"
-            }
-          >
-            <input
-              name="billingEmail"
-              type="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              spellCheck={false}
-              required
-              maxLength={254}
-              value={values.billingEmail}
-              onChange={handleChange}
-            />
-          </Field>
-          <Field label="Telefone">
-            <NumberFormatBase
-              format={formatPhone}
-              removeFormatting={phoneDigits}
-              valueIsNumericString
-              required
-              autoComplete="tel-national"
-              onValueChange={(v, info) => {
-                if (info.source === "event") change("phone", v.value);
-              }}
-              name="phone"
-              type="tel"
-              maxLength={30}
-              value={values.phone}
-            />
-          </Field>
-        </div>
-        <p
-          id={`${feedbackId}-cnpj`}
-          role="status"
-          aria-atomic="true"
-          className="sr-only"
-        >
-          {lookupFeedback?.kind === "cnpj" ? lookupFeedback.message : ""}
-        </p>
-      </section>
-      <section className="form-section">
-        <div className="section-heading">
-          <h2>
-            {environmentSettings
-              ? "Endereço"
-              : "Endereço de cobrança e nota fiscal"}
-          </h2>
-          {(environmentSettings || inviteToken) && (
+    <div className="stack">
+      <section className="panel padded">
+        <div className="form-section">
+          <div className="section-heading">
+            <h2>Identificação e contato</h2>
             <p className="muted">
               {environmentSettings
-                ? "Endereço cadastral da empresa."
-                : "Preencha o endereço completo para cobrança e nota fiscal."}
+                ? "Informações de identificação do seu ambiente."
+                : "Dados da empresa e canais para comunicação financeira."}
             </p>
-          )}
-        </div>
-        <div className="form-grid">
-          <Field label="CEP">
-            <input
-              name="cep"
-              aria-describedby={`${feedbackId}-cep`}
-              required={!!inviteToken}
-              inputMode="numeric"
-              maxLength={9}
-              autoComplete="postal-code"
-              value={values.cep}
-              onChange={handleChange}
-            />
-          </Field>
-          <Field label="Endereço">
-            <input
-              name="endereco"
-              required={!!inviteToken}
-              maxLength={100}
-              value={values.endereco}
-              onChange={handleChange}
-              autoComplete="address-line1"
-            />
-          </Field>
-          <Field label="Número">
-            <input
-              name="numero"
-              required={!!inviteToken}
-              maxLength={10}
-              value={values.numero}
-              onChange={handleChange}
-            />
-          </Field>
-          <Field label="Complemento (opcional)">
-            <input
-              name="complemento"
-              maxLength={30}
-              value={values.complemento}
-              onChange={handleChange}
-              autoComplete="address-line2"
-            />
-          </Field>
-          <Field label="Bairro">
-            <input
-              name="bairro"
-              autoComplete="address-level3"
-              required={!!inviteToken}
-              maxLength={60}
-              value={values.bairro}
-              onChange={handleChange}
-            />
-          </Field>
-          <Field label="Cidade">
-            <input
-              name="cidade"
-              required={!!inviteToken}
-              maxLength={60}
-              value={values.cidade}
-              onChange={handleChange}
-              autoComplete="address-level2"
-            />
-          </Field>
-          <Field label="UF">
-            <select
-              name="uf"
-              required={!!inviteToken}
-              value={values.uf}
-              onChange={handleChange}
-              autoComplete="address-level1"
+          </div>
+          <div className="form-grid">
+            <Field label="CNPJ">
+              <NumberFormatBase
+                format={formatDocument}
+                removeFormatting={onlyDigits}
+                valueIsNumericString
+                onValueChange={(v, info) => {
+                  if (info.source === "event") change("document", v.value);
+                }}
+                name="document"
+                aria-describedby={`${feedbackId}-cnpj`}
+                autoComplete="off"
+                required
+                inputMode="numeric"
+                maxLength={18}
+                readOnly={lockDocument}
+                value={values.document}
+              />
+            </Field>
+            <Field label="Razão social">
+              <input
+                name="name"
+                autoComplete="organization"
+                required
+                maxLength={160}
+                value={values.name}
+                onChange={handleChange}
+              />
+            </Field>
+            <Field
+              label={
+                environmentSettings ? "E-mail de contato" : "E-mail financeiro"
+              }
             >
-              <option value="">Selecione</option>
-              {payerAddress.shape.uf.options.map((uf) => (
-                <option key={uf}>{uf}</option>
-              ))}
-            </select>
-          </Field>
-          <input
-            type="hidden"
-            name="codigoMunicipio"
-            value={values.codigoMunicipio}
-          />
+              <input
+                name="billingEmail"
+                type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                maxLength={254}
+                value={values.billingEmail}
+                onChange={handleChange}
+              />
+            </Field>
+            <Field label="Telefone">
+              <NumberFormatBase
+                format={formatPhone}
+                removeFormatting={phoneDigits}
+                valueIsNumericString
+                required
+                autoComplete="tel-national"
+                onValueChange={(v, info) => {
+                  if (info.source === "event") change("phone", v.value);
+                }}
+                name="phone"
+                type="tel"
+                maxLength={30}
+                value={values.phone}
+              />
+            </Field>
+          </div>
+          <p
+            id={`${feedbackId}-cnpj`}
+            role="status"
+            aria-atomic="true"
+            className="sr-only"
+          >
+            {lookupFeedback?.kind === "cnpj" ? lookupFeedback.message : ""}
+          </p>
         </div>
-        <p
-          id={`${feedbackId}-cep`}
-          role="status"
-          aria-atomic="true"
-          className="sr-only"
-        >
-          {lookupFeedback?.kind === "cep" ? lookupFeedback.message : ""}
-        </p>
+      </section>
+      <section className="panel padded">
+        <div className="form-section">
+          <div className="section-heading">
+            <h2>
+              {environmentSettings
+                ? "Endereço"
+                : "Endereço de cobrança e nota fiscal"}
+            </h2>
+            {(environmentSettings || inviteToken) && (
+              <p className="muted">
+                {environmentSettings
+                  ? "Endereço cadastral da empresa."
+                  : "Preencha o endereço completo para cobrança e nota fiscal."}
+              </p>
+            )}
+          </div>
+          <div className="form-grid">
+            <Field label="CEP">
+              <input
+                name="cep"
+                aria-describedby={`${feedbackId}-cep`}
+                required={!!inviteToken}
+                inputMode="numeric"
+                maxLength={9}
+                autoComplete="postal-code"
+                value={values.cep}
+                onChange={handleChange}
+              />
+            </Field>
+            <Field label="Endereço">
+              <input
+                name="endereco"
+                required={!!inviteToken}
+                maxLength={100}
+                value={values.endereco}
+                onChange={handleChange}
+                autoComplete="address-line1"
+              />
+            </Field>
+            <Field label="Número">
+              <input
+                name="numero"
+                required={!!inviteToken}
+                maxLength={10}
+                value={values.numero}
+                onChange={handleChange}
+              />
+            </Field>
+            <Field label="Complemento (opcional)">
+              <input
+                name="complemento"
+                maxLength={30}
+                value={values.complemento}
+                onChange={handleChange}
+                autoComplete="address-line2"
+              />
+            </Field>
+            <Field label="Bairro">
+              <input
+                name="bairro"
+                autoComplete="address-level3"
+                required={!!inviteToken}
+                maxLength={60}
+                value={values.bairro}
+                onChange={handleChange}
+              />
+            </Field>
+            <Field label="Cidade">
+              <input
+                name="cidade"
+                required={!!inviteToken}
+                maxLength={60}
+                value={values.cidade}
+                onChange={handleChange}
+                autoComplete="address-level2"
+              />
+            </Field>
+            <Field label="UF">
+              <select
+                name="uf"
+                required={!!inviteToken}
+                value={values.uf}
+                onChange={handleChange}
+                autoComplete="address-level1"
+              >
+                <option value="">Selecione</option>
+                {payerAddress.shape.uf.options.map((uf) => (
+                  <option key={uf}>{uf}</option>
+                ))}
+              </select>
+            </Field>
+            <input
+              type="hidden"
+              name="codigoMunicipio"
+              value={values.codigoMunicipio}
+            />
+          </div>
+          <p
+            id={`${feedbackId}-cep`}
+            role="status"
+            aria-atomic="true"
+            className="sr-only"
+          >
+            {lookupFeedback?.kind === "cep" ? lookupFeedback.message : ""}
+          </p>
+        </div>
       </section>
       {!inviteToken && fiscalSettings && (
-        <section className="form-section">
-          <div className="section-heading">
-            <h2>Nota fiscal</h2>
+        <section className="panel padded">
+          <div className="form-section">
+            <div className="section-heading">
+              <h2>Nota fiscal</h2>
+            </div>
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                name="autoIssueNfse"
+                value="yes"
+                defaultChecked={company?.autoIssueNfse || false}
+              />{" "}
+              Emitir nota fiscal automaticamente para este cliente
+            </label>
           </div>
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              name="autoIssueNfse"
-              value="yes"
-              defaultChecked={company?.autoIssueNfse || false}
-            />{" "}
-            Emitir nota fiscal automaticamente para este cliente
-          </label>
         </section>
       )}
-    </>
+    </div>
   );
 }

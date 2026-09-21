@@ -139,11 +139,7 @@
 }
 
 .registrationForm {
-  padding: 32px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .registrationNote {
@@ -279,9 +275,6 @@
   }
   .registrationIntro h1 {
     font-size: 1.75rem;
-  }
-  .registrationForm {
-    padding: 24px 18px;
   }
   .skeletonGrid {
     grid-template-columns: 1fr;

@@ -25,20 +25,18 @@ export async function CompanyContent() {
   };
   return (
     <div className={styles.content}>
-      <div className={`${styles.card} ${styles.deliveryCard}`}>
-        <ActionForm
-          action={saveCompanySettings}
-          submitAriaLabel="Salvar dados da empresa"
-        >
-          <input type="hidden" name="id" value={companyId || "console"} />
-          <CompanyBillingFields
-            company={{ ...profile, autoIssueNfse: false }}
-            environmentSettings
-            fiscalSettings={false}
-            lookupEnabled={actor.admin}
-          />
-        </ActionForm>
-      </div>
+      <ActionForm
+        action={saveCompanySettings}
+        submitAriaLabel="Salvar dados da empresa"
+      >
+        <input type="hidden" name="id" value={companyId || "console"} />
+        <CompanyBillingFields
+          company={{ ...profile, autoIssueNfse: false }}
+          environmentSettings
+          fiscalSettings={false}
+          lookupEnabled={actor.admin}
+        />
+      </ActionForm>
     </div>
   );
 }

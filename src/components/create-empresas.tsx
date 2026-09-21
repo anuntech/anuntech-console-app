@@ -18,13 +18,9 @@ export async function NewCompany({
       fallback="/empresas"
       intercepted={intercepted}
     >
-      <div className="stack">
-        <section className="stack">
-          <ActionForm action={createCompany} label="Cadastrar empresa">
-            <CompanyBillingFields />
-          </ActionForm>
-        </section>
-      </div>
+      <ActionForm action={createCompany} label="Cadastrar empresa">
+        <CompanyBillingFields />
+      </ActionForm>
     </CreationModal>
   );
 }
