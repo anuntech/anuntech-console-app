@@ -11,10 +11,11 @@ import {
   Layers3,
   MessagesSquare,
   ReceiptText,
-  Settings2,
+  Settings,
   FileText,
   type LucideIcon,
 } from "lucide-react";
+import { useAppearance } from "@/components/appearance-provider";
 import styles from "./bottom-menu.module.css";
 
 export type NavigationProps = {
@@ -87,6 +88,7 @@ export default function BottomMenu({
   finance,
 }: NavigationProps) {
   const pathname = usePathname();
+  const { position } = useAppearance();
   const visible = items.filter(
     (item) =>
       (!item.admin || admin) &&
@@ -108,7 +110,7 @@ export default function BottomMenu({
                 </Popover.Trigger>
                 <Popover.Portal>
                   <Popover.Positioner
-                    side="top"
+                    side={position === "top" ? "bottom" : position === "left" ? "right" : position === "right" ? "left" : "top"}
                     sideOffset={12}
                     collisionPadding={12}
                     className={styles.panelPositioner}
@@ -183,7 +185,7 @@ export default function BottomMenu({
             <DockLink
               href="/conta"
               label="Ajustes"
-              icon={Settings2}
+              icon={Settings}
               preferences
               active={
                 pathname === "/conta" ||

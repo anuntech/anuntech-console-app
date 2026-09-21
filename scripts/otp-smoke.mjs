@@ -301,6 +301,7 @@ try {
     server.kill("SIGTERM");
     await new Promise((r) => server.once("exit", r));
   }
+  await db.query("delete from console_audit_events where actor_id in (select id from console_user where email=$1)", [email]);
   await db.query("delete from console_user where email=$1", [email]);
   await db.end();
   rmSync(dir, { recursive: true, force: true });

@@ -21,7 +21,7 @@
   height: min(800px, 91dvh);
   min-height: 0;
   overflow: hidden;
-  border: 1px solid #ffffffa6;
+  border: 1px solid var(--border);
   border-radius: 18px;
   background: var(--background);
   color: var(--foreground);
@@ -36,7 +36,7 @@
   min-width: 0;
   min-height: 0;
   border-right: 1px solid var(--border);
-  background: #edf1f7;
+  background: var(--settings-sidebar);
 }
 .close {
   position: absolute;
@@ -51,7 +51,7 @@
   padding: 0;
   border: 1px solid transparent;
   border-radius: 50%;
-  background: #dce3ed;
+  background: var(--settings-close);
   color: var(--foreground);
   text-decoration: none;
 }
@@ -73,7 +73,7 @@
   padding: 12px;
   border-radius: 12px;
   color: var(--foreground);
-  background: #ffffff85;
+  background: var(--card);
   text-decoration: none;
   min-width: 0;
 }
@@ -137,7 +137,7 @@
   text-decoration: none;
 }
 .navLink:hover {
-  background: #ffffffb3;
+  background: var(--card);
 }
 .navLink[aria-current="page"] {
   background: var(--primary);
@@ -178,7 +178,7 @@
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   padding: 28px 32px 36px;
-  background: #f7f9fc;
+  background: var(--settings-background);
 }
 .header {
   position: relative;
@@ -249,16 +249,21 @@
     margin-top: 10px;
   }
   .categoryTitle {
-    display: none;
+    display: block;
+    margin: 0 4px 6px;
   }
   .categoryLinks {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 3px;
   }
   .navLink {
-    flex-direction: column;
+    flex: 0 0 auto;
+    flex-direction: row;
     justify-content: center;
     gap: 6px;
-    padding: 8px 4px;
+    padding: 8px;
     font-size: 0.75rem;
     white-space: nowrap;
     overflow-wrap: normal;

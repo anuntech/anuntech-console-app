@@ -273,3 +273,12 @@
     color: LinkText;
   }
 }
+@media (min-width: 641px) {
+  :global(html[data-dock="top"]) .floating { top: max(12px, env(safe-area-inset-top)); bottom: auto; }
+  :global(html[data-dock="left"]) .floating,
+  :global(html[data-dock="right"]) .floating { top: 12px; bottom: 12px; right: auto; width: 64px; align-items: center; }
+  :global(html[data-dock="right"]) .floating { left: auto; right: 12px; }
+  :global(html:is([data-dock="left"], [data-dock="right"])) .dock { flex-direction: column; max-height: 100%; }
+  :global(html:is([data-dock="left"], [data-dock="right"])) .routes { flex-direction: column; overflow-x: hidden; overflow-y: auto; min-height: 0; flex-shrink: 1; }
+  :global(html:is([data-dock="left"], [data-dock="right"])) .divider { width: 28px; height: 1px; margin: 4px 0; }
+}

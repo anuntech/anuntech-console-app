@@ -387,6 +387,13 @@ try {
     "Email proof is single-use",
   );
   ok(!actionIds.removeAccountEmail, "Email removal is not exposed as a public action");
+  const securityPage = await request("/configuracoes/seguranca", "client");
+  ok(securityPage.status === 200 && securityPage.text.includes("Esta sessão"), "Member sees security settings and current session");
+  const tokens = (await db.query("select token from console_session where user_id=any($1::text[])", [[people.client.id, people.other.id]])).rows;
+  ok(tokens.every(({token}) => !securityPage.text.includes(token)), "Security page never exposes session tokens");
+  ok(!securityPage.text.includes(people.other.sessionId), "Another account session is absent from security page");
+  const appearancePage = await request("/configuracoes/aparencia", "client");
+  ok(appearancePage.status === 200 && appearancePage.text.includes("Posição do menu"), "Member can open appearance settings");
   const accountPage = await request("/conta", "client");
   ok(!accountPage.text.includes("Adicionar e-mail"), "Account offers replacement instead of additional emails");
 

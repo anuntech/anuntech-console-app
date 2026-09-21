@@ -1,5 +1,5 @@
 "use client";
-// Adapted from the shadcn.io Sonner registry component; Console uses a fixed light theme and its own CSS.
+// Shared notifications follow the selected Console appearance.
 import {
   CircleCheck,
   Info,
@@ -7,19 +7,21 @@ import {
   OctagonX,
   LoaderCircle,
 } from "lucide-react";
+import { useAppearance } from "@/components/appearance-provider";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 export function Toaster(props: ToasterProps) {
+  const { theme } = useAppearance();
   return (
     <Sonner
-      theme="light"
-      position="top-right"
+      theme={theme}
+      position="bottom-right"
       richColors
       closeButton
       visibleToasts={4}
       duration={7000}
       gap={10}
-      offset={24}
-      mobileOffset={16}
+      offset={{ bottom: 88, right: 24 }}
+      mobileOffset={{ bottom: 88, left: 16, right: 16 }}
       containerAriaLabel="Notificações"
       icons={{
         success: <CircleCheck size={18} aria-hidden="true" />,

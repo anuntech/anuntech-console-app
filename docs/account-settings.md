@@ -87,3 +87,9 @@ Workers validate current destinations before delivery, honor disabled channels, 
 ### Refinamento de Minha conta — 20/09/2026
 
 Confirmações de salvamento usam notificações flutuantes compartilhadas. Erros de campos permanecem associados ao formulário. Formato e limite da foto aparecem apenas quando o arquivo é inválido. Minha conta oferece somente a troca do e-mail principal com os dois códigos, sem opção de adicionar contatos extras; aliases anteriores ficam preservados internamente para manter vínculos. A explicação de segurança foi reduzida sem alterar as verificações.
+
+## Aparência e Segurança — 20/09/2026
+
+Os ajustes separam Usuário (Minha conta, Aparência e Segurança) de Empresa. Minha conta contém perfil e contatos. Segurança reúne a verificação em duas etapas e as últimas 20 sessões, com a sessão atual destacada. Só a própria pessoa pode consultar suas sessões; a consulta não seleciona tokens. Sessões completas novas geram `account.session.started`, sem códigos nem tokens, e continuam no histórico depois do encerramento. A primeira etapa de um acesso com duas etapas não entra nesse histórico. Sessões anteriores ainda presentes aparecem; acessos já encerrados antes da atualização não podem ser reconstruídos. Horários exibidos em Brasília, com “última atualização” conforme o registro de sessão do provedor.
+
+Aparência permite claro, escuro ou tema do sistema e menu embaixo, em cima, à esquerda ou à direita. Preferências são persistidas por um ano em cookies do navegador, com valores validados e aplicados no HTML inicial para evitar troca de cores na abertura. Em telas até 640px o menu fica embaixo. O tema usa cores semânticas e mantém foco visível e controles nativos; notificações acompanham o tema.

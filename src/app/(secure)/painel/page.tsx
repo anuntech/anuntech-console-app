@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, tickets, invoices, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
-import { Heading, Empty, Badge } from "@/components/ui";
+import { Empty, Badge } from "@/components/ui";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { ticketLabels, invoiceLabels, currency, dateLabel } from "@/lib/format";
 import {
@@ -97,10 +97,7 @@ export default async function Dashboard() {
   ]);
   return (
     <>
-      <Heading
-        title={`Olá, ${actor.user.name.split(" ")[0]}.`}
-        description="Uma visão do seu atendimento, das suas empresas e do financeiro."
-      />
+      <h1 className="sr-only">Visão geral</h1>
       <div className="overview-toolbar">
         <p>Seu espaço de trabalho</p>
         <div className="overview-actions">

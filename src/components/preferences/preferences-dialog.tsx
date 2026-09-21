@@ -17,7 +17,7 @@ import {
   useSelectedLayoutSegments,
 } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
-import { Building2, Bell, PlugZap, UserRound, Users, X } from "lucide-react";
+import { Building2, Bell, PlugZap, UserRound, Users, X, Palette, ShieldCheck } from "lucide-react";
 import { IllustratedAvatar } from "./illustrated-avatar";
 import { isCatalogAvatar } from "@/lib/avatar-catalog";
 import { profileAvatarSource } from "./profile-avatar";
@@ -26,8 +26,10 @@ import { preferenceCopy } from "./preferences-copy";
 import styles from "./preferences-dialog.module.css";
 
 export type PreferenceSection =
-  "account" | "company" | "members" | "integrations" | "notifications";
+  "appearance" | "security" | "account" | "company" | "members" | "integrations" | "notifications";
 const sections = {
+  appearance: { href: "/configuracoes/aparencia", label: "Aparência", icon: Palette },
+  security: { href: "/configuracoes/seguranca", label: "Segurança", icon: ShieldCheck },
   company: {
     href: "/configuracoes/empresa",
     label: "Dados da empresa",
@@ -311,10 +313,21 @@ export function PreferencesDialog({
             <span>Minha conta</span>
           </span>
         </Link>
+        <div className={styles.category}>
+          <p className={styles.categoryTitle}>Usuário</p>
+          <div className={styles.categoryLinks}>
+            {(["account", "appearance", "security"] as const).map(item => {
+              const { href, label, icon: Icon } = sections[item];
+              return <Link key={item} href={href} replace scroll={false} className={styles.navLink} aria-current={section === item ? "page" : undefined}>
+                <span className={styles.categoryIcon}><Icon size={17} aria-hidden="true" /></span><span>{label}</span>
+              </Link>;
+            })}
+          </div>
+        </div>
         {(admin || canManageMembers) && (
           <div className={styles.category}>
             <p className={styles.categoryTitle}>
-              {admin ? "Console" : "Empresa"}
+              Empresa
             </p>
             <div className={styles.categoryLinks}>
               {(admin

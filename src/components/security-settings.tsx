@@ -133,7 +133,7 @@ export function SecuritySettings({
       </p>
       {!phone ? (
         <p className="muted">
-          Verifique seu telefone para ativar.
+          Verifique seu telefone em Minha conta para ativar.
         </p>
       ) : (
         <>

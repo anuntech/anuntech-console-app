@@ -1,7 +1,6 @@
 import "server-only";
 import { getActor } from "@/lib/access";
 import { WhatsappAccount } from "@/components/whatsapp-account";
-import { SecuritySettings } from "@/components/security-settings";
 import { AccountEmails } from "./account-emails";
 import { ProfileAvatar } from "./profile-avatar";
 import { AccountName } from "./account-name";
@@ -35,17 +34,7 @@ export async function AccountContent() {
           <WhatsappAccount phone={phone} securityEnabled={enabled} />
         </div>
       </section>
-      <section className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <h2>Acesso e segurança</h2>
-        </div>
-        <SecuritySettings
-          enabled={enabled}
-          channel={actor.user.twoStepChannel === "email" ? "email" : "whatsapp"}
-          email={actor.user.email}
-          phone={phone}
-        />
-      </section>
+
     </div>
   );
 }

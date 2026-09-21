@@ -1,11 +1,13 @@
 export const preferenceCopy = {
+  appearance: { title: "Aparência", description: "Tema e posição do menu." },
+  security: { title: "Segurança", description: "Proteção da conta e sessões recentes." },
   company: {
     title: "Dados da empresa",
     description: "Cadastro e preferências de comunicação por assunto.",
   },
   account: {
     title: "Minha conta",
-    description: "Seu perfil, contatos e segurança de acesso.",
+    description: "Seu perfil e contatos.",
   },
   members: {
     title: "Membros",

@@ -22,6 +22,7 @@ import { twoFactor } from "better-auth/plugins";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
+import { sessionAudit } from "./session-history";
 import { getOAuthEmail } from "./oauth-identity";
 import {
   user,
@@ -339,6 +340,7 @@ export function consoleTwoStep() {
                 userAgent: ctx.headers?.get("user-agent") || null,
               })
               .returning();
+            await tx.insert(auditEvents).values(sessionAudit(created)).onConflictDoNothing();
             return { session: created, user: fresh } as const;
           });
           if ("locked" in result)
@@ -664,7 +666,11 @@ export function consoleTwoStep() {
                 message: "Entre novamente usando seu e-mail principal atual.",
               });
             }
-            if (!account.twoFactorEnabled) return;
+            if (!account.twoFactorEnabled) {
+              await db.insert(auditEvents).values(sessionAudit(fresh.session)).onConflictDoNothing()
+                .catch(() => console.error("Session history could not be recorded"));
+              return;
+            }
             // The primary token must never leave the server while a challenge exists.
             deleteSessionCookie(ctx, true);
             ctx.context.setNewSession(null);

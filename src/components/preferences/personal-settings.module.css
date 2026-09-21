@@ -1,0 +1,24 @@
+.content { display: grid; gap: 28px; min-width: 0; }
+.group { border: 0; padding: 0; margin: 0; min-width: 0; }
+.group legend { margin-bottom: 12px; padding: 0; font-weight: 600; }
+.choices { display: grid; grid-template-columns: repeat(auto-fit,minmax(110px,1fr)); gap: 10px; }
+.choice { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 104px; padding: 16px 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); cursor: pointer; font-size: .8125rem; }
+.choice:has(input:checked) { border-color: var(--primary); background: var(--accent); color: var(--accent-foreground); box-shadow: inset 0 0 0 1px var(--primary); }
+.choice:has(input:focus-visible) { outline: 3px solid var(--ring); outline-offset: 3px; }
+.choice input { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; opacity: 0; }
+.preview { position: relative; width: 44px; height: 30px; border: 1px solid var(--muted-foreground); border-radius: 4px; }
+.preview span { position: absolute; background: currentColor; border-radius: 2px; width: 20px; height: 4px; left: 11px; bottom: 3px; }
+.preview[data-position="top"] span { top: 3px; bottom: auto; }
+.preview[data-position="left"] span, .preview[data-position="right"] span { width: 4px; height: 18px; top: 5px; left: 3px; }
+.preview[data-position="right"] span { left: auto; right: 3px; }
+.sessions { list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--card); overflow: hidden; }
+.session { display: flex; align-items: flex-start; gap: 14px; padding: 18px; }
+.session + .session { border-top: 1px solid var(--border); }
+.session > svg { margin-top: 3px; color: var(--muted-foreground); }
+.session div { min-width: 0; flex: 1; }
+.session strong { font-weight: 600; }
+.session p { margin: 4px 0 0; color: var(--muted-foreground); font-size: .75rem; overflow-wrap: anywhere; }
+.session span { font-size: .6875rem; color: var(--muted-foreground); }
+.session[data-current] { background: var(--accent); }
+.session[data-current] span { color: var(--accent-foreground); font-weight: 600; }
+@media (max-width:480px) { .session { flex-wrap: wrap; } .session > span { margin-left: 34px; } }

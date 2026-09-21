@@ -259,7 +259,10 @@ try {
     body: JSON.stringify({ phoneNumber: "+5511999999991" }),
   });
   ok(bind.status === 401, "WhatsApp não pode mudar com duas etapas ativas");
+  const startedCount = async () => Number((await db.query("select count(*) from console_audit_events where actor_id=$1 and action='account.session.started'", [uid])).rows[0].count);
+  const historyBeforeChallenge = await startedCount();
   r = await emailLogin();
+  ok(await startedCount() === historyBeforeChallenge, "Pending first factor is not recorded as a completed session");
   ok(
     r.status === 200 && r.body.twoFactorRedirect && !r.body.token,
     "Login por e-mail retorna somente desafio, sem token",
@@ -323,6 +326,9 @@ try {
     r.status === 200 && r.body.token,
     "Código secundário correto cria sessão plena",
   );
+  ok(await startedCount() === historyBeforeChallenge + 1, "Completed second factor records exactly one session");
+  const historyPayload = (await db.query("select details from console_audit_events where actor_id=$1 and action='account.session.started' order by created_at desc limit 1", [uid])).rows[0].details;
+  ok(Object.keys(historyPayload).sort().join() === "expiresAt,userAgent", "Session history contains display data without tokens or codes");
   const completeCookie = r.cookie;
   r = await api("/two-factor/verify-otp", { code: message.code }, pendingEmail);
   ok(r.status >= 400, "Código e desafio concluídos não podem ser reutilizados");

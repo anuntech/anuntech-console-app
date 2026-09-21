@@ -1,6 +1,8 @@
 import "server-only";
 import { getActor, requireAdmin } from "@/lib/access";
 import { requireMemberManager } from "@/lib/member-access";
+import { AppearanceContent } from "./appearance-content";
+import { SecurityContent } from "./security-content";
 import { CompanyContent } from "./company-content";
 import { AccountContent } from "./account-content";
 import { IntegrationsContent } from "./integrations-content";
@@ -17,14 +19,18 @@ export async function PreferencesPage({
   intercepted?: boolean;
   notificationPage?: string | string[];
 }) {
-  await (section === "account"
+  await (["account", "appearance", "security"].includes(section)
     ? getActor()
     : section === "members" || section === "company"
       ? requireMemberManager()
       : requireAdmin());
   return (
     <div data-preference-content={section}>
-      {section === "company" ? (
+      {section === "appearance" ? (
+        <AppearanceContent />
+      ) : section === "security" ? (
+        <SecurityContent />
+      ) : section === "company" ? (
         <CompanyContent />
       ) : section === "account" ? (
         <AccountContent />
