@@ -53,6 +53,7 @@ export function AccountSave({ children }: { children: ReactNode }) {
       }
       submitted.current = next;
       next.requestSubmit();
+      requestAnimationFrame(sync);
     };
     advance.current = sync;
     const observer = new MutationObserver(sync);
