@@ -29,7 +29,6 @@ export async function enqueueTicketNotice(
   movement: string,
 ) {
   await lockTicketNotifications(tx);
-  await lockCompanyNotifications(tx, ticket.companyId);
   const operationalEnabled = await ticketNotificationsEnabled(tx);
   const [company] = await tx
     .select({ name: companies.name, archived: companies.archived })

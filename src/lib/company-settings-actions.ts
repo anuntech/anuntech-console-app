@@ -86,8 +86,8 @@ export async function saveNotificationPreferences(
     const key = preferenceKey(companyId, topic);
     await db.transaction(async (tx) => {
       if (companyId) {
-        await lockManagedCompany(tx, actor, companyId);
         await lockCompanyNotifications(tx, companyId, true);
+        await lockManagedCompany(tx, actor, companyId);
       }
       const values = {
         key,

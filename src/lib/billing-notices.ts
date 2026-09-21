@@ -264,31 +264,6 @@ export async function processBillingNotice(
         return;
       }
     }
-    if (notice.channel === "email") {
-      const [suppressed] = await db
-        .select({ id: billingNotices.id })
-        .from(billingNotices)
-        .where(
-          and(
-            eq(billingNotices.channel, "email"),
-            inArray(billingNotices.providerStatus, [
-              "bounced",
-              "complained",
-              "suppressed",
-            ]),
-            sql`${billingNotices.payload}->'to' @> ${JSON.stringify([preferences.email])}::jsonb`,
-          ),
-        )
-        .limit(1);
-      if (suppressed) {
-        await save({
-          status: "failed",
-          error:
-            "O destinatário teve devolução ou bloqueio de e-mail. Revise o endereço no cadastro antes de novos envios.",
-        });
-        return;
-      }
-    }
     // Always check the bank before sending, including after a provider wait/retry.
     checkingBank = true;
     await reconcileCharge(row.i.id, notice.actorId, undefined, "scheduled");
@@ -316,6 +291,31 @@ export async function processBillingNotice(
             "Preferências alteradas durante o processamento; envio interrompido.",
         });
         return;
+      }
+      if (notice.channel === "email") {
+        const [suppressed] = await db
+          .select({ id: billingNotices.id })
+          .from(billingNotices)
+          .where(
+            and(
+              eq(billingNotices.channel, "email"),
+              inArray(billingNotices.providerStatus, [
+                "bounced",
+                "complained",
+                "suppressed",
+              ]),
+              sql`${billingNotices.payload}->'to' @> ${JSON.stringify([preferences.email])}::jsonb`,
+            ),
+          )
+          .limit(1);
+        if (suppressed) {
+          await save({
+            status: "failed",
+            error:
+              "O destinatário teve devolução ou bloqueio de e-mail. Revise o endereço no cadastro antes de novos envios.",
+          });
+          return;
+        }
       }
       if (!row.i.pixCopyPaste && !row.i.boletoLine) {
         await save({ error: "Aguardando dados de pagamento do Inter." });
