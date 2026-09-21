@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/lib/db";
-import { ticketNotices, notificationSettings } from "../src/db/schema";
+import {
+  ticketNotices,
+  notificationSettings,
+  notificationPreferences,
+} from "../src/db/schema";
 import {
   enqueueTicketNotice,
   processTicketNotices,
@@ -64,6 +68,89 @@ try {
   if (!fixture.enabled) {
     assert.equal((await processTicketNotices()).processed, 0);
     assert.equal(requests, 0);
+    const key = `${fixture.companyId}:tickets`;
+    await db
+      .insert(notificationPreferences)
+      .values({
+        key,
+        companyId: fixture.companyId,
+        topic: "tickets",
+        email: "support@example.invalid",
+        phone: "11988887777",
+        emailEnabled: true,
+        whatsappEnabled: false,
+      });
+    await db.transaction((tx) =>
+      enqueueTicketNotice(
+        tx,
+        fixture.eventId,
+        {
+          id: fixture.ticketId,
+          companyId: fixture.companyId,
+          subject: "Company opt-in",
+        },
+        "QA",
+        "Nova resposta",
+      ),
+    );
+    await processTicketNotices();
+    const clientRows = await db
+      .select()
+      .from(ticketNotices)
+      .where(eq(ticketNotices.eventId, fixture.eventId));
+    assert.equal(clientRows.length, 2);
+    assert.ok(clientRows.every((row) => row.preferenceKey === key));
+    assert.equal(
+      clientRows.find((row) => row.channel === "email")?.status,
+      "accepted",
+    );
+    assert.equal(
+      clientRows.find((row) => row.channel === "whatsapp")?.status,
+      "cancelled",
+    );
+    assert.equal(
+      requests,
+      1,
+      "Global toggle does not suppress client opt-in delivery",
+    );
+    await db
+      .update(notificationPreferences)
+      .set({ email: "changed@example.invalid" })
+      .where(eq(notificationPreferences.key, key));
+    await db
+      .update(ticketNotices)
+      .set({ status: "pending", providerId: null, nextAttemptAt: new Date() })
+      .where(
+        eq(
+          ticketNotices.id,
+          clientRows.find((row) => row.channel === "email")!.id,
+        ),
+      );
+    await processTicketNotices();
+    assert.equal(
+      requests,
+      1,
+      "Changed recipient never retries a frozen message to the old address",
+    );
+    const [cancelled] = await db
+      .select()
+      .from(ticketNotices)
+      .where(
+        eq(
+          ticketNotices.id,
+          clientRows.find((row) => row.channel === "email")!.id,
+        ),
+      );
+    assert.equal(cancelled.status, "cancelled");
+    await db
+      .delete(ticketNotices)
+      .where(eq(ticketNotices.eventId, fixture.eventId));
+    await db
+      .delete(notificationPreferences)
+      .where(eq(notificationPreferences.key, key));
+    console.log(
+      "PASS Company opt-in is independent of global toggle; frozen destination changes cancel delivery",
+    );
   } else {
     assert.equal((await processTicketNotices()).processed, 2);
     const delivered = await db
