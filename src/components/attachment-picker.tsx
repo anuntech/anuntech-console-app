@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
-import { FileText, UploadCloud, X } from "lucide-react";
+import { FileText, ImageIcon, UploadCloud, X } from "lucide-react";
 import styles from "./attachment-picker.module.css";
 export function AttachmentPicker({
   name = "files",
@@ -100,15 +100,17 @@ export function AttachmentPicker({
           aria-invalid={!!error}
           onChange={(event) => add(Array.from(event.currentTarget.files || []))}
         />
-        <UploadCloud size={25} aria-hidden="true" />
-        <span>
-          <strong>Clique para selecionar</strong> ou arraste{" "}
-          {multiple ? "os arquivos" : "um arquivo"}
+        <span className={styles.icons} aria-hidden="true">
+          <span><ImageIcon size={20} /></span>
+          <span><FileText size={20} /></span>
+          <span><UploadCloud size={20} /></span>
         </span>
+        <strong>{dragging ? "Solte os arquivos aqui" : "Arraste seus arquivos para cá"}</strong>
         <small id={`${id}-hint`}>
           PDF, PNG, JPEG ou WebP · {multiple ? "Até 5 arquivos e " : "Até "}20
           MB
         </small>
+        <span className={styles.browse}><UploadCloud size={16} aria-hidden="true" />{multiple ? "Selecionar arquivos" : "Selecionar arquivo"}</span>
       </label>
       {!!files.length && (
         <ul className={styles.files}>
@@ -138,7 +140,6 @@ export function AttachmentPicker({
           ))}
         </ul>
       )}
-      <p className={styles.hint}>Fotos são otimizadas automaticamente.</p>
       {error && (
         <p role="alert" className="form-error">
           {error}
