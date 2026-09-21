@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Camera, Trash2, Pencil } from "lucide-react";
+import { optimizeImage } from "@/lib/client-image";
 import { toast } from "@/components/notifications";
 import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/avatar-catalog";
 import {
@@ -65,8 +66,8 @@ export function ProfileAvatar({
 
   async function update(file: File | null, selected?: string) {
     if (lock.current) return;
-    if (file && (!file.size || file.size > 2 * 1024 * 1024)) {
-      setFeedback({ kind: "error", message: "A foto deve ter até 2 MB." });
+    if (file && (!file.size || file.size > 20 * 1024 * 1024)) {
+      setFeedback({ kind: "error", message: "A foto deve ter até 20 MB." });
       return;
     }
     if (
@@ -82,6 +83,7 @@ export function ProfileAvatar({
     lock.current = true;
     setPending(selected ? "select" : file ? "upload" : "remove");
     try {
+      if (file) file = await optimizeImage(file, 512);
       const response = await fetch("/api/conta/foto", {
         method: selected ? "PATCH" : file ? "POST" : "DELETE",
         ...(selected

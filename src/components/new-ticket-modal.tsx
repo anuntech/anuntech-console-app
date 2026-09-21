@@ -2,14 +2,13 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Headset, Paperclip } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
-import { ActionForm } from "./action-form";
+import { TicketActionForm } from "./ticket-action-form";
 import { Field } from "./ui";
 import { createTicket } from "@/lib/actions";
 import styles from "./new-ticket-modal.module.css";
@@ -35,15 +34,6 @@ export function NewTicketModal({
   if (pathname !== "/chamados/novo") return null;
   const content = (
     <>
-      {" "}
-      <aside className={styles.sidebar}>
-        <Headset size={26} aria-hidden="true" />
-        <strong>Atendimento</strong>
-        <p>{company?.name || "Novo chamado"}</p>
-        <span>
-          <Paperclip size={16} aria-hidden="true" /> Anexos opcionais
-        </span>
-      </aside>
       <div className={styles.content}>
         {hydrated ? (
           <DialogTitle className={styles.title}>Abrir chamado</DialogTitle>
@@ -58,7 +48,7 @@ export function NewTicketModal({
           <p className={styles.description}>Como podemos ajudar?</p>
         )}
         {company ? (
-          <ActionForm
+          <TicketActionForm
             action={createTicket}
             label="Abrir chamado"
             onPendingChange={(value) => {
@@ -87,16 +77,16 @@ export function NewTicketModal({
             </Field>
             <Field
               label="Anexos (opcional)"
-              hint="Até 5 arquivos PDF, PNG ou JPEG. Máximo de 1 MB no total."
+              hint="Até 5 arquivos, com 20 MB no total. Fotos são otimizadas automaticamente."
             >
               <input
                 name="files"
                 type="file"
-                accept="application/pdf,image/png,image/jpeg"
+                accept="application/pdf,image/png,image/jpeg,image/webp"
                 multiple
               />
             </Field>
-          </ActionForm>
+          </TicketActionForm>
         ) : (
           <div className={styles.empty}>
             <p>

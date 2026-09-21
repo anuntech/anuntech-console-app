@@ -1,6 +1,7 @@
 "use client";
 import {
   useActionState,
+  startTransition,
   useEffect,
   useId,
   useRef,
@@ -28,6 +29,7 @@ export type ActionConfirmation = {
 };
 export type ActionFormProps = {
   action: FormAction;
+  prepare?: (form: FormData) => Promise<FormData>;
   children: React.ReactNode;
   label?: string;
   submitAriaLabel?: string;
@@ -43,6 +45,7 @@ export type ActionFormProps = {
 
 export function ActionForm({
   action,
+  prepare,
   children,
   label = "Salvar",
   submitAriaLabel,
@@ -54,7 +57,9 @@ export function ActionForm({
   onSuccess,
   cancel,
 }: ActionFormProps) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, formAction, actionPending] = useActionState(action, {});
+  const [preparing, setPreparing] = useState(false);
+  const pending = actionPending || preparing;
   const [confirmationFor, setConfirmationFor] = useState<ActionState | null>(
     null,
   );
@@ -94,8 +99,7 @@ export function ActionForm({
     if (state.error) {
       errorRef.current?.focus();
     }
-    if (state.success)
-      toast.success(state.success);
+    if (state.success) toast.success(state.success);
     if (state.success || state.href) onSuccess?.();
     if (state.href) router.push(state.href);
     else if (state.success) {
@@ -126,10 +130,40 @@ export function ActionForm({
       setConfirmationFor(state);
       return;
     }
+    event.preventDefault();
     setValidationError("");
     invalidReturnFocus.current = null;
     submissionLock.current = true;
     onPendingChange?.(true);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const form = new FormData(
+      event.currentTarget,
+      submitter instanceof HTMLButtonElement ||
+        submitter instanceof HTMLInputElement
+        ? submitter
+        : undefined,
+    );
+    if (!prepare) startTransition(() => formAction(form));
+    else {
+      setPreparing(true);
+      startTransition(async () => {
+        try {
+          const prepared = await prepare(form);
+          startTransition(() => formAction(prepared));
+        } catch (error) {
+          submissionLock.current = false;
+          setValidationError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível enviar. Seus dados foram mantidos; tente novamente.",
+          );
+          onPendingChange?.(false);
+          requestAnimationFrame(() => errorRef.current?.focus());
+        } finally {
+          setPreparing(false);
+        }
+      });
+    }
   }
   function confirmSubmission() {
     if (pending || submissionLock.current) return;

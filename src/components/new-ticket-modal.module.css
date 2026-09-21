@@ -1,36 +1,12 @@
 .modal {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   padding: 0;
-  width: min(920px, calc(100vw - 48px));
+  width: min(760px, calc(100vw - 48px));
   max-height: 91dvh;
   border-radius: 18px;
   overflow: hidden;
   background: var(--background);
-}
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 32px 24px;
-  border-right: 1px solid var(--border);
-  background: var(--settings-sidebar);
-}
-.sidebar > svg {
-  color: var(--primary);
-}
-.sidebar p {
-  font-size: 0.875rem;
-  overflow-wrap: anywhere;
-  color: var(--muted-foreground);
-}
-.sidebar span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
-  margin-top: auto;
 }
 .content {
   padding: 32px;
@@ -57,9 +33,6 @@
   .modal {
     grid-template-columns: minmax(0, 1fr);
     width: calc(100vw - 24px);
-  }
-  .sidebar {
-    display: none;
   }
   .content {
     padding: 24px;

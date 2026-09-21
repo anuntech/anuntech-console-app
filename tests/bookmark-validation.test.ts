@@ -29,14 +29,14 @@ test("new ticket attachments validate content and aggregate size before persiste
       prepareTicketFiles([
         new File(["<script>"], "fake.pdf", { type: "application/pdf" }),
       ]),
-    /válidos/,
+    /válida/,
   );
   await assert.rejects(
     () =>
       prepareTicketFiles([
-        new File([new Uint8Array(1024 * 1024 + 1)], "large.pdf"),
+        new File([new Uint8Array(20 * 1024 * 1024 + 1)], "large.pdf"),
       ]),
-    /1 MB/,
+    /20 MB/,
   );
   assert.deepEqual(await prepareTicketFiles([new File([], "")]), []);
   const [file] = await prepareTicketFiles([

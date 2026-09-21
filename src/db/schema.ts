@@ -594,3 +594,15 @@ export const bookmarks = pgTable("console_bookmarks", {
   authorId: text("author_id").notNull().references(() => user.id),
   createdAt: created(),
 }, (t) => [index("console_bookmark_company_idx").on(t.companyId)]);
+
+export const ticketUploads = pgTable("console_ticket_uploads", {
+  id: text("id").primaryKey(),
+  authorId: text("author_id").notNull().references(() => user.id),
+  name: text("name").notNull(),
+  expectedSize: integer("expected_size").notNull(),
+  receivedSize: integer("received_size").notNull().default(0),
+  content: bytea("content").notNull(),
+  mime: text("mime"),
+  ready: boolean("ready").notNull().default(false),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [index("console_ticket_upload_author_idx").on(t.authorId)]);
