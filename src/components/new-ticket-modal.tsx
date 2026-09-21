@@ -13,6 +13,7 @@ import { AttachmentPicker } from "./attachment-picker";
 import { TicketActionForm } from "./ticket-action-form";
 import { Field } from "./ui";
 import { createTicket } from "@/lib/actions";
+import pattern from "./ui/form-pattern.module.css";
 import styles from "./new-ticket-modal.module.css";
 const subscribe = () => () => {};
 export function NewTicketModal({
@@ -36,7 +37,7 @@ export function NewTicketModal({
   if (pathname !== "/chamados/novo") return null;
   const content = (
     <>
-      <div className={styles.content}>
+      <div className={`${styles.content} ${pattern.surface}`}>
         {hydrated ? (
           <DialogTitle className={styles.title}>Abrir chamado</DialogTitle>
         ) : (
@@ -50,38 +51,45 @@ export function NewTicketModal({
           <p className={styles.description}>Como podemos ajudar?</p>
         )}
         {company ? (
-          <TicketActionForm
-            action={createTicket}
-            label="Abrir chamado"
-            onPendingChange={(value) => {
-              busy.current = value;
-              setPending(value);
-            }}
+          <div
+            className={`${pattern.card} ${pattern.rows} ${pattern.creation}`}
           >
-            <input name="companyId" type="hidden" value={company.id} />
-            <Field label="Assunto">
-              <input
-                name="subject"
-                required
-                maxLength={160}
-                placeholder="Um resumo da sua solicitação"
-                autoFocus
-              />
-            </Field>
-            <Field label="Descrição">
-              <textarea
-                name="body"
-                required
-                maxLength={10000}
-                rows={7}
-                placeholder="Descreva o que precisa."
-              />
-            </Field>
-            <details className={styles.attachments}>
-              <summary><Paperclip size={18} aria-hidden="true" /> Adicionar anexos <ChevronDown size={16} aria-hidden="true" /></summary>
-              <AttachmentPicker />
-            </details>
-          </TicketActionForm>
+            <TicketActionForm
+              action={createTicket}
+              label="Abrir chamado"
+              onPendingChange={(value) => {
+                busy.current = value;
+                setPending(value);
+              }}
+            >
+              <input name="companyId" type="hidden" value={company.id} />
+              <Field label="Assunto">
+                <input
+                  name="subject"
+                  required
+                  maxLength={160}
+                  placeholder="Um resumo da sua solicitação"
+                  autoFocus
+                />
+              </Field>
+              <Field label="Descrição">
+                <textarea
+                  name="body"
+                  required
+                  maxLength={10000}
+                  rows={7}
+                  placeholder="Descreva o que precisa."
+                />
+              </Field>
+              <details className={styles.attachments}>
+                <summary>
+                  <Paperclip size={18} aria-hidden="true" /> Adicionar anexos{" "}
+                  <ChevronDown size={16} aria-hidden="true" />
+                </summary>
+                <AttachmentPicker />
+              </details>
+            </TicketActionForm>
+          </div>
         ) : (
           <div className={styles.empty}>
             <p>

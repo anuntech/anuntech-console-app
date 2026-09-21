@@ -1,4 +1,5 @@
 import "server-only";
+import pattern from "@/components/ui/form-pattern.module.css";
 import { getActor, requireAdmin } from "@/lib/access";
 import { requireMemberManager } from "@/lib/member-access";
 import { AppearanceContent } from "./appearance-content";
@@ -27,7 +28,7 @@ export async function PreferencesPage({
       ? requireMemberManager()
       : requireAdmin());
   return (
-    <div data-preference-content={section}>
+    <div data-preference-content={section} className={`${pattern.surface} ${section === "account" ? "" : pattern.rows}`}>
       {section === "appearance" ? (
         <AppearanceContent />
       ) : section === "security" ? (

@@ -27,7 +27,7 @@ export async function SecurityContent() {
           <span>{entry.status === "current" ? "Esta sessão" : entry.status === "active" ? "Ativa" : entry.status === "expired" ? "Expirada" : "Encerrada"}</span>
         </li>)}
       </ul>
-      <p className="muted">Últimas 20 sessões. Horários de Brasília. O histórico de acessos encerrados começa a partir desta atualização.</p>
+      <p className="muted">Últimas 20 sessões · Horário de Brasília.</p>
     </section>
   </div>;
 }

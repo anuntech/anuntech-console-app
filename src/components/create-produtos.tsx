@@ -1,10 +1,8 @@
 import { CreationModal } from "./creation-modal";
-import { Building2 } from "lucide-react";
 import { requireAdmin, accessibleCompanies } from "@/lib/access";
 import { createEngagement } from "@/lib/actions";
 import { ActionForm } from "@/components/action-form";
 import { Field, Empty } from "@/components/ui";
-import styles from "@/app/(secure)/empresas/management.module.css";
 
 export async function NewProduct({
   intercepted = false,
@@ -26,13 +24,6 @@ export async function NewProduct({
           {companies.length ? (
             <ActionForm action={createEngagement} label="Adicionar">
               <section className="form-section">
-                <div className={styles.sectionHeader}>
-                  <Building2 size={19} aria-hidden="true" />
-                  <div>
-                    <h2>Vínculo com o cliente</h2>
-                    <p>Escolha a empresa e a categoria deste relacionamento.</p>
-                  </div>
-                </div>
                 <div className="form-grid">
                   <Field label="Empresa">
                     <select name="companyId" required>

@@ -15,28 +15,26 @@ export async function AccountContent() {
   return (
     <div className={styles.content}>
       <section className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <h2>Informações pessoais</h2>
-        </div>
         <div className={`${styles.card} ${styles.accountCard}`}>
           <div className={styles.accountPhoto}>
             <span className={styles.accountPhotoLabel}>Foto de perfil</span>
             <div className={styles.accountPhotoControl}>
-            <ProfileAvatar name={actor.user.name} image={actor.user.image ?? null} />
+              <ProfileAvatar
+                name={actor.user.name}
+                image={actor.user.image ?? null}
+              />
             </div>
           </div>
           <div className={styles.accountFields}>
-          <AccountName name={actor.user.name} />
-          <AccountEmails
-            primaryEmail={actor.user.email}
-            securityEnabled={enabled}
-
-          />
-          <WhatsappAccount phone={phone} securityEnabled={enabled} />
+            <AccountName name={actor.user.name} />
+            <AccountEmails
+              primaryEmail={actor.user.email}
+              securityEnabled={enabled}
+            />
+            <WhatsappAccount phone={phone} securityEnabled={enabled} />
           </div>
         </div>
       </section>
-
     </div>
   );
 }

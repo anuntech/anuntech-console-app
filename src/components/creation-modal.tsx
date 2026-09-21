@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
+import pattern from "./ui/form-pattern.module.css";
 import styles from "./creation-modal.module.css";
 const subscribe = () => () => {};
 const BusyContext = createContext<((busy: boolean) => void) | null>(null);
@@ -49,7 +50,13 @@ export function CreationModal({
   }, []);
   if (pathname !== path) return null;
   const body = (
-    <BusyContext.Provider value={setBusy}>{children}</BusyContext.Provider>
+    <BusyContext.Provider value={setBusy}>
+      <div
+        className={`${pattern.surface} ${pattern.rows} ${pattern.card} ${pattern.creation}`}
+      >
+        {children}
+      </div>
+    </BusyContext.Provider>
   );
   if (!hydrated)
     return (

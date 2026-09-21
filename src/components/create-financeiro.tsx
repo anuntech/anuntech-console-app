@@ -39,10 +39,10 @@ export async function NewInvoice({
       intercepted={intercepted}
     >
       <div className="stack">
-        <section className={styles.section}>
+        <section>
           {companies.length ? (
             <ActionForm action={createInvoice} label="Salvar rascunho">
-              <div className={styles.formSection}>
+              <div className="creation-form-section">
                 <h2>Cliente e produto</h2>
                 <p>Selecione quem receberá esta cobrança.</p>
                 <CompanyPicker companies={companies} engagements={items} />
@@ -59,7 +59,7 @@ export async function NewInvoice({
                   />
                 </Field>
               </div>
-              <div className={styles.formSection}>
+              <div className="creation-form-section">
                 <h2>Condições da cobrança</h2>
                 <p>Defina a frequência, o valor e a data de vencimento.</p>
                 <BillingTypeInput />

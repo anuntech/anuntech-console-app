@@ -378,7 +378,7 @@ export function PreferencesDialog({
               <h1 id="preferences-title" className={styles.title}>
                 {title}
               </h1>
-              <p className={styles.description}>{description}</p>
+              <p className="sr-only">{description}</p>
             </header>
             <div className={styles.body}>{children}</div>
           </div>
@@ -414,7 +414,7 @@ export function PreferencesDialog({
                 >
                   {title}
                 </Dialog.Title>
-                <Dialog.Description className={styles.description}>
+                <Dialog.Description className="sr-only">
                   {description}
                 </Dialog.Description>
               </header>
