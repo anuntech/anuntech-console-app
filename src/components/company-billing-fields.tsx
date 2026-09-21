@@ -169,7 +169,7 @@ export function CompanyBillingFields({
           </p>
         </div>
         <div className="form-grid">
-          <Field label="CPF ou CNPJ">
+          <Field label="CNPJ">
             <NumberFormatBase
               format={formatDocument}
               removeFormatting={onlyDigits}
@@ -187,7 +187,7 @@ export function CompanyBillingFields({
               value={values.document}
             />
           </Field>
-          <Field label="Nome ou razão social">
+          <Field label="Razão social">
             <input
               name="name"
               autoComplete="organization"
