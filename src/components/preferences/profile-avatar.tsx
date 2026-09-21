@@ -1,10 +1,10 @@
 "use client";
 
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Camera, Trash2, Smile } from "lucide-react";
-import { Notification } from "@/components/notifications";
+import { toast } from "@/components/notifications";
 import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/avatar-catalog";
 import {
   Dialog,
@@ -42,7 +42,6 @@ export function ProfileAvatar({
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadRef = useRef<HTMLButtonElement>(null);
   const lock = useRef(false);
-  const id = useId();
   const [change, setChange] = useState<{
     previous: string | null;
     image: string | null;
@@ -51,10 +50,9 @@ export function ProfileAvatar({
   const [pending, setPending] = useState<"upload" | "remove" | "select" | null>(
     null,
   );
-  const [feedback, setFeedback] = useState<{
-    kind: "success" | "error";
-    message: string;
-  } | null>(null);
+  const setFeedback = (feedback: { kind: "success" | "error"; message: string }) => {
+    toast[feedback.kind](feedback.message);
+  };
   const current = change?.previous === image ? change.image : image;
   const source = profileAvatarSource(current);
   const initials = name
@@ -67,7 +65,6 @@ export function ProfileAvatar({
 
   async function update(file: File | null, selected?: string) {
     if (lock.current) return;
-    setFeedback(null);
     if (file && (!file.size || file.size > 2 * 1024 * 1024)) {
       setFeedback({ kind: "error", message: "A foto deve ter até 2 MB." });
       return;
@@ -144,7 +141,6 @@ export function ProfileAvatar({
           source ? "Alterar foto de perfil" : "Adicionar foto de perfil"
         }
         aria-disabled={!!pending}
-        aria-describedby={`${id}-hint${feedback?.kind === "error" ? ` ${id}-feedback` : ""}`}
         onClick={() => {
           if (!lock.current) inputRef.current?.click();
         }}
@@ -228,9 +224,6 @@ export function ProfileAvatar({
             ))}
           </div>
           <p role="status">{pending === "select" ? "Salvando avatar…" : ""}</p>
-          {feedback?.kind === "error" && (
-            <Notification kind="error" message={feedback.message} />
-          )}
         </DialogContent>
       </Dialog>
       {source && !isCatalogAvatar(current) && (
@@ -239,18 +232,12 @@ export function ProfileAvatar({
             type="button"
             className={`button ghost ${styles.button}`}
             aria-disabled={!!pending}
-            aria-describedby={
-              feedback?.kind === "error" ? `${id}-feedback` : undefined
-            }
             onClick={() => void update(null)}
           >
             <Trash2 size={14} aria-hidden="true" /> Remover foto
           </button>
         </div>
       )}
-      <p id={`${id}-hint`} className={styles.hint}>
-        PNG, JPEG ou WebP. Até 2 MB.
-      </p>
       <div role="status" aria-atomic="true" className={styles.progress}>
         {pending && (
           <>
@@ -273,13 +260,7 @@ export function ProfileAvatar({
           </>
         )}
       </div>
-      {feedback && (
-        <Notification
-          id={`${id}-feedback`}
-          kind={feedback.kind}
-          message={feedback.message}
-        />
-      )}
+
     </div>
   );
 }

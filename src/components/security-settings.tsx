@@ -3,7 +3,7 @@ import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { Badge, Field } from "./ui";
-import { Notification } from "./notifications";
+import { Notification, toast } from "./notifications";
 import { useCooldown } from "./otp-login";
 import { securityRequest } from "./security-request";
 import type { SecurityChannel } from "@/lib/security-policy";
@@ -13,7 +13,6 @@ type Proof = { changeId: string; stage: SecurityChannel; destination: string };
 export function SecuritySettings({
   enabled,
   channel,
-  email,
   phone,
 }: {
   enabled: boolean;
@@ -71,7 +70,7 @@ export function SecuritySettings({
         }>("verify-change", { changeId: proof.changeId, code });
         if (result.complete) {
           setProof(null);
-          setMessage(
+          toast.success(
             "Configuração de segurança atualizada. As outras sessões foram encerradas.",
           );
           router.refresh();
@@ -130,21 +129,14 @@ export function SecuritySettings({
         </Badge>
       </div>
       <p className="muted">
-        Ao entrar por e-mail, confirme também um código no WhatsApp. Ao entrar
-        pelo WhatsApp, confirme um código no e-mail. Seu acesso continua sem
-        senha.
+        Confirme o acesso com códigos no e-mail e no telefone, sem senha.
       </p>
       {!phone ? (
         <p className="muted">
-          Confirme seu WhatsApp acima para ativar. Você precisa manter acesso ao
-          e-mail {email} e ao número vinculado.
+          Verifique seu telefone para ativar.
         </p>
       ) : (
         <>
-          <p className="muted">
-            Para alterar esta proteção, confirme códigos nos dois contatos.
-            Enquanto estiver ativa, desative-a antes de alterar seus contatos.
-          </p>
           {!proof ? (
             <div className="form">
               <Field label="Segunda etapa ao entrar com Google">

@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "./notifications";
 
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -139,7 +140,7 @@ export function WhatsappAccount({
         setNumber(next);
         setSent(false);
         setCode("");
-        setMessage(
+        toast.success(
           action === "remove"
             ? "Telefone removido."
             : "Telefone confirmado e atualizado.",

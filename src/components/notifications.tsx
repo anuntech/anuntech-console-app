@@ -14,6 +14,10 @@ export function Notification({
   id?: string;
 }) {
   const fallbackId = useId();
+  useEffect(() => {
+    if (kind === "success") toast.success(message);
+  }, [kind, message]);
+  if (kind === "success") return null;
   const Icon = {
     success: CircleCheck,
     error: CircleAlert,

@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
+import { toast } from "@/components/notifications";
 import { useRouter } from "next/navigation";
 import { setTicketNotifications } from "@/lib/notification-actions";
 import styles from "./notifications-content.module.css";
@@ -48,6 +49,7 @@ export function NotificationToggle({ enabled }: { enabled: boolean }) {
               if (result.error) setError(result.error);
               else {
                 setChange({ previous: enabled, value: next });
+                toast.success("Preferências de notificações atualizadas.");
                 router.refresh();
               }
             } catch {

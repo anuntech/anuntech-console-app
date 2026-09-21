@@ -2,7 +2,7 @@
 
 ## Perfil
 
-Minha conta mantém a organização dos Ajustes: foto e identificação no topo, informações pessoais, contatos e segurança. Nome, e-mail principal e telefone são editados diretamente nos respectivos campos. As ações Salvar e Cancelar aparecem quando há alterações; erros permanecem no contexto e campos inválidos recebem foco. Selects usam o controle nativo do navegador.
+Minha conta mantém a organização dos Ajustes: foto e identificação no topo, informações pessoais, contatos e segurança. Nome, e-mail principal e telefone são editados diretamente nos respectivos campos. As ações Salvar e Cancelar aparecem quando há alterações; erros permanecem no contexto e campos inválidos recebem foco. Selects mantêm a interação nativa com visual personalizado. Campos usam fundo suave, bordas discretas e foco visível.
 
 A própria foto é um botão com nome acessível para adicionar ou alterar o avatar. A câmera aparece ao passar o ponteiro ou receber foco; em dispositivos de toque, o indicador permanece visível. O botão abre o seletor de arquivos nativo. Remover foto continua sendo uma ação separada, disponível quando existe imagem.
 
@@ -83,3 +83,7 @@ Validação: `npm run test:integration -- --members-only` e `--notifications-onl
 Financial and support notification preferences have separate email, telephone and channel flags. Without a saved preference, financial notices retain the company billing contacts and enabled channels; client support notices remain off. Changes do not emit test messages or replay old events. The Anuntech operation switch and its paginated history remain separate from company recipients.
 
 Workers validate current destinations before delivery, honor disabled channels, and preserve immutable retry payloads. Changing a destination cancels an old pending retry instead of retargeting it. Already accepted deliveries remain eligible for delivery-status checks. Financial notices still require current Inter reconciliation and stop after payment. Preference writes synchronize with in-flight company dispatches.
+
+### Refinamento de Minha conta — 20/09/2026
+
+Confirmações de salvamento usam notificações flutuantes compartilhadas. Erros de campos permanecem associados ao formulário. Formato e limite da foto aparecem apenas quando o arquivo é inválido. Minha conta oferece somente a troca do e-mail principal com os dois códigos, sem opção de adicionar contatos extras; aliases anteriores ficam preservados internamente para manter vínculos. A explicação de segurança foi reduzida sem alterar as verificações.

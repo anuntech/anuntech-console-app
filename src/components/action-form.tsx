@@ -70,6 +70,7 @@ export function ActionForm({
   const bypassConfirmation = useRef(false);
   const submissionLock = useRef(false);
   const errorId = useId();
+  const handledResponse = useRef<ActionState | null>(null);
   const error = validationError || state.error;
   const confirmation =
     confirm === false
@@ -87,11 +88,13 @@ export function ActionForm({
   const confirmationOpen = !!confirmation && confirmationFor === state;
 
   useEffect(() => {
+    if (handledResponse.current === state) return;
+    handledResponse.current = state;
     submissionLock.current = false;
     if (state.error) {
       errorRef.current?.focus();
     }
-    if (state.success && (onSuccess || state.href))
+    if (state.success)
       toast.success(state.success);
     if (state.success || state.href) onSuccess?.();
     if (state.href) router.push(state.href);
@@ -202,7 +205,7 @@ export function ActionForm({
         aria-live="polite"
         aria-atomic="true"
       >
-        {pending ? "Enviando. Aguarde a confirmação." : state.success || ""}
+        {pending ? "Enviando. Aguarde a confirmação." : ""}
       </p>
       {confirmation && (
         <AlertDialog

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import { updateAccountName } from "@/lib/account-actions";
 import type { ActionState } from "@/lib/action-state";
+import { toast } from "@/components/notifications";
 import { Field, focusFirstInvalid } from "@/components/field";
 import styles from "./account-fields.module.css";
 
@@ -25,7 +26,10 @@ export function AccountName({ name }: { name: string }) {
   const visibleError = state.submitted === value ? state.error : undefined;
   useEffect(() => {
     if (state.error) error.current?.focus();
-    else if (state.success) input.current?.focus();
+    else if (state.success) {
+      toast.success(state.success);
+      input.current?.focus();
+    }
   }, [state]);
 
   return (
@@ -81,7 +85,7 @@ export function AccountName({ name }: { name: string }) {
         </div>
       )}
       <p role="status" className={styles.feedback}>
-        {pending ? "Salvando nome…" : !changed ? state.success : ""}
+        {pending ? "Salvando nome…" : ""}
       </p>
     </form>
   );
