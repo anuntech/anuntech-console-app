@@ -163,6 +163,9 @@ export function WhatsappAccount({
       <form
         onInvalidCapture={(event) => focusFirstInvalid(event.currentTarget)}
         className={`${styles.fieldRow} ${styles.divider}`}
+        data-account-order="2"
+        data-account-changed={changed && !securityEnabled}
+        data-account-attention={sent || confirmOpen || !!error}
         aria-label="Telefone"
         aria-busy={busy}
         onSubmit={(event) => {
@@ -238,7 +241,7 @@ export function WhatsappAccount({
           </p>
         )}
         {!securityEnabled && (
-          <div className={styles.actions}>
+          <div className={styles.actions} data-verification={sent || undefined}>
             <button
               type="button"
               className="button"

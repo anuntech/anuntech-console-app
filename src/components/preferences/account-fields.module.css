@@ -67,3 +67,10 @@
     grid-column: 1;
   }
 }
+
+/* One account-level save action; confirmation dialogs retain their own actions. */
+:global(form[data-account-order]) > .actions { display: none; }
+.saveFooter { padding: 18px; border-top: 1px solid var(--border); }
+
+:global(form[data-account-order]) > .actions[data-verification] { display: flex; }
+:global(form[data-account-order]) > .actions[data-verification] > :global(.primary) { display: none; }

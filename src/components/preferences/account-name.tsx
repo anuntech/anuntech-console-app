@@ -37,6 +37,9 @@ export function AccountName({ name }: { name: string }) {
       onInvalidCapture={(event) => focusFirstInvalid(event.currentTarget)}
       action={action}
       className={styles.fieldRow}
+      data-account-order="1"
+      data-account-changed={changed}
+      data-account-attention={!!visibleError}
       aria-label="Nome"
       aria-busy={pending}
     >

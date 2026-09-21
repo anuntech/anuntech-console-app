@@ -46,6 +46,9 @@ function PrimaryEmail({
         onInvalidCapture={(event) => focusFirstInvalid(event.currentTarget)}
         action={action}
         className={fields.fieldRow}
+        data-account-order="3"
+        data-account-changed={changed && !disabled}
+        data-account-attention={open || !!error}
         aria-label="E-mail principal"
         aria-busy={pending}
         onSubmit={(event) => {

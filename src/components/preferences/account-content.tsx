@@ -3,6 +3,7 @@ import { getActor } from "@/lib/access";
 import { WhatsappAccount } from "@/components/whatsapp-account";
 import { AccountEmails } from "./account-emails";
 import { ProfileAvatar } from "./profile-avatar";
+import { AccountSave } from "./account-save";
 import { AccountName } from "./account-name";
 import styles from "./preferences-content.module.css";
 
@@ -26,12 +27,14 @@ export async function AccountContent() {
             </div>
           </div>
           <div className={styles.accountFields}>
-            <AccountName name={actor.user.name} />
-            <AccountEmails
-              primaryEmail={actor.user.email}
-              securityEnabled={enabled}
-            />
-            <WhatsappAccount phone={phone} securityEnabled={enabled} />
+            <AccountSave>
+              <AccountName name={actor.user.name} />
+              <AccountEmails
+                primaryEmail={actor.user.email}
+                securityEnabled={enabled}
+              />
+              <WhatsappAccount phone={phone} securityEnabled={enabled} />
+            </AccountSave>
           </div>
         </div>
       </section>

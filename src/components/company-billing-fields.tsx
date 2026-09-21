@@ -332,15 +332,11 @@ export function CompanyBillingFields({
               ))}
             </select>
           </Field>
-          <Field label="Código IBGE do município (opcional)">
-            <input
-              name="codigoMunicipio"
-              inputMode="numeric"
-              maxLength={7}
-              value={values.codigoMunicipio}
-              onChange={handleChange}
-            />
-          </Field>
+          <input
+            type="hidden"
+            name="codigoMunicipio"
+            value={values.codigoMunicipio}
+          />
         </div>
         <p
           id={`${feedbackId}-cep`}
