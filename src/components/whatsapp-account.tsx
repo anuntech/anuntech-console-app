@@ -173,7 +173,9 @@ export function WhatsappAccount({
         onInvalidCapture={(event) => focusFirstInvalid(event.currentTarget)}
         className={`${styles.fieldRow} ${styles.divider}`}
         data-account-order="2"
-        data-account-changed={changed && !securityEnabled}
+        // While a code is pending this step owns its confirm button, so the
+        // shared Salvar must not submit this form too.
+        data-account-changed={changed && !securityEnabled && !sent}
         data-account-attention={sent || confirmOpen || !!error}
         aria-label="Telefone"
         aria-busy={busy}
@@ -217,7 +219,20 @@ export function WhatsappAccount({
         {sent && (
           <Field
             label="Código de confirmação"
-            hint="Digite os 6 números recebidos. Válido por 5 minutos."
+            hint={
+              <>
+                Digite os 6 números recebidos. Válido por 5 minutos. Não
+                chegou?{" "}
+                <button
+                  type="button"
+                  className={styles.resend}
+                  disabled={busy || seconds > 0}
+                  onClick={() => void act("send")}
+                >
+                  {seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
+                </button>
+              </>
+            }
           >
             <input
               ref={codeInput}
@@ -259,23 +274,6 @@ export function WhatsappAccount({
             >
               Cancelar
             </button>
-            {sent && (
-              <button
-                type="button"
-                className="button"
-                disabled={busy || seconds > 0}
-                aria-label={
-                  seconds
-                    ? "Reenviar código. Aguarde um minuto entre envios."
-                    : "Reenviar código"
-                }
-                onClick={() => void act("send")}
-              >
-                <span aria-hidden={seconds > 0 || undefined}>
-                  {seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
-                </span>
-              </button>
-            )}
             <button
               className="button primary"
               disabled={

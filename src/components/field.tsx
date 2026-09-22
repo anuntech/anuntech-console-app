@@ -74,7 +74,7 @@ export function Field({
 }: {
   label: string;
   children: ReactNode;
-  hint?: string;
+  hint?: ReactNode;
 }) {
   const generatedId = useId();
   const container = useRef<HTMLDivElement>(null);
