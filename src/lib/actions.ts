@@ -224,6 +224,7 @@ export async function createTicket(
         row,
         actor.user.name,
         "Chamado aberto",
+        { email: actor.user.email },
       );
       return row;
     });

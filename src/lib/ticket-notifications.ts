@@ -29,6 +29,9 @@ export async function enqueueTicketNotice(
   ticket: { id: string; companyId: string; subject: string },
   actorName: string,
   movement: string,
+  /** Receipt for whoever performed the movement, independent of the company's
+      ticket preferences — those address the company's contacts, not the author. */
+  author?: { email: string } | null,
 ) {
   await lockTicketNotifications(tx);
   const operationalEnabled = await ticketNotificationsEnabled(tx);
@@ -115,6 +118,24 @@ export async function enqueueTicketNotice(
       });
     }
   }
+  const authorEmail = author?.email?.trim().toLowerCase();
+  if (authorEmail)
+    queued.push({
+      id: randomUUID(),
+      // Not "console:tickets" nor a company key: the Console toggle and the
+      // company preferences must not cancel someone's own receipt.
+      preferenceKey: "author:tickets",
+      eventId,
+      ticketId: ticket.id,
+      channel: "email",
+      destination: authorEmail,
+      payload: {
+        from: process.env.EMAIL_FROM || "",
+        to: authorEmail,
+        subject: `${movement} · ${ticket.subject}`,
+        text: `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
+      },
+    });
   if (queued.length)
     await tx
       .insert(ticketNotices)
@@ -188,6 +209,9 @@ async function currentRecipient(
     .innerJoin(companies, eq(companies.id, tickets.companyId))
     .where(eq(tickets.id, row.ticketId));
   if (!ticket || ticket.archived) return false;
+  // A receipt belongs to the person who acted, not to a configured contact
+  // list, so the company preferences below don't apply to it.
+  if (row.preferenceKey === "author:tickets") return true;
   const companyId =
     row.preferenceKey && row.preferenceKey !== "console:tickets"
       ? ticket.companyId
