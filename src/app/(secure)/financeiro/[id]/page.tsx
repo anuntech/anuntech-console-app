@@ -35,7 +35,11 @@ import {
   billingNotices,
 } from "@/db/schema";
 import { getActor, canAccess } from "@/lib/access";
-import { cancelDraft, updateDraft } from "@/lib/actions";
+import {
+  cancelDraft,
+  updateDraft,
+  updateIssuedDescription,
+} from "@/lib/actions";
 import { issueCharge, syncCharge } from "@/lib/billing-actions";
 import { ActionForm } from "@/components/action-form";
 import { FormModal } from "@/components/form-modal";
@@ -199,6 +203,28 @@ export default async function Invoice({
                   </>
                 )}
               </div>
+            )}
+            {actor.admin && i.status === "issued" && (
+              <FormModal
+                trigger="Editar descrição"
+                title="Editar descrição da fatura"
+                description="O valor, o vencimento e o pagador já foram registrados no Inter e não mudam aqui."
+                action={updateIssuedDescription}
+                label="Salvar descrição"
+              >
+                <input type="hidden" name="id" value={i.id} />
+                <Field
+                  label="Descrição"
+                  hint="Vale para a página de pagamento e para os próximos avisos. Mensagens já enviadas mantêm o texto anterior."
+                >
+                  <textarea
+                    name="description"
+                    required
+                    maxLength={1000}
+                    defaultValue={i.description}
+                  />
+                </Field>
+              </FormModal>
             )}
             {actor.admin && i.bankRequest && (
               <div className={styles.bankNote}>

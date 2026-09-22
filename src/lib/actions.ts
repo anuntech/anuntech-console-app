@@ -631,6 +631,42 @@ export async function updateDraft(
     return failure(e);
   }
 }
+/** Only the description: amount, due date and payer are already at the Inter. */
+export async function updateIssuedDescription(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const input = z
+      .object({ id, description: str(1000) })
+      .parse(Object.fromEntries(form));
+    const [row] = await db
+      .update(invoices)
+      .set({ description: input.description })
+      .where(and(eq(invoices.id, input.id), eq(invoices.status, "issued")))
+      .returning({ id: invoices.id, companyId: invoices.companyId });
+    if (!row)
+      return {
+        error: "Somente faturas emitidas e em aberto podem ser editadas.",
+      };
+    await db.insert(auditEvents).values({
+      actorId: actor.user.id,
+      companyId: row.companyId,
+      action: "invoice.description_updated",
+      entityId: row.id,
+    });
+    revalidatePath(`/financeiro/${input.id}`);
+    refresh();
+    return {
+      success:
+        "Descrição atualizada. O boleto e o Pix já emitidos continuam válidos.",
+    };
+  } catch (e) {
+    return failure(e);
+  }
+}
 export async function updateCompany(
   _: ActionState,
   form: FormData,
