@@ -5,6 +5,7 @@ import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Field, focusFirstInvalid } from "./field";
+import { formatPhone } from "@/lib/company-input";
 import { normalizePhone, useCooldown } from "./otp-login";
 import {
   AlertDialog,
@@ -15,6 +16,14 @@ import {
 } from "./ui/alert-dialog";
 import modal from "./ui/modal.module.css";
 import styles from "./preferences/account-fields.module.css";
+
+/** Brazilian numbers get the local mask; another DDI stays exactly as typed. */
+function maskPhone(value: string) {
+  const trimmed = value.trimStart();
+  return /^\+(?!55)/.test(trimmed)
+    ? trimmed.slice(0, 25)
+    : formatPhone(trimmed);
+}
 
 export function WhatsappAccount({
   phone,
@@ -31,7 +40,7 @@ export function WhatsappAccount({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const lock = useRef(false);
   const [saved, setSaved] = useState(phone || "");
-  const [number, setNumber] = useState(phone || "");
+  const [number, setNumber] = useState(maskPhone(phone || ""));
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -51,7 +60,7 @@ export function WhatsappAccount({
     setMessage("");
   }
   function cancel() {
-    setNumber(saved);
+    setNumber(maskPhone(saved));
     setCode("");
     setSent(false);
     clearFeedback();
@@ -100,8 +109,8 @@ export function WhatsappAccount({
       if (result.error) {
         const errorCode = result.error.code;
         if (result.error.status === 401)
-          fail(
-            "Entre novamente para alterar seu telefone. Confirme a alteração nos primeiros 10 minutos após entrar.",
+          toast.error(
+            "Não foi possível validar sua sessão. Entre na conta novamente e refaça a alteração.",
           );
         else if (result.error.status === 429)
           fail("Aguarde antes de pedir outro código.");
@@ -137,7 +146,7 @@ export function WhatsappAccount({
       } else {
         const next = action === "remove" ? "" : normalized;
         setSaved(next);
-        setNumber(next);
+        setNumber(maskPhone(next));
         setSent(false);
         setCode("");
         toast.success(
@@ -200,7 +209,7 @@ export function WhatsappAccount({
             aria-invalid={invalidField === "number" || undefined}
             aria-describedby={error ? `${id}-error` : undefined}
             onChange={(event) => {
-              setNumber(event.target.value);
+              setNumber(maskPhone(event.target.value));
               clearFeedback();
             }}
           />

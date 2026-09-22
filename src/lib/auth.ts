@@ -134,11 +134,11 @@ export const auth = betterAuth({
           if (
             !session?.user.emailVerified ||
             session.user.twoFactorEnabled ||
-            !(await allowedEmail(session.user.email)) ||
-            Date.now() - new Date(session.session.createdAt).getTime() > 600000
+            !(await allowedEmail(session.user.email))
           )
             throw new APIError("UNAUTHORIZED", {
-              message: "Entre novamente para vincular seu WhatsApp.",
+              message:
+                "Não foi possível validar sua sessão para vincular o WhatsApp.",
             });
         } else {
           const [user] = await db
@@ -169,11 +169,11 @@ export const auth = betterAuth({
         const session = await getSessionFromCtx(ctx);
         if (
           !session?.user.emailVerified ||
-          !(await allowedEmail(session.user.email)) ||
-          Date.now() - new Date(session.session.createdAt).getTime() > 600000
+          !(await allowedEmail(session.user.email))
         )
           throw new APIError("UNAUTHORIZED", {
-            message: "Entre novamente para alterar seu WhatsApp.",
+            message:
+              "Não foi possível validar sua sessão para alterar o WhatsApp.",
           });
         if (
           session.user.twoFactorEnabled ||
