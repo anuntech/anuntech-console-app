@@ -12,7 +12,7 @@ import {
   saveConsoleStaffMember,
 } from "@/lib/members-actions";
 import { ActionForm } from "@/components/action-form";
-import { FormModal } from "@/components/form-modal";
+import { MemberInviteModal } from "./member-invite-modal";
 import { Badge, Empty, Field } from "@/components/ui";
 import { MemberTabs } from "./member-tabs";
 import preferences from "./preferences-content.module.css";
@@ -135,7 +135,7 @@ export async function StaffMembersContent({ actor }: { actor: Actor }) {
       <MemberTabs
         action={
           actor.owner && (
-            <FormModal
+            <MemberInviteModal
               trigger="Convidar pessoa"
               triggerClassName="button primary"
               title="Convidar pessoa"
@@ -158,7 +158,7 @@ export async function StaffMembersContent({ actor }: { actor: Actor }) {
                 Um e-mail de convite é enviado automaticamente para essa
                 pessoa entrar.
               </p>
-            </FormModal>
+            </MemberInviteModal>
           )
         }
         memberCount={members.length + (configuredOwner ? 1 : 0)}

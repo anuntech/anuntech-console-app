@@ -6,7 +6,7 @@ import { settingsEnvironment } from "@/lib/environment";
 import { db } from "@/lib/db";
 import { isCatalogAvatar } from "@/lib/avatar-catalog";
 import { saveCompanyMember } from "@/lib/members-actions";
-import { FormModal } from "@/components/form-modal";
+import { MemberInviteModal } from "./member-invite-modal";
 import { Badge, Empty, Field } from "@/components/ui";
 import { StaffMembersContent } from "./staff-members-content";
 import { MemberTabs } from "./member-tabs";
@@ -139,7 +139,7 @@ export async function MembersContent() {
         members={list(members)}
         invited={list(invited, true)}
         action={
-          <FormModal
+          <MemberInviteModal
             trigger="Convidar pessoa"
             triggerClassName="button primary"
             title="Convidar pessoa"
@@ -164,7 +164,7 @@ export async function MembersContent() {
               Um e-mail de convite é enviado automaticamente para essa pessoa
               entrar.
             </p>
-          </FormModal>
+          </MemberInviteModal>
         }
       />
     </div>

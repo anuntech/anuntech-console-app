@@ -1,6 +1,18 @@
 "use client";
-import { useId, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import styles from "./members-content.module.css";
+
+const ShowInvitedContext = createContext<(() => void) | null>(null);
+/** Lets the invite form reveal the tab where the new person actually lands. */
+export const useShowInvited = () => useContext(ShowInvitedContext);
 
 export function MemberTabs({
   members,
@@ -18,6 +30,7 @@ export function MemberTabs({
   const [active, setActive] = useState(0);
   const id = useId();
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const showInvited = useCallback(() => setActive(1), []);
   return (
     <div>
       <div className={styles.toolbar}>
@@ -63,7 +76,9 @@ export function MemberTabs({
             ),
           )}
         </div>
-        {action}
+        <ShowInvitedContext.Provider value={showInvited}>
+          {action}
+        </ShowInvitedContext.Provider>
       </div>
       {[members, invited].map((content, index) => (
         <div

@@ -24,6 +24,8 @@ type FormModalProps = Omit<
   title: string;
   description: string;
   triggerClassName?: string;
+  /** Runs after the dialog closes on a successful submission. */
+  onSuccess?: () => void;
 };
 /** Short edits stay in context; server HTML/no-JS retains an ordinary functional form. */
 export function FormModal({
@@ -32,6 +34,7 @@ export function FormModal({
   title,
   description,
   triggerClassName = "button",
+  onSuccess,
   ...formProps
 }: FormModalProps) {
   const hydrated = useSyncExternalStore(
@@ -52,7 +55,8 @@ export function FormModal({
     pendingRef.current = false;
     setPending(false);
     setOpen(false);
-  }, []);
+    onSuccess?.();
+  }, [onSuccess]);
   if (!hydrated)
     return (
       <details>
