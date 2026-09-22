@@ -423,7 +423,8 @@ export async function processBillingNotice(
             : {
                 Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
                 "Content-Type": "application/json",
-                "Idempotency-Key": `invoice-${id}`,
+                // Per attempt: a manual resend must not reuse a cached result.
+                "Idempotency-Key": `invoice-${id}-${notice.attempts + 1}`,
               },
           body: JSON.stringify(attempt.payload),
           signal: AbortSignal.timeout(10000),

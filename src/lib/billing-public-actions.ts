@@ -74,6 +74,77 @@ export async function sendInvoiceNotice(
     };
   }
 }
+/** Requeues one delivery that already failed; automatic retry never revisits those. */
+export async function resendBillingNotice(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return { error: "Acesso restrito à administração." };
+  try {
+    const noticeId = z.string().uuid().parse(form.get("noticeId"));
+    const invoiceId = await db.transaction(async (tx) => {
+      const [notice] = await tx
+        .select()
+        .from(billingNotices)
+        .where(eq(billingNotices.id, noticeId))
+        .for("update");
+      if (!notice) throw Error("Aviso não encontrado.");
+      if (!["failed", "expired", "skipped", "uncertain"].includes(notice.status))
+        throw Error(
+          "Este aviso ainda está na fila ou já foi aceito pelo provedor.",
+        );
+      const [i] = await tx
+        .select()
+        .from(invoices)
+        .where(eq(invoices.id, notice.invoiceId));
+      if (!i || i.status !== "issued")
+        throw Error("Reenvie somente cobranças emitidas e em aberto.");
+      if (!i.publicEnabled)
+        throw Error("Ative o link público antes de reenviar.");
+      await tx
+        .update(billingNotices)
+        .set({
+          status: "pending",
+          error: null,
+          nextAttemptAt: new Date(),
+          // The e-mail channel gives up 23h after the first attempt.
+          firstAttemptAt: null,
+          lockedUntil: null,
+          providerId: null,
+          providerStatus: null,
+        })
+        .where(eq(billingNotices.id, noticeId));
+      // Covers a recipient corrected in the notification preferences: the row
+      // above keeps its frozen address, this adds one for each current contact.
+      await enqueueBillingNotice(tx, {
+        invoiceId: notice.invoiceId,
+        companyId: i.companyId,
+        actorId: actor.user.id,
+        channel: notice.channel,
+        kind: notice.kind,
+      });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: i.companyId,
+        action: "invoice.notice_resent",
+        entityId: noticeId,
+        details: { channel: notice.channel, kind: notice.kind },
+      });
+      return notice.invoiceId;
+    });
+    after(() => processBillingNotices());
+    revalidatePath(`/financeiro/${invoiceId}`);
+    return { success: "Reenvio solicitado. A situação atualiza em instantes." };
+  } catch (e) {
+    return {
+      error:
+        e instanceof Error && e.message
+          ? e.message
+          : "Não foi possível reenviar o aviso.",
+    };
+  }
+}
 export async function changePaymentLink(
   _: ActionState,
   form: FormData,

@@ -18,6 +18,7 @@ import { paymentUrl } from "@/lib/payment-link";
 import { issueDate } from "@/lib/recurrence";
 import {
   sendInvoiceNotice,
+  resendBillingNotice,
   changePaymentLink,
   changeSubscription,
   updateSubscription,
@@ -448,6 +449,30 @@ export default async function Invoice({
                           {noticeStatus[notice.status]}
                         </span>
                         {notice.error && <p>{notice.error}</p>}
+                        {actor.admin &&
+                          i.status === "issued" &&
+                          i.publicEnabled &&
+                          ["failed", "expired", "skipped", "uncertain"].includes(
+                            notice.status,
+                          ) && (
+                            <ActionForm
+                              action={resendBillingNotice}
+                              className="compact-form"
+                              label="Reenviar"
+                              submitAriaLabel={`Reenviar aviso por ${notice.channel === "email" ? "e-mail" : "WhatsApp"}`}
+                              confirm={{
+                                title: `Reenviar por ${notice.channel === "email" ? "e-mail" : "WhatsApp"}?`,
+                                description: `${row.company.name} receberá novamente o aviso desta fatura de ${currency(i.amountCents)}. Se o contato foi corrigido nas preferências, o envio também vai para o novo endereço.`,
+                                confirmLabel: "Reenviar",
+                              }}
+                            >
+                              <input
+                                type="hidden"
+                                name="noticeId"
+                                value={notice.id}
+                              />
+                            </ActionForm>
+                          )}
                       </div>
                     </li>
                   ))}

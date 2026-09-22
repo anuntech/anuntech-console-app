@@ -57,6 +57,7 @@ export const auditLabels: Record<string, string> = {
   "invoice.drafted": "Rascunho de fatura criado",
   "invoice.draft_updated": "Rascunho atualizado",
   "invoice.description_updated": "Descrição da fatura atualizada",
+  "invoice.notice_resent": "Reenvio de aviso solicitado",
   "invoice.draft_cancelled": "Rascunho cancelado",
   "access_notice.accepted": "Aviso de acesso aceito pelo Resend",
   "assisted.started": "Acesso assistido iniciado por um administrador",
