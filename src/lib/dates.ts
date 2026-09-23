@@ -25,3 +25,31 @@ export function saoPauloDate(date: Date = new Date()): string {
   const get = (type: string) => parts.find((p) => p.type === type)!.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
+/** The instant a São Paulo wall-clock hour happens on a civil date, whatever the server's zone. */
+export function saoPauloTime(date: string, hour: number): Date {
+  const guess = new Date(`${date}T${String(hour).padStart(2, "0")}:00:00Z`);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: APP_TIME_ZONE,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(guess);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  const wall = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+  );
+  return new Date(guess.getTime() - (wall - guess.getTime()));
+}
+export const BILLING_SEND_HOUR = 8;
+/** Automatic client messages wait for the morning instead of going out at midnight. */
+export function billingSendTime(now: Date = new Date()): Date {
+  const morning = saoPauloTime(saoPauloDate(now), BILLING_SEND_HOUR);
+  return now < morning ? morning : now;
+}

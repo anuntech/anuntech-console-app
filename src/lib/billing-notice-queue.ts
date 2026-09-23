@@ -8,6 +8,7 @@ import {
   noticePhones,
 } from "./notification-preferences";
 import type { BillingNoticeKind } from "./billing-notice-rules";
+import { billingSendTime } from "./dates";
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export async function enqueueBillingNotice(
   tx: Tx,
@@ -18,6 +19,8 @@ export async function enqueueBillingNotice(
     channel: "email" | "whatsapp";
     kind: BillingNoticeKind;
   },
+  /** Only for an admin's explicit send/resend; automatic notices wait until 08h. */
+  options: { immediate?: boolean } = {},
 ) {
   const preferences = await getNoticePreferences(
     input.companyId,
@@ -30,6 +33,7 @@ export async function enqueueBillingNotice(
       : noticePhones(preferences);
   const { companyId: _companyId, ...notice } = input;
   void _companyId;
+  const nextAttemptAt = options.immediate ? new Date() : billingSendTime();
   await tx
     .insert(billingNotices)
     .values(
@@ -37,6 +41,7 @@ export async function enqueueBillingNotice(
         id: randomUUID(),
         ...notice,
         recipient,
+        nextAttemptAt,
       })),
     )
     .onConflictDoNothing();

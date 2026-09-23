@@ -41,13 +41,17 @@ export async function sendInvoiceNotice(
           .update(invoices)
           .set({ publicId: randomBytes(32).toString("base64url") })
           .where(eq(invoices.id, id));
-      await enqueueBillingNotice(tx, {
-        invoiceId: id,
-        companyId: i.companyId,
-        actorId: actor.user.id,
-        channel,
-        kind: "initial",
-      });
+      await enqueueBillingNotice(
+        tx,
+        {
+          invoiceId: id,
+          companyId: i.companyId,
+          actorId: actor.user.id,
+          channel,
+          kind: "initial",
+        },
+        { immediate: true },
+      );
       await tx
         .update(billingNotices)
         .set({ status: "pending", nextAttemptAt: new Date() })
@@ -117,13 +121,17 @@ export async function resendBillingNotice(
         .where(eq(billingNotices.id, noticeId));
       // Covers a recipient corrected in the notification preferences: the row
       // above keeps its frozen address, this adds one for each current contact.
-      await enqueueBillingNotice(tx, {
-        invoiceId: notice.invoiceId,
-        companyId: i.companyId,
-        actorId: actor.user.id,
-        channel: notice.channel,
-        kind: notice.kind,
-      });
+      await enqueueBillingNotice(
+        tx,
+        {
+          invoiceId: notice.invoiceId,
+          companyId: i.companyId,
+          actorId: actor.user.id,
+          channel: notice.channel,
+          kind: notice.kind,
+        },
+        { immediate: true },
+      );
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: i.companyId,

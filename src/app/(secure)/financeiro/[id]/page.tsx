@@ -421,7 +421,8 @@ export default async function Invoice({
               </div>
               <p className={styles.helpText}>
                 Nova cobrança, aviso no vencimento e até 5 lembretes de atraso:
-                5, 10, 15, 20 e 25 dias. Os envios param após a confirmação do
+                5, 10, 15, 20 e 25 dias. Envios automáticos saem a partir das
+                8h (horário de Brasília). Os envios param após a confirmação do
                 pagamento. WhatsApp depende da aprovação dos modelos.
               </p>
               {notices.length > 0 && (
