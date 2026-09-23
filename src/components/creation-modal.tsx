@@ -14,8 +14,8 @@ import {
   DialogContent,
   DialogTitle,
   DialogDescription,
-} from "./ui/dialog";
-import pattern from "./ui/form-pattern.module.css";
+} from "./legacy-ui/dialog";
+import pattern from "./legacy-ui/form-pattern.module.css";
 import styles from "./creation-modal.module.css";
 const subscribe = () => () => {};
 const BusyContext = createContext<((busy: boolean) => void) | null>(null);

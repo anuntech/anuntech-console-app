@@ -13,8 +13,8 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from "@/components/ui/dialog";
-import modal from "@/components/ui/modal.module.css";
+} from "@/components/legacy-ui/dialog";
+import modal from "@/components/legacy-ui/modal.module.css";
 import styles from "./account-emails.module.css";
 import fields from "./account-fields.module.css";
 

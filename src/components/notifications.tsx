@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId } from "react";
 import { toast } from "sonner";
-import { Toaster } from "./ui/sonner";
+import { Toaster } from "./legacy-ui/sonner";
 import { CircleCheck, Info, TriangleAlert, CircleAlert } from "lucide-react";
 export { toast };
 export function Notification({

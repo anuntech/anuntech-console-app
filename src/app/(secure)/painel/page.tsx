@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { companies, tickets, invoices, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Empty, Badge } from "@/components/ui";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/legacy-ui/card";
 import { ticketLabels, invoiceLabels, currency, dateLabel } from "@/lib/format";
 import {
   MessagesSquare,

@@ -1,307 +1,154 @@
-import Link from "next/link";
-import {
-  Archive,
-  Building2,
-  History,
-  Mail,
-  MapPin,
-  Pencil,
-  ReceiptText,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
-import styles from "../management.module.css";
-import { sendAccessNotice } from "@/lib/email-actions";
-import { eq, desc } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, or, sum } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { companies, memberships, auditEvents } from "@/db/schema";
-import { requireAdmin } from "@/lib/access";
-import { startAssistedSession } from "@/lib/assisted-actions";
 import {
-  saveMembership,
-  revokeMembership,
-  updateCompany,
-  setCompanyArchived,
-} from "@/lib/actions";
-import { roleLabels, dateLabel, auditLabels } from "@/lib/format";
-import { ActionForm } from "@/components/action-form";
-import { FormModal } from "@/components/form-modal";
+  accountEmails,
+  auditEvents,
+  companies,
+  contracts,
+  engagements,
+  invoices,
+  memberships,
+  tickets,
+  user,
+} from "@/db/schema";
+import { requireAdmin } from "@/lib/access";
+import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
+import { saoPauloDate } from "@/lib/dates";
+import { CompanyDetail } from "@/components/empresas/company-detail";
 export const metadata = {
   title: "Detalhes da empresa",
   description: "Consulte os dados da empresa, contatos e permissões de acesso.",
 };
-import { Heading, Field, Back, Badge, Empty } from "@/components/ui";
-import { CompanyBillingFields } from "@/components/company-billing-fields";
-import { addressLabel } from "@/lib/company-billing";
 export default async function Company({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireAdmin();
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const [company] = await db
     .select()
     .from(companies)
     .where(eq(companies.id, id));
   if (!company) notFound();
-  const [people, events] = await Promise.all([
+  const [
+    people,
+    events,
+    [ticketRow],
+    [invoiceRow],
+    [contractRow],
+    [engagementRow],
+  ] = await Promise.all([
     db
-      .select()
+      .select({
+        id: memberships.id,
+        email: memberships.email,
+        role: memberships.role,
+        name: user.name,
+        verified: user.emailVerified,
+      })
       .from(memberships)
-      .where(eq(memberships.companyId, id))
+      .leftJoin(
+        accountEmails,
+        and(
+          eq(accountEmails.email, memberships.email),
+          isNotNull(accountEmails.verifiedAt),
+        ),
+      )
+      .leftJoin(
+        user,
+        or(
+          eq(user.email, memberships.email),
+          eq(user.id, accountEmails.userId),
+        ),
+      )
+      .where(and(eq(memberships.companyId, id), eq(memberships.active, true)))
       .orderBy(memberships.email),
     db
-      .select()
+      .select({
+        id: auditEvents.id,
+        action: auditEvents.action,
+        createdAt: auditEvents.createdAt,
+      })
       .from(auditEvents)
       .where(eq(auditEvents.companyId, id))
       .orderBy(desc(auditEvents.createdAt))
-      .limit(15),
+      .limit(12),
+    db
+      .select({ n: count() })
+      .from(tickets)
+      .where(
+        and(
+          eq(tickets.companyId, id),
+          inArray(tickets.status, OPEN_TICKET_STATUSES),
+        ),
+      ),
+    db
+      .select({ n: count(), cents: sum(invoices.amountCents) })
+      .from(invoices)
+      .where(and(eq(invoices.companyId, id), eq(invoices.status, "issued"))),
+    db
+      .select({ n: count() })
+      .from(contracts)
+      .where(eq(contracts.companyId, id)),
+    db
+      .select({ n: count() })
+      .from(engagements)
+      .where(eq(engagements.companyId, id)),
   ]);
+  // One row per person even when an older verified e-mail also matched.
+  const seen = new Set<string>();
+  const members = people.filter((m) => {
+    const key = m.email;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return (
-    <>
-      <Back href="/empresas" label="Empresas" />
-      <Heading
-        eyebrow="CLIENTES"
-        title={company.name}
-        description={`${company.document} · ${company.billingEmail}`}
-      />
-      <div className="member-actions">
-        <Link
-          className="button primary"
-          href={`/chamados/novo?companyId=${id}`}
-        >
-          Abrir chamado
-        </Link>
-        <ActionForm
-          action={startAssistedSession}
-          className="compact-form"
-          label="Entrar como esta empresa"
-          submitAriaLabel={`Entrar como ${company.name}`}
-          confirm={{
-            title: "Entrar como esta empresa?",
-            description: `Você vai ver e usar o Console exatamente como ${company.name} vê, com acesso completo à empresa. Suas telas de administrador ficam ocultas até você sair do modo assistido.`,
-            confirmLabel: "Entrar como esta empresa",
-          }}
-        >
-          <input type="hidden" name="companyId" value={id} />
-        </ActionForm>
-      </div>
-      <div className={styles.stack}>
-        {company.archived && (
-          <div>
-            <Badge status="paused">Cliente arquivado</Badge>
-          </div>
-        )}
-        <section className="panel" aria-label="Resumo do cadastro">
-          <dl className={styles.summaryGrid}>
-            <div>
-              <dt>
-                <MapPin size={15} />
-                Endereço de cobrança
-              </dt>
-              <dd>
-                {company.billingAddress
-                  ? addressLabel(company.billingAddress)
-                  : "Endereço ainda não cadastrado."}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <Mail size={15} />
-                Contato financeiro
-              </dt>
-              <dd>
-                {company.billingEmail}
-                <br />
-                <span className="muted">
-                  {company.phone || "Telefone não informado"}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt>
-                <ReceiptText size={15} />
-                Nota fiscal automática
-              </dt>
-              <dd>
-                {company.autoIssueNfse
-                  ? "Selecionada — integração fiscal pendente"
-                  : "Desativada"}
-              </dd>
-            </div>
-          </dl>
-        </section>
-        <details id="cadastro" className={styles.details}>
-          <summary>
-            <Pencil size={16} />
-            Editar dados da empresa
-          </summary>
-          <div className={styles.detailsContent}>
-            <ActionForm action={updateCompany} label="Salvar dados">
-              <input type="hidden" name="id" value={id} />
-              <CompanyBillingFields company={company} />
-            </ActionForm>
-          </div>
-        </details>
-        <div className={styles.accessLayout}>
-          <section className={`panel ${styles.formCard}`}>
-            <div className={styles.sectionHeader}>
-              <Users size={19} />
-              <div>
-                <h2>
-                  Pessoas com acesso{" "}
-                  <span className={styles.count}>
-                    {people.filter((p) => p.active).length}
-                  </span>
-                </h2>
-                <p>Permissões e contatos vinculados a esta empresa.</p>
-              </div>
-            </div>
-            {people.length ? (
-              people.map((p) => (
-                <div key={p.id} className={styles.personRow}>
-                  <div className={styles.entity}>
-                    <span className={styles.avatar}>
-                      <Building2 size={16} />
-                    </span>
-                    <div>
-                      <strong>{p.email}</strong>
-                      <small>{roleLabels[p.role]}</small>
-                    </div>
-                  </div>
-                  {p.active ? (
-                    <div className="member-actions">
-                      <ActionForm
-                        action={sendAccessNotice}
-                        confirm={{
-                          title: "Enviar aviso de acesso?",
-                          description: `O aviso de acesso a ${company.name} será enviado para ${p.email}.`,
-                        }}
-                        label="Enviar aviso de acesso"
-                        className="compact-form"
-                      >
-                        <input type="hidden" name="id" value={p.id} />
-                      </ActionForm>
-                      <ActionForm
-                        action={revokeMembership}
-                        confirm={{
-                          title: "Revogar este acesso?",
-                          description: `${p.email} perderá as permissões de acesso a ${company.name}. Os registros da empresa serão preservados.`,
-                        }}
-                        label="Revogar"
-                        danger
-                        className="compact-form"
-                      >
-                        <input type="hidden" name="id" value={p.id} />
-                      </ActionForm>
-                    </div>
-                  ) : (
-                    <div>
-                      <Badge status="paused">Revogado</Badge>
-                    </div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <Empty
-                headingLevel={3}
-                title="Nenhum acesso liberado"
-                description="Adicione o e-mail que o cliente usará no Google."
-              />
-            )}
-          </section>
-          <section className={`panel ${styles.formCard}`}>
-            <div className={styles.sectionHeader}>
-              <ShieldCheck size={19} />
-              <div>
-                <h2>Liberar ou atualizar acesso</h2>
-                <p>A permissão se aplica somente a esta empresa.</p>
-              </div>
-            </div>
-            <FormModal
-              trigger="Liberar ou atualizar acesso"
-              title="Liberar ou atualizar acesso"
-              description={`Defina o e-mail e a permissão para ${company.name}. A alteração se aplica somente a esta empresa.`}
-              action={saveMembership}
-              label="Liberar acesso"
-              reset
-            >
-              <input type="hidden" name="companyId" value={id} />
-              <Field label="E-mail Google">
-                <input
-                  name="email"
-                  type="email"
-                  placeholder="nome@empresa.com.br"
-                  required
-                />
-              </Field>
-              <Field label="Permissão">
-                <select name="role" defaultValue="member">
-                  <option value="member">Membro</option>
-                  <option value="manager">Administrador</option>
-                </select>
-              </Field>
-            </FormModal>
-          </section>
-        </div>
-        <section className={`panel ${styles.formCard}`}>
-          <div className={styles.sectionHeader}>
-            <History size={19} />
-            <div>
-              <h2>Histórico administrativo</h2>
-              <p>Últimas alterações registradas neste cadastro.</p>
-            </div>
-          </div>
-          {events.length ? (
-            <ul className={styles.timeline}>
-              {events.map((e) => (
-                <li key={e.id}>
-                  <span>{auditLabels[e.action] || "Registro atualizado"}</span>
-                  <time dateTime={e.createdAt.toISOString()}>
-                    {dateLabel(e.createdAt)}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted">Nenhuma alteração registrada.</p>
-          )}
-        </section>
-        <section className={`panel ${styles.secondaryAction}`}>
-          <div>
-            <h2>
-              <Archive size={16} />{" "}
-              {company.archived ? "Restaurar cliente" : "Arquivar cliente"}
-            </h2>
-            <p>
-              {company.archived
-                ? "Restaure o cliente para que ele volte à lista principal de empresas."
-                : "O cliente sairá da lista principal. O histórico e os acessos serão preservados, e você poderá restaurá-lo em Arquivados."}
-            </p>
-          </div>
-          <ActionForm
-            action={setCompanyArchived}
-            confirm={{
-              title: company.archived
-                ? "Restaurar cliente?"
-                : "Arquivar cliente?",
-              description: company.archived
-                ? `${company.name} voltará à lista principal de empresas.`
-                : `${company.name} sairá da lista principal. Histórico, acessos e cobranças serão preservados; você poderá restaurar o cadastro depois.`,
-            }}
-            label={company.archived ? "Restaurar cliente" : "Arquivar cliente"}
-          >
-            <input type="hidden" name="id" value={id} />
-            <input
-              type="hidden"
-              name="archived"
-              value={company.archived ? "no" : "yes"}
-            />
-          </ActionForm>
-        </section>
-      </div>
-    </>
+    <CompanyDetail
+      editorOpen={typeof query.editar === "string"}
+      data={{
+        company: {
+          id: company.id,
+          name: company.name,
+          document: company.document,
+          billingEmail: company.billingEmail,
+          phone: company.phone,
+          billingAddress: company.billingAddress,
+          autoIssueNfse: company.autoIssueNfse,
+          archived: company.archived,
+          createdAt: saoPauloDate(company.createdAt),
+        },
+        members: members.map((m) => ({
+          id: m.id,
+          email: m.email,
+          name: m.name ?? null,
+          role: m.role,
+          verified: m.verified === true,
+        })),
+        events: events.map((e) => ({
+          id: e.id,
+          action: e.action,
+          createdAt: saoPauloDate(e.createdAt),
+        })),
+        relations: {
+          openTickets: ticketRow?.n ?? 0,
+          openInvoices: invoiceRow?.n ?? 0,
+          openInvoicesCents: Number(invoiceRow?.cents ?? 0),
+          contracts: contractRow?.n ?? 0,
+          engagements: engagementRow?.n ?? 0,
+        },
+        // List screens don't filter by company yet; that arrives with each subject.
+        links: {
+          tickets: "/chamados",
+          invoices: "/financeiro",
+          contracts: "/contratos",
+          engagements: "/produtos",
+        },
+      }}
+    />
   );
 }

@@ -8,12 +8,12 @@ import {
   DialogContent,
   DialogTitle,
   DialogDescription,
-} from "./ui/dialog";
+} from "./legacy-ui/dialog";
 import { AttachmentPicker } from "./attachment-picker";
 import { TicketActionForm } from "./ticket-action-form";
 import { Field } from "./ui";
 import { createTicket } from "@/lib/actions";
-import pattern from "./ui/form-pattern.module.css";
+import pattern from "./legacy-ui/form-pattern.module.css";
 import styles from "./new-ticket-modal.module.css";
 const subscribe = () => () => {};
 export function NewTicketModal({

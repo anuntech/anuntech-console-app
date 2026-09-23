@@ -12,7 +12,7 @@ import {
   DialogContent,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog";
+} from "@/components/legacy-ui/dialog";
 import { IllustratedAvatar } from "./illustrated-avatar";
 import styles from "./profile-avatar.module.css";
 

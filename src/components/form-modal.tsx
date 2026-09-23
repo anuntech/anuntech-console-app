@@ -8,8 +8,8 @@ import {
   DialogDescription,
   DialogTitle,
   DialogTrigger,
-} from "./ui/dialog";
-import styles from "./ui/modal.module.css";
+} from "./legacy-ui/dialog";
+import styles from "./legacy-ui/modal.module.css";
 
 const subscribe = () => () => {};
 const clientSnapshot = () => true;

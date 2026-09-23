@@ -1,5 +1,5 @@
 import "server-only";
-import pattern from "@/components/ui/form-pattern.module.css";
+import pattern from "@/components/legacy-ui/form-pattern.module.css";
 import { getActor, requireAdmin } from "@/lib/access";
 import { requireMemberManager } from "@/lib/member-access";
 import { AppearanceContent } from "./appearance-content";

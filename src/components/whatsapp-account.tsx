@@ -13,8 +13,8 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogCancel,
-} from "./ui/alert-dialog";
-import modal from "./ui/modal.module.css";
+} from "./legacy-ui/alert-dialog";
+import modal from "./legacy-ui/modal.module.css";
 import styles from "./preferences/account-fields.module.css";
 
 /** Brazilian numbers get the local mask; another DDI stays exactly as typed. */

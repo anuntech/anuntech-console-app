@@ -19,8 +19,8 @@ import {
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogTitle,
-} from "./ui/alert-dialog";
-import styles from "./ui/modal.module.css";
+} from "./legacy-ui/alert-dialog";
+import styles from "./legacy-ui/modal.module.css";
 
 export type ActionConfirmation = {
   title: string;

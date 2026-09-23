@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { db } from "@/lib/db";
-import { and, asc, count, eq, ilike, or, sql } from "drizzle-orm";
-import { companies } from "@/db/schema";
+import { and, asc, count, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { companies, memberships, tickets } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
-import { Heading } from "@/components/ui";
-import CrudCompanyManager from "@/components/crud-company-manager";
+import { PageHeader } from "@/components/console/page-header";
+import { CompaniesTable } from "@/components/empresas/companies-table";
+import { NewCompanyButton } from "@/components/empresas/company-sheet";
 import { companyQuery } from "@/lib/company-table";
+import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
 export const metadata: Metadata = {
   title: "Empresas",
   description:
@@ -38,12 +41,13 @@ export default async function Companies({
     .where(scope ?? sql`true`);
   const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
   const page = Math.min(query.page, pageCount);
-  const rows = await db
+  const list = await db
     .select({
       id: companies.id,
       name: companies.name,
       document: companies.document,
       billingEmail: companies.billingEmail,
+      phone: companies.phone,
       archived: companies.archived,
     })
     .from(companies)
@@ -51,15 +55,51 @@ export default async function Companies({
     .orderBy(asc(companies.name))
     .limit(query.pageSize)
     .offset((page - 1) * query.pageSize);
+  const ids = list.map((c) => c.id);
+  const [people, open] = ids.length
+    ? await Promise.all([
+        db
+          .select({ companyId: memberships.companyId, n: count() })
+          .from(memberships)
+          .where(
+            and(
+              inArray(memberships.companyId, ids),
+              eq(memberships.active, true),
+            ),
+          )
+          .groupBy(memberships.companyId),
+        db
+          .select({ companyId: tickets.companyId, n: count() })
+          .from(tickets)
+          .where(
+            and(
+              inArray(tickets.companyId, ids),
+              inArray(tickets.status, OPEN_TICKET_STATUSES),
+            ),
+          )
+          .groupBy(tickets.companyId),
+      ])
+    : [[], []];
+  const peopleBy = new Map(people.map((r) => [r.companyId, r.n]));
+  const openBy = new Map(open.map((r) => [r.companyId, r.n]));
+  const rows = list.map((c) => ({
+    ...c,
+    people: peopleBy.get(c.id) ?? 0,
+    openTickets: openBy.get(c.id) ?? 0,
+  }));
   return (
     <>
-      <Heading
-        eyebrow="CLIENTES"
+      <PageHeader
         title="Empresas"
-        description="Cadastros, contatos financeiros e pessoas com acesso ao Console."
-        action={{ label: "Cadastrar empresa", href: "/empresas/nova" }}
+        count={total}
+        description="Clientes, contatos financeiros e quem acessa o Console por eles."
+        actions={
+          <Suspense>
+            <NewCompanyButton />
+          </Suspense>
+        }
       />
-      <CrudCompanyManager
+      <CompaniesTable
         rows={rows}
         query={{ ...query, page }}
         total={total}

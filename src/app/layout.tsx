@@ -1,8 +1,10 @@
 import { Notifications } from "@/components/notifications";
 import type { Metadata } from "next";
+import "./shadcn.css";
 import "./globals.css";
 import { cookies } from "next/headers";
 import { AppearanceProvider } from "@/components/appearance-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { parseTheme, parseDockPosition } from "@/lib/appearance";
 export const metadata: Metadata = {
   title: { default: "Anuntech Console", template: "%s | Anuntech Console" },
@@ -19,11 +21,13 @@ export default async function RootLayout({
     <html lang="pt-BR" data-theme={theme} data-dock={position}>
       <body>
         <AppearanceProvider initialTheme={theme} initialPosition={position}>
-        <a className="skip-link" href="#main-content">
-          Ir para o conteúdo
-        </a>
-        {children}
-        <Notifications />
+          <TooltipProvider delayDuration={350}>
+            <a className="skip-link" href="#main-content">
+              Ir para o conteúdo
+            </a>
+            {children}
+            <Notifications />
+          </TooltipProvider>
         </AppearanceProvider>
       </body>
     </html>
