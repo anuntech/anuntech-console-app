@@ -48,6 +48,8 @@ export default async function Companies({
       document: companies.document,
       billingEmail: companies.billingEmail,
       phone: companies.phone,
+      billingAddress: companies.billingAddress,
+      autoIssueNfse: companies.autoIssueNfse,
       archived: companies.archived,
     })
     .from(companies)

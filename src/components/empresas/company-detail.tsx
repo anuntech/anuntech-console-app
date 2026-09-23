@@ -350,16 +350,6 @@ export function CompanyDetail({
         }
         actions={
           <>
-            <Button variant="outline" onClick={() => setEditing(true)}>
-              <PencilIcon />
-              Editar dados
-            </Button>
-            <Button asChild>
-              <Link href={`/chamados/novo?companyId=${company.id}`}>
-                <HeadsetIcon />
-                Abrir chamado
-              </Link>
-            </Button>
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="Mais ações">
@@ -367,6 +357,12 @@ export function CompanyDetail({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuItem asChild>
+                  <Link href={`/chamados/novo?companyId=${company.id}`}>
+                    <HeadsetIcon />
+                    Abrir chamado
+                  </Link>
+                </DropdownMenuItem>
                 {!company.archived && (
                   <DropdownMenuItem onSelect={() => ask("assist")}>
                     <LogInIcon />
