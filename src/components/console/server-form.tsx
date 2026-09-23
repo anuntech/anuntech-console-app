@@ -145,7 +145,7 @@ export function SubmitButton({
   return (
     <Button type="submit" disabled={pending || props.disabled} {...props}>
       {pending && <Loader2Icon className="animate-spin" />}
-      {pending && pendingLabel ? pendingLabel : children}
+      {pending && pendingLabel !== undefined ? pendingLabel : children}
     </Button>
   );
 }

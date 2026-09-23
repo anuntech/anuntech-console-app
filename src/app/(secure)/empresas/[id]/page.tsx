@@ -144,7 +144,7 @@ export default async function Company({
         // Lists that filter by company get a deep link; the rest arrives per subject.
         links: {
           tickets: `/chamados?company=${id}`,
-          invoices: "/financeiro",
+          invoices: `/financeiro?company=${id}`,
           contracts: "/contratos",
           engagements: "/produtos",
         },

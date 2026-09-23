@@ -1,25 +1,76 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  CircleCheck,
-  Clock3,
-  Info,
-  Mail,
-  MessageCircle,
-  Send,
-  TriangleAlert,
+  CircleCheckIcon,
+  Clock3Icon,
+  MailIcon,
+  MessageCircleIcon,
+  SendIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import { desc, eq } from "drizzle-orm";
+import { cn } from "cn";
 import { db } from "@/lib/db";
-import { billingNotices, invoices, companies } from "@/db/schema";
+import { billingNotices, companies, invoices } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
-import { Back, Heading, Empty } from "@/components/ui";
-import styles from "../finance.module.css";
+import {
+  noticeChannelLabels,
+  noticeKindLabel,
+} from "@/lib/billing-notice-rules";
+import { dateTimeLabel } from "@/lib/format";
+import { EmptyState, PageHeader } from "@/components/console/page-header";
+import { NoticeStatusBadge } from "@/components/financeiro/invoice-badges";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 export const metadata: Metadata = {
-  title: "Envios de cobranças",
+  title: "Envios de cobrança",
   description:
     "Acompanhe a entrega dos avisos de cobrança por e-mail e WhatsApp.",
 };
+
+const ACTIVE = ["waiting", "pending", "sending", "accepted"];
+const REVIEW = ["failed", "uncertain", "expired"];
+
+function Stat({
+  label,
+  value,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  tone?: "default" | "success" | "warning";
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-card">
+      <span>
+        <span className="block text-xs font-medium text-muted-foreground">
+          {label}
+        </span>
+        <span className="mt-0.5 block text-xl font-semibold tracking-[-0.02em] tabular-nums text-foreground">
+          {value}
+        </span>
+      </span>
+      <span
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
+          tone === "success" && "bg-success-soft text-success",
+          tone === "warning" && "bg-warning-soft text-warning",
+          tone === "default" && "bg-accent text-primary",
+        )}
+      >
+        {icon}
+      </span>
+    </div>
+  );
+}
 
 export default async function BillingDeliveries() {
   await requireAdmin();
@@ -34,165 +85,104 @@ export default async function BillingDeliveries() {
     .innerJoin(companies, eq(companies.id, invoices.companyId))
     .orderBy(desc(billingNotices.createdAt))
     .limit(200);
-  const labels = {
-    waiting: "Aguardando processamento",
-    pending: "Pendente",
-    sending: "Enviando",
-    accepted: "Aguardando confirmação de entrega",
-    delivered: "Entrega confirmada",
-    failed: "Falha — revisar",
-    uncertain: "Sem confirmação — revisar",
-    expired: "Prazo de repetição encerrado",
-    skipped: "Interrompido",
-  };
+  const by = (statuses: string[]) =>
+    rows.filter(({ notice }) => statuses.includes(notice.status)).length;
   return (
     <>
-      <Back href="/financeiro" label="Financeiro" />
-      <Heading
-        title="Envios de cobranças"
-        description="Acompanhe a entrega das mensagens de cada fatura."
+      <PageHeader
+        crumbs={[{ label: "Financeiro", href: "/financeiro" }, { label: "Envios" }]}
+        title="Envios de cobrança"
+        count={rows.length}
+        description="Entrega dos avisos por e-mail e WhatsApp, consultada nos provedores. Entrega de e-mail confirma o recebimento pelo servidor, não a leitura."
       />
-      <div className={styles.overview} aria-label="Resumo dos avisos listados">
-        {[
-          {
-            label: "Avisos listados",
-            value: rows.length,
-            icon: Send,
-            tone: "",
-          },
-          {
-            label: "Entrega confirmada",
-            value: rows.filter(({ notice }) => notice.status === "delivered")
-              .length,
-            icon: CircleCheck,
-            tone: styles.success,
-          },
-          {
-            label: "Em andamento",
-            value: rows.filter(({ notice }) =>
-              ["waiting", "pending", "sending", "accepted"].includes(
-                notice.status,
-              ),
-            ).length,
-            icon: Clock3,
-            tone: "",
-          },
-          {
-            label: "Precisam de revisão",
-            value: rows.filter(({ notice }) =>
-              ["failed", "uncertain", "expired"].includes(notice.status),
-            ).length,
-            icon: TriangleAlert,
-            tone: styles.warning,
-          },
-        ].map(({ label, value, icon: Icon, tone }) => (
-          <div className={styles.metric} key={label}>
-            <div>
-              <span className={styles.metricLabel}>{label}</span>
-              <strong>{value}</strong>
-              <small>Entre os 200 mais recentes</small>
-            </div>
-            <span className={`${styles.icon} ${tone}`}>
-              <Icon size={18} aria-hidden="true" />
-            </span>
-          </div>
-        ))}
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        <Stat
+          label="Entregues"
+          value={by(["delivered"])}
+          icon={<CircleCheckIcon />}
+          tone="success"
+        />
+        <Stat label="Em andamento" value={by(ACTIVE)} icon={<Clock3Icon />} />
+        <Stat
+          label="Precisam de revisão"
+          value={by(REVIEW)}
+          icon={<TriangleAlertIcon />}
+          tone="warning"
+        />
       </div>
-      <div className={styles.note}>
-        <Info size={17} aria-hidden="true" />
-        <p>
-          O Console consulta os provedores automaticamente. Entrega de e-mail
-          confirma o recebimento pelo servidor do destinatário; não comprova
-          leitura ou chegada à caixa principal. Mensagens com falha precisam de
-          revisão.
-        </p>
-      </div>
-      <div className={styles.draftSection}>
-        {!rows.length ? (
-          <Empty
-            title="Nenhum aviso enviado"
-            description="As mensagens aparecem aqui após a publicação e emissão das cobranças."
-          />
+      <section
+        aria-label="Histórico de envios"
+        className="overflow-hidden rounded-xl border bg-card shadow-card"
+      >
+        {rows.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4">Cliente e fatura</TableHead>
+                <TableHead>Canal</TableHead>
+                <TableHead>Aviso</TableHead>
+                <TableHead>Entrega</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(({ notice, company, description }) => (
+                <TableRow key={notice.id}>
+                  <TableCell className="max-w-[24rem] py-3 pl-4">
+                    <Link
+                      href={`/financeiro/${notice.invoiceId}`}
+                      className="group block min-w-0"
+                    >
+                      <span className="block truncate font-medium text-foreground group-hover:text-primary">
+                        {company}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {description}
+                      </span>
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-1.5 text-foreground">
+                      {notice.channel === "email" ? (
+                        <MailIcon className="size-3.5 text-muted-foreground" />
+                      ) : (
+                        <MessageCircleIcon className="size-3.5 text-muted-foreground" />
+                      )}
+                      {noticeChannelLabels[notice.channel]}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="block text-foreground">
+                      {noticeKindLabel(notice.kind)}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {dateTimeLabel(notice.createdAt)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <NoticeStatusBadge status={notice.status} />
+                    {notice.error && (
+                      <span className="mt-1 block max-w-[24rem] text-xs text-muted-foreground">
+                        {notice.error}
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         ) : (
-          <section className="panel">
-            <div className={styles.tableHead}>
-              <h2>Histórico de envios</h2>
-              <span>E-mail e WhatsApp</span>
-            </div>
-            <div
-              className="table-wrap"
-              role="region"
-              aria-label="Tabela de envios de cobranças"
-              tabIndex={0}
-            >
-              <table className={styles.deliveryTable}>
-                <caption className="sr-only">
-                  Histórico de avisos e entrega das cobranças
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Cliente / Fatura</th>
-                    <th scope="col">Canal</th>
-                    <th scope="col">Aviso</th>
-                    <th scope="col">Entrega</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(({ notice: n, company, description }) => (
-                    <tr key={n.id}>
-                      <td>
-                        <Link
-                          href={`/financeiro/${n.invoiceId}`}
-                          aria-label={`${company} — fatura de ${description}`}
-                        >
-                          {company}
-                        </Link>
-                        <p className="muted">{description}</p>
-                      </td>
-                      <td>
-                        <span className={styles.channel}>
-                          {n.channel === "email" ? (
-                            <Mail size={15} aria-hidden="true" />
-                          ) : (
-                            <MessageCircle size={15} aria-hidden="true" />
-                          )}
-                          {n.channel === "email" ? "E-mail" : "WhatsApp"}
-                        </span>
-                      </td>
-                      <td>
-                        {n.kind === "initial"
-                          ? "Nova cobrança"
-                          : n.kind === "due"
-                            ? "Vence hoje"
-                            : `${n.kind.replace("overdue_", "")} dias de atraso`}
-                        <p className="muted">
-                          {n.createdAt.toLocaleString("pt-BR", {
-                            timeZone: "America/Sao_Paulo",
-                            dateStyle: "short",
-                            timeStyle: "short",
-                          })}
-                        </p>
-                      </td>
-                      <td>
-                        <span
-                          className={styles.noticeBadge}
-                          data-status={n.status}
-                        >
-                          {labels[n.status]}
-                        </span>
-                        {n.error && <p className="muted">{n.error}</p>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <EmptyState
+            icon={<SendIcon />}
+            title="Nenhum aviso enviado"
+            description="As mensagens aparecem aqui depois que uma cobrança é publicada."
+          />
         )}
-      </div>
-      {rows.length === 200 && (
-        <p className="muted">Exibindo os 200 avisos mais recentes.</p>
-      )}
+        {rows.length === 200 && (
+          <p className="border-t px-4 py-3 text-xs text-muted-foreground">
+            Exibindo os 200 avisos mais recentes.
+          </p>
+        )}
+      </section>
     </>
   );
 }

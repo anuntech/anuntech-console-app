@@ -129,3 +129,21 @@ export async function syncCharge(
     };
   }
 }
+
+/**
+ * Background check the invoice page runs on its own (on open, and while the
+ * bank is still processing). No toast, no audit entry unless something
+ * changed — `reconcileCharge` logs "scheduled" checks only on change.
+ */
+export async function refreshCharge(id: string): Promise<{ ok: boolean }> {
+  const actor = await getActor();
+  if (!actor.admin) return { ok: false };
+  try {
+    await reconcileCharge(uuid.parse(id), actor.user.id, undefined, "scheduled");
+    after(() => processBillingNotices());
+    refresh(id);
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}

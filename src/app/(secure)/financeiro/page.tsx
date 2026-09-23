@@ -1,27 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  ArrowUpRight,
-  CalendarClock,
-  CircleCheck,
-  Clock3,
-  MailCheck,
-  TriangleAlert,
+  CalendarClockIcon,
+  CircleCheckIcon,
+  Clock3Icon,
+  MailCheckIcon,
+  PlusIcon,
+  ReceiptTextIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
-import { paymentUrl } from "@/lib/payment-link";
-import CrudInvoiceManager from "@/components/crud-invoice-manager";
-import { saoPauloDate } from "@/lib/dates";
-import { and, desc, eq, inArray, sql, ilike, or, count } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { invoices, companies, subscriptions } from "@/db/schema";
+import { companies, invoices, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
-import { Heading } from "@/components/ui";
+import { saoPauloDate } from "@/lib/dates";
+import { paymentUrl } from "@/lib/payment-link";
 import {
   invoiceListHref,
   invoiceQuery,
+  type InvoiceDisplayStatus,
   type InvoiceStatusFilter,
 } from "@/lib/invoice-table";
-import styles from "./finance.module.css";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/console/page-header";
+import {
+  InvoiceMetrics,
+  type InvoiceMetric,
+} from "@/components/financeiro/invoice-metrics";
+import { InvoicesTable } from "@/components/financeiro/invoices-table";
 export const metadata: Metadata = {
   title: "Financeiro",
   description:
@@ -37,188 +43,204 @@ export default async function Finance({
   const today = saoPauloDate();
   const actor = await getActor();
   const ids = allowedIds(actor, "finance");
-  const access = actor.admin
-    ? sql`true`
-    : ids.length
-      ? and(
-          inArray(invoices.companyId, ids),
-          inArray(invoices.status, ["issued", "paid"]),
-        )
-      : sql`false`;
+  if (!actor.admin && query.company && !ids.includes(query.company))
+    query.company = "";
   const search = query.search.replace(/[\\%_]/g, "\\$&");
-  const scope = and(
-    access,
-    search
-      ? or(
-          ilike(invoices.description, `%${search}%`),
-          ilike(companies.name, `%${search}%`),
-        )
-      : undefined,
-  );
+  const scope =
+    and(
+      actor.admin
+        ? undefined
+        : ids.length
+          ? and(
+              inArray(invoices.companyId, ids),
+              inArray(invoices.status, ["issued", "paid"]),
+            )
+          : sql`false`,
+      query.company ? eq(invoices.companyId, query.company) : undefined,
+      search
+        ? or(
+            ilike(invoices.description, `%${search}%`),
+            ilike(companies.name, `%${search}%`),
+          )
+        : undefined,
+    ) ?? sql`true`;
   const displayStatus = sql<string>`case when ${invoices.status} = 'draft' and ${subscriptions.status} = 'active' then 'scheduled' when ${invoices.status} = 'issued' and ${invoices.dueDate} < ${today} then 'overdue' else ${invoices.status} end`;
   const grouped = await db
-    .select({ status: displayStatus, count: count() })
+    .select({
+      status: displayStatus,
+      count: count(),
+      cents: sql<string>`coalesce(sum(${invoices.amountCents}), 0)`,
+    })
     .from(invoices)
     .innerJoin(companies, eq(companies.id, invoices.companyId))
     .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
     .where(scope)
     .groupBy(sql`1`);
-  const counts: Record<InvoiceStatusFilter, number> = {
-    all: 0,
-    issued: 0,
-    overdue: 0,
-    paid: 0,
-    scheduled: 0,
-    draft: 0,
-    cancelled: 0,
-  };
+  const totals: Record<InvoiceStatusFilter, { count: number; cents: number }> =
+    {
+      all: { count: 0, cents: 0 },
+      issued: { count: 0, cents: 0 },
+      overdue: { count: 0, cents: 0 },
+      paid: { count: 0, cents: 0 },
+      scheduled: { count: 0, cents: 0 },
+      draft: { count: 0, cents: 0 },
+      cancelled: { count: 0, cents: 0 },
+    };
   for (const row of grouped) {
-    counts[row.status as InvoiceStatusFilter] = row.count;
-    counts.all += row.count;
+    const bucket = totals[row.status as InvoiceStatusFilter];
+    if (!bucket) continue;
+    bucket.count = row.count;
+    bucket.cents = Number(row.cents);
+    totals.all.count += row.count;
+    totals.all.cents += Number(row.cents);
   }
-  const total = counts[query.status];
+  const total = totals[query.status].count;
   const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
   const page = Math.min(query.page, pageCount);
-  const rows = await db
-    .select({
-      invoice: {
+  const [list, companyFilter] = await Promise.all([
+    db
+      .select({
         id: invoices.id,
-        subscriptionId: invoices.subscriptionId,
-        publicId: invoices.publicId,
-        publicEnabled: invoices.publicEnabled,
         description: invoices.description,
+        companyId: invoices.companyId,
+        company: companies.name,
         amountCents: invoices.amountCents,
         status: invoices.status,
+        display: displayStatus,
         dueDate: invoices.dueDate,
-        createdAt: invoices.createdAt,
-      },
-      company: companies.name,
-      subscriptionStatus: subscriptions.status,
-    })
-    .from(invoices)
-    .innerJoin(companies, eq(companies.id, invoices.companyId))
-    .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
-    .where(
-      and(
-        scope,
-        query.status !== "all"
-          ? sql`${displayStatus} = ${query.status}`
-          : undefined,
-      ),
-    )
-    .orderBy(desc(invoices.createdAt), desc(invoices.id))
-    .limit(query.pageSize)
-    .offset((page - 1) * query.pageSize);
+        publicId: invoices.publicId,
+        publicEnabled: invoices.publicEnabled,
+        subscriptionId: invoices.subscriptionId,
+        subscriptionStatus: subscriptions.status,
+        interval: subscriptions.interval,
+        bankRequested: sql<boolean>`(${invoices.bankRequest} is not null)`,
+      })
+      .from(invoices)
+      .innerJoin(companies, eq(companies.id, invoices.companyId))
+      .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
+      .where(
+        and(
+          scope,
+          query.status !== "all"
+            ? sql`${displayStatus} = ${query.status}`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(invoices.createdAt), desc(invoices.id))
+      .limit(query.pageSize)
+      .offset((page - 1) * query.pageSize),
+    query.company
+      ? db
+          .select({ id: companies.id, name: companies.name })
+          .from(companies)
+          .where(eq(companies.id, query.company))
+          .then((rows) => rows[0] ?? null)
+      : null,
+  ]);
+  const metrics: InvoiceMetric[] = [
+    {
+      status: "issued",
+      label: "Em aberto",
+      icon: <Clock3Icon />,
+      ...totals.issued,
+    },
+    {
+      status: "overdue",
+      label: "Vencidas",
+      tone: "destructive",
+      icon: <TriangleAlertIcon />,
+      ...totals.overdue,
+    },
+    actor.admin
+      ? {
+          status: "scheduled",
+          label: "Agendadas",
+          icon: <CalendarClockIcon />,
+          ...totals.scheduled,
+        }
+      : {
+          status: "all",
+          label: "Todas",
+          icon: <ReceiptTextIcon />,
+          ...totals.all,
+        },
+    {
+      status: "paid",
+      label: "Pagas",
+      tone: "success",
+      icon: <CircleCheckIcon />,
+      ...totals.paid,
+    },
+  ];
   return (
     <>
-      <Heading
-        eyebrow="FINANCEIRO"
+      <PageHeader
         title="Faturas"
+        count={totals.all.count}
         description={
           actor.admin
-            ? "Crie e acompanhe as faturas de cada cliente."
-            : "Consulte as cobranças e os documentos da sua empresa."
+            ? "Cobranças de cada cliente: emissão no Inter, avisos e pagamento."
+            : "As cobranças da sua empresa e os dados para pagamento."
         }
-        action={
-          actor.admin
-            ? { label: "Criar fatura", href: "/financeiro/nova" }
-            : undefined
+        actions={
+          actor.admin && (
+            <>
+              <Button variant="outline" asChild>
+                <Link href="/financeiro/envios">
+                  <MailCheckIcon />
+                  Envios
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/financeiro/nova">
+                  <PlusIcon />
+                  Nova cobrança
+                </Link>
+              </Button>
+            </>
+          )
         }
       />
-      <div className={styles.overview} aria-label="Resumo das faturas">
-        {[
-          {
-            status: "issued" as const,
-            label: "Em aberto",
-            detail: "Dentro do vencimento",
-            icon: Clock3,
-          },
-          {
-            status: "overdue" as const,
-            label: "Vencidas",
-            detail: "Aguardando pagamento",
-            icon: TriangleAlert,
-            tone: styles.warning,
-          },
-          ...(actor.admin
-            ? [
-                {
-                  status: "scheduled" as const,
-                  label: "Agendadas",
-                  detail: "Próximas emissões",
-                  icon: CalendarClock,
-                },
-              ]
-            : [
-                {
-                  status: "all" as const,
-                  label: "Todas as faturas",
-                  detail: "Histórico disponível",
-                  icon: CalendarClock,
-                },
-              ]),
-          {
-            status: "paid" as const,
-            label: "Pagas",
-            detail: "Pagamento confirmado",
-            icon: CircleCheck,
-            tone: styles.success,
-          },
-        ].map(({ status, label, detail, icon: Icon, tone }) => (
-          <Link
-            key={status}
-            className={styles.metric}
-            href={invoiceListHref({ ...query, status, page: 1 })}
-          >
-            <div>
-              <span className={styles.metricLabel}>{label}</span>
-              <strong>{counts[status]}</strong>
-              <small>{query.search ? "Na busca atual" : detail}</small>
-            </div>
-            <span className={`${styles.icon} ${tone || ""}`}>
-              <Icon size={18} aria-hidden="true" />
-            </span>
-          </Link>
-        ))}
-      </div>
-      <div className={styles.listActions}>
-        <p className="muted">
-          {query.search
-            ? `Resultados para “${query.search}”`
-            : "Todas as cobranças, em um só lugar."}
-        </p>
-        {actor.admin && (
-          <Link href="/financeiro/envios">
-            <MailCheck size={16} aria-hidden="true" /> Acompanhar entrega de
-            e-mails e WhatsApp <ArrowUpRight size={14} aria-hidden="true" />
-          </Link>
-        )}
-      </div>
-      <CrudInvoiceManager
-        admin={actor.admin}
-        today={today}
+      <InvoiceMetrics
+        metrics={metrics}
+        active={query.status}
+        hrefFor={(status) => invoiceListHref({ ...query, status, page: 1 })}
+      />
+      <InvoicesTable
+        rows={list.map((row) => ({
+          id: row.id,
+          description: row.description,
+          companyId: row.companyId,
+          company: row.company,
+          amountCents: row.amountCents,
+          status: row.status,
+          display: row.display as InvoiceDisplayStatus,
+          dueDate: row.dueDate,
+          recurring: !!row.subscriptionId,
+          interval: row.interval,
+          publicUrl:
+            row.publicId &&
+            row.publicEnabled &&
+            ["issued", "paid"].includes(row.status)
+              ? paymentUrl(row.publicId)
+              : null,
+          editable:
+            row.status === "draft" &&
+            !row.bankRequested &&
+            (!row.subscriptionId || row.subscriptionStatus === "draft")
+              ? "draft"
+              : row.status === "issued"
+                ? "issued"
+                : null,
+          cancellable: row.status === "draft" && !row.bankRequested,
+        }))}
         query={{ ...query, page }}
-        counts={counts}
         total={total}
         pageCount={pageCount}
-        invoices={rows.map(({ invoice, company, subscriptionStatus }) => ({
-          id: invoice.id,
-          recurring: !!invoice.subscriptionId,
-          scheduled:
-            invoice.status === "draft" && subscriptionStatus === "active",
-          publicUrl:
-            invoice.publicId &&
-            invoice.publicEnabled &&
-            ["issued", "paid"].includes(invoice.status)
-              ? paymentUrl(invoice.publicId)
-              : undefined,
-          description: invoice.description,
-          company,
-          amountCents: invoice.amountCents,
-          status: invoice.status,
-          dueDate: invoice.dueDate,
-          createdDate: saoPauloDate(invoice.createdAt),
-        }))}
+        today={today}
+        admin={actor.admin}
+        showCompany={actor.admin || ids.length > 1}
+        companyFilter={companyFilter}
       />
     </>
   );

@@ -81,3 +81,19 @@ export const bankCharge = z.object({
     .nullish(),
   pix: z.object({ pixCopiaECola: z.string().max(2000).optional() }).nullish(),
 });
+
+/** Inter's charge situations, plus the Console's own request states. */
+export const bankStatusLabels: Record<string, string> = {
+  A_RECEBER: "A receber",
+  RECEBIDO: "Recebido",
+  MARCADO_RECEBIDO: "Marcado como recebido no banco",
+  ATRASADO: "Atrasado",
+  CANCELADO: "Cancelado",
+  EXPIRADO: "Expirado",
+  FALHA_EMISSAO: "Falha na emissão",
+  EM_PROCESSAMENTO: "Em processamento",
+  PROTESTO: "Em protesto",
+  ENVIANDO: "Enviando ao banco",
+  RECUSADA: "Recusada pelo banco",
+  RESPOSTA_INDEFINIDA: "Sem resposta do banco",
+};

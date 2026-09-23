@@ -69,3 +69,25 @@ export function billingWhatsappParameters(data: {
     );
   return parameters;
 }
+
+export const noticeChannelLabels: Record<string, string> = {
+  email: "E-mail",
+  whatsapp: "WhatsApp",
+};
+/** How each delivery state reads in the Console. */
+export const noticeStatusLabels: Record<string, string> = {
+  waiting: "Agendado",
+  pending: "Na fila",
+  sending: "Enviando",
+  accepted: "Aceito pelo provedor",
+  delivered: "Entregue",
+  failed: "Falhou",
+  expired: "Prazo encerrado",
+  skipped: "Interrompido",
+  uncertain: "Sem confirmação",
+};
+export function noticeKindLabel(kind: string) {
+  if (kind === "initial") return "Nova cobrança";
+  if (kind === "due") return "Vence hoje";
+  return `${kind.replace("overdue_", "")} dias de atraso`;
+}

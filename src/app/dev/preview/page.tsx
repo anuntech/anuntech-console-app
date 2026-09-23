@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { PlusIcon } from "lucide-react";
+import {
+  CalendarClockIcon,
+  CircleCheckIcon,
+  Clock3Icon,
+  MailCheckIcon,
+  PlusIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { CompaniesTable } from "@/components/empresas/companies-table";
@@ -16,6 +23,18 @@ import {
   type TicketDetailData,
 } from "@/components/chamados/ticket-detail";
 import { NewTicketForm } from "@/components/chamados/ticket-form";
+import { InvoiceMetrics } from "@/components/financeiro/invoice-metrics";
+import {
+  InvoicesTable,
+  type InvoiceRow,
+} from "@/components/financeiro/invoices-table";
+import {
+  InvoiceDetail,
+  type InvoiceDetailData,
+} from "@/components/financeiro/invoice-detail";
+import { NewInvoiceForm } from "@/components/financeiro/invoice-form";
+import { invoiceListHref } from "@/lib/invoice-table";
+import { saoPauloDate } from "@/lib/dates";
 
 const SCREENS = [
   "lista",
@@ -27,6 +46,15 @@ const SCREENS = [
   "chamado-cliente",
   "chamado-encerrado",
   "novo-chamado",
+  "faturas",
+  "faturas-vazio",
+  "fatura",
+  "fatura-processando",
+  "fatura-rascunho",
+  "fatura-recorrente",
+  "fatura-paga",
+  "fatura-cliente",
+  "nova-cobranca",
 ];
 
 /**
@@ -41,8 +69,11 @@ export default async function Preview({
   if (process.env.NODE_ENV === "production") notFound();
   const { tela = "lista" } = await searchParams;
   const now = new Date();
+  const today = saoPauloDate(now);
   const ago = (hours: number) =>
     new Date(now.getTime() - hours * 3600_000).toISOString();
+  const day = (offset: number) =>
+    saoPauloDate(new Date(now.getTime() + offset * 86_400_000));
   const rows = [
     {
       id: "a1",
@@ -164,7 +195,7 @@ export default async function Preview({
     },
     links: {
       tickets: "/chamados?company=a1",
-      invoices: "/financeiro",
+      invoices: "/financeiro?company=a1",
       contracts: "/contratos",
       engagements: "/produtos",
     },
@@ -296,6 +327,212 @@ export default async function Preview({
   const companies = rows
     .filter((c) => !c.archived)
     .map((c) => ({ id: c.id, name: c.name }));
+  const engagements = [
+    { id: "g1", name: "Site institucional", companyId: "a1" },
+    { id: "g2", name: "Manutenção mensal", companyId: "a1" },
+    { id: "g3", name: "Portal do aluno", companyId: "a5" },
+  ];
+  const invoiceRows: InvoiceRow[] = [
+    {
+      id: "i1",
+      description: "Manutenção mensal — outubro",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      amountCents: 189000,
+      status: "issued",
+      display: "issued",
+      dueDate: day(12),
+      recurring: true,
+      interval: "monthly",
+      publicUrl: "https://console.anuntech.com/pagar/abc",
+      editable: "issued",
+      cancellable: false,
+    },
+    {
+      id: "i2",
+      description: "Hospedagem anual do site",
+      companyId: "a2",
+      company: "Paróquia Santa Rita",
+      amountCents: 84000,
+      status: "issued",
+      display: "overdue",
+      dueDate: day(-9),
+      recurring: true,
+      interval: "yearly",
+      publicUrl: "https://console.anuntech.com/pagar/def",
+      editable: "issued",
+      cancellable: false,
+    },
+    {
+      id: "i3",
+      description: "Portal do aluno — fase 2",
+      companyId: "a5",
+      company: "Instituto Horizonte de Educação e Cultura",
+      amountCents: 1250000,
+      status: "draft",
+      display: "draft",
+      dueDate: day(20),
+      recurring: false,
+      interval: null,
+      publicUrl: null,
+      editable: "draft",
+      cancellable: true,
+    },
+    {
+      id: "i4",
+      description: "Manutenção mensal — novembro",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      amountCents: 189000,
+      status: "draft",
+      display: "scheduled",
+      dueDate: day(42),
+      recurring: true,
+      interval: "monthly",
+      publicUrl: null,
+      editable: null,
+      cancellable: false,
+    },
+    {
+      id: "i5",
+      description: "Consultoria de agendamento online",
+      companyId: "a3",
+      company: "Clínica Vida Plena",
+      amountCents: 450000,
+      status: "paid",
+      display: "paid",
+      dueDate: day(-20),
+      recurring: false,
+      interval: null,
+      publicUrl: "https://console.anuntech.com/pagar/ghi",
+      editable: null,
+      cancellable: false,
+    },
+  ];
+  const invoiceStatus =
+    tela === "fatura-rascunho" || tela === "fatura-recorrente"
+      ? "draft"
+      : tela === "fatura-paga"
+        ? "paid"
+        : "issued";
+  const processing = tela === "fatura-processando";
+  const invoice: InvoiceDetailData = {
+    invoice: {
+      id: "i1",
+      description: "Manutenção mensal — outubro",
+      amountCents: 189000,
+      dueDate: day(12),
+      status: invoiceStatus,
+      display:
+        invoiceStatus === "draft"
+          ? tela === "fatura-recorrente"
+            ? "scheduled"
+            : "draft"
+          : invoiceStatus,
+      createdAt: ago(24 * 4),
+      engagement: "Manutenção mensal",
+      providerId: invoiceStatus === "draft" ? null : "7f3e1b2c-0000-4000-8000-000000000001",
+      bankStatus:
+        invoiceStatus === "draft"
+          ? null
+          : processing
+            ? "EM_PROCESSAMENTO"
+            : invoiceStatus === "paid"
+              ? "RECEBIDO"
+              : "A_RECEBER",
+      bankCheckedAt: invoiceStatus === "draft" ? null : ago(0.05),
+      bankRequested: invoiceStatus !== "draft",
+      requestedDueDate: null,
+      boletoLine:
+        invoiceStatus === "issued" && !processing
+          ? "07790000112345678901234567890123456789012345678"
+          : null,
+      pixCopyPaste:
+        invoiceStatus === "issued" && !processing
+          ? "00020126580014br.gov.bcb.pix0136a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d520400005303986540518.905802BR5913ANUNTECH LTDA6009SAO PAULO62070503***6304ABCD"
+          : null,
+      publicUrl:
+        invoiceStatus === "draft" ? null : "https://console.anuntech.com/pagar/abc",
+      publicEnabled: true,
+      fiscalStatus: "not_requested",
+      editable:
+        invoiceStatus === "draft" && tela !== "fatura-recorrente"
+          ? "draft"
+          : invoiceStatus === "issued"
+            ? "issued"
+            : null,
+    },
+    company: {
+      id: "a1",
+      name: "Maxipark Estacionamentos",
+      document: "12345678000190",
+      address:
+        "Avenida Paulista, 1578, Conj. 1201 — Bela Vista, São Paulo/SP — CEP 01310-100",
+      autoIssueNfse: true,
+    },
+    subscription:
+      tela === "fatura-rascunho" || tela === "fatura-cliente"
+        ? null
+        : {
+            id: "s1",
+            status: tela === "fatura-recorrente" ? "active" : "active",
+            interval: "monthly",
+            nextDueDate: day(42),
+            issueDate: day(37),
+            amountCents: 189000,
+            description: "Manutenção mensal",
+            lastError: null,
+          },
+    scheduled: tela === "fatura-recorrente",
+    scheduledIssueDate: tela === "fatura-recorrente" ? day(7) : null,
+    notices:
+      invoiceStatus === "draft" || processing
+        ? []
+        : [
+            {
+              id: "n1",
+              channel: "email",
+              kind: "initial",
+              status: "delivered",
+              error: null,
+              createdAt: ago(24 * 4),
+              resendable: false,
+            },
+            {
+              id: "n2",
+              channel: "whatsapp",
+              kind: "initial",
+              status: "failed",
+              error: "Número sem WhatsApp ativo.",
+              createdAt: ago(24 * 4),
+              resendable: invoiceStatus === "issued",
+            },
+          ],
+    contacts: {
+      email: "financeiro@maxipark.com.br",
+      emailEnabled: true,
+      phone: "11998877665",
+      whatsappEnabled: true,
+    },
+    canSend: { email: false, whatsapp: false },
+    events: [
+      { id: "e1", action: "invoice.bank_checked", createdAt: ago(0.05) },
+      { id: "e2", action: "invoice.bank_accepted", createdAt: ago(24 * 4) },
+      { id: "e3", action: "invoice.bank_requested", createdAt: ago(24 * 4) },
+      { id: "e4", action: "invoice.drafted", createdAt: ago(24 * 5) },
+    ],
+    viewer: { admin: tela !== "fatura-cliente" },
+    sync: "off",
+    today,
+    now: now.toISOString(),
+  };
+  const invoiceQueryState = {
+    status: "all" as const,
+    search: "",
+    company: "",
+    page: 1,
+    pageSize: 10,
+  };
   return (
     <main className="mx-auto w-full max-w-[1512px] px-9 py-8">
       <p className="mb-6 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
@@ -358,6 +595,91 @@ export default async function Preview({
             admin
             showCompany
             canCreate
+          />
+        </>
+      ) : tela === "nova-cobranca" ? (
+        <>
+          <PageHeader
+            crumbs={[
+              { label: "Financeiro", href: "/financeiro" },
+              { label: "Nova cobrança" },
+            ]}
+            title="Nova cobrança"
+            description="Quem paga, o que está sendo cobrado e as condições."
+          />
+          <NewInvoiceForm companies={companies} engagements={engagements} />
+        </>
+      ) : tela.startsWith("fatura-") || tela === "fatura" ? (
+        <InvoiceDetail data={invoice} />
+      ) : tela.startsWith("faturas") ? (
+        <>
+          <PageHeader
+            title="Faturas"
+            count={tela === "faturas-vazio" ? 0 : 5}
+            description="Cobranças de cada cliente: emissão no Inter, avisos e pagamento."
+            actions={
+              <>
+                <Button variant="outline" asChild>
+                  <Link href="/financeiro/envios">
+                    <MailCheckIcon />
+                    Envios
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/financeiro/nova">
+                    <PlusIcon />
+                    Nova cobrança
+                  </Link>
+                </Button>
+              </>
+            }
+          />
+          <InvoiceMetrics
+            active="all"
+            hrefFor={(status) =>
+              invoiceListHref({ ...invoiceQueryState, status })
+            }
+            metrics={[
+              {
+                status: "issued",
+                label: "Em aberto",
+                count: 1,
+                cents: 189000,
+                icon: <Clock3Icon />,
+              },
+              {
+                status: "overdue",
+                label: "Vencidas",
+                count: 1,
+                cents: 84000,
+                tone: "destructive",
+                icon: <TriangleAlertIcon />,
+              },
+              {
+                status: "scheduled",
+                label: "Agendadas",
+                count: 1,
+                cents: 189000,
+                icon: <CalendarClockIcon />,
+              },
+              {
+                status: "paid",
+                label: "Pagas",
+                count: 1,
+                cents: 450000,
+                tone: "success",
+                icon: <CircleCheckIcon />,
+              },
+            ]}
+          />
+          <InvoicesTable
+            rows={tela === "faturas-vazio" ? [] : invoiceRows}
+            query={invoiceQueryState}
+            total={tela === "faturas-vazio" ? 0 : 5}
+            pageCount={1}
+            today={today}
+            admin
+            showCompany
           />
         </>
       ) : (

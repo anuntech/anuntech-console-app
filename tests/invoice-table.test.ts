@@ -49,17 +49,24 @@ test("pagination rejects malformed query parameters and limits page size", () =>
       size: "100000",
       status: "unknown",
       q: "  Parcela 1  ",
+      company: "not-a-uuid",
     });
     assert.equal(query.page, 1);
     assert.equal(query.pageSize, 10);
     assert.equal(query.status, "all");
     assert.equal(query.search, "Parcela 1");
+    assert.equal(query.company, "");
   }
+  assert.equal(
+    invoiceQuery({ company: "0352E874-BF22-4F3A-8590-CCE8170B86DC" }).company,
+    "0352e874-bf22-4f3a-8590-cce8170b86dc",
+  );
 });
-test("pagination links preserve search and status without injecting URL parameters", () => {
+test("pagination links preserve search, status and company without injecting URL parameters", () => {
   const input = {
     status: "paid" as const,
     search: "Cliente & page=99",
+    company: "0352e874-bf22-4f3a-8590-cce8170b86dc",
     page: 2,
     pageSize: 25,
   };
@@ -70,6 +77,7 @@ test("pagination links preserve search and status without injecting URL paramete
       ...input,
       status: "all",
       search: "",
+      company: "",
       page: 1,
       pageSize: 10,
     }),
