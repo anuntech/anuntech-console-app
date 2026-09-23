@@ -1,27 +1,23 @@
-import { AttachmentPicker } from "@/components/attachment-picker";
-import { TicketActionForm } from "@/components/ticket-action-form";
 import type { Metadata } from "next";
-import { DownloadLink } from "@/components/download-link";
-import { Notification } from "@/components/notifications";
-import { eq, asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
-  tickets,
-  messages,
-  user,
-  companies,
   attachments,
+  companies,
   engagements,
+  messages,
+  tickets,
+  user,
 } from "@/db/schema";
 import { getActor, canAccess } from "@/lib/access";
-import { replyTicket, updateTicket, uploadAttachment } from "@/lib/actions";
-import { ActionForm } from "@/components/action-form";
-import { Heading, Field, Back, Badge } from "@/components/ui";
-import { ticketLabels, dateLabel } from "@/lib/format";
-import { Paperclip, MessagesSquare, SlidersHorizontal } from "lucide-react";
+import { hasConsoleStaffAccess } from "@/lib/console-members";
+import {
+  TicketDetail,
+  type TicketEntry,
+} from "@/components/chamados/ticket-detail";
 export const metadata: Metadata = {
-  title: "Detalhes do chamado",
+  title: "Chamado",
   description:
     "Acompanhe a conversa, a situação e os arquivos de uma solicitação de atendimento.",
 };
@@ -38,15 +34,24 @@ export default async function Ticket({
       ticket: tickets,
       company: companies.name,
       engagement: engagements.name,
+      authorName: user.name,
+      authorEmail: user.email,
     })
     .from(tickets)
     .innerJoin(companies, eq(companies.id, tickets.companyId))
+    .innerJoin(user, eq(user.id, tickets.authorId))
     .leftJoin(engagements, eq(engagements.id, tickets.engagementId))
     .where(eq(tickets.id, id));
   if (!row || !canAccess(actor, row.ticket.companyId, "support")) notFound();
   const [thread, files] = await Promise.all([
     db
-      .select({ message: messages, name: user.name })
+      .select({
+        id: messages.id,
+        body: messages.body,
+        createdAt: messages.createdAt,
+        author: user.name,
+        email: user.email,
+      })
       .from(messages)
       .innerJoin(user, eq(user.id, messages.authorId))
       .where(eq(messages.ticketId, id))
@@ -56,143 +61,84 @@ export default async function Ticket({
         id: attachments.id,
         name: attachments.name,
         size: attachments.size,
+        mime: attachments.mime,
+        createdAt: attachments.createdAt,
+        author: user.name,
+        email: user.email,
       })
       .from(attachments)
-      .where(eq(attachments.ticketId, id)),
+      .innerJoin(user, eq(user.id, attachments.authorId))
+      .where(eq(attachments.ticketId, id))
+      .orderBy(asc(attachments.createdAt)),
   ]);
+  // Who speaks for Anuntech in the thread.
+  const staff = new Map(
+    await Promise.all(
+      [...new Set([...thread, ...files].map((e) => e.email))].map(
+        async (email) => [email, await hasConsoleStaffAccess(email)] as const,
+      ),
+    ),
+  );
+  // A reply and its attachments share an instant; the words come first.
+  const timeline: { at: number; order: number; entry: TicketEntry }[] = [
+    ...thread.map((m) => ({
+      at: m.createdAt.getTime(),
+      order: 0,
+      entry: {
+        kind: "message" as const,
+        id: m.id,
+        body: m.body,
+        createdAt: m.createdAt.toISOString(),
+        author: m.author,
+        staff: staff.get(m.email) ?? false,
+      },
+    })),
+    ...files.map((f) => ({
+      at: f.createdAt.getTime(),
+      order: 1,
+      entry: {
+        kind: "file" as const,
+        file: {
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          mime: f.mime,
+          createdAt: f.createdAt.toISOString(),
+          author: f.author,
+        },
+        staff: staff.get(f.email) ?? false,
+      },
+    })),
+  ].sort((a, b) => a.at - b.at || a.order - b.order);
   const t = row.ticket;
   return (
-    <>
-      <Back href="/chamados" label="Chamados" />
-      <Heading
-        title={t.subject}
-        description={`${row.company}${row.engagement ? ` · ${row.engagement}` : ""}`}
-      />
-      <div className="ticket-layout">
-        <section>
-          <div className="panel padded">
-            <div className="card-top">
-              <Badge status={t.status}>{ticketLabels[t.status]}</Badge>
-              <small className="muted">
-                Aberto em {dateLabel(t.createdAt)}
-              </small>
-            </div>
-            <h2 className="detail-section-title">
-              <MessagesSquare size={18} aria-hidden="true" />
-              Conversa
-            </h2>
-            <div className="thread">
-              {thread.map(({ message: m, name }) => (
-                <article className="message" key={m.id}>
-                  <div className="message-meta">
-                    <span className="message-author">
-                      <span className="message-avatar" aria-hidden="true">
-                        {name.slice(0, 1).toUpperCase()}
-                      </span>
-                      <strong>{name}</strong>
-                    </span>
-                    <time dateTime={m.createdAt.toISOString()}>
-                      {dateLabel(m.createdAt)}
-                    </time>
-                  </div>
-                  <p className="pre-wrap">{m.body}</p>
-                </article>
-              ))}
-            </div>
-            {t.status !== "closed" ? (
-              <ActionForm
-                action={replyTicket}
-                label="Enviar resposta"
-                reset
-                className="form message-reply"
-              >
-                <input type="hidden" name="ticketId" value={id} />
-                <Field label="Sua resposta">
-                  <textarea
-                    name="body"
-                    required
-                    rows={5}
-                    maxLength={10000}
-                    placeholder="Escreva sua resposta para continuar a conversa."
-                  />
-                </Field>
-              </ActionForm>
-            ) : (
-              <Notification
-                message="Este chamado foi encerrado."
-                id="ticket-closed"
-              />
-            )}
-          </div>
-        </section>
-        <aside className="details-column">
-          {actor.admin && (
-            <section className="panel padded">
-              <h2 className="detail-section-title">
-                <SlidersHorizontal size={17} aria-hidden="true" />
-                Gerenciar chamado
-              </h2>
-              <ActionForm action={updateTicket} label="Atualizar">
-                <input type="hidden" name="ticketId" value={id} />
-                <Field label="Situação">
-                  <select name="status" defaultValue={t.status}>
-                    {Object.entries(ticketLabels).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Responsável (e-mail)">
-                  <input
-                    name="assignedTo"
-                    type="email"
-                    autoComplete="email"
-                    defaultValue={t.assignedTo || ""}
-                  />
-                </Field>
-              </ActionForm>
-            </section>
-          )}
-          <section className="panel padded">
-            <h2 className="detail-section-title">
-              <Paperclip size={17} aria-hidden="true" />
-              Anexos <span className="collection-count">{files.length}</span>
-            </h2>
-            <p id="attachment-requirements" className="muted">
-              PDF, PNG, JPEG ou WebP. Até 20 MB por arquivo. Fotos são otimizadas.
-            </p>
-            <div className="attachment-list">
-              {!files.length && (
-                <p className="form-footnote">Nenhum arquivo anexado.</p>
-              )}
-              {files.map((f) => (
-                <DownloadLink
-                  key={f.id}
-                  href={`/api/anexos/${f.id}`}
-                  filename={f.name}
-                >
-                  <Paperclip size={15} aria-hidden="true" />
-                  <span>
-                    {f.name}
-                    <small>{Math.ceil(f.size / 1024)} KB</small>
-                  </span>
-                </DownloadLink>
-              ))}
-            </div>
-            {t.status !== "closed" && (
-              <TicketActionForm fileField="file"
-                action={uploadAttachment}
-                label="Adicionar arquivo"
-                reset
-              >
-                <input type="hidden" name="ticketId" value={id} />
-                <AttachmentPicker name="file" multiple={false} required />
-              </TicketActionForm>
-            )}
-          </section>
-        </aside>
-      </div>
-    </>
+    <TicketDetail
+      data={{
+        ticket: {
+          id: t.id,
+          subject: t.subject,
+          status: t.status,
+          priority: t.priority,
+          assignedTo: t.assignedTo,
+          createdAt: t.createdAt.toISOString(),
+          updatedAt: t.updatedAt.toISOString(),
+          companyId: t.companyId,
+          company: row.company,
+          engagement: row.engagement,
+          author: { name: row.authorName, email: row.authorEmail },
+        },
+        entries: timeline.map((item) => item.entry),
+        files: files.map((f) => ({
+          id: f.id,
+          name: f.name,
+          size: f.size,
+          mime: f.mime,
+          createdAt: f.createdAt.toISOString(),
+          author: f.author,
+        })),
+        viewer: { admin: actor.admin },
+        now: new Date().toISOString(),
+      }}
+    />
   );
 }

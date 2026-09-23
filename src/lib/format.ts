@@ -16,6 +16,45 @@ export const ticketLabels: Record<string, string> = {
   resolved: "Resolvido",
   closed: "Encerrado",
 };
+export const priorityLabels: Record<string, string> = {
+  normal: "Normal",
+  high: "Alta",
+};
+// Instants (timestamps), unlike dateLabel's civil dates.
+const instant = (date: Date | string) =>
+  typeof date === "string" ? new Date(date) : date;
+export const timeLabel = (date: Date | string) =>
+  new Intl.DateTimeFormat(APP_LOCALE, {
+    timeZone: APP_TIME_ZONE,
+    timeStyle: "short",
+  }).format(instant(date));
+export const dateTimeLabel = (date: Date | string) =>
+  `${dateLabel(instant(date))} às ${timeLabel(date)}`;
+/** "há 5 min", "ontem" … up to a week; older moments read as a date. */
+export function relativeLabel(
+  date: Date | string,
+  now: Date | string = new Date(),
+) {
+  const minutes = Math.round(
+    (instant(now).getTime() - instant(date).getTime()) / 60000,
+  );
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "ontem";
+  if (days < 7) return `há ${days} dias`;
+  return dateLabel(instant(date));
+}
+export const fileSizeLabel = (bytes: number) =>
+  bytes < 1024 * 1024
+    ? `${Math.max(1, Math.ceil(bytes / 1024))} KB`
+    : `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+export function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return ((words[0]?.[0] || "") + (words[1]?.[0] || "")).toUpperCase() || "•";
+}
 export const invoiceLabels: Record<string, string> = {
   draft: "Rascunho",
   issued: "Emitida",

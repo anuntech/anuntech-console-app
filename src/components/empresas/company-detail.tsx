@@ -18,7 +18,6 @@ import {
   ShieldCheckIcon,
   UserRoundIcon,
 } from "lucide-react";
-import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -60,6 +59,7 @@ import {
   SectionTitle,
   EmptyState,
 } from "@/components/console/page-header";
+import { Fact } from "@/components/console/fact";
 import {
   ConfirmAction,
   ConfirmDialog,
@@ -109,23 +109,6 @@ export type CompanyDetailData = {
     engagements: string;
   };
 };
-
-function Fact({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("min-w-0", className)}>
-      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-sm text-foreground break-words">{children}</dd>
-    </div>
-  );
-}
 
 function RelationRow({
   href,

@@ -60,7 +60,7 @@ export function PageHeader({
           {leading}
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">
-              <span className="truncate">{title}</span>
+              <span className="min-w-0 break-words">{title}</span>
               {typeof count === "number" && (
                 <span className="rounded-full bg-secondary px-2 py-0.5 font-sans text-xs font-medium tabular-nums text-secondary-foreground">
                   {count}

@@ -22,7 +22,7 @@ import {
   enqueueTicketNotice,
   scheduleTicketNotices,
 } from "./ticket-notifications";
-import { ticketLabels } from "./format";
+import { priorityLabels, ticketLabels } from "./format";
 import { companyIdentity } from "./company-input";
 import { companyBillingInput } from "./company-billing";
 const id = z.string().uuid();
@@ -242,8 +242,26 @@ export async function replyTicket(
   const actor = await getActor();
   try {
     const input = z
-      .object({ ticketId: id, body: str(10000) })
+      .object({
+        ticketId: id,
+        body: z
+          .string()
+          .trim()
+          .max(10000, "O texto excede o tamanho permitido.")
+          .default(""),
+      })
       .parse(Object.fromEntries(form));
+    let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
+    try {
+      direct = await prepareTicketFiles([
+        ...form.getAll("files"),
+        ...form.getAll("file"),
+      ]);
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "Anexos inválidos.",
+      };
+    }
     const result = await db.transaction(async (tx) => {
       const [ticket] = await tx
         .select()
@@ -257,11 +275,44 @@ export async function replyTicket(
           error:
             "O chamado está encerrado. Abra um novo chamado para continuar o atendimento.",
         };
-      await tx.insert(messages).values({
-        ticketId: ticket.id,
-        body: input.body,
-        authorId: actor.user.id,
-      });
+      let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
+      try {
+        uploaded = await takeTicketUploads(tx, actor.user.id, form);
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : "Anexos inválidos.",
+        };
+      }
+      const files = [...direct, ...uploaded];
+      if (!input.body && !files.length)
+        return { error: "Escreva uma resposta ou anexe um arquivo." };
+      if (
+        files.length > 5 ||
+        files.reduce((n, f) => n + f.size, 0) > 20 * 1024 * 1024
+      )
+        return { error: "Selecione até 5 anexos, com no máximo 20 MB no total." };
+      if (files.length) {
+        const [total] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(attachments)
+          .where(eq(attachments.ticketId, ticket.id));
+        if (total.n + files.length > 20)
+          return { error: "Limite de 20 anexos por chamado atingido." };
+      }
+      if (input.body)
+        await tx.insert(messages).values({
+          ticketId: ticket.id,
+          body: input.body,
+          authorId: actor.user.id,
+        });
+      if (files.length)
+        await tx.insert(attachments).values(
+          files.map((file) => ({
+            ...file,
+            ticketId: ticket.id,
+            authorId: actor.user.id,
+          })),
+        );
       await tx
         .update(tickets)
         .set({
@@ -276,7 +327,7 @@ export async function replyTicket(
         .values({
           actorId: actor.user.id,
           companyId: ticket.companyId,
-          action: "ticket.replied",
+          action: input.body ? "ticket.replied" : "ticket.attachment_added",
           entityId: ticket.id,
         })
         .returning({ id: auditEvents.id });
@@ -285,9 +336,9 @@ export async function replyTicket(
         event.id,
         ticket,
         actor.user.name,
-        "Nova resposta no chamado",
+        input.body ? "Nova resposta no chamado" : "Novo anexo no chamado",
       );
-      return { success: "Resposta enviada." };
+      return { success: input.body ? "Resposta enviada." : "Anexo enviado." };
     });
     revalidatePath(`/chamados/${input.ticketId}`);
     refresh();
@@ -304,17 +355,15 @@ export async function updateTicket(
   const actor = await getActor();
   if (!actor.admin) return blocked;
   try {
+    // Each field is optional so menus can move one thing at a time.
     const input = z
       .object({
         ticketId: id,
-        status: z.enum([
-          "open",
-          "in_progress",
-          "waiting_customer",
-          "resolved",
-          "closed",
-        ]),
-        assignedTo: z.union([mail, z.literal("")]),
+        status: z
+          .enum(["open", "in_progress", "waiting_customer", "resolved", "closed"])
+          .optional(),
+        priority: z.enum(["normal", "high"]).optional(),
+        assignedTo: z.union([mail, z.literal("")]).optional(),
       })
       .parse(Object.fromEntries(form));
     await db.transaction(async (tx) => {
@@ -324,18 +373,23 @@ export async function updateTicket(
         .where(eq(tickets.id, input.ticketId))
         .for("update");
       if (!previous) throw Error();
+      const next = {
+        status: input.status ?? previous.status,
+        priority: input.priority ?? previous.priority,
+        assignedTo:
+          input.assignedTo === undefined
+            ? previous.assignedTo
+            : input.assignedTo || null,
+      };
       if (
-        previous.status === input.status &&
-        (previous.assignedTo || "") === input.assignedTo
+        previous.status === next.status &&
+        previous.priority === next.priority &&
+        previous.assignedTo === next.assignedTo
       )
         return;
       const [row] = await tx
         .update(tickets)
-        .set({
-          status: input.status,
-          assignedTo: input.assignedTo || null,
-          updatedAt: new Date(),
-        })
+        .set({ ...next, updatedAt: new Date() })
         .where(eq(tickets.id, input.ticketId))
         .returning();
       if (!row) throw Error();
@@ -346,7 +400,11 @@ export async function updateTicket(
           companyId: row.companyId,
           action: "ticket.updated",
           entityId: row.id,
-          details: { status: row.status, assignedTo: row.assignedTo },
+          details: {
+            status: row.status,
+            priority: row.priority,
+            assignedTo: row.assignedTo,
+          },
         })
         .returning({ id: auditEvents.id });
       const changes = [
@@ -360,6 +418,9 @@ export async function updateTicket(
                     ? `Chamado reaberto: ${ticketLabels[row.status]}`
                     : `Situação alterada: ${ticketLabels[row.status]}`,
             ]
+          : []),
+        ...(previous.priority !== row.priority
+          ? [`Prioridade: ${priorityLabels[row.priority]}`]
           : []),
         ...(previous.assignedTo !== row.assignedTo
           ? [`Responsável: ${row.assignedTo || "não atribuído"}`]
@@ -507,58 +568,6 @@ export async function cancelDraft(
     return failure(e);
   }
 }
-export async function uploadAttachment(
-  _: ActionState,
-  form: FormData,
-): Promise<ActionState> {
-  const actor = await getActor();
-  try {
-    const ticketId = id.parse(form.get("ticketId"));
-    let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
-    try { direct = await prepareTicketFiles(form.getAll("file")); }
-    catch (error) { return { error: error instanceof Error ? error.message : "Anexo inválido." }; }
-    const result = await db.transaction(async (tx) => {
-      const [ticket] = await tx
-        .select()
-        .from(tickets)
-        .where(eq(tickets.id, ticketId))
-        .for("update");
-      if (!ticket || !canAccess(actor, ticket.companyId, "support"))
-        return blocked;
-      if (ticket.status === "closed")
-        return { error: "Chamado encerrado não recebe novos anexos." };
-      const uploaded = await takeTicketUploads(tx, actor.user.id, form);
-      const files = [...direct, ...uploaded];
-      if (files.length !== 1) throw new Error("Selecione um arquivo.");
-      const [total] = await tx.select({ n: sql<number>`count(*)::int` }).from(attachments).where(eq(attachments.ticketId, ticketId));
-      if (total.n >= 20) throw new Error("Limite de 20 anexos por chamado atingido.");
-      const [row] = await tx.insert(attachments).values({ ticketId, authorId: actor.user.id, ...files[0] }).returning({ id: attachments.id });
-      const [event] = await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          companyId: ticket.companyId,
-          action: "ticket.attachment_added",
-          entityId: row.id,
-        })
-        .returning({ id: auditEvents.id });
-      await enqueueTicketNotice(
-        tx,
-        event.id,
-        ticket,
-        actor.user.name,
-        "Novo anexo no chamado",
-      );
-      return { success: "Anexo salvo." };
-    });
-    revalidatePath(`/chamados/${ticketId}`);
-    if ("success" in result) scheduleTicketNotices();
-    return result;
-  } catch (e) {
-    return failure(e);
-  }
-}
-
 export async function updateDraft(
   _: ActionState,
   form: FormData,

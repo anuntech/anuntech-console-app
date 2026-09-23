@@ -141,9 +141,9 @@ export default async function Company({
           contracts: contractRow?.n ?? 0,
           engagements: engagementRow?.n ?? 0,
         },
-        // List screens don't filter by company yet; that arrives with each subject.
+        // Lists that filter by company get a deep link; the rest arrives per subject.
         links: {
-          tickets: "/chamados",
+          tickets: `/chamados?company=${id}`,
           invoices: "/financeiro",
           contracts: "/contratos",
           engagements: "/produtos",

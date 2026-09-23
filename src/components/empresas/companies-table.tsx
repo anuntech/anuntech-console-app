@@ -6,8 +6,6 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   Building2Icon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   HeadsetIcon,
   LogInIcon,
   MoreHorizontalIcon,
@@ -42,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/console/server-form";
 import { EmptyState } from "@/components/console/page-header";
+import { TablePagination } from "@/components/console/table-pagination";
 import { setCompanyArchived } from "@/lib/actions";
 import { startAssistedSession } from "@/lib/assisted-actions";
 import {
@@ -195,8 +194,6 @@ export function CompaniesTable({
     companyListHref({ ...query, ...patch });
   const go = (patch: Partial<typeof query>) =>
     router.push(href(patch), { scroll: false });
-  const from = total ? (query.page - 1) * query.pageSize + 1 : 0;
-  const to = Math.min(query.page * query.pageSize, total);
 
   return (
     <>
@@ -354,54 +351,15 @@ export function CompaniesTable({
           />
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
-          <label className="flex items-center gap-2">
-            Por página
-            <Select
-              value={String(query.pageSize)}
-              onValueChange={(size) => go({ pageSize: Number(size), page: 1 })}
-            >
-              <SelectTrigger size="sm" className="h-7 w-[72px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 25, 50, 100].map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <span aria-live="polite" className="tabular-nums">
-            {total
-              ? `${from}–${to} de ${total} ${total === 1 ? "empresa" : "empresas"}`
-              : "0 empresas"}
-          </span>
-          <nav aria-label="Paginação" className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              aria-label="Página anterior"
-              disabled={query.page <= 1}
-              onClick={() => go({ page: query.page - 1 })}
-            >
-              <ChevronLeftIcon />
-            </Button>
-            <span className="px-2 tabular-nums">
-              {query.page} / {pageCount}
-            </span>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              aria-label="Próxima página"
-              disabled={query.page >= pageCount}
-              onClick={() => go({ page: query.page + 1 })}
-            >
-              <ChevronRightIcon />
-            </Button>
-          </nav>
-        </div>
+        <TablePagination
+          page={query.page}
+          pageCount={pageCount}
+          pageSize={query.pageSize}
+          total={total}
+          noun={["empresa", "empresas"]}
+          onPageChange={(page) => go({ page })}
+          onPageSizeChange={(pageSize) => go({ pageSize, page: 1 })}
+        />
       </section>
       <CompanySheet
         open={editing !== null}

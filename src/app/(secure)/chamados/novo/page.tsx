@@ -1,3 +1,27 @@
-import { NewTicketPage } from "@/components/new-ticket-page";
-export const metadata = { title: "Abrir chamado" };
-export default NewTicketPage;
+import type { Metadata } from "next";
+import { PageHeader } from "@/components/console/page-header";
+import { NewTicketForm } from "@/components/chamados/ticket-form";
+import {
+  newTicketContext,
+  type NewTicketSearchParams,
+} from "@/components/chamados/new-ticket-context";
+export const metadata: Metadata = { title: "Abrir chamado" };
+
+/** Direct loads only; in-app navigation shows the sheet from @ticket instead. */
+export default async function NewTicket({
+  searchParams,
+}: {
+  searchParams: NewTicketSearchParams;
+}) {
+  const { companies, companyId } = await newTicketContext(searchParams);
+  return (
+    <>
+      <PageHeader
+        crumbs={[{ label: "Chamados", href: "/chamados" }, { label: "Abrir chamado" }]}
+        title="Abrir chamado"
+        description="Como podemos ajudar?"
+      />
+      <NewTicketForm companies={companies} companyId={companyId} />
+    </>
+  );
+}

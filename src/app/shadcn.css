@@ -105,7 +105,8 @@
   :where(
     [data-slot="input"],
     [data-slot="textarea"],
-    [data-slot="select-trigger"]
+    [data-slot="select-trigger"],
+    [data-slot="native-select"]
   ) {
     min-height: 0;
     line-height: normal;

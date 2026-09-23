@@ -1,9 +1,14 @@
-import { NewTicketPage } from "@/components/new-ticket-page";
+import { NewTicketSheet } from "@/components/chamados/ticket-sheet";
+import {
+  newTicketContext,
+  type NewTicketSearchParams,
+} from "@/components/chamados/new-ticket-context";
 export const metadata = { title: "Abrir chamado" };
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ companyId?: string; from?: string }>;
+  searchParams: NewTicketSearchParams;
 }) {
-  return <NewTicketPage searchParams={searchParams} intercepted />;
+  const { companies, companyId } = await newTicketContext(searchParams);
+  return <NewTicketSheet companies={companies} companyId={companyId} />;
 }
