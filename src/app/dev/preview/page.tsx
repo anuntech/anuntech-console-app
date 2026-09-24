@@ -614,7 +614,7 @@ export default async function Preview({
       tasks: { total: 21, done: 21 },
     },
   ];
-  const person = (id: string, name: string) => ({ id, name });
+  const person = (id: string, name: string) => ({ id, name, image: null as string | null });
   const boardPeople = [
     person("u1", "Kauan Ketner"),
     person("u2", "Alexandre Souza"),
@@ -627,6 +627,7 @@ export default async function Preview({
     extra: Partial<{
       priority: "low" | "normal" | "high" | "urgent";
       assignee: string;
+      assignees: string[];
       dueDate: string;
       description: string;
       labels: string[];
@@ -639,8 +640,9 @@ export default async function Preview({
     description: extra.description ?? null,
     status,
     priority: extra.priority ?? ("normal" as const),
-    assigneeId: extra.assignee ? boardPeople.find((p) => p.name === extra.assignee)?.id ?? null : null,
-    assignee: extra.assignee ?? null,
+    assignees: boardPeople.filter((p) =>
+      [...(extra.assignees ?? []), ...(extra.assignee ? [extra.assignee] : [])].includes(p.name),
+    ),
     dueDate: extra.dueDate ?? null,
     labels: extra.labels ?? [],
     estimateMinutes: extra.estimate ?? null,
@@ -679,7 +681,7 @@ export default async function Preview({
     }),
     boardTask("t6", "Integrar o formulário de contato ao WhatsApp", "in_progress", {
       priority: "urgent",
-      assignee: "Kauan Ketner",
+      assignees: ["Kauan Ketner", "Mariana Lopes", "Alexandre Souza"],
       dueDate: day(1),
       labels: ["Integração", "WhatsApp", "Backend", "Urgente"],
       estimate: 90,

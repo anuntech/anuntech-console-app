@@ -141,6 +141,13 @@
       "when": 1790217399798,
       "tag": "0019_task_labels_estimate_files",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790218150317,
+      "tag": "0020_task_assignees",
+      "breakpoints": true
     }
   ]
 }

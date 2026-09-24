@@ -2,7 +2,7 @@
 import { and, asc, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { attachments, auditEvents, engagements, tasks } from "@/db/schema";
+import { attachments, auditEvents, engagements, taskAssignees, tasks } from "@/db/schema";
 import { getActor, canAccess } from "./access";
 import type { ActionState } from "./action-state";
 import { db } from "./db";
@@ -21,7 +21,7 @@ const failure = (error: unknown): ActionState => ({
   error:
     error instanceof z.ZodError
       ? error.issues[0].message
-      : error instanceof Error && /etiqueta|estimativa/i.test(error.message)
+      : error instanceof Error && /etiqueta|estimativa|pessoa/i.test(error.message)
         ? error.message
         : "Não foi possível salvar. Confira os dados e tente novamente.",
 });
@@ -52,13 +52,22 @@ const taskInput = z.object({
   description: z.string().trim().max(5000, "A descrição excede o tamanho permitido.").default(""),
   status: z.enum(TASK_STATUSES).default("todo"),
   priority: z.enum(TASK_PRIORITIES).default("normal"),
-  // User ids come from better-auth and are not UUIDs; membership is checked separately.
-  assigneeId: z.union([z.string().trim().min(1).max(128), z.literal("")]).default(""),
   dueDate: z.union([z.iso.date("Informe uma data válida."), z.literal("")]).default(""),
   estimate: z.string().trim().max(10).default(""),
 });
 const MAX_LABELS = 8;
 const MAX_FILES_PER_TASK = 20;
+const MAX_ASSIGNEES = 10;
+
+/** People picked in the sheet; ids come from better-auth, so they are not UUIDs. */
+async function parseAssignees(values: FormDataEntryValue[], companyId: string) {
+  const ids = [...new Set(values.map((v) => String(v).trim()).filter((v) => v && v.length <= 128))];
+  if (ids.length > MAX_ASSIGNEES) throw new Error(`Até ${MAX_ASSIGNEES} pessoas por tarefa.`);
+  for (const userId of ids)
+    if (!(await assigneeAllowed(userId, companyId)))
+      throw new Error("Uma das pessoas escolhidas não participa deste projeto.");
+  return ids;
+}
 
 /** Tags typed in the sheet: trimmed, unique, short. */
 function parseLabels(values: FormDataEntryValue[]) {
@@ -99,8 +108,7 @@ export async function createTask(
     const context = await projectFor(input.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
-    if (input.assigneeId && !(await assigneeAllowed(input.assigneeId, project.companyId)))
-      return { error: "Essa pessoa não participa deste projeto." };
+    const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project.companyId);
     let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
     try {
       direct = await prepareTicketFiles(form.getAll("files"));
@@ -129,7 +137,6 @@ export async function createTask(
           description: input.description || null,
           status: input.status,
           priority: input.priority,
-          assigneeId: input.assigneeId || null,
           dueDate: input.dueDate || null,
           labels,
           estimateMinutes,
@@ -137,6 +144,10 @@ export async function createTask(
           createdBy: actor.user.id,
         })
         .returning({ id: tasks.id });
+      if (assigneeIds.length)
+        await tx
+          .insert(taskAssignees)
+          .values(assigneeIds.map((userId) => ({ taskId: row.id, userId })));
       if (files.length)
         await tx.insert(attachments).values(
           files.map((file) => ({ ...file, taskId: row.id, authorId: actor.user.id })),
@@ -170,8 +181,7 @@ export async function updateTask(
     const context = await projectFor(current.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
-    if (input.assigneeId && !(await assigneeAllowed(input.assigneeId, project.companyId)))
-      return { error: "Essa pessoa não participa deste projeto." };
+    const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project.companyId);
     let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
     try {
       direct = await prepareTicketFiles(form.getAll("files"));
@@ -215,7 +225,6 @@ export async function updateTask(
           description: input.description || null,
           status: input.status,
           priority: input.priority,
-          assigneeId: input.assigneeId || null,
           dueDate: input.dueDate || null,
           labels,
           estimateMinutes,
@@ -223,6 +232,11 @@ export async function updateTask(
           updatedAt: new Date(),
         })
         .where(eq(tasks.id, input.id));
+      await tx.delete(taskAssignees).where(eq(taskAssignees.taskId, input.id));
+      if (assigneeIds.length)
+        await tx
+          .insert(taskAssignees)
+          .values(assigneeIds.map((userId) => ({ taskId: input.id, userId })));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: project.companyId,
@@ -358,6 +372,7 @@ export async function deleteTask(
       return { error: "Só quem criou a tarefa ou a equipe pode excluí-la." };
     await db.transaction(async (tx) => {
       await tx.delete(attachments).where(eq(attachments.taskId, taskId));
+      await tx.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId));
       await tx.delete(tasks).where(eq(tasks.id, taskId));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,

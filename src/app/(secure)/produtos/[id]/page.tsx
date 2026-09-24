@@ -46,7 +46,11 @@ export default async function Project({
           ...task,
           updatedAt: task.updatedAt.toISOString(),
         })),
-        people: people.map((person) => ({ id: person.id, name: person.name })),
+        people: people.map((person) => ({
+          id: person.id,
+          name: person.name,
+          image: person.image,
+        })),
         viewer: { id: actor.user.id, admin: actor.admin },
         today: saoPauloDate(now),
         now: now.toISOString(),

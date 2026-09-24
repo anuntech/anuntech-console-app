@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { dateLabel } from "@/lib/format";
+import { fieldButtonClass } from "./field";
 
 /** "2026-09-23" ⇄ a local Date, so the day never drifts with the time zone. */
 function parseIso(value: string) {
@@ -65,11 +66,7 @@ export function DateField({
           <button
             id={id}
             type="button"
-            className={cn(
-              "flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-field px-3 py-1 text-left text-sm shadow-xs transition-[color,box-shadow] outline-none",
-              "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              value ? "text-foreground" : "text-muted-foreground",
-            )}
+            className={cn(fieldButtonClass, value ? "text-foreground" : "text-muted-foreground")}
           >
             <CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate">{value ? dateLabel(value) : placeholder}</span>

@@ -9,6 +9,7 @@ import {
   index,
   jsonb,
   customType,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 const created = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -259,7 +260,6 @@ export const tasks = pgTable(
     priority: text("priority", { enum: ["low", "normal", "high", "urgent"] })
       .notNull()
       .default("normal"),
-    assigneeId: text("assignee_id").references(() => user.id),
     dueDate: date("due_date"),
     /** Free-form tags, kept per task; colours derive from the text. */
     labels: text("labels").array().notNull().default([]),
@@ -277,6 +277,23 @@ export const tasks = pgTable(
   (t) => [
     index("console_task_engagement_idx").on(t.engagementId),
     index("console_task_board_idx").on(t.engagementId, t.status, t.position),
+  ],
+);
+/** Who is working on a task; a task can have several people. */
+export const taskAssignees = pgTable(
+  "console_task_assignees",
+  {
+    taskId: text("task_id")
+      .notNull()
+      .references(() => tasks.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.taskId, t.userId] }),
+    index("console_task_assignee_user_idx").on(t.userId),
   ],
 );
 export const tickets = pgTable(

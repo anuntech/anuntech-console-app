@@ -67,7 +67,8 @@ import { ServerForm } from "@/components/console/server-form";
 import { toast } from "@/components/notifications";
 import { updateEngagement } from "@/lib/actions";
 import { moveTask } from "@/lib/task-actions";
-import { initials, shortDateLabel } from "@/lib/format";
+import { shortDateLabel } from "@/lib/format";
+import { AvatarStack } from "@/components/console/person-avatar";
 import {
   TASK_STATUSES,
   engagementKindLabels,
@@ -142,7 +143,7 @@ function TaskCard({
   const meta =
     task.priority !== "normal" ||
     task.dueDate ||
-    task.assignee ||
+    task.assignees.length > 0 ||
     task.estimateMinutes != null ||
     task.files.length > 0;
   const shownLabels = task.labels.slice(0, 3);
@@ -208,13 +209,8 @@ function TaskCard({
                 {task.files.length}
               </span>
             )}
-            {task.assignee && (
-              <span
-                className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground"
-                title={task.assignee}
-              >
-                {initials(task.assignee)}
-              </span>
+            {task.assignees.length > 0 && (
+              <AvatarStack people={task.assignees} size={24} className="ml-auto" />
             )}
           </span>
         )}

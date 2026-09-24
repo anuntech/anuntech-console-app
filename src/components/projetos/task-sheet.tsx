@@ -2,7 +2,6 @@
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { FileTextIcon, ImageIcon, Trash2Icon, XIcon } from "lucide-react";
-import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +41,7 @@ import {
 } from "@/lib/task-model";
 import { fileSizeLabel, relativeLabel } from "@/lib/format";
 import { LabelField } from "./label-field";
+import { PeopleField, type PersonOption } from "./people-field";
 
 export type TaskFile = {
   id: string;
@@ -56,8 +56,7 @@ export type BoardTask = {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
-  assigneeId: string | null;
-  assignee: string | null;
+  assignees: PersonOption[];
   dueDate: string | null;
   labels: string[];
   estimateMinutes: number | null;
@@ -66,7 +65,7 @@ export type BoardTask = {
   creator: string | null;
   updatedAt: string;
 };
-export type BoardPerson = { id: string; name: string };
+export type BoardPerson = PersonOption;
 export type TaskEditor =
   | { mode: "create"; status: TaskStatus }
   | { mode: "edit"; task: BoardTask };
@@ -238,22 +237,14 @@ export function TaskSheet({
                     </NativeSelect>
                   </div>
                   <div>
-                    <Label htmlFor="task-assignee" className="mb-1.5">
-                      Responsável
+                    <Label htmlFor="task-assignees" className="mb-1.5">
+                      Responsáveis
                     </Label>
-                    <NativeSelect
-                      id="task-assignee"
-                      name="assigneeId"
-                      defaultValue={task?.assigneeId ?? ""}
-                      className="bg-field"
-                    >
-                      <NativeSelectOption value="">Sem responsável</NativeSelectOption>
-                      {people.map((person) => (
-                        <NativeSelectOption key={person.id} value={person.id}>
-                          {person.name}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
+                    <PeopleField
+                      id="task-assignees"
+                      people={people}
+                      defaultValue={task?.assignees.map((person) => person.id) ?? []}
+                    />
                   </div>
                   <div>
                     <Label htmlFor="task-due" className="mb-1.5">
@@ -281,33 +272,31 @@ export function TaskSheet({
                       placeholder="Ex.: 1,5"
                     />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="task-labels" className="mb-1.5">
-                    Etiquetas
-                  </Label>
-                  <LabelField
-                    id="task-labels"
-                    defaultValue={task?.labels ?? []}
-                    suggestions={labelSuggestions}
-                  />
-                </div>
-                <div>
-                  <p className="mb-1.5 text-sm font-medium text-foreground">Anexos</p>
-                  <div className="flex flex-col gap-2">
-                    {task && task.files.length > 0 && (
-                      <ul className="flex flex-wrap gap-2">
-                        {task.files.map((file) => (
-                          <FileChip
-                            key={file.id}
-                            file={file}
-                            onRemove={canRemoveFile(file) ? () => remove(file.id) : undefined}
-                          />
-                        ))}
-                      </ul>
-                    )}
-                    <AttachmentField variant="compact" className={cn(task?.files.length && "mt-1")} />
+                  <div>
+                    <Label htmlFor="task-labels" className="mb-1.5">
+                      Etiquetas
+                    </Label>
+                    <LabelField
+                      id="task-labels"
+                      defaultValue={task?.labels ?? []}
+                      suggestions={labelSuggestions}
+                    />
                   </div>
+                </div>
+                <div>
+                  <Label className="mb-1.5">Anexos</Label>
+                  {task && task.files.length > 0 && (
+                    <ul className="mb-3 flex flex-wrap gap-2">
+                      {task.files.map((file) => (
+                        <FileChip
+                          key={file.id}
+                          file={file}
+                          onRemove={canRemoveFile(file) ? () => remove(file.id) : undefined}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                  <AttachmentField />
                 </div>
               </div>
             </div>

@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { PersonAvatar } from "@/components/console/person-avatar";
 import { DownloadLink } from "@/components/console/download-link";
 import {
   FormError,
@@ -48,7 +49,6 @@ import {
   dateLabel,
   dateTimeLabel,
   fileSizeLabel,
-  initials,
   priorityLabels,
   relativeLabel,
   ticketLabels,
@@ -74,6 +74,8 @@ export type TicketEntry =
       body: string;
       createdAt: string;
       author: string;
+      authorId?: string;
+      authorImage?: string | null;
       staff: boolean;
     }
   | { kind: "file"; file: TicketFile; staff: boolean };
@@ -106,19 +108,6 @@ const STATUSES: TicketStatus[] = [
   "closed",
 ];
 
-function Avatar({ name, staff }: { name: string; staff: boolean }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-        staff ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground",
-      )}
-    >
-      {initials(name)}
-    </span>
-  );
-}
 
 function When({ at, now }: { at: string; now: string }) {
   return (
@@ -341,7 +330,11 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
               {entries.map((entry) =>
                 entry.kind === "message" ? (
                   <li key={entry.id} className="flex gap-3">
-                    <Avatar name={entry.author} staff={entry.staff} />
+                    <PersonAvatar
+                      person={{ id: entry.authorId, name: entry.author, image: entry.authorImage }}
+                      size={32}
+                      tone={entry.staff ? "staff" : "default"}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         <span className="text-sm font-semibold text-foreground">

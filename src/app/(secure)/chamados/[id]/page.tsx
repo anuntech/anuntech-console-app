@@ -50,6 +50,8 @@ export default async function Ticket({
         body: messages.body,
         createdAt: messages.createdAt,
         author: user.name,
+        authorId: user.id,
+        authorImage: user.image,
         email: user.email,
       })
       .from(messages)
@@ -90,6 +92,8 @@ export default async function Ticket({
         body: m.body,
         createdAt: m.createdAt.toISOString(),
         author: m.author,
+        authorId: m.authorId,
+        authorImage: m.authorImage,
         staff: staff.get(m.email) ?? false,
       },
     })),

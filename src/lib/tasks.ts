@@ -6,6 +6,7 @@ import {
   attachments,
   consoleStaffMembers,
   memberships,
+  taskAssignees,
   tasks,
   user,
 } from "@/db/schema";
@@ -117,6 +118,7 @@ export async function taskSummary(engagementIds: string[]) {
 }
 
 export type TaskFile = { id: string; name: string; size: number; mime: string; authorId: string };
+export type TaskPerson = { id: string; name: string; image: string | null };
 
 /** The board's cards, in column order, each with its files. */
 export async function boardTasks(engagementId: string) {
@@ -128,8 +130,6 @@ export async function boardTasks(engagementId: string) {
       description: tasks.description,
       status: tasks.status,
       priority: tasks.priority,
-      assigneeId: tasks.assigneeId,
-      assignee: user.name,
       dueDate: tasks.dueDate,
       labels: tasks.labels,
       estimateMinutes: tasks.estimateMinutes,
@@ -139,10 +139,26 @@ export async function boardTasks(engagementId: string) {
       updatedAt: tasks.updatedAt,
     })
     .from(tasks)
-    .leftJoin(user, eq(user.id, tasks.assigneeId))
     .leftJoin(creator, eq(creator.id, tasks.createdBy))
     .where(eq(tasks.engagementId, engagementId))
     .orderBy(asc(tasks.position), asc(tasks.createdAt));
+  const ids = rows.map((row) => row.id);
+  const assigned = ids.length
+    ? await db
+        .select({
+          taskId: taskAssignees.taskId,
+          id: user.id,
+          name: user.name,
+          image: user.image,
+        })
+        .from(taskAssignees)
+        .innerJoin(user, eq(user.id, taskAssignees.userId))
+        .where(inArray(taskAssignees.taskId, ids))
+        .orderBy(asc(taskAssignees.createdAt))
+    : [];
+  const peopleByTask = new Map<string, TaskPerson[]>();
+  for (const { taskId, ...person } of assigned)
+    peopleByTask.set(taskId, [...(peopleByTask.get(taskId) ?? []), person]);
   const files = rows.length
     ? await db
         .select({
@@ -154,7 +170,7 @@ export async function boardTasks(engagementId: string) {
           authorId: attachments.authorId,
         })
         .from(attachments)
-        .where(inArray(attachments.taskId, rows.map((row) => row.id)))
+        .where(inArray(attachments.taskId, ids))
         .orderBy(asc(attachments.createdAt))
     : [];
   const byTask = new Map<string, TaskFile[]>();
@@ -162,5 +178,9 @@ export async function boardTasks(engagementId: string) {
     if (!taskId) continue;
     byTask.set(taskId, [...(byTask.get(taskId) ?? []), file]);
   }
-  return rows.map((row) => ({ ...row, files: byTask.get(row.id) ?? [] }));
+  return rows.map((row) => ({
+    ...row,
+    assignees: peopleByTask.get(row.id) ?? [],
+    files: byTask.get(row.id) ?? [],
+  }));
 }
