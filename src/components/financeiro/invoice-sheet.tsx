@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/console/date-field";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -126,13 +126,12 @@ function EditForm({
             <Label htmlFor="edit-due" className="mb-1.5">
               {mode === "subscription" ? "Próximo vencimento" : "Vencimento"}
             </Label>
-            <Input
+            <DateField
               id="edit-due"
               name="dueDate"
-              type="date"
               required
               value={dueDate}
-              onChange={(event) => setDueDate(event.target.value)}
+              onChange={setDueDate}
             />
           </div>
         </div>

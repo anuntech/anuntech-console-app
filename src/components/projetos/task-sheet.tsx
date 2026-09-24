@@ -18,6 +18,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { DateField } from "@/components/console/date-field";
 import {
   ConfirmDialog,
   FormError,
@@ -182,12 +183,12 @@ export function TaskSheet({
                     <Label htmlFor="task-due" className="mb-1.5">
                       Prazo
                     </Label>
-                    <Input
+                    <DateField
                       id="task-due"
-                      type="date"
                       name="dueDate"
                       defaultValue={task?.dueDate ?? ""}
-                      className="bg-field"
+                      placeholder="Sem prazo"
+                      clearable
                     />
                   </div>
                 </div>

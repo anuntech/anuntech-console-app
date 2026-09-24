@@ -4,7 +4,7 @@ import { useState } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/console/date-field";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -172,7 +172,7 @@ export function InvoiceFields({
           <Label htmlFor="invoice-due" className="mb-1.5">
             {type === "recurring" ? "Primeiro vencimento" : "Vencimento"}
           </Label>
-          <Input id="invoice-due" name="dueDate" type="date" required />
+          <DateField id="invoice-due" name="dueDate" required />
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
