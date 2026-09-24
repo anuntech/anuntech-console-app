@@ -304,15 +304,20 @@ function Column({
         isOver && "bg-accent",
       )}
     >
-      <header className="flex items-center gap-2 px-3 pt-3 pb-2">
-        <span aria-hidden="true" className={cn("size-2 rounded-full", columnDots[status])} />
-        <h2 id={`column-${status}`} className="text-sm font-semibold text-foreground">
+      <header className="flex h-11 items-center gap-2 px-3 pt-1">
+        <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", columnDots[status])} />
+        <h2
+          id={`column-${status}`}
+          className="m-0 truncate text-sm leading-5 font-semibold text-foreground"
+        >
           {label}
         </h2>
-        <span className="text-xs tabular-nums text-muted-foreground">{ids.length}</span>
+        <span className="rounded-full bg-background/80 px-1.5 text-xs leading-5 tabular-nums text-muted-foreground">
+          {ids.length}
+        </span>
         {estimate > 0 && (
           <span
-            className="ml-1 inline-flex items-center gap-1 text-xs tabular-nums text-muted-foreground"
+            className="inline-flex items-center gap-1 text-xs leading-5 tabular-nums text-muted-foreground"
             title="Soma das estimativas"
           >
             <Clock3Icon className="size-3" />
@@ -322,7 +327,7 @@ function Column({
         <Button
           variant="ghost"
           size="icon-xs"
-          className="ml-auto text-muted-foreground hover:text-foreground"
+          className="ml-auto shrink-0 text-muted-foreground hover:text-foreground"
           aria-label={`Nova tarefa em ${label}`}
           onClick={() => onAdd(status)}
         >
