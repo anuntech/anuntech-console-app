@@ -44,7 +44,8 @@ const taskInput = z.object({
   description: z.string().trim().max(5000, "A descrição excede o tamanho permitido.").default(""),
   status: z.enum(TASK_STATUSES).default("todo"),
   priority: z.enum(TASK_PRIORITIES).default("normal"),
-  assigneeId: z.union([id, z.literal("")]).default(""),
+  // User ids come from better-auth and are not UUIDs; membership is checked separately.
+  assigneeId: z.union([z.string().trim().min(1).max(128), z.literal("")]).default(""),
   dueDate: z.union([z.iso.date("Informe uma data válida."), z.literal("")]).default(""),
 });
 
