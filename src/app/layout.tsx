@@ -1,5 +1,6 @@
 import { Notifications } from "@/components/notifications";
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./shadcn.css";
 import "./globals.css";
 import { cookies } from "next/headers";
@@ -29,6 +30,14 @@ export default async function RootLayout({
             <Notifications />
           </TooltipProvider>
         </AppearanceProvider>
+        {/* Synova support widget; the vendor limits it to console.anuntech.com, so only production loads it. */}
+        {process.env.NODE_ENV === "production" && (
+          <Script
+            src="https://cdn.wts.chat/scripts/widget/v3/h-widget-min.js"
+            data-widget="support-nova-versao-b4caa2"
+            strategy="afterInteractive"
+          />
+        )}
       </body>
     </html>
   );
