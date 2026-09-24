@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, lte } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 import { db } from "./db";
 import { subscriptions, invoices, companies, auditEvents } from "@/db/schema";
 import { saoPauloDate } from "./dates";
@@ -9,18 +9,23 @@ import { reconcileCharge } from "./billing-sync";
 
 export async function processSubscriptions() {
   const today = saoPauloDate();
-  const horizon = new Date(`${today}T12:00:00Z`);
-  horizon.setUTCDate(horizon.getUTCDate() + 5);
+  // Everything whose issue date (due date minus lead days) has arrived, oldest
+  // first, in batches the run can finish; a fixed cap without an order could
+  // let a few skipped rows starve the rest.
   const rows = await db
     .select()
     .from(subscriptions)
     .where(
       and(
         eq(subscriptions.status, "active"),
-        lte(subscriptions.nextDueDate, horizon.toISOString().slice(0, 10)),
+        lte(
+          sql`(${subscriptions.nextDueDate} - ${subscriptions.leadDays})`,
+          today,
+        ),
       ),
     )
-    .limit(2);
+    .orderBy(asc(subscriptions.nextDueDate))
+    .limit(20);
   let issued = 0,
     failed = 0;
   for (const sub of rows) {
