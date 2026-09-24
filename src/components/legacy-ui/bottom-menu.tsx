@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useAppearance } from "@/components/appearance-provider";
 import { DockAccountMenu } from "./dock-account-menu";
+import { MobileTabBar } from "./mobile-tab-bar";
 import styles from "./bottom-menu.module.css";
 
 export type NavigationProps = {
@@ -30,10 +31,10 @@ export type NavigationProps = {
   canManageMembers: boolean;
 };
 const items = [
-  { href: "/painel", label: "Visão geral", icon: LayoutDashboard },
+  { href: "/painel", label: "Visão geral", short: "Início", icon: LayoutDashboard },
   { href: "/empresas", label: "Empresas", icon: Building2, admin: true },
   { href: "/projetos", label: "Projetos", icon: FolderKanban },
-  { href: "/produtos", label: "Produtos e serviços", icon: Package },
+  { href: "/produtos", label: "Produtos e serviços", short: "Produtos", icon: Package },
   {
     href: "/chamados",
     label: "Chamados",
@@ -113,8 +114,30 @@ export default function BottomMenu({
       (!item.admin || admin) &&
       (!item.area || admin || (item.area === "support" ? support : finance)),
   );
+  const actions = [
+    {
+      href: `/chamados/novo?from=${encodeURIComponent(pathname)}`,
+      label: "Abrir chamado",
+      icon: Headset,
+      allowed: admin || support,
+    },
+    { href: "/financeiro/nova", label: "Nova cobrança", icon: ReceiptText, allowed: admin },
+    { href: "/projetos/novo", label: "Novo projeto", icon: FolderKanban, allowed: admin },
+    { href: "/produtos/novo", label: "Vincular produto ou serviço", icon: Package, allowed: admin },
+    { href: "/contratos/novo", label: "Novo contrato", icon: Folders, allowed: admin },
+    { href: "/empresas/nova", label: "Cadastrar empresa", icon: Building2, allowed: admin },
+  ].filter((item) => item.allowed);
   return (
     <header className={styles.headerBar}>
+      <MobileTabBar
+        pathname={pathname}
+        visible={visible}
+        actions={actions}
+        admin={admin}
+        userName={userName}
+        userImage={userImage}
+        canManageMembers={canManageMembers}
+      />
       <div className={styles.floating}>
         <Tooltip.Provider delay={350} closeDelay={100}>
           <nav className={styles.dock} aria-label="Navegação principal">
@@ -146,46 +169,7 @@ export default function BottomMenu({
                           <X size={16} aria-hidden="true" />
                         </Popover.Close>
                       </div>
-                      {[
-                        {
-                          href: `/chamados/novo?from=${encodeURIComponent(pathname)}`,
-                          label: "Abrir chamado",
-                          icon: Headset,
-                          allowed: admin || support,
-                        },
-                        {
-                          href: "/financeiro/nova",
-                          label: "Nova cobrança",
-                          icon: ReceiptText,
-                          allowed: admin,
-                        },
-                        {
-                          href: "/projetos/novo",
-                          label: "Novo projeto",
-                          icon: FolderKanban,
-                          allowed: admin,
-                        },
-                        {
-                          href: "/produtos/novo",
-                          label: "Vincular produto ou serviço",
-                          icon: Package,
-                          allowed: admin,
-                        },
-                        {
-                          href: "/contratos/novo",
-                          label: "Novo contrato",
-                          icon: Folders,
-                          allowed: admin,
-                        },
-                        {
-                          href: "/empresas/nova",
-                          label: "Cadastrar empresa",
-                          icon: Building2,
-                          allowed: admin,
-                        },
-                      ]
-                        .filter((item) => item.allowed)
-                        .map(({ href, label, icon: Icon }) => (
+                      {actions.map(({ href, label, icon: Icon }) => (
                           <Link
                             key={href}
                             href={href}

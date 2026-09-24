@@ -303,3 +303,62 @@
 .accountPanel [data-highlighted] { background: var(--secondary); outline: 2px solid var(--ring); outline-offset: -2px; }
 .accountPanel [data-disabled] { opacity: .5; pointer-events: none; }
 .accountSignOut, .accountSignOut svg { color: var(--destructive); cursor: pointer; }
+
+/* Phone: a labelled tab bar replaces the floating dock. */
+.tabbar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40; /* below sheets and dialogs (z-50) so the Mais sheet covers the bar */
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+@supports (backdrop-filter: blur(12px)) {
+  .tabbar {
+    background: color-mix(in srgb, var(--card) 90%, transparent);
+    backdrop-filter: blur(16px) saturate(140%);
+  }
+}
+.tabbarInner {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: 58px;
+}
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 120ms ease-out;
+}
+.tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab:active { color: var(--foreground); }
+.tabActive, .tabActive:active { color: var(--primary); font-weight: 600; }
+@media (max-width: 640px) {
+  .floating { display: none; }
+  .tabbar { display: block; }
+}
+@media (forced-colors: active) {
+  .tabActive { color: LinkText; }
+}
