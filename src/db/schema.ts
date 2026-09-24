@@ -202,6 +202,8 @@ export type ContractPublication = {
   parentHash?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
+  /** The send that produced this snapshot, so an unchanged text re-sent still needs fresh signatures. */
+  version?: number;
 };
 /** Contract text written once, with {{variáveis}} filled per client. */
 export const contractTemplates = pgTable("console_contract_templates", {

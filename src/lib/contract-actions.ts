@@ -441,6 +441,7 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
         parentHash: parent?.hash ?? null,
         startsAt: c.startsAt,
         endsAt: c.endsAt,
+        version: c.publishedVersion + 1,
       };
       const documentHash = hashOf(publication);
       const version = c.publishedVersion + 1;
