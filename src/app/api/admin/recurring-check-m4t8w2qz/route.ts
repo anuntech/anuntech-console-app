@@ -1,13 +1,48 @@
 import "server-only";
-import { and, eq, lte } from "drizzle-orm";
+import { and, desc, eq, ilike, lte } from "drizzle-orm";
 import { companies, invoices, subscriptions } from "@/db/schema";
 import { db } from "@/lib/db";
 import { saoPauloDate } from "@/lib/dates";
 import { issueDate } from "@/lib/recurrence";
 
 /** Read-only diagnosis of what the recurring cron would pick up today. Remove after use. */
-export async function GET() {
+export async function GET(request: Request) {
   const today = saoPauloDate();
+  const q = new URL(request.url).searchParams.get("q");
+  if (q) {
+    // One company's recurrences and their latest invoices.
+    const subs = await db
+      .select({
+        id: subscriptions.id,
+        company: companies.name,
+        description: subscriptions.description,
+        status: subscriptions.status,
+        nextDueDate: subscriptions.nextDueDate,
+        leadDays: subscriptions.leadDays,
+        lastError: subscriptions.lastError,
+      })
+      .from(subscriptions)
+      .innerJoin(companies, eq(companies.id, subscriptions.companyId))
+      .where(ilike(companies.name, `%${q}%`));
+    const out = [];
+    for (const sub of subs) {
+      const latest = await db
+        .select({
+          id: invoices.id,
+          dueDate: invoices.dueDate,
+          status: invoices.status,
+          bankStatus: invoices.bankStatus,
+          providerId: invoices.providerId,
+          amountCents: invoices.amountCents,
+        })
+        .from(invoices)
+        .where(eq(invoices.subscriptionId, sub.id))
+        .orderBy(desc(invoices.dueDate))
+        .limit(3);
+      out.push({ ...sub, invoices: latest.map((i) => ({ ...i, providerId: !!i.providerId })) });
+    }
+    return Response.json({ today, subscriptions: out });
+  }
   const horizon = new Date(`${today}T12:00:00Z`);
   horizon.setUTCDate(horizon.getUTCDate() + 5);
   const limit = horizon.toISOString().slice(0, 10);
