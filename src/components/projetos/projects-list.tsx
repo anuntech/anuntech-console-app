@@ -1,16 +1,15 @@
 "use client";
+import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Building2Icon,
   FolderKanbanIcon,
   PlusIcon,
-  SearchIcon,
   XIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -38,6 +37,9 @@ export type ProjectRow = {
   tasks: { total: number; done: number };
 };
 
+const fold = (value: string) =>
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt-BR");
+
 export function ProjectsList({
   rows,
   query,
@@ -55,39 +57,20 @@ export function ProjectsList({
   const href = (patch: Partial<ProjectQuery>) => projectListHref({ ...query, ...patch });
   const go = (patch: Partial<ProjectQuery>) => router.push(href(patch), { scroll: false });
   const filtered = !!query.search || !!query.company;
+  // Typing a company's name offers a one-click narrowing to that company.
+  const companyMatches = query.search
+    ? [...new Map(rows.map((row) => [row.companyId, { id: row.companyId, name: row.company }])).values()]
+        .filter((company) => fold(company.name).includes(fold(query.search.trim())))
+        .slice(0, 4)
+    : [];
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <form
-          action="/projetos"
-          role="search"
-          aria-label="Buscar projetos"
-          className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1"
-        >
-          <input type="hidden" name="status" value={query.status} />
-          {query.company && <input type="hidden" name="company" value={query.company} />}
-          <div className="relative w-full max-w-sm">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              key={query.search}
-              type="search"
-              name="q"
-              defaultValue={query.search}
-              placeholder={showCompany ? "Buscar por nome ou empresa" : "Buscar por nome"}
-              aria-label={showCompany ? "Buscar por nome ou empresa" : "Buscar por nome"}
-              maxLength={160}
-              className="bg-card pl-9"
-            />
-          </div>
-          {query.search && (
-            <Button variant="ghost" size="sm" asChild>
-              <Link href={href({ search: "" })}>
-                <XIcon />
-                Limpar
-              </Link>
-            </Button>
-          )}
-        </form>
+        <SearchField
+          value={query.search}
+          onChange={(search) => go({ search })}
+          placeholder={showCompany ? "Buscar por nome ou empresa" : "Buscar por nome"}
+        />
         {companyFilter && (
           <span className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card pr-1 pl-2.5 text-xs font-medium text-foreground">
             <Building2Icon className="size-3.5 text-muted-foreground" />
@@ -118,6 +101,21 @@ export function ProjectsList({
         </Select>
       </div>
 
+      {query.search && !query.company && showCompany && companyMatches.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>Só desta empresa:</span>
+          {companyMatches.map((company) => (
+            <Link
+              key={company.id}
+              href={href({ company: company.id, search: "" })}
+              className="inline-flex h-7 items-center gap-1.5 rounded-full border bg-card px-2.5 font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-accent"
+            >
+              <Building2Icon className="size-3.5 text-muted-foreground" />
+              {company.name}
+            </Link>
+          ))}
+        </div>
+      )}
       {rows.length ? (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((row) => {

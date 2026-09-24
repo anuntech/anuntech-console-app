@@ -93,6 +93,7 @@ const SCREENS = [
   "bookmarks",
   "bookmarks-vazio",
   "produtos",
+  "produtos-busca",
   "servico",
 ];
 
@@ -582,6 +583,9 @@ export default async function Preview({
     status: "all" as const,
     search: "",
     company: "",
+    period: "all" as const,
+    from: "",
+    to: "",
     page: 1,
     pageSize: 10,
   };
@@ -953,7 +957,7 @@ export default async function Preview({
             viewer: { admin: true },
           }}
         />
-      ) : tela === "produtos" ? (
+      ) : tela === "produtos" || tela === "produtos-busca" ? (
         <>
           <PageHeader
             title="Produtos e serviços"
@@ -969,8 +973,12 @@ export default async function Preview({
             }
           />
           <ProductsList
-            rows={productRows}
-            query={{ status: "active", search: "", company: "" }}
+            rows={
+              tela === "produtos-busca"
+                ? productRows.filter((row) => /maxipark/i.test(row.company))
+                : productRows
+            }
+            query={{ status: "active", search: tela === "produtos-busca" ? "maxi" : "", company: "" }}
             admin
             showCompany
           />

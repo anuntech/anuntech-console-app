@@ -1,4 +1,5 @@
 "use client";
+import { SearchField } from "@/components/console/search-field";
 import type { ChargeTerms } from "@/lib/billing-terms";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,13 +13,11 @@ import {
   PlusIcon,
   ReceiptTextIcon,
   Repeat2Icon,
-  SearchIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -48,11 +47,15 @@ import { toast } from "@/components/notifications";
 import { cancelDraft } from "@/lib/actions";
 import { daysOverdue } from "@/lib/billing-notice-rules";
 import { currency, dateLabel } from "@/lib/format";
+import { DateField } from "@/components/console/date-field";
 import {
   clientInvoiceFilters,
   invoiceFilterLabels,
   invoiceFilters,
   invoiceListHref,
+  invoicePeriodLabels,
+  invoicePeriods,
+  type InvoicePeriod,
   type InvoiceDisplayStatus,
   type InvoiceQuery,
   type InvoiceStatusFilter,
@@ -222,47 +225,13 @@ export function InvoicesTable({
         className="overflow-hidden rounded-xl border bg-card shadow-card"
       >
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-          <form
-            action="/financeiro"
-            role="search"
-            aria-label="Buscar faturas"
-            className="flex min-w-0 flex-1 items-center gap-2"
-          >
-            <input type="hidden" name="status" value={query.status} />
-            <input type="hidden" name="size" value={query.pageSize} />
-            {query.company && (
-              <input type="hidden" name="company" value={query.company} />
-            )}
-            <div className="relative w-full max-w-sm">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                key={query.search}
-                type="search"
-                name="q"
-                defaultValue={query.search}
-                placeholder={
-                  showCompany
+          <SearchField
+            value={query.search}
+            onChange={(search) => go({ search, page: 1 })}
+            placeholder={showCompany
                     ? "Buscar por descrição ou cliente"
-                    : "Buscar por descrição"
-                }
-                aria-label={
-                  showCompany
-                    ? "Buscar por descrição ou cliente"
-                    : "Buscar por descrição"
-                }
-                maxLength={160}
-                className="pl-9"
-              />
-            </div>
-            {query.search && (
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={href({ search: "", page: 1 })}>
-                  <XIcon />
-                  Limpar
-                </Link>
-              </Button>
-            )}
-          </form>
+                    : "Buscar por descrição"}
+          />
           {companyFilter && (
             <span className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background pr-1 pl-2.5 text-xs font-medium text-foreground">
               <Building2Icon className="size-3.5 text-muted-foreground" />
@@ -276,6 +245,23 @@ export function InvoicesTable({
               </Link>
             </span>
           )}
+          <Select
+            value={query.period}
+            onValueChange={(period) =>
+              go({ period: period as InvoicePeriod, from: "", to: "", page: 1 })
+            }
+          >
+            <SelectTrigger aria-label="Filtrar por período" className="w-[176px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {invoicePeriods.map((period) => (
+                <SelectItem key={period} value={period}>
+                  {invoicePeriodLabels[period]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select
             value={query.status}
             onValueChange={(status) =>
@@ -294,6 +280,26 @@ export function InvoicesTable({
             </SelectContent>
           </Select>
         </div>
+        {query.period === "custom" && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">Vencimento de</span>
+            <DateField
+              name="de"
+              value={query.from}
+              onChange={(from) => go({ from, page: 1 })}
+              placeholder="Início"
+              className="w-40"
+            />
+            <span className="text-sm text-muted-foreground">até</span>
+            <DateField
+              name="ate"
+              value={query.to}
+              onChange={(to) => go({ to, page: 1 })}
+              placeholder="Fim"
+              className="w-40"
+            />
+          </div>
+        )}
 
         {rows.length ? (
           <Table>

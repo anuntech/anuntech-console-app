@@ -9,7 +9,7 @@ import {
   ReceiptTextIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, invoices, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
@@ -17,6 +17,7 @@ import { saoPauloDate } from "@/lib/dates";
 import { paymentUrl } from "@/lib/payment-link";
 import {
   invoiceListHref,
+  invoicePeriodRange,
   invoiceQuery,
   type InvoiceDisplayStatus,
   type InvoiceStatusFilter,
@@ -46,8 +47,11 @@ export default async function Finance({
   if (!actor.admin && query.company && !ids.includes(query.company))
     query.company = "";
   const search = query.search.replace(/[\\%_]/g, "\\$&");
+  const range = invoicePeriodRange(query, today);
   const scope =
     and(
+      range.from ? gte(invoices.dueDate, range.from) : undefined,
+      range.to ? lte(invoices.dueDate, range.to) : undefined,
       actor.admin
         ? undefined
         : ids.length

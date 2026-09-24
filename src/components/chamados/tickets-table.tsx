@@ -1,4 +1,5 @@
 "use client";
+import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -11,11 +12,9 @@ import {
   MoreHorizontalIcon,
   PlusIcon,
   RotateCcwIcon,
-  SearchIcon,
   XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -175,43 +174,11 @@ export function TicketsTable({
       className="overflow-hidden rounded-xl border bg-card shadow-card"
     >
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <form
-          action="/chamados"
-          role="search"
-          aria-label="Buscar chamados"
-          className="flex min-w-0 flex-1 items-center gap-2"
-        >
-          <input type="hidden" name="status" value={query.status} />
-          <input type="hidden" name="size" value={query.pageSize} />
-          {query.company && (
-            <input type="hidden" name="company" value={query.company} />
-          )}
-          <div className="relative w-full max-w-sm">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              key={query.search}
-              type="search"
-              name="q"
-              defaultValue={query.search}
-              placeholder={
-                showCompany ? "Buscar por assunto ou empresa" : "Buscar por assunto"
-              }
-              aria-label={
-                showCompany ? "Buscar por assunto ou empresa" : "Buscar por assunto"
-              }
-              maxLength={160}
-              className="pl-9"
-            />
-          </div>
-          {query.search && (
-            <Button variant="ghost" size="sm" asChild>
-              <Link href={href({ search: "", page: 1 })}>
-                <XIcon />
-                Limpar
-              </Link>
-            </Button>
-          )}
-        </form>
+        <SearchField
+          value={query.search}
+          onChange={(search) => go({ search, page: 1 })}
+          placeholder={showCompany ? "Buscar por assunto ou empresa" : "Buscar por assunto"}
+        />
         {companyFilter && (
           <span className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background pr-1 pl-2.5 text-xs font-medium text-foreground">
             <Building2Icon className="size-3.5 text-muted-foreground" />

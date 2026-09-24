@@ -1,6 +1,7 @@
 "use client";
+import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
@@ -12,15 +13,12 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
-  SearchIcon,
   Share2Icon,
   Trash2Icon,
   UsersIcon,
-  XIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   NativeSelect,
   NativeSelectOptGroup,
@@ -178,7 +176,6 @@ function NavItem({
 export function BookmarksView({ data }: { data: BookmarksViewData }) {
   const { folders, items, query, counts, companies, viewer } = data;
   const router = useRouter();
-  const pathname = usePathname();
   const [editor, setEditor] = useState<BookmarkEditor | null>(null);
   const [folderEditor, setFolderEditor] = useState<FolderEditor | null>(null);
   const [removing, setRemoving] = useState<BookmarkView | null>(null);
@@ -462,36 +459,11 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         </aside>
 
         <div className="min-w-0">
-          <form
-            action={pathname}
-            role="search"
-            aria-label="Buscar bookmarks"
-            className="mb-4 flex items-center gap-2"
-          >
-            {query.company !== "all" && <input type="hidden" name="empresa" value={query.company} />}
-            {query.folder !== "all" && <input type="hidden" name="pasta" value={query.folder} />}
-            <div className="relative w-full max-w-sm">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                key={query.search}
-                type="search"
-                name="q"
-                defaultValue={query.search}
-                placeholder="Buscar por título ou link"
-                aria-label="Buscar por título ou link"
-                maxLength={160}
-                className="bg-card pl-9"
-              />
-            </div>
-            {query.search && (
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={href(query, { search: "" })}>
-                  <XIcon />
-                  Limpar
-                </Link>
-              </Button>
-            )}
-          </form>
+          <SearchField
+            value={query.search}
+            onChange={(search) => router.push(href(query, { search }), { scroll: false })}
+            placeholder={"Buscar por título ou link"}
+          />
           {items.length ? (
             list
           ) : (

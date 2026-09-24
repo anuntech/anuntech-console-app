@@ -1,4 +1,5 @@
 "use client";
+import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,12 +11,9 @@ import {
   LogInIcon,
   MoreHorizontalIcon,
   PencilIcon,
-  SearchIcon,
-  XIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -202,36 +200,11 @@ export function CompaniesTable({
         className="overflow-hidden rounded-xl border bg-card shadow-card"
       >
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-          <form
-            action="/empresas"
-            role="search"
-            aria-label="Buscar empresas"
-            className="flex min-w-0 flex-1 items-center gap-2"
-          >
-            <input type="hidden" name="status" value={query.status} />
-            <input type="hidden" name="size" value={query.pageSize} />
-            <div className="relative w-full max-w-sm">
-              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                key={query.search}
-                type="search"
-                name="q"
-                defaultValue={query.search}
-                placeholder="Buscar por nome, CNPJ ou e-mail"
-                aria-label="Buscar por nome, CNPJ ou e-mail"
-                maxLength={160}
-                className="pl-9"
-              />
-            </div>
-            {query.search && (
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={href({ search: "", page: 1 })}>
-                  <XIcon />
-                  Limpar
-                </Link>
-              </Button>
-            )}
-          </form>
+          <SearchField
+            value={query.search}
+            onChange={(search) => go({ search, page: 1 })}
+            placeholder={"Buscar por nome, CNPJ ou e-mail"}
+          />
           <Select
             value={query.status}
             onValueChange={(status) =>
