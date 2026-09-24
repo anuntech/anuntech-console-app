@@ -7,6 +7,7 @@ import {
   PackageIcon,
   PlugZapIcon,
   ShieldCheckIcon,
+  SparklesIcon,
   UserRoundIcon,
   UsersIcon,
 } from "lucide-react";
@@ -105,6 +106,12 @@ export async function SettingsShell({
                 href: "/configuracoes/integracoes",
                 label: "Integrações",
                 icon: <PlugZapIcon />,
+              },
+              {
+                key: "assistant" as const,
+                href: "/configuracoes/assistente",
+                label: "Assistente",
+                icon: <SparklesIcon />,
               },
             ],
           },

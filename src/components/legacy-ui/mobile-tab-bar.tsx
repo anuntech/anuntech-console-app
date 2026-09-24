@@ -8,6 +8,7 @@ import {
   LogOutIcon,
   MessageCircleQuestionIcon,
   PaletteIcon,
+  SparklesIcon,
   UserRoundIcon,
   UsersIcon,
   type LucideIcon,
@@ -87,6 +88,7 @@ export function MobileTabBar({
   userName,
   userImage,
   canManageMembers,
+  onAssistant,
 }: {
   pathname: string;
   visible: TabItem[];
@@ -95,6 +97,7 @@ export function MobileTabBar({
   userName: string;
   userImage: string | null;
   canManageMembers: boolean;
+  onAssistant: () => void;
 }) {
   const router = useRouter();
   // The sheet remembers where it was opened: navigating (rows, back/forward) closes it.
@@ -183,6 +186,17 @@ export function MobileTabBar({
             </div>
           </SheetHeader>
           <div className="flex flex-col gap-5 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setTimeout(onAssistant, 250);
+              }}
+              className="flex h-12 items-center gap-3 rounded-xl bg-primary px-4 text-left text-sm font-medium text-primary-foreground active:opacity-90"
+            >
+              <SparklesIcon className="size-[18px] shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1">Perguntar ao assistente</span>
+            </button>
             {actions.length > 0 && (
               <Section title="Criar">
                 {actions.map(({ href, label, icon }) => (

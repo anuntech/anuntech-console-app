@@ -7,6 +7,7 @@ import {
   MailIcon,
   MessageCircleIcon,
   ReceiptTextIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { requireAdmin } from "@/lib/access";
@@ -63,6 +64,13 @@ export async function IntegrationsSection() {
           status: process.env.FLW_SYNOVA ? "Token configurado" : "Pendente",
           pending: !process.env.FLW_SYNOVA,
           detail: "Códigos de acesso e avisos pelo WhatsApp. Cobranças dependem de modelo de mensagem aprovado.",
+        },
+        {
+          name: "OpenRouter",
+          icon: <SparklesIcon />,
+          status: process.env.OPENROUTER_API_KEY ? "Credencial recebida" : "Pendente",
+          pending: !process.env.OPENROUTER_API_KEY,
+          detail: "O assistente do Console conversa e executa ações por aqui. Modelo e instruções em Assistente.",
         },
       ],
     },

@@ -1,12 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { Popover } from "@base-ui/react/popover";
 import { Tooltip } from "@base-ui/react/tooltip";
 import {
-  Plus,
-  X,
+  Sparkles,
   LayoutDashboard,
   Building2,
   FolderKanban,
@@ -21,6 +19,7 @@ import {
 import { useAppearance } from "@/components/appearance-provider";
 import { DockAccountMenu } from "./dock-account-menu";
 import { MobileTabBar } from "./mobile-tab-bar";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import styles from "./bottom-menu.module.css";
 
 export type NavigationProps = {
@@ -111,6 +110,7 @@ export default function BottomMenu({
 }: NavigationProps) {
   const pathname = usePathname();
   const { position } = useAppearance();
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const visible = items.filter(
     (item) =>
       (!item.admin || admin) &&
@@ -140,53 +140,41 @@ export default function BottomMenu({
         userName={userName}
         userImage={userImage}
         canManageMembers={canManageMembers}
+        onAssistant={() => setAssistantOpen(true)}
+      />
+      <AssistantPanel
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        admin={admin}
+        finance={finance}
+        support={support}
+        userName={userName}
+        shortcuts={actions.map(({ href, label }) => ({ href, label }))}
       />
       <div className={styles.floating}>
         <Tooltip.Provider delay={350} closeDelay={100}>
           <nav className={styles.dock} aria-label="Navegação principal">
-            {(admin || support) && (
-              <Popover.Root key={`create:${pathname}`}>
-                <Popover.Trigger
-                  className={`${styles.link} ${styles.create}`}
-                  aria-label="Criar"
-                  title="Criar"
+            <Tooltip.Root>
+              <Tooltip.Trigger
+                render={<button type="button" onClick={() => setAssistantOpen(true)} />}
+                className={`${styles.link} ${styles.create}`}
+                aria-label="Assistente"
+                aria-haspopup="dialog"
+                aria-expanded={assistantOpen}
+              >
+                <Sparkles size={22} strokeWidth={1.8} aria-hidden="true" />
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Positioner
+                  side={position === "top" ? "bottom" : position === "left" ? "right" : position === "right" ? "left" : "top"}
+                  sideOffset={9}
+                  collisionPadding={12}
+                  className={styles.tooltipPositioner}
                 >
-                  <Plus size={22} strokeWidth={1.8} aria-hidden="true" />
-                </Popover.Trigger>
-                <Popover.Portal>
-                  <Popover.Positioner
-                    side={position === "top" ? "bottom" : position === "left" ? "right" : position === "right" ? "left" : "top"}
-                    sideOffset={12}
-                    collisionPadding={12}
-                    className={styles.panelPositioner}
-                  >
-                    <Popover.Popup className={styles.panel}>
-                      <div className={styles.panelHeader}>
-                        <Popover.Title className={styles.panelTitle}>
-                          Criar
-                        </Popover.Title>
-                        <Popover.Close
-                          className={styles.panelClose}
-                          aria-label="Fechar atalhos"
-                        >
-                          <X size={16} aria-hidden="true" />
-                        </Popover.Close>
-                      </div>
-                      {actions.map(({ href, label, icon: Icon }) => (
-                          <Link
-                            key={href}
-                            href={href}
-                            className={styles.panelLink}
-                          >
-                            <Icon size={19} aria-hidden="true" />
-                            <span>{label}</span>
-                          </Link>
-                        ))}
-                    </Popover.Popup>
-                  </Popover.Positioner>
-                </Popover.Portal>
-              </Popover.Root>
-            )}
+                  <Tooltip.Popup className={styles.tooltip}>Assistente</Tooltip.Popup>
+                </Tooltip.Positioner>
+              </Tooltip.Portal>
+            </Tooltip.Root>
             <div className={styles.routes}>
               {visible.map((item) => (
                 <DockLink

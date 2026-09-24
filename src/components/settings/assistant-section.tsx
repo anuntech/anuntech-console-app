@@ -1,0 +1,185 @@
+import "server-only";
+import { desc } from "drizzle-orm";
+import { CheckCircle2Icon, FileTextIcon, TriangleAlertIcon } from "lucide-react";
+import { db } from "@/lib/db";
+import { assistantDocuments, user } from "@/db/schema";
+import { requireAdmin } from "@/lib/access";
+import { assistantConfig, DEFAULT_ASSISTANT_MODEL } from "@/lib/assistant";
+import { addAssistantDocument, removeAssistantDocument, saveAssistantSettings } from "@/lib/assistant-actions";
+import { dateTimeLabel, fileSizeLabel } from "@/lib/format";
+import { eq } from "drizzle-orm";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { EmptyState, SectionTitle } from "@/components/console/page-header";
+import { ConfirmAction, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
+
+export async function AssistantSection() {
+  await requireAdmin();
+  const [config, documents] = await Promise.all([
+    assistantConfig(),
+    db
+      .select({ id: assistantDocuments.id, name: assistantDocuments.name, bytes: assistantDocuments.bytes, updatedAt: assistantDocuments.updatedAt, author: user.name })
+      .from(assistantDocuments)
+      .leftJoin(user, eq(user.id, assistantDocuments.authorId))
+      .orderBy(desc(assistantDocuments.updatedAt)),
+  ]);
+  const totalBytes = documents.reduce((sum, d) => sum + d.bytes, 0);
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <SectionTitle
+            title="Modelo e instruções"
+            description="O assistente fala pelo OpenRouter. As regras básicas (usar só o acesso da pessoa, não inventar, não criar cobranças) já estão no código; aqui você acrescenta o jeito da Anuntech."
+          />
+        </CardHeader>
+        <ServerForm action={saveAssistantSettings} className="contents">
+          <CardContent className="flex flex-col gap-5">
+            <FormError />
+            <p
+              role="status"
+              className={
+                config.keyConfigured
+                  ? "m-0 flex items-center gap-2 text-sm text-success"
+                  : "m-0 flex items-start gap-2 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
+              }
+            >
+              {config.keyConfigured ? <CheckCircle2Icon className="size-4 shrink-0" /> : <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />}
+              <span>
+                {config.keyConfigured
+                  ? "Chave do OpenRouter configurada no ambiente."
+                  : "Falta a variável OPENROUTER_API_KEY no projeto da Vercel. Até lá o assistente abre, mas avisa que está desligado."}
+              </span>
+            </p>
+            <div>
+              <Label htmlFor="assistant-model" className="mb-1.5">
+                Modelo
+              </Label>
+              <Input id="assistant-model" name="model" defaultValue={config.model} placeholder={DEFAULT_ASSISTANT_MODEL} maxLength={120} className="font-mono text-[13px]" />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                O id como aparece em openrouter.ai/models. Precisa aceitar ferramentas (function calling). Em branco, usa {DEFAULT_ASSISTANT_MODEL}.
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="assistant-prompt" className="mb-1.5">
+                Instruções da Anuntech
+              </Label>
+              <Textarea
+                id="assistant-prompt"
+                name="prompt"
+                rows={10}
+                maxLength={20000}
+                defaultValue={config.prompt}
+                placeholder={"Ex.: Trate o cliente por você. Horário de atendimento: dias úteis, 9h às 18h. Prazos de suporte: até 1 dia útil para responder chamados…"}
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">Tom de voz, horários, políticas e o que dizer em cada situação. Entra em toda conversa.</p>
+            </div>
+          </CardContent>
+          <CardFooter className="justify-between gap-3 border-t">
+            <span className="text-xs text-muted-foreground">{config.updatedAt ? `Atualizado em ${dateTimeLabel(config.updatedAt)}` : "Ainda com os padrões."}</span>
+            <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
+          </CardFooter>
+        </ServerForm>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <SectionTitle
+            title="Base de conhecimento"
+            description="Textos que o assistente lê para responder sobre a Anuntech: quem somos, produtos, políticas, perguntas frequentes. Até 30 documentos de 300 KB, em .md, .txt ou .csv."
+          />
+        </CardHeader>
+        <CardContent className="flex flex-col gap-6">
+          {documents.length ? (
+            <ul className="m-0 flex list-none flex-col divide-y p-0">
+              {documents.map((doc) => (
+                <li key={doc.id} className="flex items-center gap-3 py-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
+                    <FileTextIcon className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 truncate text-sm font-medium text-foreground">{doc.name}</p>
+                    <p className="m-0 text-xs text-muted-foreground">
+                      {fileSizeLabel(doc.bytes)} · {dateTimeLabel(doc.updatedAt)}
+                      {doc.author && ` · ${doc.author}`}
+                    </p>
+                  </div>
+                  <ConfirmAction
+                    action={removeAssistantDocument}
+                    fields={{ id: doc.id }}
+                    title={`Remover "${doc.name}"?`}
+                    description="O assistente deixa de usar este texto na hora."
+                    confirmLabel="Remover"
+                    destructive
+                  >
+                    <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
+                      Remover
+                    </Button>
+                  </ConfirmAction>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              icon={<FileTextIcon />}
+              title="Nenhum documento ainda"
+              description="Sem base, o assistente responde só com o que vê no Console e encaminha dúvidas sobre a Anuntech ao chat da equipe."
+            />
+          )}
+          <ServerForm action={addAssistantDocument} reset className="flex flex-col gap-4 rounded-lg border bg-field/40 p-4">
+            <p className="m-0 text-sm font-medium text-foreground">Adicionar documento</p>
+            <FormError />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="assistant-doc-name" className="mb-1.5">
+                  Nome
+                </Label>
+                <Input id="assistant-doc-name" name="name" maxLength={120} placeholder="Ex.: Perguntas frequentes sobre suporte" />
+              </div>
+              <div>
+                <Label htmlFor="assistant-doc-file" className="mb-1.5">
+                  Arquivo (.md, .txt, .csv)
+                </Label>
+                <Input id="assistant-doc-file" name="file" type="file" accept=".md,.markdown,.txt,.csv,text/plain,text/markdown,text/csv" className="pt-1.5" />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="assistant-doc-content" className="mb-1.5">
+                Ou cole o texto
+              </Label>
+              <Textarea id="assistant-doc-content" name="content" rows={5} placeholder="Markdown ou texto simples. Parágrafos separados por linha em branco ajudam a busca." />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">
+                {documents.length} {documents.length === 1 ? "documento" : "documentos"} · {fileSizeLabel(totalBytes)}
+                {totalBytes > 24000 && " · acima de 24 KB o assistente busca trechos em vez de ler tudo"}
+              </span>
+              <SubmitButton pendingLabel="Adicionando…">Adicionar</SubmitButton>
+            </div>
+          </ServerForm>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <SectionTitle title="O que ele faz" description="Tudo passa pelas mesmas permissões da pessoa logada; cada ação fica no histórico como se ela mesma tivesse feito." />
+        </CardHeader>
+        <CardContent>
+          <ul className="m-0 grid list-disc gap-1.5 pl-5 text-sm text-foreground sm:grid-cols-2">
+            <li>Consulta faturas, com link de pagamento e PDF do boleto.</li>
+            <li>Lista, lê, abre e responde chamados.</li>
+            <li>Mostra projetos, produtos e tarefas; cria e move tarefas.</li>
+            <li>Lista contratos e orçamentos com situação e links.</li>
+            <li>Leva a pessoa à tela certa (nova cobrança, novo orçamento…).</li>
+            <li>Abre o chat com a equipe quando pedem para falar com alguém.</li>
+            <li>Para a equipe: monta projetos inteiros com tarefas a partir de uma descrição.</li>
+            <li>Nunca cria cobranças, orçamentos ou contratos por conta própria.</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </>
+  );
+}

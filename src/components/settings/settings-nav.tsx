@@ -13,7 +13,8 @@ export type SettingsSection =
   | "notifications"
   | "catalog"
   | "contracts"
-  | "integrations";
+  | "integrations"
+  | "assistant";
 
 export type SettingsGroup = {
   title: string;

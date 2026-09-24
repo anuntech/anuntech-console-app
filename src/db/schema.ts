@@ -367,6 +367,28 @@ export const quoteVersions = pgTable(
   },
   (t) => [uniqueIndex("console_quote_version_unique").on(t.quoteId, t.version)],
 );
+/** How the in-Console assistant is tuned: one row, edited by staff. */
+export const assistantSettings = pgTable("console_assistant_settings", {
+  id: text("id").primaryKey().default("default"),
+  /** OpenRouter model id, e.g. "anthropic/claude-sonnet-4.5". */
+  model: text("model").notNull().default("anthropic/claude-sonnet-4.5"),
+  /** Instructions appended to the built-in system prompt. */
+  prompt: text("prompt").notNull().default(""),
+  updatedBy: text("updated_by").references(() => user.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+/** Plain-text knowledge the assistant reads: how Anuntech works, policies, FAQs. */
+export const assistantDocuments = pgTable("console_assistant_documents", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  content: text("content").notNull(),
+  bytes: integer("bytes").notNull(),
+  authorId: text("author_id")
+    .notNull()
+    .references(() => user.id),
+  createdAt: created(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 /** What Anuntech offers, defined once; companies get linked to items. */
 export const catalogItems = pgTable("console_catalog_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
