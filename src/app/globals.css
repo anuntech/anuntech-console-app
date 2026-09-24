@@ -2261,3 +2261,6 @@ select:not([multiple]):not([size]) {
 
 select option { background: var(--background); color: var(--foreground); }
 }
+
+/* Synova support widget: no floating button; the chat opens only from the Console's own "Falar com o suporte" buttons. */
+.h-widget-float { display: none !important; }
