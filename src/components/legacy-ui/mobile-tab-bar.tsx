@@ -2,7 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   EllipsisIcon,
   LogOutIcon,
@@ -97,7 +97,10 @@ export function MobileTabBar({
   canManageMembers: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  // The sheet remembers where it was opened: navigating (rows, back/forward) closes it.
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
+  const open = openedOn === pathname;
+  const setOpen = (next: boolean) => setOpenedOn(next ? pathname : null);
   const [signingOut, setSigningOut] = useState(false);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const lock = useRef(false);
@@ -112,8 +115,6 @@ export function MobileTabBar({
     .join("")
     .toLocaleUpperCase("pt-BR");
   const close = () => setOpen(false);
-  // Back/forward navigation while the sheet is open must not leave it hanging.
-  useEffect(() => setOpen(false), [pathname]);
   const signOut = async () => {
     if (lock.current) return;
     lock.current = true;

@@ -31,9 +31,9 @@ export default async function Bookmarks({
     actor.admin
       ? accessibleCompanies(actor).then((rows) => [
           { id: "", name: "Anuntech" },
-          ...rows.filter((c) => !c.archived).map((c) => ({ id: c.id, name: c.name })),
+          ...rows.filter((c) => !c.archived).map((c) => ({ id: c.id, name: c.name, document: c.document })),
         ])
-      : actor.grants.map((g) => ({ id: g.company.id, name: g.company.name })),
+      : actor.grants.map((g) => ({ id: g.company.id, name: g.company.name, document: g.company.document })),
   ]);
   return (
     <BookmarksView

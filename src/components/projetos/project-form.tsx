@@ -7,10 +7,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { CompanyField, type CompanyOption } from "@/components/console/company-field";
 import {
   Sheet,
   SheetClose,
@@ -28,7 +25,7 @@ import {
 import { createEngagement } from "@/lib/actions";
 import { updateProject } from "@/lib/task-actions";
 
-export type ProjectCompanyOption = { id: string; name: string };
+export type ProjectCompanyOption = CompanyOption;
 export type ProjectFormValues = {
   id?: string;
   name: string;
@@ -59,22 +56,13 @@ export function ProjectFields({
             <Label htmlFor="project-company" className="mb-1.5">
               Empresa
             </Label>
-            <NativeSelect
+            <CompanyField
               id="project-company"
               name="companyId"
               required
-              defaultValue={companyId ?? ""}
-              className="bg-field"
-            >
-              <NativeSelectOption value="" disabled>
-                Selecione a empresa
-              </NativeSelectOption>
-              {companies.map((company) => (
-                <NativeSelectOption key={company.id} value={company.id}>
-                  {company.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+              companies={companies}
+              defaultValue={companyId}
+            />
           </div>
         ))}
       <div>

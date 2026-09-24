@@ -24,6 +24,7 @@ import {
   NativeSelectOptGroup,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import { CompanyField } from "@/components/console/company-field";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,13 +39,6 @@ import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { DownloadLink } from "@/components/console/download-link";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { moveBookmark, deleteBookmark } from "@/lib/bookmark-actions";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks";
 import { BookmarkSheet, type BookmarkEditor } from "./bookmark-sheet";
@@ -201,22 +195,14 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         : (companies[0]?.id ?? "");
   const later = (fn: () => void) => setTimeout(fn, 0);
   const companyPicker = manyCompanies && (
-    <Select
+    <CompanyField
+      aria-label="Empresa"
+      companies={companies.map((company) => ({ ...company, id: company.id || "internal" }))}
+      allOption={{ id: "all", label: "Todas as empresas" }}
       value={query.company}
-      onValueChange={(company) => router.push(href(query, { company, folder: "all" }), { scroll: false })}
-    >
-      <SelectTrigger aria-label="Empresa" className="w-full bg-card">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">Todas as empresas</SelectItem>
-        {companies.map((company) => (
-          <SelectItem key={company.id || "internal"} value={company.id || "internal"}>
-            {company.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      onChange={(company) => router.push(href(query, { company, folder: "all" }), { scroll: false })}
+      className="bg-card"
+    />
   );
 
   const folderMenu = (folder: FolderView) => (

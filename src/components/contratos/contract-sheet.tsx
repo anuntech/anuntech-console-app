@@ -10,6 +10,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import { CompanyField, type CompanyOption } from "@/components/console/company-field";
 import {
   Sheet,
   SheetClose,
@@ -29,7 +30,7 @@ import { createContract } from "@/lib/contract-actions";
 import { dateLabel } from "@/lib/format";
 
 export type NewContractData = {
-  companies: { id: string; name: string }[];
+  companies: CompanyOption[];
   templates: { id: string; name: string; description: string | null }[];
   engagements: { id: string; name: string; kind: string; companyId: string }[];
   companyId?: string;
@@ -75,20 +76,14 @@ export function NewContractFields({ companies, templates, engagements, companyId
           <Label htmlFor="contract-company" className="mb-1.5">
             Empresa
           </Label>
-          <NativeSelect
+          <CompanyField
             id="contract-company"
             name="companyId"
             required
+            companies={companies}
             value={company}
-            onChange={(event) => setCompany(event.target.value)}
-            className="bg-field"
-          >
-            {companies.map((option) => (
-              <NativeSelectOption key={option.id} value={option.id}>
-                {option.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+            onChange={setCompany}
+          />
         </div>
       )}
       <div>

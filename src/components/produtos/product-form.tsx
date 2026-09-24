@@ -7,10 +7,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+import { CompanyField } from "@/components/console/company-field";
 import {
   Sheet,
   SheetClose,
@@ -63,22 +60,13 @@ export function ProductFields({
             <Label htmlFor="product-company" className="mb-1.5">
               Empresa
             </Label>
-            <NativeSelect
+            <CompanyField
               id="product-company"
               name="companyId"
               required
-              defaultValue={companyId ?? ""}
-              className="bg-field"
-            >
-              <NativeSelectOption value="" disabled>
-                Selecione a empresa
-              </NativeSelectOption>
-              {companies.map((company) => (
-                <NativeSelectOption key={company.id} value={company.id}>
-                  {company.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+              companies={companies}
+              defaultValue={companyId}
+            />
           </div>
         ))}
       <div>

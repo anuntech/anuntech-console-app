@@ -16,7 +16,7 @@ export async function newContractContext(searchParams: NewContractSearchParams):
   const actor = await requireAdmin();
   const allCompanies = (await accessibleCompanies(actor))
     .filter((c) => !c.archived)
-    .map((c) => ({ id: c.id, name: c.name }));
+    .map((c) => ({ id: c.id, name: c.name, document: c.document }));
   const params = await searchParams;
   const parentRow =
     params.parentId && UUID.test(params.parentId)

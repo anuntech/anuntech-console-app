@@ -11,7 +11,7 @@ export async function newProjectContext(
   const actor = await requireAdmin();
   const companies = (await accessibleCompanies(actor))
     .filter((c) => !c.archived)
-    .map((c) => ({ id: c.id, name: c.name }));
+    .map((c) => ({ id: c.id, name: c.name, document: c.document }));
   const { companyId } = await searchParams;
   return {
     companies,

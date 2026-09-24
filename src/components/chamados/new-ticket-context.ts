@@ -53,7 +53,7 @@ export async function newTicketContext(
   // Archived clients stay out of the picker unless asked for by id.
   const companies = available
     .filter((c) => !c.archived || c.id === companyId)
-    .map((c) => ({ id: c.id, name: c.name }));
+    .map((c) => ({ id: c.id, name: c.name, document: c.document }));
   return {
     companies,
     companyId:

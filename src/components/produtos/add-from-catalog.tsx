@@ -9,6 +9,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import { CompanyField, type CompanyOption } from "@/components/console/company-field";
 import {
   Sheet,
   SheetClose,
@@ -44,7 +45,7 @@ export type SubscriptionOption = {
   nextDueDate: string;
 };
 export type AddFromCatalogData = {
-  companies: { id: string; name: string }[];
+  companies: CompanyOption[];
   items: CatalogOption[];
   subscriptions: SubscriptionOption[];
   companyId?: string;
@@ -68,20 +69,14 @@ export function AddFromCatalogFields({ companies, items, subscriptions, companyI
           <Label htmlFor="link-company" className="mb-1.5">
             Empresa
           </Label>
-          <NativeSelect
+          <CompanyField
             id="link-company"
             name="companyId"
             required
+            companies={companies}
             value={company}
-            onChange={(event) => setCompany(event.target.value)}
-            className="bg-field"
-          >
-            {companies.map((option) => (
-              <NativeSelectOption key={option.id} value={option.id}>
-                {option.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+            onChange={setCompany}
+          />
         </div>
       )}
       <div>

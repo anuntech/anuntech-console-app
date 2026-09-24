@@ -11,6 +11,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import { CompanyField, type CompanyOption } from "@/components/console/company-field";
 import {
   FormError,
   ServerForm,
@@ -21,7 +22,7 @@ import { MoneyInput } from "./invoice-money";
 import { ChargeTermsFields } from "./charge-terms-fields";
 import { BankDueDateField } from "./bank-due-date-field";
 
-export type InvoiceCompanyOption = { id: string; name: string };
+export type InvoiceCompanyOption = CompanyOption;
 export type InvoiceEngagementOption = {
   id: string;
   name: string;
@@ -67,24 +68,15 @@ export function InvoiceFields({
           <Label htmlFor="invoice-company" className="mb-1.5">
             Cliente
           </Label>
-          <NativeSelect
+          <CompanyField
             id="invoice-company"
             name="companyId"
             required
+            companies={companies}
             value={company}
-            onChange={(event) => setCompany(event.target.value)}
-            className="bg-field"
+            onChange={setCompany}
             autoFocus={autoFocus}
-          >
-            <NativeSelectOption value="" disabled>
-              Selecione a empresa
-            </NativeSelectOption>
-            {companies.map((c) => (
-              <NativeSelectOption key={c.id} value={c.id}>
-                {c.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+          />
         </div>
         <div>
           <Label htmlFor="invoice-engagement" className="mb-1.5">

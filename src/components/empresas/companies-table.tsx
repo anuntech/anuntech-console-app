@@ -1,4 +1,5 @@
 "use client";
+import { companyInitials } from "@/components/console/company-mark";
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -64,10 +65,7 @@ export type CompanyRow = {
   openTickets: number;
 };
 
-export function companyInitials(name: string) {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  return ((words[0]?.[0] || "") + (words[1]?.[0] || "")).toUpperCase() || "•";
-}
+export { companyInitials };
 
 export function StatusDot({ archived }: { archived: boolean }) {
   return (

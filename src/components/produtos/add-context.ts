@@ -12,7 +12,7 @@ export async function addFromCatalogContext(searchParams: AddSearchParams): Prom
   const actor = await requireAdmin();
   const [companies, items, subs, { companyId }] = await Promise.all([
     accessibleCompanies(actor).then((rows) =>
-      rows.filter((c) => !c.archived).map((c) => ({ id: c.id, name: c.name })),
+      rows.filter((c) => !c.archived).map((c) => ({ id: c.id, name: c.name, document: c.document })),
     ),
     db
       .select({

@@ -16,6 +16,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import { CompanyField, type CompanyOption } from "@/components/console/company-field";
 import {
   ConfirmDialog,
   FormError,
@@ -26,7 +27,7 @@ import { createFolder, deleteFolder, renameFolder, shareFolder } from "@/lib/boo
 import type { FolderView } from "@/lib/bookmarks";
 import { SharePeoplePicker } from "./share-people-picker";
 
-export type CompanyOption = { id: string; name: string };
+export type { CompanyOption };
 export type FolderEditor =
   | { mode: "create" }
   | { mode: "rename"; folder: FolderView }
@@ -130,18 +131,12 @@ export function FolderDialogs({
                   <Label htmlFor="folder-company" className="mb-1.5">
                     Empresa
                   </Label>
-                  <NativeSelect
+                  <CompanyField
                     id="folder-company"
                     name="companyId"
+                    companies={companies}
                     defaultValue={defaultCompany}
-                    className="bg-field"
-                  >
-                    {companies.map((company) => (
-                      <NativeSelectOption key={company.id || "internal"} value={company.id}>
-                        {company.name}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
+                  />
                 </div>
               ) : (
                 <input type="hidden" name="companyId" value={companies[0]?.id ?? ""} />

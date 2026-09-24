@@ -7,6 +7,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import { CompanyField } from "@/components/console/company-field";
 import {
   Sheet,
   SheetClose,
@@ -75,19 +76,13 @@ export function BookmarkSheet({
                     <Label htmlFor="bookmark-company" className="mb-1.5">
                       Empresa
                     </Label>
-                    <NativeSelect
+                    <CompanyField
                       id="bookmark-company"
                       name="companyId"
+                      companies={companies}
                       value={company}
-                      onChange={(event) => setCompany(event.target.value)}
-                      className="bg-field"
-                    >
-                      {companies.map((option) => (
-                        <NativeSelectOption key={option.id || "internal"} value={option.id}>
-                          {option.name}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
+                      onChange={setCompany}
+                    />
                   </div>
                 ) : (
                   <input type="hidden" name="companyId" value={companies[0]?.id ?? ""} />
