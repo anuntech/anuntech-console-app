@@ -52,9 +52,19 @@ import {
   PencilIcon,
   PlayIcon,
   PlusIcon,
+  SearchIcon,
+  XIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,9 +80,11 @@ import { moveTask } from "@/lib/task-actions";
 import { shortDateLabel } from "@/lib/format";
 import { AvatarStack } from "@/components/console/person-avatar";
 import {
+  TASK_PRIORITIES,
   TASK_STATUSES,
   engagementKindLabels,
   estimateLabel,
+  taskPriorityLabels,
   taskStatusLabels,
   type TaskStatus,
 } from "@/lib/task-model";
@@ -116,6 +128,27 @@ const isColumn = (id: UniqueIdentifier): id is TaskStatus =>
   TASK_STATUSES.includes(id as TaskStatus);
 const columnOf = (columns: Columns, id: UniqueIdentifier) =>
   TASK_STATUSES.find((status) => columns[status].includes(String(id)));
+
+/** Accent- and case-insensitive text for search. */
+const fold = (value: string) =>
+  value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt-BR");
+const ALL = "all";
+const NOBODY = "none";
+type Filters = { search: string; person: string; label: string; priority: string };
+const noFilters: Filters = { search: "", person: ALL, label: ALL, priority: ALL };
+
+function matches(task: BoardTask, filters: Filters) {
+  if (filters.person === NOBODY ? task.assignees.length > 0 : filters.person !== ALL && !task.assignees.some((p) => p.id === filters.person))
+    return false;
+  if (filters.label !== ALL && !task.labels.includes(filters.label)) return false;
+  if (filters.priority !== ALL && task.priority !== filters.priority) return false;
+  const query = fold(filters.search.trim());
+  if (!query) return true;
+  const haystack = fold(
+    [task.title, task.description ?? "", ...task.labels, ...task.assignees.map((p) => p.name)].join(" "),
+  );
+  return query.split(/\s+/).every((word) => haystack.includes(word));
+}
 
 function dueTone(due: string, today: string, done: boolean) {
   if (done) return "text-muted-foreground";
@@ -278,6 +311,7 @@ function Column({
   ids,
   tasks,
   today,
+  filtered,
   onOpen,
   onAdd,
 }: {
@@ -285,6 +319,7 @@ function Column({
   ids: string[];
   tasks: Map<string, BoardTask>;
   today: string;
+  filtered: boolean;
   onOpen: (task: BoardTask) => void;
   onAdd: (status: TaskStatus) => void;
 }) {
@@ -340,7 +375,7 @@ function Column({
           })}
           {ids.length === 0 && (
             <li className="flex min-h-20 flex-1 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-              {isOver ? "Solte aqui" : "Sem tarefas"}
+              {isOver ? "Solte aqui" : filtered ? "Nada com esses filtros" : "Sem tarefas"}
             </li>
           )}
         </ol>
@@ -387,6 +422,19 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   const [saving, startSaving] = useTransition();
   const [editor, setEditor] = useState<TaskEditor | null>(null);
   const [editingProject, setEditingProject] = useState(false);
+  const [filters, setFilters] = useState<Filters>(noFilters);
+  const filtering =
+    filters.search.trim() !== "" ||
+    filters.person !== ALL ||
+    filters.label !== ALL ||
+    filters.priority !== ALL;
+  const visible = useCallback(
+    (id: string) => {
+      const task = byId.get(id);
+      return !!task && (!filtering || matches(task, filters));
+    },
+    [byId, filtering, filters],
+  );
   const { change: changeStatus, form: statusForm } = useProjectStatus(project.id);
   // dnd-kit numbers its aria ids globally; a fixed id keeps server and client in step.
   const dndId = useId();
@@ -600,6 +648,68 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
         }
       />
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative w-full max-w-xs">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={filters.search}
+            onChange={(event) => setFilters({ ...filters, search: event.target.value })}
+            placeholder="Buscar tarefas"
+            aria-label="Buscar tarefas"
+            className="bg-card pl-9"
+          />
+        </div>
+        <Select value={filters.person} onValueChange={(person) => setFilters({ ...filters, person })}>
+          <SelectTrigger aria-label="Filtrar por pessoa" className="w-[184px] bg-card">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas as pessoas</SelectItem>
+            <SelectItem value={NOBODY}>Sem responsável</SelectItem>
+            {people.map((person) => (
+              <SelectItem key={person.id} value={person.id}>
+                {person.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {labelSuggestions.length > 0 && (
+          <Select value={filters.label} onValueChange={(label) => setFilters({ ...filters, label })}>
+            <SelectTrigger aria-label="Filtrar por etiqueta" className="w-[190px] bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Todas as etiquetas</SelectItem>
+              {labelSuggestions.map((label) => (
+                <SelectItem key={label} value={label}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select value={filters.priority} onValueChange={(priority) => setFilters({ ...filters, priority })}>
+          <SelectTrigger aria-label="Filtrar por prioridade" className="w-[200px] bg-card">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas as prioridades</SelectItem>
+            {TASK_PRIORITIES.map((priority) => (
+              <SelectItem key={priority} value={priority}>
+                {taskPriorityLabels[priority]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {filtering && (
+          <Button variant="ghost" size="sm" onClick={() => setFilters(noFilters)}>
+            <XIcon />
+            Limpar
+          </Button>
+        )}
+      </div>
+
       <DndContext
         id={dndId}
         sensors={sensors}
@@ -629,15 +739,16 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
       >
         <div
           aria-busy={saving || undefined}
-          className="-mx-1 flex min-h-[calc(100vh-300px)] snap-x gap-3 overflow-x-auto px-1 pb-4"
+          className="-mx-1 flex min-h-[calc(100vh-340px)] snap-x gap-3 overflow-x-auto px-1 pb-4"
         >
           {TASK_STATUSES.map((status) => (
             <Column
               key={status}
               status={status}
-              ids={columns[status]}
+              ids={columns[status].filter(visible)}
               tasks={byId}
               today={today}
+              filtered={filtering}
               onOpen={(task) => setEditor({ mode: "edit", task })}
               onAdd={(column) => setEditor({ mode: "create", status: column })}
             />

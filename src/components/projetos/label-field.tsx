@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState, type KeyboardEvent } from "react";
-import { XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { LabelChip } from "./project-badges";
@@ -82,6 +82,22 @@ export function LabelField({
                   <XIcon className="size-3" />
                 </button>
               </LabelChip>
+            </li>
+          ))}
+        </ul>
+      )}
+      {available.length > 0 && labels.length < MAX && (
+        <ul className="flex flex-wrap items-center gap-1.5" aria-label="Etiquetas já usadas no projeto">
+          {available.slice(0, 12).map((label) => (
+            <li key={label}>
+              <button
+                type="button"
+                onClick={() => add(label)}
+                className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-input px-2 py-0.5 text-[11px] leading-4 font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <PlusIcon className="size-3" />
+                {label}
+              </button>
             </li>
           ))}
         </ul>
