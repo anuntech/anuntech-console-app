@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     if (!locked) return Response.json({ skipped: true });
     const deadline = Date.now() + 210000;
     const result = await processSubscriptions();
+    console.log(`[recurring-billing] ${JSON.stringify(result)}`);
     await queueBillingReminders();
     await processBillingNotices(deadline);
     await checkBillingDeliveries(deadline + 30000);

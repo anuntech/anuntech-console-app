@@ -28,8 +28,14 @@ export async function processSubscriptions() {
     .limit(20);
   let issued = 0,
     failed = 0;
+  // Every outcome is reported, so a silent skip shows up in the cron log.
+  const skipped: { id: string; reason: string }[] = [];
+  const errors: { id: string; error: string }[] = [];
   for (const sub of rows) {
-    if (issueDate(sub.nextDueDate, sub.leadDays) > today) continue;
+    if (issueDate(sub.nextDueDate, sub.leadDays) > today) {
+      skipped.push({ id: sub.id, reason: "issue date ahead" });
+      continue;
+    }
     try {
       const invoice = await db.transaction(async (tx) => {
         const [current] = await tx
@@ -86,7 +92,10 @@ export async function processSubscriptions() {
         });
         return created;
       });
-      if (!invoice) continue;
+      if (!invoice) {
+        skipped.push({ id: sub.id, reason: "changed or inactive meanwhile" });
+        continue;
+      }
       if (
         invoice.status !== "draft" ||
         invoice.bankRequest ||
@@ -112,6 +121,7 @@ export async function processSubscriptions() {
       }
     } catch (error) {
       failed++;
+      errors.push({ id: sub.id, error: error instanceof Error ? error.message : String(error) });
       await db
         .update(subscriptions)
         .set({
@@ -130,5 +140,5 @@ export async function processSubscriptions() {
         );
     }
   }
-  return { issued, failed };
+  return { today, selected: rows.map((r) => r.id), issued, failed, skipped, errors };
 }
