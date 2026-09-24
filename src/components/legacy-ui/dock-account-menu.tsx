@@ -7,8 +7,10 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import { UserRound, Palette, Users, LogOut } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isCatalogAvatar } from "@/lib/avatar-catalog";
-import { IllustratedAvatar } from "@/components/preferences/illustrated-avatar";
-import { profileAvatarSource } from "@/components/preferences/profile-avatar";
+import {
+  IllustratedAvatar,
+  profileAvatarSource,
+} from "@/components/settings/illustrated-avatar";
 import { useAppearance } from "@/components/appearance-provider";
 import { toast } from "@/components/notifications";
 import styles from "./bottom-menu.module.css";

@@ -35,6 +35,17 @@ import {
 import { NewInvoiceForm } from "@/components/financeiro/invoice-form";
 import { PaymentView } from "@/components/pagar/payment-view";
 import { AuthShell } from "@/components/auth/auth-shell";
+import { AppearanceSection } from "@/components/settings/appearance-section";
+import { SettingsNav } from "@/components/settings/settings-nav";
+import {
+  BellIcon,
+  Building2Icon,
+  PaletteIcon,
+  PlugZapIcon,
+  ShieldCheckIcon,
+  UserRoundIcon,
+  UsersIcon,
+} from "lucide-react";
 import { AuthAlert } from "@/components/auth/feedback";
 import { LoginForm } from "@/components/auth/login-form";
 import QRCode from "qrcode";
@@ -67,6 +78,7 @@ const SCREENS = [
   "login",
   "login-erro",
   "login-codigo",
+  "config",
 ];
 
 /**
@@ -641,6 +653,47 @@ export default async function Preview({
             showCompany
             canCreate
           />
+        </>
+      ) : tela === "config" ? (
+        <>
+          <PageHeader
+            crumbs={[{ label: "Configurações", href: "/conta" }, { label: "Aparência" }]}
+            title="Aparência"
+            description="Como o Console se apresenta para você, neste navegador."
+          />
+          <div className="grid gap-6 lg:grid-cols-[208px_minmax(0,1fr)] lg:items-start">
+            <aside className="lg:sticky lg:top-6">
+              <SettingsNav
+                groups={[
+                  {
+                    title: "Conta",
+                    items: [
+                      { key: "account", href: "/conta", label: "Minha conta", icon: <UserRoundIcon /> },
+                      { key: "security", href: "/configuracoes/seguranca", label: "Segurança", icon: <ShieldCheckIcon /> },
+                      { key: "appearance", href: "/dev/preview", label: "Aparência", icon: <PaletteIcon /> },
+                    ],
+                  },
+                  {
+                    title: "Anuntech",
+                    items: [
+                      { key: "company", href: "/configuracoes/empresa", label: "Dados da empresa", icon: <Building2Icon /> },
+                      { key: "members", href: "/configuracoes/membros", label: "Membros", icon: <UsersIcon /> },
+                      { key: "notifications", href: "/configuracoes/notificacoes", label: "Notificações", icon: <BellIcon /> },
+                    ],
+                  },
+                  {
+                    title: "Console",
+                    items: [
+                      { key: "integrations", href: "/configuracoes/integracoes", label: "Integrações", icon: <PlugZapIcon /> },
+                    ],
+                  },
+                ]}
+              />
+            </aside>
+            <div className="flex min-w-0 flex-col gap-6">
+              <AppearanceSection />
+            </div>
+          </div>
         </>
       ) : tela.startsWith("pagamento") ? (
         <PaymentView

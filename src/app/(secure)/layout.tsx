@@ -4,26 +4,18 @@ import { redirect } from "next/navigation";
 import { canManageMembers } from "@/lib/member-access";
 import { ActionForm } from "@/components/action-form";
 import { endAssistedSession } from "@/lib/assisted-actions";
-import {
-  PreferencesNavigationProvider,
-  PreferencesWorkspace,
-} from "@/components/preferences/preferences-dialog";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function ConsoleLayout({
   children,
-  preferences,
-  ticket,
 }: {
   children: React.ReactNode;
-  preferences: React.ReactNode;
-  ticket: React.ReactNode;
 }) {
   const actor = await getActor();
   if (!actor.admin && !actor.grants.length && !actor.assisting)
     redirect("/acesso-pendente");
   return (
-    <PreferencesNavigationProvider>
+    <>
       {actor.assisting && (
         <div className="assist-banner" role="status">
           <span>
@@ -40,13 +32,8 @@ export default async function ConsoleLayout({
           </ActionForm>
         </div>
       )}
-      <PreferencesWorkspace
-        admin={actor.admin}
-        canManageMembers={canManageMembers(actor)}
-        userName={actor.user.name}
-        userImage={actor.user.image ?? null}
-        preferences={preferences}
-        header={
+      <div className="console-shell">
+        <div className="workspace">
           <WorkspaceHeader
             userName={actor.user.name}
             userImage={actor.user.image ?? null}
@@ -55,11 +42,11 @@ export default async function ConsoleLayout({
             support={!!allowedIds(actor, "support").length}
             finance={!!allowedIds(actor, "finance").length}
           />
-        }
-      >
-        {children}
-        {ticket}
-      </PreferencesWorkspace>
-    </PreferencesNavigationProvider>
+          <main className="page-content" id="main-content" tabIndex={-1}>
+            {children}
+          </main>
+        </div>
+      </div>
+    </>
   );
 }
