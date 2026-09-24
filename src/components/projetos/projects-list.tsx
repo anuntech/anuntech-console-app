@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import {
   Building2Icon,
   FolderKanbanIcon,
-  PackageIcon,
   PlusIcon,
   SearchIcon,
   XIcon,
@@ -27,13 +26,11 @@ import {
   type ProjectQuery,
   type ProjectStatusFilter,
 } from "@/lib/project-table";
-import { engagementKindLabels } from "@/lib/task-model";
 import { EngagementStatusBadge } from "./project-badges";
 
 export type ProjectRow = {
   id: string;
   name: string;
-  kind: "product" | "project";
   status: string;
   description: string | null;
   companyId: string;
@@ -62,9 +59,9 @@ export function ProjectsList({
     <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <form
-          action="/produtos"
+          action="/projetos"
           role="search"
-          aria-label="Buscar produtos e projetos"
+          aria-label="Buscar projetos"
           className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1"
         >
           <input type="hidden" name="status" value={query.status} />
@@ -130,12 +127,12 @@ export function ProjectsList({
             return (
               <li key={row.id}>
                 <Link
-                  href={`/produtos/${row.id}`}
+                  href={`/projetos/${row.id}`}
                   className="group flex h-full flex-col gap-4 rounded-xl border bg-card p-5 shadow-card transition-colors hover:border-primary/40"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-5">
-                      {row.kind === "product" ? <PackageIcon /> : <FolderKanbanIcon />}
+                      <FolderKanbanIcon />
                     </span>
                     <EngagementStatusBadge status={row.status} />
                   </div>
@@ -143,10 +140,9 @@ export function ProjectsList({
                     <h2 className="truncate text-base font-semibold text-foreground group-hover:text-primary">
                       {row.name}
                     </h2>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {engagementKindLabels[row.kind]}
-                      {showCompany && ` · ${row.company}`}
-                    </p>
+                    {showCompany && (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.company}</p>
+                    )}
                     <p
                       className={cn(
                         "mt-3 line-clamp-2 text-sm",
@@ -188,13 +184,13 @@ export function ProjectsList({
         <section className="rounded-xl border bg-card shadow-card">
           <EmptyState
             icon={<FolderKanbanIcon />}
-            title={filtered ? "Nada encontrado" : "Nenhum produto ou projeto ainda"}
+            title={filtered ? "Nada encontrado" : "Nenhum projeto ainda"}
             description={
               filtered
                 ? "Tente outro termo ou mude o filtro de situação."
                 : admin
                   ? "Crie o primeiro projeto de um cliente e organize as tarefas no quadro."
-                  : "Os trabalhos da sua empresa com a Anuntech aparecem aqui."
+                  : "Os projetos da sua empresa com a Anuntech aparecem aqui."
             }
             action={
               query.search ? (
@@ -203,7 +199,7 @@ export function ProjectsList({
                 </Button>
               ) : admin && !filtered ? (
                 <Button asChild>
-                  <Link href="/produtos/novo">
+                  <Link href="/projetos/novo">
                     <PlusIcon />
                     Novo projeto
                   </Link>

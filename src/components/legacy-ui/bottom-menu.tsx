@@ -9,7 +9,8 @@ import {
   X,
   LayoutDashboard,
   Building2,
-  Layers3,
+  FolderKanban,
+  Package,
   Headset,
   ReceiptText,
   Folders,
@@ -31,7 +32,8 @@ export type NavigationProps = {
 const items = [
   { href: "/painel", label: "Visão geral", icon: LayoutDashboard },
   { href: "/empresas", label: "Empresas", icon: Building2, admin: true },
-  { href: "/produtos", label: "Produtos e projetos", icon: Layers3 },
+  { href: "/projetos", label: "Projetos", icon: FolderKanban },
+  { href: "/produtos", label: "Produtos", icon: Package },
   {
     href: "/chamados",
     label: "Chamados",
@@ -158,9 +160,15 @@ export default function BottomMenu({
                           allowed: admin,
                         },
                         {
+                          href: "/projetos/novo",
+                          label: "Novo projeto",
+                          icon: FolderKanban,
+                          allowed: admin,
+                        },
+                        {
                           href: "/produtos/novo",
-                          label: "Novo produto ou projeto",
-                          icon: Layers3,
+                          label: "Novo produto",
+                          icon: Package,
                           allowed: admin,
                         },
                         {

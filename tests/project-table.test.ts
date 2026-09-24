@@ -15,13 +15,17 @@ test("project list defaults to active work and rejects malformed parameters", ()
 });
 
 test("project list links keep only what differs from the defaults", () => {
-  assert.equal(projectListHref({ status: "active", search: "", company: "" }), "/produtos");
+  assert.equal(projectListHref({ status: "active", search: "", company: "" }), "/projetos");
+  assert.equal(
+    projectListHref({ status: "active", search: "", company: "" }, "/produtos"),
+    "/produtos",
+  );
   assert.equal(
     projectListHref({
       status: "all",
       search: "site",
       company: "0352e874-bf22-4f3a-8590-cce8170b86dc",
     }),
-    "/produtos?status=all&company=0352e874-bf22-4f3a-8590-cce8170b86dc&q=site",
+    "/projetos?status=all&company=0352e874-bf22-4f3a-8590-cce8170b86dc&q=site",
   );
 });

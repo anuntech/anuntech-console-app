@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/console/page-header";
-import { NewProjectForm } from "@/components/projetos/project-form";
+import { NewProductForm } from "@/components/produtos/product-form";
 import {
   newProjectContext,
   type NewProjectSearchParams,
 } from "@/components/projetos/new-project-context";
-export const metadata: Metadata = { title: "Novo produto ou projeto" };
+export const metadata: Metadata = { title: "Novo produto" };
 
 /** Direct loads only; in-app navigation shows the sheet from @ticket instead. */
-export default async function NewProject({
+export default async function NewProduct({
   searchParams,
 }: {
   searchParams: NewProjectSearchParams;
@@ -17,14 +17,11 @@ export default async function NewProject({
   return (
     <>
       <PageHeader
-        crumbs={[
-          { label: "Produtos e projetos", href: "/produtos" },
-          { label: "Novo" },
-        ]}
-        title="Novo produto ou projeto"
-        description="O trabalho fica vinculado à empresa e ganha um quadro de tarefas."
+        crumbs={[{ label: "Produtos", href: "/produtos" }, { label: "Novo" }]}
+        title="Novo produto"
+        description="Um produto que a empresa contratou; o cliente abre pelo link."
       />
-      <NewProjectForm {...context} />
+      <NewProductForm {...context} />
     </>
   );
 }

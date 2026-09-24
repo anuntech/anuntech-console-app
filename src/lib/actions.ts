@@ -26,6 +26,14 @@ import { priorityLabels, ticketLabels } from "./format";
 import { companyIdentity } from "./company-input";
 import { companyBillingInput } from "./company-billing";
 const id = z.string().uuid();
+function isWebUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
 const str = (max: number) =>
   z
     .string()
@@ -56,6 +64,7 @@ function refresh() {
   revalidatePath("/painel", "layout");
   revalidatePath("/empresas");
   revalidatePath("/produtos");
+  revalidatePath("/projetos");
   revalidatePath("/chamados");
   revalidatePath("/financeiro");
 }
@@ -111,12 +120,19 @@ export async function createEngagement(
         name: str(160),
         kind: z.enum(["product", "project"]),
         description: z.string().trim().max(3000),
+        url: z.string().trim().max(2048).default(""),
       })
       .parse(Object.fromEntries(form));
+    if (input.url && !isWebUrl(input.url))
+      return { error: "Informe um link HTTP ou HTTPS válido." };
     const created = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(engagements)
-        .values({ ...input, description: input.description || null })
+        .values({
+          ...input,
+          description: input.description || null,
+          url: input.kind === "product" && input.url ? input.url : null,
+        })
         .returning();
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
@@ -129,7 +145,7 @@ export async function createEngagement(
     refresh();
     return {
       success: input.kind === "project" ? "Projeto criado." : "Produto cadastrado.",
-      href: `/produtos/${created.id}`,
+      href: input.kind === "project" ? `/projetos/${created.id}` : "/produtos",
     };
   } catch (e) {
     return failure(e);

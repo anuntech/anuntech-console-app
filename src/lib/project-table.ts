@@ -27,10 +27,13 @@ export function projectQuery(
   };
 }
 export type ProjectQuery = ReturnType<typeof projectQuery>;
-export function projectListHref({ status, search, company }: ProjectQuery) {
+export function projectListHref(
+  { status, search, company }: ProjectQuery,
+  base: "/projetos" | "/produtos" = "/projetos",
+) {
   const params = new URLSearchParams();
   if (status !== "active") params.set("status", status);
   if (company) params.set("company", company);
   if (search) params.set("q", search);
-  return `/produtos${params.size ? `?${params}` : ""}`;
+  return `${base}${params.size ? `?${params}` : ""}`;
 }

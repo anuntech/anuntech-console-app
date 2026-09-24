@@ -26,7 +26,8 @@ const failure = (error: unknown): ActionState => ({
         : "Não foi possível salvar. Confira os dados e tente novamente.",
 });
 function refresh(engagementId: string) {
-  revalidatePath(`/produtos/${engagementId}`);
+  revalidatePath(`/projetos/${engagementId}`);
+  revalidatePath("/projetos");
   revalidatePath("/produtos");
 }
 /** Spaced positions let a card slot between two others without renumbering. */
@@ -389,7 +390,7 @@ export async function deleteTask(
   }
 }
 
-/** Renames a project or changes its description (staff only). */
+/** Name, description and, for products, the link (staff only). */
 export async function updateProject(
   _: ActionState,
   form: FormData,
@@ -400,15 +401,28 @@ export async function updateProject(
     const input = z
       .object({
         id,
-        name: z.string().trim().min(1, "Dê um nome ao projeto.").max(160),
-        kind: z.enum(["product", "project"]),
+        name: z.string().trim().min(1, "Dê um nome.").max(160),
         description: z.string().trim().max(3000).default(""),
+        url: z.string().trim().max(2048).optional(),
       })
       .parse(Object.fromEntries(form));
+    if (input.url) {
+      try {
+        const parsed = new URL(input.url);
+        if (!["https:", "http:"].includes(parsed.protocol) || parsed.username || parsed.password)
+          throw new Error();
+      } catch {
+        return { error: "Informe um link HTTP ou HTTPS válido." };
+      }
+    }
     await db.transaction(async (tx) => {
       const [row] = await tx
         .update(engagements)
-        .set({ name: input.name, kind: input.kind, description: input.description || null })
+        .set({
+          name: input.name,
+          description: input.description || null,
+          ...(input.url !== undefined ? { url: input.url || null } : {}),
+        })
         .where(eq(engagements.id, input.id))
         .returning();
       if (!row) throw Error();
@@ -420,7 +434,7 @@ export async function updateProject(
       });
     });
     refresh(input.id);
-    return { success: "Projeto atualizado." };
+    return { success: "Alterações salvas." };
   } catch (error) {
     return failure(error);
   }

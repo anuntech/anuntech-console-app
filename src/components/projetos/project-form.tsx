@@ -2,8 +2,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderKanbanIcon, PackageIcon } from "lucide-react";
-import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,24 +32,8 @@ export type ProjectCompanyOption = { id: string; name: string };
 export type ProjectFormValues = {
   id?: string;
   name: string;
-  kind: "product" | "project";
   description: string | null;
 };
-
-const KINDS = [
-  {
-    value: "project",
-    label: "Projeto",
-    hint: "Trabalho com começo e fim, acompanhado no quadro.",
-    icon: <FolderKanbanIcon />,
-  },
-  {
-    value: "product",
-    label: "Produto",
-    hint: "Algo que a empresa usa continuamente.",
-    icon: <PackageIcon />,
-  },
-] as const;
 
 /** Fields shared by creating and editing. Names match the actions. */
 export function ProjectFields({
@@ -66,9 +48,9 @@ export function ProjectFields({
   values?: ProjectFormValues | null;
   autoFocus?: boolean;
 }) {
-  const [kind, setKind] = useState<"product" | "project">(values?.kind ?? "project");
   return (
     <div className="grid gap-5">
+      <input type="hidden" name="kind" value="project" />
       {companies &&
         (companies.length === 1 ? (
           <input type="hidden" name="companyId" value={companies[0].id} />
@@ -95,33 +77,6 @@ export function ProjectFields({
             </NativeSelect>
           </div>
         ))}
-      <fieldset>
-        <legend className="mb-1.5 text-sm font-medium text-foreground">Tipo</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {KINDS.map((option) => (
-            <label
-              key={option.value}
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-lg border bg-field px-3 py-2.5 text-sm transition-colors hover:bg-accent/40 has-[:checked]:border-primary has-[:checked]:bg-accent has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
-              )}
-            >
-              <input
-                type="radio"
-                name="kind"
-                value={option.value}
-                className="sr-only"
-                checked={kind === option.value}
-                onChange={() => setKind(option.value)}
-              />
-              <span className="mt-0.5 text-muted-foreground [&_svg]:size-4">{option.icon}</span>
-              <span className="min-w-0">
-                <span className="block font-medium text-foreground">{option.label}</span>
-                <span className="block text-xs text-muted-foreground">{option.hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
       <div>
         <Label htmlFor="project-name" className="mb-1.5">
           Nome
@@ -133,7 +88,7 @@ export function ProjectFields({
           maxLength={160}
           autoFocus={autoFocus}
           defaultValue={values?.name ?? ""}
-          placeholder={kind === "project" ? "Ex.: Site institucional" : "Ex.: Synova"}
+          placeholder="Ex.: Site institucional"
         />
       </div>
       <div>
@@ -180,11 +135,11 @@ export function ProjectSheet({
         >
           {editing && <input type="hidden" name="id" value={values!.id} />}
           <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>{editing ? "Editar projeto" : "Novo produto ou projeto"}</SheetTitle>
+            <SheetTitle>{editing ? "Editar projeto" : "Novo projeto"}</SheetTitle>
             <SheetDescription>
               {editing
-                ? "Nome, tipo e descrição."
-                : "O trabalho fica vinculado à empresa e ganha um quadro de tarefas."}
+                ? "Nome e descrição."
+                : "O projeto fica vinculado à empresa e ganha um quadro de tarefas."}
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
@@ -212,7 +167,7 @@ export function ProjectSheet({
   );
 }
 
-/** /produtos/novo reached by navigation. */
+/** /projetos/novo reached by navigation. */
 export function NewProjectSheet({
   companies,
   companyId,
@@ -236,7 +191,7 @@ export function NewProjectSheet({
   );
 }
 
-/** /produtos/novo on a direct load. */
+/** /projetos/novo on a direct load. */
 export function NewProjectForm({
   companies,
   companyId,
@@ -253,7 +208,7 @@ export function NewProjectForm({
         </CardContent>
         <CardFooter className="justify-end gap-2 border-t">
           <Button type="button" variant="outline" asChild>
-            <Link href="/produtos">Cancelar</Link>
+            <Link href="/projetos">Cancelar</Link>
           </Button>
           <SubmitButton pendingLabel="Criando…">Criar</SubmitButton>
         </CardFooter>

@@ -6,14 +6,12 @@ import { db } from "@/lib/db";
 import { companies, engagements } from "@/db/schema";
 import { getActor } from "@/lib/access";
 import { projectQuery } from "@/lib/project-table";
-import { taskSummary } from "@/lib/tasks";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
-import { ProjectsList } from "@/components/projetos/projects-list";
+import { ProductsList } from "@/components/produtos/products-list";
 export const metadata: Metadata = {
-  title: "Produtos e projetos",
-  description:
-    "Acompanhe os produtos e projetos vinculados às empresas com acesso autorizado.",
+  title: "Produtos",
+  description: "Os produtos que cada empresa tem com a Anuntech.",
 };
 
 export default async function Products({
@@ -26,23 +24,23 @@ export default async function Products({
   const query = projectQuery(await searchParams);
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
   const search = query.search.replace(/[\\%_]/g, "\\$&");
-  const where =
-    and(
-      actor.admin ? undefined : ids.length ? inArray(engagements.companyId, ids) : sql`false`,
-      query.status === "all" ? undefined : eq(engagements.status, query.status),
-      query.company ? eq(engagements.companyId, query.company) : undefined,
-      search
-        ? or(ilike(engagements.name, `%${search}%`), ilike(companies.name, `%${search}%`))
-        : undefined,
-    ) ?? sql`true`;
+  const where = and(
+    eq(engagements.kind, "product"),
+    actor.admin ? undefined : ids.length ? inArray(engagements.companyId, ids) : sql`false`,
+    query.status === "all" ? undefined : eq(engagements.status, query.status),
+    query.company ? eq(engagements.companyId, query.company) : undefined,
+    search
+      ? or(ilike(engagements.name, `%${search}%`), ilike(companies.name, `%${search}%`))
+      : undefined,
+  );
   const [rows, companyFilter] = await Promise.all([
     db
       .select({
         id: engagements.id,
         name: engagements.name,
-        kind: engagements.kind,
         status: engagements.status,
         description: engagements.description,
+        url: engagements.url,
         companyId: engagements.companyId,
         company: companies.name,
       })
@@ -58,33 +56,29 @@ export default async function Products({
           .then((found) => found[0] ?? null)
       : null,
   ]);
-  const summary = await taskSummary(rows.map((row) => row.id));
   return (
     <>
       <PageHeader
-        title="Produtos e projetos"
+        title="Produtos"
         count={rows.length}
         description={
           actor.admin
-            ? "O que está em andamento com cada cliente, com o quadro de tarefas de cada projeto."
-            : "O que sua empresa constrói com a Anuntech e como cada projeto avança."
+            ? "O que cada cliente contratou, com o link para abrir."
+            : "O que sua empresa tem com a Anuntech. Abra pelo link."
         }
         actions={
           actor.admin && (
             <Button asChild>
               <Link href="/produtos/novo">
                 <PlusIcon />
-                Novo projeto
+                Novo produto
               </Link>
             </Button>
           )
         }
       />
-      <ProjectsList
-        rows={rows.map((row) => ({
-          ...row,
-          tasks: summary.get(row.id) ?? { total: 0, done: 0 },
-        }))}
+      <ProductsList
+        rows={rows}
         query={query}
         admin={actor.admin}
         showCompany={actor.admin || ids.length > 1}

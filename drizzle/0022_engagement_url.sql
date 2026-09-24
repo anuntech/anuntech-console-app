@@ -1,0 +1,1 @@
+ALTER TABLE "console_engagements" ADD COLUMN "url" text;

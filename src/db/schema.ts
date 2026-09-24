@@ -232,6 +232,8 @@ export const engagements = pgTable(
       .notNull()
       .default("active"),
     description: text("description"),
+    /** Where a product lives; the client opens it from here. */
+    url: text("url"),
     createdAt: created(),
   },
   (t) => [index("console_engagement_company_idx").on(t.companyId)],

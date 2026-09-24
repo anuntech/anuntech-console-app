@@ -11,7 +11,6 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { flushSync } from "react-dom";
 import {
   DndContext,
   DragOverlay,
@@ -68,16 +67,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/console/page-header";
-import { ServerForm } from "@/components/console/server-form";
 import { toast } from "@/components/notifications";
-import { updateEngagement } from "@/lib/actions";
 import { moveTask } from "@/lib/task-actions";
 import { shortDateLabel } from "@/lib/format";
 import { AvatarStack, PersonAvatar } from "@/components/console/person-avatar";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
-  engagementKindLabels,
   estimateLabel,
   taskPriorityLabels,
   taskStatusLabels,
@@ -90,6 +86,7 @@ import {
   TaskPriorityMark,
   labelTone,
 } from "./project-badges";
+import { useEngagementStatus } from "./engagement-status";
 import { ProjectSheet } from "./project-form";
 import { TaskSheet, type BoardPerson, type BoardTask, type TaskEditor } from "./task-sheet";
 
@@ -391,24 +388,6 @@ function Column({
   );
 }
 
-/** Pause, resume or complete the project from the header menu. */
-function useProjectStatus(projectId: string) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [status, setStatus] = useState("");
-  const change = (next: "active" | "paused" | "completed") =>
-    setTimeout(() => {
-      flushSync(() => setStatus(next));
-      formRef.current?.requestSubmit();
-    }, 0);
-  const form = (
-    <ServerForm ref={formRef} action={updateEngagement}>
-      <input type="hidden" name="id" value={projectId} />
-      <input type="hidden" name="status" value={status} />
-    </ServerForm>
-  );
-  return { change, form };
-}
-
 export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   const { project, tasks, people, viewer, today, now } = data;
   const router = useRouter();
@@ -442,7 +421,8 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
     },
     [byId, filtering, filters],
   );
-  const { change: changeStatus, form: statusForm } = useProjectStatus(project.id);
+  const { change, form: statusForm } = useEngagementStatus();
+  const changeStatus = (status: "active" | "paused" | "completed") => change(project.id, status);
   // dnd-kit numbers its aria ids globally; a fixed id keeps server and client in step.
   const dndId = useId();
 
@@ -567,14 +547,12 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Produtos e projetos", href: "/produtos" }, { label: project.name }]}
+        crumbs={[{ label: "Projetos", href: "/projetos" }, { label: project.name }]}
         title={project.name}
         description={
           <>
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <EngagementStatusBadge status={project.status} />
-              <span>{engagementKindLabels[project.kind]}</span>
-              <span aria-hidden="true" className="hidden sm:inline">·</span>
               {viewer.admin ? (
                 <Link
                   href={`/empresas/${project.companyId}`}
@@ -800,12 +778,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
         <ProjectSheet
           open={editingProject}
           onOpenChange={setEditingProject}
-          values={{
-            id: project.id,
-            name: project.name,
-            kind: project.kind,
-            description: project.description,
-          }}
+          values={{ id: project.id, name: project.name, description: project.description }}
         />
       )}
       {viewer.admin && statusForm}

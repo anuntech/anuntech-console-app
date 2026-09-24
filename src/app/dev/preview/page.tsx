@@ -38,6 +38,7 @@ import { ProjectsList } from "@/components/projetos/projects-list";
 import { ProjectBoard } from "@/components/projetos/project-board";
 import { NewProjectForm } from "@/components/projetos/project-form";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
+import { ProductsList } from "@/components/produtos/products-list";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { SettingsNav } from "@/components/settings/settings-nav";
@@ -90,6 +91,7 @@ const SCREENS = [
   "novo-projeto",
   "bookmarks",
   "bookmarks-vazio",
+  "produtos",
 ];
 
 /**
@@ -574,11 +576,39 @@ export default async function Preview({
     page: 1,
     pageSize: 10,
   };
+  const productRows = [
+    {
+      id: "pr1",
+      name: "Synova",
+      status: "active",
+      description: "Atendimento automático no WhatsApp com relatórios semanais.",
+      url: "https://app.synova.com.br",
+      companyId: "a2",
+      company: "Paróquia Santa Rita",
+    },
+    {
+      id: "pr2",
+      name: "Workspace",
+      status: "active",
+      description: "E-mail profissional, agenda e arquivos da equipe.",
+      url: "https://workspace.anuntech.com",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+    },
+    {
+      id: "pr3",
+      name: "Hospedagem do site",
+      status: "paused",
+      description: null,
+      url: null,
+      companyId: "a3",
+      company: "Instituto Vida Plena",
+    },
+  ];
   const projectRows = [
     {
       id: "p1",
       name: "Site institucional",
-      kind: "project" as const,
       status: "active",
       description:
         "Novo site com páginas de serviços, formulário de contato e integração com o WhatsApp.",
@@ -587,19 +617,8 @@ export default async function Preview({
       tasks: { total: 8, done: 3 },
     },
     {
-      id: "p2",
-      name: "Synova",
-      kind: "product" as const,
-      status: "active",
-      description: "Atendimento automático no WhatsApp com relatórios semanais.",
-      companyId: "a2",
-      company: "Paróquia Santa Rita",
-      tasks: { total: 12, done: 12 },
-    },
-    {
       id: "p3",
       name: "Painel de reservas",
-      kind: "project" as const,
       status: "paused",
       description: null,
       companyId: "a1",
@@ -609,7 +628,6 @@ export default async function Preview({
     {
       id: "p4",
       name: "Aplicativo de eventos",
-      kind: "project" as const,
       status: "completed",
       description: "Inscrições, check-in por QR code e envio de certificados.",
       companyId: "a3",
@@ -853,24 +871,43 @@ export default async function Preview({
       ) : tela === "novo-projeto" ? (
         <>
           <PageHeader
-            crumbs={[
-              { label: "Produtos e projetos", href: "/produtos" },
-              { label: "Novo" },
-            ]}
-            title="Novo produto ou projeto"
-            description="O trabalho fica vinculado à empresa e ganha um quadro de tarefas."
+            crumbs={[{ label: "Projetos", href: "/projetos" }, { label: "Novo" }]}
+            title="Novo projeto"
+            description="O projeto fica vinculado à empresa e ganha um quadro de tarefas."
           />
           <NewProjectForm companies={companies} />
+        </>
+      ) : tela === "produtos" ? (
+        <>
+          <PageHeader
+            title="Produtos"
+            count={productRows.length}
+            description="O que cada cliente contratou, com o link para abrir."
+            actions={
+              <Button asChild>
+                <Link href="/produtos/novo">
+                  <PlusIcon />
+                  Novo produto
+                </Link>
+              </Button>
+            }
+          />
+          <ProductsList
+            rows={productRows}
+            query={{ status: "active", search: "", company: "" }}
+            admin
+            showCompany
+          />
         </>
       ) : tela.startsWith("projetos") ? (
         <>
           <PageHeader
-            title="Produtos e projetos"
+            title="Projetos"
             count={tela === "projetos-vazio" ? 0 : projectRows.length}
             description="O que está em andamento com cada cliente, com o quadro de tarefas de cada projeto."
             actions={
               <Button asChild>
-                <Link href="/produtos/novo">
+                <Link href="/projetos/novo">
                   <PlusIcon />
                   Novo projeto
                 </Link>
