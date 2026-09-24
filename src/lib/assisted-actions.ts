@@ -1,5 +1,6 @@
 "use server";
 import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { companies, auditEvents } from "@/db/schema";
@@ -33,7 +34,8 @@ export async function startAssistedSession(
     entityId: company.id,
     details: { company: company.name },
   });
-  return { href: "/painel" };
+  // A server redirect: the page that submitted may no longer exist for the assisted view.
+  redirect("/painel");
 }
 export async function endAssistedSession(
   _previous: ActionState,
@@ -53,5 +55,5 @@ export async function endAssistedSession(
       entityId: companyId,
       details: null,
     });
-  return { href: "/empresas" };
+  redirect("/empresas");
 }
