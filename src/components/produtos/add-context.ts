@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { catalogItems, subscriptions } from "@/db/schema";
 import { accessibleCompanies, requireAdmin } from "@/lib/access";
 import { db } from "@/lib/db";
@@ -7,7 +7,7 @@ import type { AddFromCatalogData } from "./add-from-catalog";
 
 export type AddSearchParams = Promise<{ companyId?: string }>;
 
-/** Companies, active catalog items and live recurrences, for the link form. */
+/** Companies, active catalog items and unlinked live recurrences, for the link form. */
 export async function addFromCatalogContext(searchParams: AddSearchParams): Promise<AddFromCatalogData> {
   const actor = await requireAdmin();
   const [companies, items, subs, { companyId }] = await Promise.all([
@@ -35,7 +35,8 @@ export async function addFromCatalogContext(searchParams: AddSearchParams): Prom
         nextDueDate: subscriptions.nextDueDate,
       })
       .from(subscriptions)
-      .where(inArray(subscriptions.status, ["draft", "active", "paused"]))
+      // A recurrence pays for one item; the ones already linked stay out.
+      .where(and(inArray(subscriptions.status, ["draft", "active", "paused"]), isNull(subscriptions.engagementId)))
       .orderBy(asc(subscriptions.description)),
     searchParams,
   ]);

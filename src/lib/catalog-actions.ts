@@ -1,5 +1,5 @@
 "use server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -161,6 +161,8 @@ export async function addCatalogEngagement(_: ActionState, form: FormData): Prom
             and(eq(subscriptions.id, input.subscriptionId), eq(subscriptions.companyId, input.companyId)),
           );
         if (!sub) throw new Error("Recorrência inválida para esta empresa.");
+        if (sub.engagementId)
+          throw new Error("Recorrência já vinculada a outro item. Cada recorrência paga um único produto ou serviço.");
         subscriptionId = sub.id;
       }
       const [row] = await tx
@@ -213,10 +215,12 @@ export async function addCatalogEngagement(_: ActionState, form: FormData): Prom
           entityId: invoice.id,
         });
       } else if (subscriptionId) {
-        await tx
+        const linked = await tx
           .update(subscriptions)
           .set({ engagementId: row.id })
-          .where(and(eq(subscriptions.id, subscriptionId), eq(subscriptions.engagementId, null as never)));
+          .where(and(eq(subscriptions.id, subscriptionId), isNull(subscriptions.engagementId)))
+          .returning({ id: subscriptions.id });
+        if (!linked.length) throw new Error("Recorrência já vinculada a outro item. Cada recorrência paga um único produto ou serviço.");
       }
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,

@@ -144,7 +144,7 @@ export function AddFromCatalogFields({ companies, items, subscriptions, companyI
         >
           <NativeSelectOption value="draft">Criar recorrência em rascunho</NativeSelectOption>
           <NativeSelectOption value="existing" disabled={!existing.length}>
-            Usar recorrência existente{existing.length ? "" : " (nenhuma nesta empresa)"}
+            Usar recorrência existente{existing.length ? "" : " (nenhuma livre nesta empresa)"}
           </NativeSelectOption>
           <NativeSelectOption value="none">Sem cobrança por enquanto</NativeSelectOption>
         </NativeSelect>
