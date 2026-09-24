@@ -47,6 +47,13 @@ const priorityDots: Record<TaskPriority, string> = {
   urgent: "bg-destructive",
 };
 
+/** Only the dot, for lists that already spell the priority out. */
+export function PriorityDot({ priority, className }: { priority: TaskPriority; className?: string }) {
+  return (
+    <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full", priorityDots[priority], className)} />
+  );
+}
+
 /** A dot and a word; the calm priorities stay grey. */
 export function TaskPriorityMark({
   priority,

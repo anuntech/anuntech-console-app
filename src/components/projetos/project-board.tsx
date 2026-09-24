@@ -53,18 +53,13 @@ import {
   PlayIcon,
   PlusIcon,
   SearchIcon,
+  UserRoundIcon,
   XIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { MultiSelect } from "@/components/console/multi-select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,7 +73,7 @@ import { toast } from "@/components/notifications";
 import { updateEngagement } from "@/lib/actions";
 import { moveTask } from "@/lib/task-actions";
 import { shortDateLabel } from "@/lib/format";
-import { AvatarStack } from "@/components/console/person-avatar";
+import { AvatarStack, PersonAvatar } from "@/components/console/person-avatar";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -88,7 +83,13 @@ import {
   taskStatusLabels,
   type TaskStatus,
 } from "@/lib/task-model";
-import { EngagementStatusBadge, LabelChip, TaskPriorityMark } from "./project-badges";
+import {
+  EngagementStatusBadge,
+  LabelChip,
+  PriorityDot,
+  TaskPriorityMark,
+  labelTone,
+} from "./project-badges";
 import { ProjectSheet } from "./project-form";
 import { TaskSheet, type BoardPerson, type BoardTask, type TaskEditor } from "./task-sheet";
 
@@ -132,16 +133,22 @@ const columnOf = (columns: Columns, id: UniqueIdentifier) =>
 /** Accent- and case-insensitive text for search. */
 const fold = (value: string) =>
   value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt-BR");
-const ALL = "all";
 const NOBODY = "none";
-type Filters = { search: string; person: string; label: string; priority: string };
-const noFilters: Filters = { search: "", person: ALL, label: ALL, priority: ALL };
+type Filters = { search: string; people: string[]; labels: string[]; priorities: string[] };
+const noFilters: Filters = { search: "", people: [], labels: [], priorities: [] };
 
+/** Within a filter any choice matches; across filters all must match. */
 function matches(task: BoardTask, filters: Filters) {
-  if (filters.person === NOBODY ? task.assignees.length > 0 : filters.person !== ALL && !task.assignees.some((p) => p.id === filters.person))
+  if (
+    filters.people.length &&
+    !filters.people.some((id) =>
+      id === NOBODY ? task.assignees.length === 0 : task.assignees.some((p) => p.id === id),
+    )
+  )
     return false;
-  if (filters.label !== ALL && !task.labels.includes(filters.label)) return false;
-  if (filters.priority !== ALL && task.priority !== filters.priority) return false;
+  if (filters.labels.length && !filters.labels.some((label) => task.labels.includes(label)))
+    return false;
+  if (filters.priorities.length && !filters.priorities.includes(task.priority)) return false;
   const query = fold(filters.search.trim());
   if (!query) return true;
   const haystack = fold(
@@ -425,9 +432,9 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   const [filters, setFilters] = useState<Filters>(noFilters);
   const filtering =
     filters.search.trim() !== "" ||
-    filters.person !== ALL ||
-    filters.label !== ALL ||
-    filters.priority !== ALL;
+    filters.people.length > 0 ||
+    filters.labels.length > 0 ||
+    filters.priorities.length > 0;
   const visible = useCallback(
     (id: string) => {
       const task = byId.get(id);
@@ -660,48 +667,56 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
             className="bg-card pl-9"
           />
         </div>
-        <Select value={filters.person} onValueChange={(person) => setFilters({ ...filters, person })}>
-          <SelectTrigger aria-label="Filtrar por pessoa" className="w-[184px] bg-card">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas as pessoas</SelectItem>
-            <SelectItem value={NOBODY}>Sem responsável</SelectItem>
-            {people.map((person) => (
-              <SelectItem key={person.id} value={person.id}>
-                {person.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelect
+          label="Pessoas"
+          searchPlaceholder="Buscar pessoa"
+          selected={filters.people}
+          onChange={(people) => setFilters({ ...filters, people })}
+          options={[
+            {
+              value: NOBODY,
+              label: "Sem responsável",
+              icon: (
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-input text-muted-foreground">
+                  <UserRoundIcon className="size-3" />
+                </span>
+              ),
+            },
+            ...people.map((person) => ({
+              value: person.id,
+              label: person.name,
+              icon: <PersonAvatar person={person} size={24} />,
+            })),
+          ]}
+        />
         {labelSuggestions.length > 0 && (
-          <Select value={filters.label} onValueChange={(label) => setFilters({ ...filters, label })}>
-            <SelectTrigger aria-label="Filtrar por etiqueta" className="w-[190px] bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as etiquetas</SelectItem>
-              {labelSuggestions.map((label) => (
-                <SelectItem key={label} value={label}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelect
+            label="Etiquetas"
+            searchPlaceholder="Buscar etiqueta"
+            selected={filters.labels}
+            onChange={(labels) => setFilters({ ...filters, labels })}
+            options={labelSuggestions.map((label) => ({
+              value: label,
+              label,
+              icon: (
+                <span
+                  aria-hidden="true"
+                  className={cn("size-2.5 shrink-0 rounded-full", labelTone(label).split(" ")[0])}
+                />
+              ),
+            }))}
+          />
         )}
-        <Select value={filters.priority} onValueChange={(priority) => setFilters({ ...filters, priority })}>
-          <SelectTrigger aria-label="Filtrar por prioridade" className="w-[200px] bg-card">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Todas as prioridades</SelectItem>
-            {TASK_PRIORITIES.map((priority) => (
-              <SelectItem key={priority} value={priority}>
-                {taskPriorityLabels[priority]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelect
+          label="Prioridade"
+          selected={filters.priorities}
+          onChange={(priorities) => setFilters({ ...filters, priorities })}
+          options={TASK_PRIORITIES.map((priority) => ({
+            value: priority,
+            label: taskPriorityLabels[priority],
+            icon: <PriorityDot priority={priority} />,
+          }))}
+        />
         {filtering && (
           <Button variant="ghost" size="sm" onClick={() => setFilters(noFilters)}>
             <XIcon />

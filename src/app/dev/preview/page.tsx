@@ -619,6 +619,10 @@ export default async function Preview({
     person("u1", "Kauan Ketner"),
     person("u2", "Alexandre Souza"),
     person("u3", "Mariana Lopes"),
+    person("u4", "Beatriz Nunes"),
+    person("u5", "Carlos Menezes"),
+    person("u6", "Fernanda Prado"),
+    person("u7", "Rafael Duarte"),
   ];
   const boardTask = (
     id: string,

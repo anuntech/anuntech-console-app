@@ -72,7 +72,7 @@ export function PeopleField({
         </PopoverTrigger>
         <PopoverContent align="start" className="w-(--radix-popover-trigger-width) p-0">
           <Command>
-            <CommandInput placeholder="Buscar pessoa" />
+            {people.length > 6 && <CommandInput placeholder="Buscar pessoa" />}
             <CommandList>
               <CommandEmpty>Ninguém com esse nome.</CommandEmpty>
               <CommandGroup>
