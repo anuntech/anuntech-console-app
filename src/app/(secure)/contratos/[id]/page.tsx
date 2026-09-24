@@ -1,212 +1,91 @@
-import { Download, FileText, Globe2, PencilLine } from "lucide-react";
-import styles from "../../empresas/management.module.css";
-import { DownloadLink } from "@/components/download-link";
-import { eq } from "drizzle-orm";
+import type { Metadata } from "next";
+import { asc, desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { companies, contracts } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
 import {
-  saveContract,
-  publishContract,
-  unpublishContract,
-} from "@/lib/contract-actions";
-import { ActionForm } from "@/components/action-form";
-export const metadata = {
-  title: "Detalhes do contrato",
-  description: "Consulte o contrato e acompanhe sua publicação para o cliente.",
+  auditEvents,
+  companies,
+  contractSignatures,
+  contractTemplates,
+  contracts,
+  engagements,
+} from "@/db/schema";
+import { getActor, canAccess } from "@/lib/access";
+import { hasPermission } from "@/lib/permissions";
+import { pendingContractVariables } from "@/lib/contract-templates";
+import { ContractDetail } from "@/components/contratos/contract-detail";
+export const metadata: Metadata = {
+  title: "Contrato",
+  description: "Leia, assine e acompanhe um contrato.",
 };
-import { Heading, Back, Field, Badge } from "@/components/ui";
-import { dateLabel } from "@/lib/format";
-export default async function Contract({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+
+export default async function Contract({ params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor();
   const { id } = await params;
   const [row] = await db
-    .select({ contract: contracts, company: companies.name })
+    .select({
+      contract: contracts,
+      company: companies,
+      engagement: engagements.name,
+      template: contractTemplates.name,
+    })
     .from(contracts)
     .innerJoin(companies, eq(companies.id, contracts.companyId))
+    .leftJoin(engagements, eq(engagements.id, contracts.engagementId))
+    .leftJoin(contractTemplates, eq(contractTemplates.id, contracts.templateId))
     .where(eq(contracts.id, id));
-  if (
-    !row ||
-    !canAccess(actor, row.contract.companyId, "finance") ||
-    (!actor.admin && !row.contract.publishedAt)
-  )
-    notFound();
-  const c = row.contract,
-    published = c.publishedAt ? c.publication : null;
-  const changed =
-    !published || published.title !== c.title || published.body !== c.body;
+  if (!row || !canAccess(actor, row.contract.companyId, "finance")) notFound();
+  const c = row.contract;
+  if (!actor.admin && (c.status === "draft" || c.status === "cancelled")) notFound();
+  const [signatures, events] = await Promise.all([
+    db
+      .select()
+      .from(contractSignatures)
+      .where(eq(contractSignatures.contractId, id))
+      .orderBy(asc(contractSignatures.signedAt)),
+    actor.admin
+      ? db
+          .select({ id: auditEvents.id, action: auditEvents.action, createdAt: auditEvents.createdAt })
+          .from(auditEvents)
+          .where(eq(auditEvents.entityId, id))
+          .orderBy(desc(auditEvents.createdAt))
+          .limit(12)
+      : [],
+  ]);
+  const grant = actor.grants.find((g) => g.company.id === c.companyId);
+  const party = actor.admin ? "anuntech" : grant && hasPermission(grant.role, "finance") ? "client" : null;
+  const text = c.status !== "draft" && c.publication ? c.publication : { title: c.title, body: c.body };
   return (
-    <>
-      <Back href="/contratos" label="Contratos" />
-      <Heading
-        eyebrow="DOCUMENTOS"
-        title={actor.admin ? c.title : published!.title}
-        description={row.company}
-      />
-      <div className={styles.documentLayout}>
-        <section
-          className={`panel ${styles.documentTop}`}
-          aria-label="Situação e downloads do contrato"
-        >
-          <div>
-            <Badge status={published ? "active" : "draft"}>
-              {published
-                ? `Publicado · versão ${c.publishedVersion}`
-                : "Rascunho"}
-            </Badge>
-            <p>
-              {published
-                ? `Publicado em ${dateLabel(c.publishedAt!)}`
-                : "Visível somente para a administração"}
-            </p>
-          </div>
-          <div className={styles.documentActions}>
-            {published && (
-              <DownloadLink
-                className="button primary"
-                href={`/api/contratos/${id}/pdf`}
-              >
-                <Download size={16} />
-                Baixar PDF
-              </DownloadLink>
-            )}
-            {actor.admin && (
-              <DownloadLink
-                className="button"
-                href={`/api/contratos/${id}/pdf?draft=1`}
-              >
-                <FileText size={16} />
-                Baixar PDF do rascunho
-              </DownloadLink>
-            )}
-          </div>
-        </section>
-        {actor.admin && (
-          <div className={styles.formShell}>
-            <section className={`panel ${styles.formCard}`}>
-              <div className={styles.sectionHeader}>
-                <PencilLine size={19} />
-                <div>
-                  <h2>Editar rascunho</h2>
-                  <p>
-                    Salvar mantém a versão do cliente. Publique quando a revisão
-                    estiver concluída.
-                  </p>
-                </div>
-              </div>
-              <ActionForm
-                key={c.revision}
-                action={saveContract}
-                label="Salvar rascunho"
-              >
-                <input type="hidden" name="id" value={id} />
-                <input type="hidden" name="revision" value={c.revision} />
-                <Field label="Título">
-                  <input
-                    name="title"
-                    defaultValue={c.title}
-                    maxLength={160}
-                    required
-                  />
-                </Field>
-                <Field
-                  label="Texto do contrato"
-                  hint="Texto simples. As quebras de linha são preservadas na visualização e no PDF."
-                >
-                  <textarea
-                    name="body"
-                    className="contract-editor"
-                    rows={24}
-                    maxLength={100000}
-                    defaultValue={c.body}
-                    required
-                  />
-                </Field>
-              </ActionForm>
-            </section>
-            <section className={`panel ${styles.publication}`}>
-              <span className={styles.helpIcon}>
-                <Globe2 size={19} />
-              </span>
-              <div className={styles.publicationHeading}>
-                <h2>Disponibilidade para o cliente</h2>
-                <p className="muted">
-                  {changed
-                    ? "Há um rascunho que ainda não foi publicado."
-                    : "O texto salvo está igual à versão publicada."}
-                </p>
-              </div>
-              {changed && (
-                <ActionForm
-                  key={`publish-${c.revision}`}
-                  action={publishContract}
-                  confirm={{
-                    title: "Publicar contrato para o cliente?",
-                    description: `O rascunho salvo de “${c.title}” ficará disponível para consulta e download pelo cliente e substituirá a versão publicada, se houver.`,
-                  }}
-                  label="Publicar para o cliente"
-                >
-                  <input type="hidden" name="id" value={id} />
-                  <input type="hidden" name="revision" value={c.revision} />
-                  <label className="checkbox-field">
-                    <input
-                      type="checkbox"
-                      name="confirm"
-                      value="yes"
-                      required
-                    />
-                    Revisei o rascunho salvo e quero disponibilizá-lo para este
-                    cliente.
-                  </label>
-                </ActionForm>
-              )}
-              {published && (
-                <details className="edit-details">
-                  <summary>Retirar da área do cliente</summary>
-                  <ActionForm
-                    key={`unpublish-${c.revision}`}
-                    action={unpublishContract}
-                    confirm={{
-                      title: "Retirar a publicação do contrato?",
-                      description: `O cliente deixará de visualizar e baixar “${c.title}”. O rascunho e o histórico serão preservados.`,
-                    }}
-                    label="Retirar publicação"
-                    danger
-                  >
-                    <input type="hidden" name="id" value={id} />
-                    <input type="hidden" name="revision" value={c.revision} />
-                    <label className="checkbox-field">
-                      <input
-                        type="checkbox"
-                        name="confirm"
-                        value="yes"
-                        required
-                      />
-                      Quero interromper a visualização e o download deste
-                      contrato pelo cliente.
-                    </label>
-                  </ActionForm>
-                </details>
-              )}
-            </section>
-          </div>
-        )}
-        {published && (
-          <article className={`panel ${styles.documentPaper}`}>
-            <p className="eyebrow">VERSÃO PUBLICADA · {c.publishedVersion}</p>
-            <h2>{published.title}</h2>
-            <p className="muted">
-              {published.companyName} · {published.companyDocument}
-            </p>
-            <div className="contract-body">{published.body}</div>
-          </article>
-        )}
-      </div>
-    </>
+    <ContractDetail
+      data={{
+        contract: {
+          id: c.id,
+          title: text.title,
+          body: text.body,
+          status: c.status,
+          revision: c.revision,
+          companyId: c.companyId,
+          company: row.company.name,
+          companyDocument: row.company.document,
+          engagement: row.engagement,
+          template: row.template,
+          documentHash: c.documentHash,
+          sentAt: c.publishedAt?.toISOString() ?? null,
+          signedAt: c.signedAt?.toISOString() ?? null,
+          createdAt: c.createdAt.toISOString(),
+          pendingVariables: c.status === "draft" ? pendingContractVariables(c.body) : [],
+        },
+        signatures: signatures.map((s) => ({
+          party: s.party,
+          name: s.name,
+          email: s.email,
+          signedAt: s.signedAt.toISOString(),
+          ip: s.ip,
+        })),
+        viewer: { admin: actor.admin, party, name: actor.user.name },
+        events: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString() })),
+        now: new Date().toISOString(),
+      }}
+    />
   );
 }

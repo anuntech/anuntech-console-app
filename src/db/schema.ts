@@ -14,6 +14,9 @@ import {
 } from "drizzle-orm/pg-core";
 const created = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
 export const user = pgTable("console_user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -187,12 +190,23 @@ export const memberships = pgTable(
     index("console_membership_email_idx").on(t.email),
   ],
 );
+/** The text frozen when a contract goes out for signature. */
 export type ContractPublication = {
   title: string;
   body: string;
   companyName: string;
   companyDocument: string;
 };
+/** Contract text written once, with {{variáveis}} filled per client. */
+export const contractTemplates = pgTable("console_contract_templates", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  body: text("body").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: created(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const contracts = pgTable(
   "console_contracts",
   {
@@ -202,12 +216,22 @@ export const contracts = pgTable(
     companyId: text("company_id")
       .notNull()
       .references(() => companies.id),
+    templateId: text("template_id").references(() => contractTemplates.id),
+    engagementId: text("engagement_id").references((): AnyPgColumn => engagements.id),
     title: text("title").notNull(),
     body: text("body").notNull(),
     revision: integer("revision").notNull().default(1),
+    /** draft → sent (frozen, awaiting signatures) → signed; or cancelled. */
+    status: text("status", { enum: ["draft", "sent", "signed", "cancelled"] })
+      .notNull()
+      .default("draft"),
     publication: jsonb("publication").$type<ContractPublication>(),
     publishedVersion: integer("published_version").notNull().default(0),
     publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** SHA-256 of the frozen text; printed on the PDF and checked at signing. */
+    documentHash: text("document_hash"),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    signedPdf: bytea("signed_pdf"),
     authorId: text("author_id")
       .notNull()
       .references(() => user.id),
@@ -217,6 +241,33 @@ export const contracts = pgTable(
       .defaultNow(),
   },
   (t) => [index("console_contract_company_idx").on(t.companyId)],
+);
+/** One row per party that signed, with the evidence that backs it. */
+export const contractSignatures = pgTable(
+  "console_contract_signatures",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    contractId: text("contract_id")
+      .notNull()
+      .references(() => contracts.id),
+    party: text("party", { enum: ["client", "anuntech"] }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    documentHash: text("document_hash").notNull(),
+    ip: text("ip"),
+    userAgent: text("user_agent"),
+    /** How the signer proved who they were. */
+    method: text("method").notNull().default("otp_session"),
+    sessionStartedAt: timestamp("session_started_at", { withTimezone: true }),
+    signedAt: created(),
+  },
+  (t) => [
+    index("console_contract_signature_contract_idx").on(t.contractId),
+    uniqueIndex("console_contract_signature_party_unique").on(t.contractId, t.party),
+  ],
 );
 /** What Anuntech offers, defined once; companies get linked to items. */
 export const catalogItems = pgTable("console_catalog_items", {
@@ -369,9 +420,6 @@ export const messages = pgTable(
   },
   (t) => [index("console_message_ticket_idx").on(t.ticketId)],
 );
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType: () => "bytea",
-});
 export const attachments = pgTable(
   "console_attachments",
   {

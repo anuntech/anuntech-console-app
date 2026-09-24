@@ -183,6 +183,13 @@
       "when": 1790222358940,
       "tag": "0025_charge_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790224699095,
+      "tag": "0026_contract_signatures",
+      "breakpoints": true
     }
   ]
 }

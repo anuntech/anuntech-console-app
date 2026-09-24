@@ -1,67 +1,55 @@
-import { headers } from "next/headers";
-import { and, eq, inArray } from "drizzle-orm";
-import { auth } from "@/lib/auth";
+import { asc, eq } from "drizzle-orm";
+import { contracts, companies, contractSignatures } from "@/db/schema";
+import { getActor, canAccess } from "@/lib/access";
 import { db } from "@/lib/db";
-import { contracts, companies, memberships } from "@/db/schema";
-import { hasPermission } from "@/lib/permissions";
-import { getConsoleStaffAccess } from "@/lib/console-members";
-import { getAccountEmails } from "@/lib/account-identity";
 import { contractPdf } from "@/lib/contract-pdf";
 export const runtime = "nodejs";
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user.emailVerified) return new Response(null, { status: 401 });
+
+/** The signed PDF when there is one; otherwise the current text, rendered now. */
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const actor = await getActor();
   const { id } = await params;
   const [row] = await db
     .select({ contract: contracts, company: companies })
     .from(contracts)
     .innerJoin(companies, eq(companies.id, contracts.companyId))
     .where(eq(contracts.id, id));
-  if (!row) return new Response(null, { status: 404 });
+  if (!row || !canAccess(actor, row.contract.companyId, "finance")) return new Response(null, { status: 404 });
   const c = row.contract;
-  const { admin } = await getConsoleStaffAccess(session.user.email);
-  const draft = new URL(request.url).searchParams.get("draft") === "1";
-  if (!admin) {
-    if (draft || !c.publishedAt || !c.publication)
-      return new Response(null, { status: 404 });
-    const emails = await getAccountEmails(session.user.id, session.user.email);
-    const grants = await db
-      .select()
-      .from(memberships)
-      .where(
-        and(
-          eq(memberships.companyId, c.companyId),
-          inArray(memberships.email, emails),
-          eq(memberships.active, true),
-        ),
-      );
-    if (!grants.some((grant) => hasPermission(grant.role, "finance")))
-      return new Response(null, { status: 404 });
-  }
-  const publication = !draft && c.publishedAt ? c.publication : null;
-  if (!draft && !publication) return new Response(null, { status: 404 });
+  if (!actor.admin && (c.status === "draft" || c.status === "cancelled")) return new Response(null, { status: 404 });
+  const filename = `contrato-${c.title.replace(/[^\p{L}\p{N} ._-]/gu, "").trim().slice(0, 80) || id}${c.status === "signed" ? "-assinado" : ""}.pdf`;
+  const headers = (length: number) => ({
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    "Content-Length": String(length),
+    "Cache-Control": "private, no-store",
+    "X-Content-Type-Options": "nosniff",
+  });
+  if (c.status === "signed" && c.signedPdf)
+    return new Response(new Uint8Array(c.signedPdf), { headers: headers(c.signedPdf.length) });
+  const signatures = await db
+    .select()
+    .from(contractSignatures)
+    .where(eq(contractSignatures.contractId, id))
+    .orderBy(asc(contractSignatures.signedAt));
+  const publication =
+    c.status !== "draft" && c.publication
+      ? c.publication
+      : { title: c.title, body: c.body, companyName: row.company.name, companyDocument: row.company.document };
   const pdf = await contractPdf({
-    ...(publication || {
-      title: c.title,
-      body: c.body,
-      companyName: row.company.name,
-      companyDocument: row.company.document,
-    }),
+    ...publication,
     id,
-    version: c.publishedVersion,
-    date: publication ? c.publishedAt! : c.updatedAt,
-    draft,
+    status: c.status,
+    date: c.status === "draft" ? c.updatedAt : (c.signedAt ?? c.publishedAt ?? c.updatedAt),
+    hash: c.status === "draft" ? null : c.documentHash,
+    signatures: signatures.map((s) => ({
+      party: s.party,
+      name: s.name,
+      email: s.email,
+      signedAt: s.signedAt,
+      ip: s.ip,
+      method: s.method,
+    })),
   });
-  return new Response(new Uint8Array(pdf), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="contrato-${id}${draft ? "-rascunho" : `-v${c.publishedVersion}`}.pdf"`,
-      "Content-Length": String(pdf.length),
-      "Cache-Control": "private, no-store",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return new Response(new Uint8Array(pdf), { headers: headers(pdf.length) });
 }

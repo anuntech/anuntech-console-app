@@ -40,6 +40,8 @@ import { NewProjectForm } from "@/components/projetos/project-form";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 import { ProductsList } from "@/components/produtos/products-list";
 import { ServiceDetail } from "@/components/produtos/service-detail";
+import { ContractsTable } from "@/components/contratos/contracts-table";
+import { ContractDetail } from "@/components/contratos/contract-detail";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { SettingsNav } from "@/components/settings/settings-nav";
@@ -96,6 +98,10 @@ const SCREENS = [
   "produtos",
   "produtos-busca",
   "servico",
+  "contratos",
+  "contrato",
+  "contrato-assinar",
+  "contrato-assinado",
 ];
 
 /**
@@ -827,6 +833,91 @@ export default async function Preview({
     ],
     viewer: { id: "u1", admin: true },
   };
+  const contractRows = [
+    {
+      id: "c1",
+      title: "Prestação de serviços — Maxipark Estacionamentos",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      engagement: "Gestão de tráfego",
+      status: "sent" as const,
+      signedBy: ["anuntech" as const],
+      updatedAt: ago(20),
+    },
+    {
+      id: "c2",
+      title: "Licença de uso do Synova — Paróquia Santa Rita",
+      companyId: "a2",
+      company: "Paróquia Santa Rita",
+      engagement: "Synova",
+      status: "signed" as const,
+      signedBy: ["client" as const, "anuntech" as const],
+      updatedAt: ago(70),
+    },
+    {
+      id: "c3",
+      title: "Desenvolvimento do site — Instituto Vida Plena",
+      companyId: "a3",
+      company: "Instituto Vida Plena",
+      engagement: null,
+      status: "draft" as const,
+      signedBy: [],
+      updatedAt: ago(2),
+    },
+  ];
+  const contractBody = [
+    "CONTRATO DE PRESTAÇÃO DE SERVIÇOS",
+    "CONTRATANTE: Maxipark Estacionamentos Ltda, CNPJ 12.345.678/0001-90, com sede na Avenida Paulista, 1578, São Paulo/SP.\nCONTRATADA: Anuntech Tecnologia Ltda, CNPJ 98.765.432/0001-10.",
+    "CLÁUSULA 1 — OBJETO\nA CONTRATADA prestará o serviço de Gestão de tráfego, compreendendo o planejamento, a publicação e a otimização de campanhas de mídia paga.",
+    "CLÁUSULA 2 — VALOR E PAGAMENTO\nPelos serviços, a CONTRATANTE pagará R$ 1.500,00 mensais, com vencimento todo dia 5, por boleto ou Pix emitidos pelo Console.",
+    "CLÁUSULA 3 — VIGÊNCIA\nO presente contrato vigora por 12 meses a partir da assinatura, renovando-se automaticamente por iguais períodos salvo aviso com 30 dias de antecedência.",
+    "CLÁUSULA 4 — RESCISÃO\nQualquer das partes pode rescindir mediante aviso prévio de 30 dias, sem multa, respeitados os valores devidos até a data.",
+    "São Paulo, {{data}}.",
+  ].join("\n\n");
+  const contractStatus =
+    tela === "contrato-assinado" ? ("signed" as const) : tela === "contrato-assinar" ? ("sent" as const) : ("draft" as const);
+  const contractDetail = {
+    contract: {
+      id: "c1",
+      title: "Prestação de serviços — Maxipark Estacionamentos",
+      body: contractStatus === "draft" ? contractBody : contractBody.replace("{{data}}", "23 de setembro de 2026"),
+      status: contractStatus,
+      revision: 3,
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      companyDocument: "12345678000190",
+      engagement: "Gestão de tráfego",
+      template: "Prestação de serviços",
+      documentHash:
+        contractStatus === "draft" ? null : "9f2c1e7b4d8a6c0e5b3a1f7d2c9e8b6a4d1f0c3e7a9b5d2f8c6e4a1b3d7f9e2c",
+      sentAt: contractStatus === "draft" ? null : ago(30),
+      signedAt: contractStatus === "signed" ? ago(1) : null,
+      createdAt: ago(72),
+      pendingVariables: contractStatus === "draft" ? ["{{data}}"] : [],
+    },
+    signatures:
+      contractStatus === "draft"
+        ? []
+        : [
+            { party: "anuntech" as const, name: "Kauan Ketner", email: "kauan@anuntech.com", signedAt: ago(28), ip: "177.10.20.30" },
+            ...(contractStatus === "signed"
+              ? [{ party: "client" as const, name: "Alexandre Souza", email: "alexandre@maxipark.com.br", signedAt: ago(1), ip: "189.40.50.60" }]
+              : []),
+          ],
+    viewer:
+      tela === "contrato-assinar"
+        ? { admin: false, party: "client" as const, name: "Alexandre Souza" }
+        : { admin: true, party: "anuntech" as const, name: "Kauan Ketner" },
+    events:
+      tela === "contrato-assinar"
+        ? []
+        : [
+            { id: "e3", action: "contract.signed", createdAt: ago(28) },
+            { id: "e2", action: "contract.sent", createdAt: ago(30) },
+            { id: "e1", action: "contract.created", createdAt: ago(72) },
+          ],
+    now: now.toISOString(),
+  };
   if (tela.startsWith("login"))
     return (
       <AuthShell
@@ -931,6 +1022,31 @@ export default async function Preview({
           />
           <NewProjectForm companies={companies} />
         </>
+      ) : tela === "contratos" ? (
+        <>
+          <PageHeader
+            title="Contratos"
+            count={contractRows.length}
+            description="Do modelo à assinatura das duas partes, com o PDF final guardado."
+            actions={
+              <Button asChild>
+                <Link href="/contratos/novo">
+                  <PlusIcon />
+                  Novo contrato
+                </Link>
+              </Button>
+            }
+          />
+          <ContractsTable
+            rows={contractRows}
+            query={{ status: "all", search: "", company: "" }}
+            admin
+            showCompany
+            now={now.toISOString()}
+          />
+        </>
+      ) : tela.startsWith("contrato") ? (
+        <ContractDetail data={contractDetail} />
       ) : tela === "servico" ? (
         <ServiceDetail
           data={{

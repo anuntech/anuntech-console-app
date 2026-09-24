@@ -3,6 +3,7 @@ import {
   BellIcon,
   Building2Icon,
   PaletteIcon,
+  FileSignatureIcon,
   PackageIcon,
   PlugZapIcon,
   ShieldCheckIcon,
@@ -92,6 +93,12 @@ export async function SettingsShell({
                 href: "/configuracoes/catalogo",
                 label: "Catálogo",
                 icon: <PackageIcon />,
+              },
+              {
+                key: "contracts" as const,
+                href: "/configuracoes/contratos",
+                label: "Modelos de contrato",
+                icon: <FileSignatureIcon />,
               },
               {
                 key: "integrations" as const,
