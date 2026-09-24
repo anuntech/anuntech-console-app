@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck, Mail, MessageCircle } from "lucide-react";
 import { Badge, Field } from "./ui";
 import { Notification, toast } from "./notifications";
-import { useCooldown } from "./otp-login";
+import { useCooldown } from "./auth/otp";
 import { securityRequest } from "./security-request";
 import type { SecurityChannel } from "@/lib/security-policy";
 import styles from "./security.module.css";

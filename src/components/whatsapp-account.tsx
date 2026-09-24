@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Field, focusFirstInvalid } from "./field";
 import { formatPhone } from "@/lib/company-input";
-import { normalizePhone, useCooldown } from "./otp-login";
+import { normalizePhone, useCooldown } from "./auth/otp";
 import {
   AlertDialog,
   AlertDialogContent,

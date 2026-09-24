@@ -1,8 +1,6 @@
-import { Notification } from "@/components/notifications";
-import { OtpLogin } from "@/components/otp-login";
-import { Brand } from "@/components/brand";
-import { FileText, Headphones, Layers3, LockKeyhole } from "lucide-react";
-import styles from "@/components/auth.module.css";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { AuthAlert } from "@/components/auth/feedback";
+import { LoginForm } from "@/components/auth/login-form";
 export const metadata = {
   title: "Entrar",
   robots: { index: false, follow: false },
@@ -14,59 +12,25 @@ export default async function SignIn({
 }) {
   const query = await searchParams;
   return (
-    <main id="main-content" tabIndex={-1} className={styles.page}>
-      <section className={styles.brandPanel} aria-label="Anuntech Console">
-        <Brand />
-        <div className={styles.intro}>
-          <p className={styles.eyebrow}>SEU ESPAÇO NA ANUNTECH</p>
-          <h2>
-            Tudo que conecta sua empresa à <span>Anuntech.</span>
-          </h2>
-          <p>
-            Acompanhe seus serviços, converse com a equipe e organize seus
-            pagamentos em um só lugar.
-          </p>
-          <ul className={styles.features}>
-            <li>
-              <Layers3 size={18} aria-hidden="true" /> Produtos e serviços da
-              sua empresa
-            </li>
-            <li>
-              <Headphones size={18} aria-hidden="true" /> Atendimento perto de
-              você
-            </li>
-            <li>
-              <FileText size={18} aria-hidden="true" /> Faturas e contratos
-              organizados
-            </li>
-          </ul>
-        </div>
-        <span className={styles.caption}>Anuntech · Portal do cliente</span>
-      </section>
-      <section className={styles.formPanel} aria-labelledby="login-title">
-        <div className={styles.formCard}>
-          <p className={styles.eyebrow}>BEM-VINDO</p>
-          <h1 id="login-title">Entre no Console</h1>
-          <p className={styles.subtitle}>
-            Use o e-mail que recebeu acesso à sua empresa.
-          </p>
+    <main id="main-content" tabIndex={-1} className="contents">
+      <AuthShell
+        eyebrow="Bem-vindo"
+        title="Entre no Console"
+        description="Use o e-mail que recebeu acesso à sua empresa."
+      >
+        <div className="flex flex-col gap-5">
           {(query.erro || query.error) && (
-            <Notification
-              kind="error"
-              id="login-error"
-              message="Não foi possível concluir o acesso. Confira se está usando o e-mail autorizado e tente novamente."
-            />
+            <AuthAlert kind="error" id="login-error">
+              Não foi possível concluir o acesso. Confira se está usando o
+              e-mail autorizado e tente novamente.
+            </AuthAlert>
           )}
-          <OtpLogin />
-          <p className={styles.help}>
+          <LoginForm />
+          <p className="text-center text-xs text-muted-foreground">
             Ainda não tem acesso? Solicite a liberação à equipe da Anuntech.
           </p>
         </div>
-        <span className={styles.caption}>
-          <LockKeyhole size={13} aria-hidden="true" /> Seu acesso é pessoal e
-          protegido.
-        </span>
-      </section>
+      </AuthShell>
     </main>
   );
 }

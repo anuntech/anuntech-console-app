@@ -1,31 +1,22 @@
-import { Brand } from "@/components/brand";
-import { SecurityChallenge } from "@/components/security-challenge";
-import styles from "@/components/auth.module.css";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { SecurityChallenge } from "@/components/auth/security-challenge";
 export const metadata = {
   title: "Confirmar acesso",
   robots: { index: false, follow: false },
 };
 export default function VerifyAccessPage() {
   return (
-    <main id="main-content" tabIndex={-1} className={styles.page}>
-      <section className={styles.brandPanel} aria-label="Anuntech Console">
-        <Brand />
-        <div className={styles.intro}>
-          <h2>Uma confirmação a mais para proteger sua conta.</h2>
-          <p>Use o código recebido no seu outro contato verificado.</p>
-        </div>
-        <span className={styles.caption}>Anuntech · Portal do cliente</span>
-      </section>
-      <section
-        className={styles.formPanel}
-        aria-labelledby="verification-title"
+    <main id="main-content" tabIndex={-1} className="contents">
+      <AuthShell
+        eyebrow="Segurança da conta"
+        title="Confirme seu acesso"
+        intro={{
+          headline: "Uma confirmação a mais para proteger sua conta.",
+          text: "Use o código recebido no seu outro contato verificado.",
+        }}
       >
-        <div className={styles.formCard}>
-          <p className={styles.eyebrow}>SEGURANÇA DA CONTA</p>
-          <h1 id="verification-title">Confirme seu acesso</h1>
-          <SecurityChallenge />
-        </div>
-      </section>
+        <SecurityChallenge />
+      </AuthShell>
     </main>
   );
 }

@@ -1,18 +1,21 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import type { SecurityChannel } from "@/lib/security-policy";
-import { Field } from "./ui";
-import { Notification } from "./notifications";
-import { useCooldown } from "./otp-login";
-import { securityRequest } from "./security-request";
-import styles from "./auth.module.css";
+import { securityRequest } from "@/components/security-request";
+import { AuthAlert } from "./feedback";
+import { CodeInput } from "./login-form";
+import { useCooldown } from "./otp";
+
+/** Second step after the code: another code on the other verified contact. */
 export function SecurityChallenge() {
   const router = useRouter();
   const id = useId();
-  const input = useRef<HTMLInputElement>(null);
   const [challenge, setChallenge] = useState<{
     channel: SecurityChannel;
     destination: string;
@@ -25,6 +28,7 @@ export function SecurityChallenge() {
   const [message, setMessage] = useState("");
   const [expired, setExpired] = useState(false);
   const [seconds, cooldown] = useCooldown();
+  const errorId = `${id}-error`;
   useEffect(() => {
     let active = true;
     void securityRequest<{ channel: SecurityChannel; destination: string }>(
@@ -45,8 +49,9 @@ export function SecurityChallenge() {
       active = false;
     };
   }, []);
-  async function act(action: "send" | "verify" | "cancel") {
+  async function act(action: "send" | "verify" | "cancel", candidate = code) {
     if (busy || (action === "send" && seconds > 0)) return;
+    if (action === "verify" && candidate.length !== 6) return;
     setBusy(true);
     setError("");
     setInvalidCode(false);
@@ -60,14 +65,14 @@ export function SecurityChallenge() {
       const result =
         action === "send"
           ? await authClient.twoFactor.sendOtp({})
-          : await authClient.twoFactor.verifyOtp({ code });
+          : await authClient.twoFactor.verifyOtp({ code: candidate });
       if (result.error)
         throw new Error(
           result.error.status === 429
             ? result.error.message ||
                 "Muitas tentativas. Aguarde antes de tentar novamente."
             : action === "verify"
-              ? "Código inválido ou expirado. Confira o código ou solicite outro."
+              ? "Código inválido ou expirado. Confira o código ou peça outro."
               : "Não foi possível entregar o código. Aguarde e tente reenviar.",
         );
       if (action === "send") {
@@ -75,7 +80,6 @@ export function SecurityChallenge() {
         setCode("");
         cooldown();
         setMessage("Código enviado. Ele vale por 5 minutos.");
-        requestAnimationFrame(() => input.current?.focus());
       } else {
         setMessage("Verificação concluída. Abrindo o painel.");
         router.replace("/painel");
@@ -84,7 +88,7 @@ export function SecurityChallenge() {
     } catch (cause) {
       if (action === "verify") {
         setInvalidCode(true);
-        input.current?.focus();
+        setCode("");
       }
       setError(
         cause instanceof Error
@@ -96,90 +100,91 @@ export function SecurityChallenge() {
     }
   }
   return (
-    <>
+    <div className="flex flex-col gap-5">
       {challenge && (
-        <p className={styles.subtitle}>
-          Confirme o código no{" "}
+        <p className="text-sm text-muted-foreground">
+          Enviamos um código para o{" "}
           {challenge.channel === "email" ? "e-mail" : "WhatsApp"}{" "}
-          {challenge.destination} para concluir seu acesso.
+          <span className="font-medium text-foreground">{challenge.destination}</span>
+          {sent ? "." : " assim que você pedir."}
         </p>
       )}
       {!expired && (
         <form
-          className={styles.form}
+          className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             void act(sent ? "verify" : "send");
           }}
         >
           {sent && (
-            <Field
-              label="Código da segunda etapa"
-              hint="Digite os 6 números recebidos."
-            >
-              <input
-                ref={input}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                minLength={6}
-                maxLength={6}
-                required
+            <div>
+              <Label htmlFor={`${id}-code`} className="mb-2">
+                Código da segunda etapa
+              </Label>
+              <CodeInput
                 value={code}
-                readOnly={busy}
-                aria-invalid={invalidCode || undefined}
-                aria-describedby={error ? `${id}-error` : undefined}
-                className={styles.code}
-                onChange={(event) =>
-                  setCode(event.target.value.replace(/\D/g, ""))
-                }
+                onChange={(next) => {
+                  setCode(next);
+                  if (invalidCode) setInvalidCode(false);
+                }}
+                onComplete={() => void act("verify")}
+                disabled={busy}
+                invalid={invalidCode}
+                describedBy={error ? errorId : undefined}
+                autoFocus
               />
-            </Field>
+            </div>
           )}
-          <button
-            className="button primary"
-            aria-disabled={busy || !challenge}
-            onClick={(event) => {
-              if (!challenge) event.preventDefault();
-            }}
+          {error && (
+            <AuthAlert kind="error" id={errorId}>
+              {error}
+            </AuthAlert>
+          )}
+          {message && <AuthAlert kind="info">{message}</AuthAlert>}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={busy || !challenge || (sent && code.length !== 6)}
           >
+            {busy && <Loader2Icon className="animate-spin" />}
             {busy ? "Aguarde…" : sent ? "Concluir acesso" : "Receber código"}
-          </button>
-          {sent && (
-            <button
-              type="button"
-              className="button"
-              aria-disabled={busy || seconds > 0}
-              aria-label={
-                seconds
-                  ? "Reenviar código. Aguarde um minuto entre envios."
-                  : "Reenviar código"
-              }
-              onClick={() => void act("send")}
-            >
-              <span aria-hidden={seconds > 0 || undefined}>
+          </Button>
+          <div className="flex items-center justify-center gap-1">
+            {sent && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                disabled={busy || seconds > 0}
+                onClick={() => void act("send")}
+              >
                 {seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
-              </span>
-            </button>
-          )}
-          <button
-            type="button"
-            className="button"
-            aria-disabled={busy}
-            onClick={() => void act("cancel")}
-          >
-            Voltar para entrar
-          </button>
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              disabled={busy}
+              onClick={() => void act("cancel")}
+            >
+              Voltar para entrar
+            </Button>
+          </div>
         </form>
       )}
-      {error && (
-        <Notification id={`${id}-error`} kind="error" message={error} />
-      )}
-      {message && <Notification kind="info" message={message} />}
       {expired && (
-        <Link href="/entrar" className="button primary">
-          Entrar novamente
-        </Link>
+        <>
+          <AuthAlert kind="error" id={errorId}>
+            {error}
+          </AuthAlert>
+          <Button className="w-full" asChild>
+            <Link href="/entrar">Entrar novamente</Link>
+          </Button>
+        </>
       )}
       <p className="sr-only" role="status">
         {busy
@@ -188,6 +193,6 @@ export function SecurityChallenge() {
             ? "Preparando a verificação."
             : ""}
       </p>
-    </>
+    </div>
   );
 }

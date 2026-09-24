@@ -34,6 +34,9 @@ import {
 } from "@/components/financeiro/invoice-detail";
 import { NewInvoiceForm } from "@/components/financeiro/invoice-form";
 import { PaymentView } from "@/components/pagar/payment-view";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { AuthAlert } from "@/components/auth/feedback";
+import { LoginForm } from "@/components/auth/login-form";
 import QRCode from "qrcode";
 import { invoiceListHref } from "@/lib/invoice-table";
 import { saoPauloDate } from "@/lib/dates";
@@ -61,6 +64,9 @@ const SCREENS = [
   "pagamento-vencida",
   "pagamento-processando",
   "pagamento-paga",
+  "login",
+  "login-erro",
+  "login-codigo",
 ];
 
 /**
@@ -545,6 +551,33 @@ export default async function Preview({
     page: 1,
     pageSize: 10,
   };
+  if (tela.startsWith("login"))
+    return (
+      <AuthShell
+        eyebrow="Bem-vindo"
+        title="Entre no Console"
+        description="Use o e-mail que recebeu acesso à sua empresa."
+      >
+        <div className="flex flex-col gap-5">
+          {tela === "login-erro" && (
+            <AuthAlert kind="error">
+              Não foi possível concluir o acesso. Confira se está usando o
+              e-mail autorizado e tente novamente.
+            </AuthAlert>
+          )}
+          <LoginForm
+            preview={
+              tela === "login-codigo"
+                ? { destination: "alexandre@maxipark.com.br" }
+                : undefined
+            }
+          />
+          <p className="text-center text-xs text-muted-foreground">
+            Ainda não tem acesso? Solicite a liberação à equipe da Anuntech.
+          </p>
+        </div>
+      </AuthShell>
+    );
   return (
     <main className="mx-auto w-full max-w-[1512px] px-9 py-8">
       <p className="mb-6 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
