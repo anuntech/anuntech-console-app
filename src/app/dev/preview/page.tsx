@@ -33,6 +33,8 @@ import {
   type InvoiceDetailData,
 } from "@/components/financeiro/invoice-detail";
 import { NewInvoiceForm } from "@/components/financeiro/invoice-form";
+import { PaymentView } from "@/components/pagar/payment-view";
+import QRCode from "qrcode";
 import { invoiceListHref } from "@/lib/invoice-table";
 import { saoPauloDate } from "@/lib/dates";
 
@@ -55,6 +57,10 @@ const SCREENS = [
   "fatura-paga",
   "fatura-cliente",
   "nova-cobranca",
+  "pagamento",
+  "pagamento-vencida",
+  "pagamento-processando",
+  "pagamento-paga",
 ];
 
 /**
@@ -530,6 +536,8 @@ export default async function Preview({
     today,
     now: now.toISOString(),
   };
+  const pixPayload =
+    "00020126580014br.gov.bcb.pix0136a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d520400005303986540527.005802BR5913ANUNTECH LTDA6009SAO PAULO62070503***6304ABCD";
   const invoiceQueryState = {
     status: "all" as const,
     search: "",
@@ -601,6 +609,35 @@ export default async function Preview({
             canCreate
           />
         </>
+      ) : tela.startsWith("pagamento") ? (
+        <PaymentView
+          invoice={{
+            description: "Parcela 8 — Robô + Banner",
+            company: "Maxipark Estacionamentos Ltda",
+            amountCents: 270000,
+            dueDate: tela === "pagamento-vencida" ? day(-6) : day(12),
+            status: tela === "pagamento-paga" ? "paid" : "issued",
+            pix:
+              tela === "pagamento-processando" || tela === "pagamento-paga"
+                ? null
+                : pixPayload,
+            boletoLine:
+              tela === "pagamento-processando" || tela === "pagamento-paga"
+                ? null
+                : "07790000112345678901234567890123456789012345678",
+          }}
+          qr={
+            tela === "pagamento-processando" || tela === "pagamento-paga"
+              ? null
+              : await QRCode.toDataURL(pixPayload, {
+                  width: 256,
+                  margin: 2,
+                  errorCorrectionLevel: "M",
+                })
+          }
+          publicId="preview"
+          today={today}
+        />
       ) : tela === "nova-cobranca" ? (
         <>
           <PageHeader
