@@ -113,17 +113,24 @@ export async function createEngagement(
         description: z.string().trim().max(3000),
       })
       .parse(Object.fromEntries(form));
-    await db.transaction(async (tx) => {
-      const [row] = await tx.insert(engagements).values(input).returning();
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(engagements)
+        .values({ ...input, description: input.description || null })
+        .returning();
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.companyId,
         action: "engagement.created",
         entityId: row.id,
       });
+      return row;
     });
     refresh();
-    return { success: "Cadastro salvo.", href: "/produtos" };
+    return {
+      success: input.kind === "project" ? "Projeto criado." : "Produto cadastrado.",
+      href: `/produtos/${created.id}`,
+    };
   } catch (e) {
     return failure(e);
   }

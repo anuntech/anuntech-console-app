@@ -34,6 +34,9 @@ import {
 } from "@/components/financeiro/invoice-detail";
 import { NewInvoiceForm } from "@/components/financeiro/invoice-form";
 import { PaymentView } from "@/components/pagar/payment-view";
+import { ProjectsList } from "@/components/projetos/projects-list";
+import { ProjectBoard } from "@/components/projetos/project-board";
+import { NewProjectForm } from "@/components/projetos/project-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { SettingsNav } from "@/components/settings/settings-nav";
@@ -79,6 +82,11 @@ const SCREENS = [
   "login-erro",
   "login-codigo",
   "config",
+  "projetos",
+  "projetos-vazio",
+  "projeto",
+  "projeto-cliente",
+  "novo-projeto",
 ];
 
 /**
@@ -563,6 +571,121 @@ export default async function Preview({
     page: 1,
     pageSize: 10,
   };
+  const projectRows = [
+    {
+      id: "p1",
+      name: "Site institucional",
+      kind: "project" as const,
+      status: "active",
+      description:
+        "Novo site com páginas de serviços, formulário de contato e integração com o WhatsApp.",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      tasks: { total: 8, done: 3 },
+    },
+    {
+      id: "p2",
+      name: "Synova",
+      kind: "product" as const,
+      status: "active",
+      description: "Atendimento automático no WhatsApp com relatórios semanais.",
+      companyId: "a2",
+      company: "Paróquia Santa Rita",
+      tasks: { total: 12, done: 12 },
+    },
+    {
+      id: "p3",
+      name: "Painel de reservas",
+      kind: "project" as const,
+      status: "paused",
+      description: null,
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      tasks: { total: 0, done: 0 },
+    },
+    {
+      id: "p4",
+      name: "Aplicativo de eventos",
+      kind: "project" as const,
+      status: "completed",
+      description: "Inscrições, check-in por QR code e envio de certificados.",
+      companyId: "a3",
+      company: "Instituto Vida Plena",
+      tasks: { total: 21, done: 21 },
+    },
+  ];
+  const person = (id: string, name: string) => ({ id, name });
+  const boardPeople = [
+    person("u1", "Kauan Ketner"),
+    person("u2", "Alexandre Souza"),
+    person("u3", "Mariana Lopes"),
+  ];
+  const boardTask = (
+    id: string,
+    title: string,
+    status: "backlog" | "todo" | "in_progress" | "review" | "done",
+    extra: Partial<{
+      priority: "low" | "normal" | "high" | "urgent";
+      assignee: string;
+      dueDate: string;
+      description: string;
+    }> = {},
+  ) => ({
+    id,
+    title,
+    description: extra.description ?? null,
+    status,
+    priority: extra.priority ?? ("normal" as const),
+    assigneeId: extra.assignee ? boardPeople.find((p) => p.name === extra.assignee)?.id ?? null : null,
+    assignee: extra.assignee ?? null,
+    dueDate: extra.dueDate ?? null,
+    createdBy: "u1",
+    creator: "Kauan Ketner",
+    updatedAt: ago(5),
+  });
+  const boardTasks = [
+    boardTask("t1", "Levantar referências de sites do setor", "backlog", { priority: "low" }),
+    boardTask("t2", "Definir a estrutura de páginas", "backlog", { assignee: "Kauan Ketner" }),
+    boardTask("t3", "Escrever os textos das páginas de serviços", "todo", {
+      assignee: "Alexandre Souza",
+      dueDate: day(4),
+      description: "Um parágrafo por serviço, com o diferencial e uma chamada para contato.",
+    }),
+    boardTask("t4", "Aprovar a paleta de cores com o cliente", "todo", {
+      priority: "high",
+      dueDate: day(-2),
+      assignee: "Kauan Ketner",
+    }),
+    boardTask("t5", "Montar o layout da página inicial", "in_progress", {
+      assignee: "Mariana Lopes",
+      dueDate: day(0),
+    }),
+    boardTask("t6", "Integrar o formulário de contato ao WhatsApp", "in_progress", {
+      priority: "urgent",
+      assignee: "Kauan Ketner",
+      dueDate: day(1),
+    }),
+    boardTask("t7", "Revisar textos da página Sobre", "review", { assignee: "Alexandre Souza" }),
+    boardTask("t8", "Registrar o domínio e apontar o DNS", "done", { dueDate: day(-10) }),
+    boardTask("t9", "Configurar o ambiente de publicação", "done", { assignee: "Kauan Ketner" }),
+  ];
+  const board = {
+    project: {
+      id: "p1",
+      name: "Site institucional",
+      kind: "project" as const,
+      status: "active",
+      description:
+        "Novo site com páginas de serviços, formulário de contato e integração com o WhatsApp.",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+    },
+    tasks: boardTasks,
+    people: boardPeople,
+    viewer: { id: "u1", admin: tela !== "projeto-cliente" },
+    today,
+    now: now.toISOString(),
+  };
   if (tela.startsWith("login"))
     return (
       <AuthShell
@@ -652,6 +775,42 @@ export default async function Preview({
             admin
             showCompany
             canCreate
+          />
+        </>
+      ) : tela.startsWith("projeto-") || tela === "projeto" ? (
+        <ProjectBoard data={board} />
+      ) : tela === "novo-projeto" ? (
+        <>
+          <PageHeader
+            crumbs={[
+              { label: "Produtos e projetos", href: "/produtos" },
+              { label: "Novo" },
+            ]}
+            title="Novo produto ou projeto"
+            description="O trabalho fica vinculado à empresa e ganha um quadro de tarefas."
+          />
+          <NewProjectForm companies={companies} />
+        </>
+      ) : tela.startsWith("projetos") ? (
+        <>
+          <PageHeader
+            title="Produtos e projetos"
+            count={tela === "projetos-vazio" ? 0 : projectRows.length}
+            description="O que está em andamento com cada cliente, com o quadro de tarefas de cada projeto."
+            actions={
+              <Button asChild>
+                <Link href="/produtos/novo">
+                  <PlusIcon />
+                  Novo projeto
+                </Link>
+              </Button>
+            }
+          />
+          <ProjectsList
+            rows={tela === "projetos-vazio" ? [] : projectRows}
+            query={{ status: "active", search: "", company: "" }}
+            admin
+            showCompany
           />
         </>
       ) : tela === "config" ? (

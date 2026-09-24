@@ -235,6 +235,46 @@ export const engagements = pgTable(
   },
   (t) => [index("console_engagement_company_idx").on(t.companyId)],
 );
+/** Work inside a project: one card on the board. `company_id` mirrors the
+    project's company so access checks never need a join. */
+export const tasks = pgTable(
+  "console_tasks",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    engagementId: text("engagement_id")
+      .notNull()
+      .references(() => engagements.id),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    status: text("status", {
+      enum: ["backlog", "todo", "in_progress", "review", "done"],
+    })
+      .notNull()
+      .default("todo"),
+    priority: text("priority", { enum: ["low", "normal", "high", "urgent"] })
+      .notNull()
+      .default("normal"),
+    assigneeId: text("assignee_id").references(() => user.id),
+    dueDate: date("due_date"),
+    position: integer("position").notNull().default(0),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("console_task_engagement_idx").on(t.engagementId),
+    index("console_task_board_idx").on(t.engagementId, t.status, t.position),
+  ],
+);
 export const tickets = pgTable(
   "console_tickets",
   {

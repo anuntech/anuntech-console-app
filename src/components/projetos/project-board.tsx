@@ -1,0 +1,632 @@
+"use client";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
+import { flushSync } from "react-dom";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  defaultDropAnimationSideEffects,
+  getFirstCollision,
+  pointerWithin,
+  rectIntersection,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+  type UniqueIdentifier,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  Building2Icon,
+  CalendarIcon,
+  CircleCheckIcon,
+  GripVerticalIcon,
+  Loader2Icon,
+  MoreHorizontalIcon,
+  PauseIcon,
+  PencilIcon,
+  PlayIcon,
+  PlusIcon,
+} from "lucide-react";
+import { cn } from "cn";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/console/page-header";
+import { ServerForm } from "@/components/console/server-form";
+import { toast } from "@/components/notifications";
+import { updateEngagement } from "@/lib/actions";
+import { moveTask } from "@/lib/task-actions";
+import { initials, shortDateLabel } from "@/lib/format";
+import {
+  TASK_STATUSES,
+  engagementKindLabels,
+  taskStatusLabels,
+  type TaskStatus,
+} from "@/lib/task-model";
+import { EngagementStatusBadge, TaskPriorityMark } from "./project-badges";
+import { ProjectSheet } from "./project-form";
+import { TaskSheet, type BoardPerson, type BoardTask, type TaskEditor } from "./task-sheet";
+
+export type ProjectBoardData = {
+  project: {
+    id: string;
+    name: string;
+    kind: "product" | "project";
+    status: string;
+    description: string | null;
+    companyId: string;
+    company: string;
+  };
+  tasks: BoardTask[];
+  people: BoardPerson[];
+  viewer: { id: string; admin: boolean };
+  today: string;
+  now: string;
+};
+
+type Columns = Record<TaskStatus, string[]>;
+
+const columnDots: Record<TaskStatus, string> = {
+  backlog: "bg-muted-foreground/40",
+  todo: "bg-primary/60",
+  in_progress: "bg-primary",
+  review: "bg-warning",
+  done: "bg-success",
+};
+
+function group(tasks: BoardTask[]): Columns {
+  const columns: Columns = { backlog: [], todo: [], in_progress: [], review: [], done: [] };
+  for (const task of tasks) columns[task.status].push(task.id);
+  return columns;
+}
+const isColumn = (id: UniqueIdentifier): id is TaskStatus =>
+  TASK_STATUSES.includes(id as TaskStatus);
+const columnOf = (columns: Columns, id: UniqueIdentifier) =>
+  TASK_STATUSES.find((status) => columns[status].includes(String(id)));
+
+function dueTone(due: string, today: string, done: boolean) {
+  if (done) return "text-muted-foreground";
+  if (due < today) return "text-destructive";
+  if (due === today) return "text-warning";
+  return "text-muted-foreground";
+}
+
+/** The card as drawn in a column and in the drag overlay. */
+function TaskCard({
+  task,
+  done,
+  today,
+  onOpen,
+  handle,
+  dragging = false,
+}: {
+  task: BoardTask;
+  done: boolean;
+  today: string;
+  onOpen?: () => void;
+  handle?: ReactNode;
+  dragging?: boolean;
+}) {
+  const meta = task.priority !== "normal" || task.dueDate || task.assignee;
+  return (
+    <div
+      className={cn(
+        "group relative rounded-lg border bg-card shadow-card transition-[border-color,box-shadow] hover:border-primary/40",
+        dragging && "rotate-[1.5deg] border-primary/40 shadow-lg",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full flex-col gap-2.5 rounded-lg p-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        <span
+          className={cn(
+            "line-clamp-3 pr-5 text-sm leading-5 font-medium",
+            done ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {task.title}
+        </span>
+        {meta && (
+          <span className="flex w-full items-center gap-2.5 text-xs">
+            {task.priority !== "normal" && <TaskPriorityMark priority={task.priority} />}
+            {task.dueDate && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 tabular-nums",
+                  dueTone(task.dueDate, today, done),
+                )}
+                title={`Prazo ${shortDateLabel(task.dueDate)}`}
+              >
+                <CalendarIcon className="size-3" />
+                {shortDateLabel(task.dueDate)}
+              </span>
+            )}
+            {task.assignee && (
+              <span
+                className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground"
+                title={task.assignee}
+              >
+                {initials(task.assignee)}
+              </span>
+            )}
+          </span>
+        )}
+      </button>
+      {handle}
+    </div>
+  );
+}
+
+function SortableCard({
+  task,
+  status,
+  today,
+  onOpen,
+}: {
+  task: BoardTask;
+  status: TaskStatus;
+  today: string;
+  onOpen: (task: BoardTask) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, data: { type: "task" } });
+  // The whole card drags with the pointer; the keyboard picks it up by the grip.
+  const { onKeyDown, ...pointer } = (listeners ?? {}) as Record<string, unknown> & {
+    onKeyDown?: React.KeyboardEventHandler;
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("touch-none", isDragging && "opacity-40")}
+      {...pointer}
+    >
+      <TaskCard
+        task={task}
+        done={status === "done"}
+        today={today}
+        onOpen={() => onOpen(task)}
+        handle={
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            {...attributes}
+            onKeyDown={onKeyDown}
+            aria-label={`Mover: ${task.title}`}
+            className="absolute top-2 right-1.5 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <GripVerticalIcon className="size-3.5" />
+          </button>
+        }
+      />
+    </li>
+  );
+}
+
+function Column({
+  status,
+  ids,
+  tasks,
+  today,
+  onOpen,
+  onAdd,
+}: {
+  status: TaskStatus;
+  ids: string[];
+  tasks: Map<string, BoardTask>;
+  today: string;
+  onOpen: (task: BoardTask) => void;
+  onAdd: (status: TaskStatus) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: "column" } });
+  const label = taskStatusLabels[status];
+  return (
+    <section
+      ref={setNodeRef}
+      aria-labelledby={`column-${status}`}
+      className={cn(
+        "flex min-w-[248px] flex-1 basis-[248px] snap-start flex-col rounded-xl bg-secondary/70 transition-colors",
+        isOver && "bg-accent",
+      )}
+    >
+      <header className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <span aria-hidden="true" className={cn("size-2 rounded-full", columnDots[status])} />
+        <h2 id={`column-${status}`} className="text-sm font-semibold text-foreground">
+          {label}
+        </h2>
+        <span className="text-xs tabular-nums text-muted-foreground">{ids.length}</span>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="ml-auto text-muted-foreground hover:text-foreground"
+          aria-label={`Nova tarefa em ${label}`}
+          onClick={() => onAdd(status)}
+        >
+          <PlusIcon />
+        </Button>
+      </header>
+      <SortableContext id={status} items={ids} strategy={verticalListSortingStrategy}>
+        <ol className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-2">
+          {ids.map((id) => {
+            const task = tasks.get(id);
+            return task ? (
+              <SortableCard key={id} task={task} status={status} today={today} onOpen={onOpen} />
+            ) : null;
+          })}
+          {ids.length === 0 && (
+            <li className="flex min-h-20 flex-1 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+              {isOver ? "Solte aqui" : "Sem tarefas"}
+            </li>
+          )}
+        </ol>
+      </SortableContext>
+    </section>
+  );
+}
+
+/** Pause, resume or complete the project from the header menu. */
+function useProjectStatus(projectId: string) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [status, setStatus] = useState("");
+  const change = (next: "active" | "paused" | "completed") =>
+    setTimeout(() => {
+      flushSync(() => setStatus(next));
+      formRef.current?.requestSubmit();
+    }, 0);
+  const form = (
+    <ServerForm ref={formRef} action={updateEngagement}>
+      <input type="hidden" name="id" value={projectId} />
+      <input type="hidden" name="status" value={status} />
+    </ServerForm>
+  );
+  return { change, form };
+}
+
+export function ProjectBoard({ data }: { data: ProjectBoardData }) {
+  const { project, tasks, people, viewer, today, now } = data;
+  const router = useRouter();
+  const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
+  const [columns, setColumnsState] = useState<Columns>(() => group(tasks));
+  // Drag events read the latest columns synchronously, before React re-renders.
+  const columnsRef = useRef(columns);
+  const setColumns = useCallback((next: Columns | ((current: Columns) => Columns)) => {
+    const value = typeof next === "function" ? next(columnsRef.current) : next;
+    columnsRef.current = value;
+    setColumnsState(value);
+  }, []);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeRef = useRef<string | null>(null);
+  const snapshot = useRef<Columns>(columns);
+  const origin = useRef<{ status: TaskStatus; afterId: string | null } | null>(null);
+  const lastOver = useRef<UniqueIdentifier | null>(null);
+  const [saving, startSaving] = useTransition();
+  const [editor, setEditor] = useState<TaskEditor | null>(null);
+  const [editingProject, setEditingProject] = useState(false);
+  const { change: changeStatus, form: statusForm } = useProjectStatus(project.id);
+  // dnd-kit numbers its aria ids globally; a fixed id keeps server and client in step.
+  const dndId = useId();
+
+  // The server is the source of truth once a change lands; never mid-drag.
+  useEffect(() => {
+    if (!activeRef.current) setColumns(group(tasks));
+  }, [tasks, setColumns]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // Pointer first; inside a column, the nearest card; an empty column itself.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const pointer = pointerWithin(args);
+    const collisions = pointer.length ? pointer : rectIntersection(args);
+    let overId = getFirstCollision(collisions, "id");
+    if (overId != null) {
+      if (isColumn(overId)) {
+        const ids = columnsRef.current[overId];
+        const cards = args.droppableContainers.filter((c) => ids.includes(String(c.id)));
+        if (cards.length)
+          overId = closestCenter({ ...args, droppableContainers: cards })[0]?.id ?? overId;
+      }
+      lastOver.current = overId;
+      return [{ id: overId }];
+    }
+    return lastOver.current ? [{ id: lastOver.current }] : [];
+  }, []);
+
+  function onDragStart({ active }: DragStartEvent) {
+    const id = String(active.id);
+    const status = columnOf(columnsRef.current, id);
+    if (!status) return;
+    const index = columnsRef.current[status].indexOf(id);
+    snapshot.current = columnsRef.current;
+    origin.current = { status, afterId: index > 0 ? columnsRef.current[status][index - 1] : null };
+    activeRef.current = id;
+    setActiveId(id);
+  }
+
+  function onDragOver({ active, over }: DragOverEvent) {
+    if (!over) return;
+    const id = String(active.id);
+    const from = columnOf(columnsRef.current, id);
+    const to = isColumn(over.id) ? over.id : columnOf(columnsRef.current, over.id);
+    if (!from || !to || from === to) return;
+    setColumns((current) => {
+      const source = current[from].filter((item) => item !== id);
+      const target = [...current[to]];
+      let index = target.length;
+      if (!isColumn(over.id)) {
+        const overIndex = target.indexOf(String(over.id));
+        const translated = active.rect.current.translated;
+        const below = translated ? translated.top > over.rect.top + over.rect.height / 2 : false;
+        index = overIndex >= 0 ? overIndex + (below ? 1 : 0) : target.length;
+      }
+      target.splice(index, 0, id);
+      return { ...current, [from]: source, [to]: target };
+    });
+  }
+
+  function finish() {
+    activeRef.current = null;
+    setActiveId(null);
+    lastOver.current = null;
+  }
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    const id = String(active.id);
+    finish();
+    const current = columnsRef.current;
+    const to = over ? (isColumn(over.id) ? over.id : columnOf(current, over.id)) : undefined;
+    if (!over || !to) return setColumns(snapshot.current);
+    const items = current[to].includes(id) ? current[to] : [...current[to], id];
+    const fromIndex = items.indexOf(id);
+    const overIndex = isColumn(over.id) ? items.length - 1 : items.indexOf(String(over.id));
+    const next = overIndex >= 0 && overIndex !== fromIndex ? arrayMove(items, fromIndex, overIndex) : items;
+    const from = columnOf(current, id);
+    const updated: Columns = {
+      ...current,
+      ...(from && from !== to ? { [from]: current[from].filter((item) => item !== id) } : {}),
+      [to]: next,
+    };
+    setColumns(updated);
+    const index = next.indexOf(id);
+    const afterId = index > 0 ? next[index - 1] : null;
+    if (origin.current?.status === to && origin.current.afterId === afterId) return;
+    const revert = snapshot.current;
+    startSaving(async () => {
+      const state = await moveTask({ id, status: to, afterId });
+      if (state.error) {
+        toast.error(state.error);
+        setColumns(revert);
+      } else router.refresh();
+    });
+  }
+
+  function onDragCancel() {
+    finish();
+    setColumns(snapshot.current);
+  }
+
+  const activeTask = activeId ? byId.get(activeId) : undefined;
+  const titleOf = (id: UniqueIdentifier) => byId.get(String(id))?.title ?? "tarefa";
+  const placeOf = (id: UniqueIdentifier) =>
+    isColumn(id)
+      ? taskStatusLabels[id]
+      : `${taskStatusLabels[columnOf(columnsRef.current, id) ?? "todo"]}, perto de ${titleOf(id)}`;
+  const total = tasks.length;
+  const done = columns.done.length;
+
+  return (
+    <>
+      <PageHeader
+        crumbs={[{ label: "Produtos e projetos", href: "/produtos" }, { label: project.name }]}
+        title={project.name}
+        description={
+          <>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <EngagementStatusBadge status={project.status} />
+              <span>{engagementKindLabels[project.kind]}</span>
+              <span aria-hidden="true" className="hidden sm:inline">·</span>
+              {viewer.admin ? (
+                <Link
+                  href={`/empresas/${project.companyId}`}
+                  className="text-foreground hover:text-primary"
+                >
+                  {project.company}
+                </Link>
+              ) : (
+                <span>{project.company}</span>
+              )}
+              {total > 0 && (
+                <>
+                  <span aria-hidden="true" className="hidden sm:inline">·</span>
+                  <span className="tabular-nums">
+                    {done} de {total} {total === 1 ? "tarefa concluída" : "tarefas concluídas"}
+                  </span>
+                </>
+              )}
+              {saving && (
+                <span className="inline-flex items-center gap-1 text-xs">
+                  <Loader2Icon className="size-3 animate-spin" />
+                  Salvando…
+                </span>
+              )}
+            </span>
+            {project.description && (
+              <span className="mt-1.5 line-clamp-2 block">{project.description}</span>
+            )}
+          </>
+        }
+        actions={
+          <>
+            <Button onClick={() => setEditor({ mode: "create", status: "todo" })}>
+              <PlusIcon />
+              Nova tarefa
+            </Button>
+            {viewer.admin && (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Mais ações">
+                    <MoreHorizontalIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuItem onSelect={() => setTimeout(() => setEditingProject(true), 0)}>
+                    <PencilIcon />
+                    Editar projeto
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={`/empresas/${project.companyId}`}>
+                      <Building2Icon />
+                      Ver empresa
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {project.status !== "active" && (
+                    <DropdownMenuItem onSelect={() => changeStatus("active")}>
+                      <PlayIcon />
+                      {project.status === "paused" ? "Retomar" : "Reabrir"}
+                    </DropdownMenuItem>
+                  )}
+                  {project.status === "active" && (
+                    <DropdownMenuItem onSelect={() => changeStatus("paused")}>
+                      <PauseIcon />
+                      Pausar
+                    </DropdownMenuItem>
+                  )}
+                  {project.status !== "completed" && (
+                    <DropdownMenuItem onSelect={() => changeStatus("completed")}>
+                      <CircleCheckIcon />
+                      Marcar como concluído
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </>
+        }
+      />
+
+      <DndContext
+        id={dndId}
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+        accessibility={{
+          screenReaderInstructions: {
+            draggable:
+              "Pressione espaço para pegar a tarefa, use as setas para movê-la entre posições e colunas, e espaço de novo para soltar. Esc cancela.",
+          },
+          announcements: {
+            onDragStart: ({ active }) => `Movendo ${titleOf(active.id)}.`,
+            onDragOver: ({ active, over }) =>
+              over
+                ? `${titleOf(active.id)} sobre ${placeOf(over.id)}.`
+                : `${titleOf(active.id)} fora do quadro.`,
+            onDragEnd: ({ active, over }) =>
+              over
+                ? `${titleOf(active.id)} solta em ${placeOf(over.id)}.`
+                : `Movimento de ${titleOf(active.id)} cancelado.`,
+            onDragCancel: ({ active }) => `Movimento de ${titleOf(active.id)} cancelado.`,
+          },
+        }}
+      >
+        <div
+          aria-busy={saving || undefined}
+          className="-mx-1 flex min-h-[calc(100vh-300px)] snap-x gap-3 overflow-x-auto px-1 pb-4"
+        >
+          {TASK_STATUSES.map((status) => (
+            <Column
+              key={status}
+              status={status}
+              ids={columns[status]}
+              tasks={byId}
+              today={today}
+              onOpen={(task) => setEditor({ mode: "edit", task })}
+              onAdd={(column) => setEditor({ mode: "create", status: column })}
+            />
+          ))}
+        </div>
+        <DragOverlay
+          dropAnimation={{
+            duration: 220,
+            easing: "cubic-bezier(0.2, 0, 0, 1)",
+            sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.4" } } }),
+          }}
+        >
+          {activeTask && (
+            <TaskCard
+              task={activeTask}
+              done={columnOf(columns, activeTask.id) === "done"}
+              today={today}
+              dragging
+            />
+          )}
+        </DragOverlay>
+      </DndContext>
+
+      <TaskSheet
+        editor={editor}
+        onClose={() => setEditor(null)}
+        projectId={project.id}
+        people={people}
+        viewer={viewer}
+        now={now}
+      />
+      {viewer.admin && (
+        <ProjectSheet
+          open={editingProject}
+          onOpenChange={setEditingProject}
+          values={{
+            id: project.id,
+            name: project.name,
+            kind: project.kind,
+            description: project.description,
+          }}
+        />
+      )}
+      {viewer.admin && statusForm}
+    </>
+  );
+}

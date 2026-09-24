@@ -1,135 +1,95 @@
 import type { Metadata } from "next";
-import { Boxes, Building2, FolderKanban, Package } from "lucide-react";
-import styles from "../empresas/management.module.css";
-import { eq, inArray, sql } from "drizzle-orm";
+import Link from "next/link";
+import { PlusIcon } from "lucide-react";
+import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { engagements, companies } from "@/db/schema";
+import { companies, engagements } from "@/db/schema";
 import { getActor } from "@/lib/access";
-import { updateEngagement } from "@/lib/actions";
-import { engagementLabels } from "@/lib/format";
-import { ActionForm } from "@/components/action-form";
-import { Heading, Empty, Badge } from "@/components/ui";
+import { projectQuery } from "@/lib/project-table";
+import { taskSummary } from "@/lib/tasks";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/console/page-header";
+import { ProjectsList } from "@/components/projetos/projects-list";
 export const metadata: Metadata = {
   title: "Produtos e projetos",
   description:
     "Acompanhe os produtos e projetos vinculados às empresas com acesso autorizado.",
 };
 
-export default async function Products() {
+export default async function Products({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const actor = await getActor();
-  const rows = await db
-    .select({ item: engagements, company: companies.name })
-    .from(engagements)
-    .innerJoin(companies, eq(companies.id, engagements.companyId))
-    .where(
-      actor.admin
-        ? sql`true`
-        : actor.grants.length
-          ? inArray(
-              engagements.companyId,
-              actor.grants.map((g) => g.company.id),
-            )
-          : sql`false`,
-    )
-    .orderBy(engagements.name);
+  const ids = actor.grants.map((g) => g.company.id);
+  const query = projectQuery(await searchParams);
+  if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
+  const search = query.search.replace(/[\\%_]/g, "\\$&");
+  const where =
+    and(
+      actor.admin ? undefined : ids.length ? inArray(engagements.companyId, ids) : sql`false`,
+      query.status === "all" ? undefined : eq(engagements.status, query.status),
+      query.company ? eq(engagements.companyId, query.company) : undefined,
+      search
+        ? or(ilike(engagements.name, `%${search}%`), ilike(companies.name, `%${search}%`))
+        : undefined,
+    ) ?? sql`true`;
+  const [rows, companyFilter] = await Promise.all([
+    db
+      .select({
+        id: engagements.id,
+        name: engagements.name,
+        kind: engagements.kind,
+        status: engagements.status,
+        description: engagements.description,
+        companyId: engagements.companyId,
+        company: companies.name,
+      })
+      .from(engagements)
+      .innerJoin(companies, eq(companies.id, engagements.companyId))
+      .where(where)
+      .orderBy(asc(engagements.name)),
+    query.company
+      ? db
+          .select({ id: companies.id, name: companies.name })
+          .from(companies)
+          .where(eq(companies.id, query.company))
+          .then((found) => found[0] ?? null)
+      : null,
+  ]);
+  const summary = await taskSummary(rows.map((row) => row.id));
   return (
     <>
-      <Heading
-        eyebrow="RELACIONAMENTO"
+      <PageHeader
         title="Produtos e projetos"
+        count={rows.length}
         description={
           actor.admin
-            ? "Acompanhe os produtos e projetos de cada cliente em um só lugar."
-            : "Veja o que sua empresa está construindo com a Anuntech."
+            ? "O que está em andamento com cada cliente, com o quadro de tarefas de cada projeto."
+            : "O que sua empresa constrói com a Anuntech e como cada projeto avança."
         }
-        action={
-          actor.admin
-            ? { label: "Adicionar", href: "/produtos/novo" }
-            : undefined
+        actions={
+          actor.admin && (
+            <Button asChild>
+              <Link href="/produtos/novo">
+                <PlusIcon />
+                Novo projeto
+              </Link>
+            </Button>
+          )
         }
       />
-      {rows.length ? (
-        <>
-          <div
-            className={styles.productSummary}
-            aria-label="Resumo dos vínculos"
-          >
-            <span>
-              <Boxes size={15} aria-hidden="true" />
-              {rows.length} {rows.length === 1 ? "vínculo" : "vínculos"}
-            </span>
-            <span>
-              <Package size={15} aria-hidden="true" />
-              {rows.filter(({ item }) => item.kind === "product").length}{" "}
-              produtos
-            </span>
-            <span>
-              <FolderKanban size={15} aria-hidden="true" />
-              {rows.filter(({ item }) => item.kind !== "product").length}{" "}
-              projetos
-            </span>
-          </div>
-          <div className="card-grid">
-            {rows.map(({ item, company }) => (
-              <article className={`panel ${styles.productCard}`} key={item.id}>
-                <div className="card-top">
-                  <span className={styles.avatar}>
-                    {item.kind === "product" ? (
-                      <Package size={19} aria-hidden="true" />
-                    ) : (
-                      <FolderKanban size={19} aria-hidden="true" />
-                    )}
-                  </span>
-                  <Badge status={item.status}>
-                    {engagementLabels[item.status]}
-                  </Badge>
-                </div>
-                <h2>{item.name}</h2>
-                <p className={styles.productCompany}>
-                  <Building2 size={14} aria-hidden="true" />
-                  {company}
-                  <span aria-hidden="true">·</span>
-                  {item.kind === "product" ? "Produto" : "Projeto"}
-                </p>
-                <p
-                  className={`${styles.productDescription}${item.description ? "" : " muted"}`}
-                >
-                  {item.description || "Nenhuma descrição adicionada."}
-                </p>
-                {actor.admin && (
-                  <ActionForm
-                    action={updateEngagement}
-                    label="Atualizar"
-                    submitAriaLabel={`Atualizar situação de ${item.name} — ${company}`}
-                    className="inline-form"
-                  >
-                    <input type="hidden" name="id" value={item.id} />
-                    <label className="sr-only" htmlFor={`status-${item.id}`}>
-                      Situação de {item.name}
-                    </label>
-                    <select
-                      id={`status-${item.id}`}
-                      name="status"
-                      defaultValue={item.status}
-                    >
-                      <option value="active">Ativo</option>
-                      <option value="paused">Pausado</option>
-                      <option value="completed">Concluído</option>
-                    </select>
-                  </ActionForm>
-                )}
-              </article>
-            ))}
-          </div>
-        </>
-      ) : (
-        <section className="panel">
-          <Empty
-            title="Nenhum produto ou projeto cadastrado"
-            description="Os vínculos com a Anuntech aparecerão aqui."
-          />
-        </section>
-      )}
+      <ProjectsList
+        rows={rows.map((row) => ({
+          ...row,
+          tasks: summary.get(row.id) ?? { total: 0, done: 0 },
+        }))}
+        query={query}
+        admin={actor.admin}
+        showCompany={actor.admin || ids.length > 1}
+        companyFilter={companyFilter}
+      />
     </>
   );
 }

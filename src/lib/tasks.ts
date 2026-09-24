@@ -1,0 +1,141 @@
+import "server-only";
+import { and, asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import {
+  accountEmails,
+  consoleStaffMembers,
+  memberships,
+  tasks,
+  user,
+} from "@/db/schema";
+import { db } from "./db";
+import { hasConsoleStaffAccess } from "./console-members";
+import { getAccountEmails, resolveAccountIdentity } from "./account-identity";
+import { normalizeEmail } from "./permissions";
+
+export type Person = {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+};
+
+/** People a task can be assigned to: the company's members plus Console staff. */
+export async function assigneeAllowed(userId: string, companyId: string) {
+  const [person] = await db
+    .select({ email: user.email })
+    .from(user)
+    .where(eq(user.id, userId));
+  if (!person) return false;
+  if (await hasConsoleStaffAccess(person.email)) return true;
+  const emails = await getAccountEmails(userId, person.email);
+  const [member] = await db
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.companyId, companyId),
+        inArray(memberships.email, emails),
+        eq(memberships.active, true),
+      ),
+    )
+    .limit(1);
+  return !!member;
+}
+
+/** Everyone who can be given a task on this company's projects. */
+export async function projectPeople(companyId: string): Promise<Person[]> {
+  const columns = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    image: user.image,
+  };
+  const [members, staff] = await Promise.all([
+    db
+      .select(columns)
+      .from(memberships)
+      .leftJoin(
+        accountEmails,
+        and(
+          eq(accountEmails.email, memberships.email),
+          isNotNull(accountEmails.verifiedAt),
+        ),
+      )
+      .innerJoin(
+        user,
+        or(eq(user.email, memberships.email), eq(user.id, accountEmails.userId)),
+      )
+      .where(and(eq(memberships.companyId, companyId), eq(memberships.active, true))),
+    db
+      .select(columns)
+      .from(consoleStaffMembers)
+      .leftJoin(
+        accountEmails,
+        and(
+          eq(accountEmails.email, consoleStaffMembers.email),
+          isNotNull(accountEmails.verifiedAt),
+        ),
+      )
+      .innerJoin(
+        user,
+        or(
+          eq(user.email, consoleStaffMembers.email),
+          eq(user.id, accountEmails.userId),
+        ),
+      )
+      .where(eq(consoleStaffMembers.active, true)),
+  ]);
+  const people = new Map<string, Person>();
+  const owner = process.env.CONSOLE_ADMIN_EMAIL?.trim();
+  if (owner) {
+    const identity = await resolveAccountIdentity(normalizeEmail(owner));
+    if (identity.userId) {
+      const [row] = await db.select(columns).from(user).where(eq(user.id, identity.userId));
+      if (row) people.set(row.id, row);
+    }
+  }
+  for (const row of [...staff, ...members]) if (!people.has(row.id)) people.set(row.id, row);
+  return [...people.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/** Counts per project, for the list's progress line. */
+export async function taskSummary(engagementIds: string[]) {
+  if (!engagementIds.length)
+    return new Map<string, { total: number; done: number }>();
+  const rows = await db
+    .select({
+      engagementId: tasks.engagementId,
+      total: sql<number>`count(*)::int`,
+      done: sql<number>`count(*) filter (where ${tasks.status} = 'done')::int`,
+    })
+    .from(tasks)
+    .where(sql`${tasks.engagementId} = any(${engagementIds})`)
+    .groupBy(tasks.engagementId);
+  return new Map(rows.map((row) => [row.engagementId, { total: row.total, done: row.done }]));
+}
+
+/** The board's cards, in column order. */
+export async function boardTasks(engagementId: string) {
+  const creator = alias(user, "creator");
+  return db
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      description: tasks.description,
+      status: tasks.status,
+      priority: tasks.priority,
+      assigneeId: tasks.assigneeId,
+      assignee: user.name,
+      dueDate: tasks.dueDate,
+      position: tasks.position,
+      createdBy: tasks.createdBy,
+      creator: creator.name,
+      updatedAt: tasks.updatedAt,
+    })
+    .from(tasks)
+    .leftJoin(user, eq(user.id, tasks.assigneeId))
+    .leftJoin(creator, eq(creator.id, tasks.createdBy))
+    .where(eq(tasks.engagementId, engagementId))
+    .orderBy(asc(tasks.position), asc(tasks.createdAt));
+}

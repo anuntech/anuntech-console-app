@@ -9,6 +9,16 @@ export const dateLabel = (date: Date | string) =>
     timeZone: APP_TIME_ZONE,
     dateStyle: "short",
   }).format(typeof date === "string" ? new Date(date + "T12:00:00Z") : date);
+/** "23 set" for a civil date, where the year would only be noise. */
+export const shortDateLabel = (date: string) =>
+  new Intl.DateTimeFormat(APP_LOCALE, {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "short",
+  })
+    .format(new Date(date + "T12:00:00Z"))
+    .replace(" de ", " ")
+    .replace(".", "");
 export const ticketLabels: Record<string, string> = {
   open: "Aberto",
   in_progress: "Em atendimento",
@@ -84,6 +94,11 @@ export const auditLabels: Record<string, string> = {
   "membership.revoked": "Acesso revogado",
   "engagement.created": "Produto ou projeto cadastrado",
   "engagement.status_changed": "Situação do produto ou projeto alterada",
+  "engagement.updated": "Produto ou projeto atualizado",
+  "task.created": "Tarefa criada",
+  "task.updated": "Tarefa atualizada",
+  "task.moved": "Tarefa movida no quadro",
+  "task.deleted": "Tarefa excluída",
   "bookmark.created": "Bookmark adicionado",
   "bookmark.deleted": "Bookmark removido",
   "ticket.created": "Chamado aberto",
