@@ -1,6 +1,7 @@
 "use server";
 import { db } from "./db";
 import { invoices, subscriptions, auditEvents } from "@/db/schema";
+import { parseChargeTerms, parseTermsScope, sameTerms } from "./billing-terms";
 import { eq } from "drizzle-orm";
 import { issueDate } from "./recurrence";
 import { saoPauloDate } from "./dates";
@@ -179,13 +180,31 @@ export async function reissueInvoice(
   const amountCents = moneyToCents(input.amount);
   if (amountCents === null)
     return { error: "Informe um valor entre R$ 0,01 e R$ 9.999.999,99." };
+  let terms;
+  try {
+    terms = parseChargeTerms(form, amountCents);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Condições inválidas." };
+  }
+  const scope = parseTermsScope(form);
   const [i] = await db.select().from(invoices).where(eq(invoices.id, input.id));
   if (!i || i.status !== "issued" || !i.providerId)
     return {
       error: "Somente cobranças emitidas e em aberto podem ser alteradas.",
     };
   const { id } = i;
-  if (amountCents === i.amountCents && input.dueDate === i.dueDate) {
+  const currentTerms = {
+    discountCents: i.discountCents,
+    fineBps: i.fineBps,
+    interestMonthlyBps: i.interestMonthlyBps,
+  };
+  if (scope === "all" && i.subscriptionId)
+    await db.update(subscriptions).set(terms).where(eq(subscriptions.id, i.subscriptionId));
+  if (
+    amountCents === i.amountCents &&
+    input.dueDate === i.dueDate &&
+    sameTerms(terms, currentTerms)
+  ) {
     if (input.description !== i.description) {
       await db
         .update(invoices)
@@ -245,6 +264,7 @@ export async function reissueInvoice(
         description: input.description,
         amountCents,
         dueDate: input.dueDate,
+        ...terms,
         status: "draft",
         providerId: null,
         bankRequest: null,

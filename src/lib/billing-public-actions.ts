@@ -254,6 +254,8 @@ export async function updateSubscription(
     const amountCents = moneyToCents(String(form.get("amount") || ""));
     if (amountCents === null || amountCents < 250 || dueDate <= saoPauloDate())
       throw Error("Informe valor a partir de R$ 2,50 e vencimento futuro.");
+    const { parseChargeTerms } = await import("./billing-terms");
+    const terms = parseChargeTerms(form, amountCents);
     await db.transaction(async (tx) => {
       const [s] = await tx
         .select()
@@ -285,7 +287,7 @@ export async function updateSubscription(
       if (i && !skipCancelled)
         await tx
           .update(invoices)
-          .set({ description, amountCents, dueDate })
+          .set({ description, amountCents, dueDate, ...terms })
           .where(eq(invoices.id, i.id));
       await tx
         .update(subscriptions)
@@ -296,6 +298,7 @@ export async function updateSubscription(
           anchorDay: Number(dueDate.slice(8)),
           anchorMonth: Number(dueDate.slice(5, 7)),
           lastError: null,
+          ...terms,
         })
         .where(eq(subscriptions.id, id));
       await tx.insert(auditEvents).values({

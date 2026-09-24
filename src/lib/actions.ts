@@ -16,6 +16,7 @@ import {
   attachments,
 } from "@/db/schema";
 import { normalizeEmail, moneyToCents } from "./permissions";
+import { parseChargeTerms, parseTermsScope } from "./billing-terms";
 import type { ActionState } from "./action-state";
 import { saveCompanyMember, revokeCompanyMember } from "./members-actions";
 import {
@@ -488,6 +489,12 @@ export async function createInvoice(
       return {
         error: "Informe um valor entre R$ 0,01 e R$ 9.999.999,99.",
       };
+    let terms;
+    try {
+      terms = parseChargeTerms(form, amountCents);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Condições inválidas." };
+    }
     const invoice = await db.transaction(async (tx) => {
       if (input.engagementId) {
         const [eng] = await tx
@@ -515,6 +522,7 @@ export async function createInvoice(
             anchorMonth: Number(input.dueDate.slice(5, 7)),
             nextDueDate: input.dueDate,
             actorId: actor.user.id,
+            ...terms,
           })
           .returning();
         subscriptionId = sub.id;
@@ -528,6 +536,7 @@ export async function createInvoice(
           description: input.description,
           amountCents,
           dueDate: input.dueDate,
+          ...terms,
         })
         .returning();
       await tx.insert(auditEvents).values({
@@ -609,6 +618,13 @@ export async function updateDraft(
     const amountCents = moneyToCents(input.amount);
     if (amountCents === null)
       return { error: "Informe um valor entre R$ 0,01 e R$ 9.999.999,99." };
+    let terms;
+    try {
+      terms = parseChargeTerms(form, amountCents);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Condições inválidas." };
+    }
+    const scope = parseTermsScope(form);
     const changed = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(invoices)
@@ -616,6 +632,7 @@ export async function updateDraft(
           description: input.description,
           amountCents,
           dueDate: input.dueDate,
+          ...terms,
         })
         .where(
           and(
@@ -644,6 +661,7 @@ export async function updateDraft(
             nextDueDate: input.dueDate,
             anchorDay: Number(input.dueDate.slice(8)),
             anchorMonth: Number(input.dueDate.slice(5, 7)),
+            ...(scope === "all" ? terms : {}),
           })
           .where(eq(subscriptions.id, sub.id));
       }

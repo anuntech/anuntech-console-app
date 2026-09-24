@@ -1,4 +1,5 @@
 import "server-only";
+import { interChargeTerms } from "./billing-terms";
 import { enqueueBillingNotice } from "./billing-notice-queue";
 import { randomBytes } from "node:crypto";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
@@ -112,6 +113,11 @@ export async function publishInvoice(
         valorNominal: i.amountCents / 100,
         dataVencimento: i.dueDate,
         numDiasAgenda,
+        ...interChargeTerms({
+          discountCents: i.discountCents,
+          fineBps: i.fineBps,
+          interestMonthlyBps: i.interestMonthlyBps,
+        }),
         formasRecebimento: ["BOLETO", "PIX"],
         // Comunicação é controlada pelo Console, sem e-mail/telefone enviado ao banco.
         pagador: {

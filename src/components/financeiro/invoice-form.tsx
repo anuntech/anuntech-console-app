@@ -18,6 +18,7 @@ import {
 } from "@/components/console/server-form";
 import { createInvoice } from "@/lib/actions";
 import { MoneyInput } from "./invoice-money";
+import { ChargeTermsFields } from "./charge-terms-fields";
 
 export type InvoiceCompanyOption = { id: string; name: string };
 export type InvoiceEngagementOption = {
@@ -175,6 +176,12 @@ export function InvoiceFields({
           <DateField id="invoice-due" name="dueDate" required />
         </div>
       </div>
+      <ChargeTermsFields idPrefix="invoice-terms" />
+      {type === "recurring" && (
+        <p className="text-xs text-muted-foreground">
+          As condições valem para todas as faturas desta recorrência.
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">
         Salvar cria um rascunho. Nada é emitido nem enviado até você publicar.
       </p>

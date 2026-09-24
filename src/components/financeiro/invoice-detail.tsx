@@ -67,6 +67,7 @@ import {
   SubscriptionStatusBadge,
 } from "./invoice-badges";
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
+import { hasTerms, lateFeesLabel, type ChargeTerms } from "@/lib/billing-terms";
 import { billingTypeLabel } from "./invoices-table";
 
 export type InvoiceDetailData = {
@@ -92,6 +93,7 @@ export type InvoiceDetailData = {
     publicEnabled: boolean;
     fiscalStatus: string;
     editable: "draft" | "issued" | null;
+    terms: ChargeTerms;
   };
   company: {
     id: string;
@@ -109,6 +111,7 @@ export type InvoiceDetailData = {
     amountCents: number;
     description: string;
     lastError: string | null;
+    terms: ChargeTerms;
   } | null;
   /** Draft waiting for its automatic emission date. */
   scheduled: boolean;
@@ -269,12 +272,16 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           description: sub.description,
           amountCents: sub.amountCents,
           dueDate: sub.nextDueDate,
+          terms: sub.terms,
+          recurring: true,
         }
       : {
           id: invoice.id,
           description: invoice.description,
           amountCents: invoice.amountCents,
           dueDate: invoice.dueDate,
+          terms: invoice.terms,
+          recurring: !!sub,
         };
 
   return (
@@ -441,6 +448,24 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   </span>
                 </Fact>
                 <Fact label="Tipo">{typeLabel}</Fact>
+                {hasTerms(invoice.terms) && (
+                  <Fact label="Condições" className="sm:col-span-2">
+                    {invoice.terms.discountCents ? (
+                      <span className="block">
+                        Desconto de {currency(invoice.terms.discountCents)} até o vencimento
+                        <span className="text-muted-foreground">
+                          {" "}
+                          ({currency(invoice.amountCents - invoice.terms.discountCents)} pagando em dia)
+                        </span>
+                      </span>
+                    ) : null}
+                    {lateFeesLabel(invoice.terms) && (
+                      <span className="block">
+                        Após o vencimento: {lateFeesLabel(invoice.terms)}
+                      </span>
+                    )}
+                  </Fact>
+                )}
                 {admin && (
                   <Fact label="Endereço de cobrança" className="sm:col-span-2">
                     {company.address || (

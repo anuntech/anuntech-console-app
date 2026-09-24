@@ -35,6 +35,11 @@ export default async function Payment({
           status: i.status as "issued" | "paid" | "cancelled",
           pix: i.pix,
           boletoLine: i.boletoLine,
+          terms: {
+            discountCents: i.discountCents,
+            fineBps: i.fineBps,
+            interestMonthlyBps: i.interestMonthlyBps,
+          },
         }}
         qr={qr}
         publicId={publicId}

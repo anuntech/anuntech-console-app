@@ -149,6 +149,11 @@ export default async function Invoice({
               : i.status === "issued"
                 ? "issued"
                 : null,
+          terms: {
+            discountCents: i.discountCents,
+            fineBps: i.fineBps,
+            interestMonthlyBps: i.interestMonthlyBps,
+          },
         },
         company: {
           id: row.company.id,
@@ -169,6 +174,11 @@ export default async function Invoice({
               amountCents: sub.amountCents,
               description: sub.description,
               lastError: sub.lastError,
+              terms: {
+                discountCents: sub.discountCents,
+                fineBps: sub.fineBps,
+                interestMonthlyBps: sub.interestMonthlyBps,
+              },
             }
           : null,
         scheduled,

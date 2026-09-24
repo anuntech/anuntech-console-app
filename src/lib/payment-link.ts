@@ -25,6 +25,9 @@ export async function publicInvoice(publicId: string) {
       pix: invoices.pixCopyPaste,
       boletoLine: invoices.boletoLine,
       bankCheckedAt: invoices.bankCheckedAt,
+      discountCents: invoices.discountCents,
+      fineBps: invoices.fineBps,
+      interestMonthlyBps: invoices.interestMonthlyBps,
     })
     .from(invoices)
     .innerJoin(companies, eq(companies.id, invoices.companyId))

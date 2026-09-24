@@ -105,6 +105,9 @@ export default async function Finance({
         companyId: invoices.companyId,
         company: companies.name,
         amountCents: invoices.amountCents,
+        discountCents: invoices.discountCents,
+        fineBps: invoices.fineBps,
+        interestMonthlyBps: invoices.interestMonthlyBps,
         status: invoices.status,
         display: displayStatus,
         dueDate: invoices.dueDate,
@@ -217,6 +220,11 @@ export default async function Finance({
           display: row.display as InvoiceDisplayStatus,
           dueDate: row.dueDate,
           recurring: !!row.subscriptionId,
+          terms: {
+            discountCents: row.discountCents,
+            fineBps: row.fineBps,
+            interestMonthlyBps: row.interestMonthlyBps,
+          },
           interval: row.interval,
           publicUrl:
             row.publicId &&

@@ -384,6 +384,7 @@ export default async function Preview({
       recurring: true,
       interval: "monthly",
       publicUrl: "https://console.anuntech.com/pagar/abc",
+      terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
       editable: "issued",
       cancellable: false,
     },
@@ -399,6 +400,7 @@ export default async function Preview({
       recurring: true,
       interval: "yearly",
       publicUrl: "https://console.anuntech.com/pagar/def",
+      terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
       editable: "issued",
       cancellable: false,
     },
@@ -414,6 +416,7 @@ export default async function Preview({
       recurring: false,
       interval: null,
       publicUrl: null,
+      terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
       editable: "draft",
       cancellable: true,
     },
@@ -429,6 +432,7 @@ export default async function Preview({
       recurring: true,
       interval: "monthly",
       publicUrl: null,
+      terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
       editable: null,
       cancellable: false,
     },
@@ -444,6 +448,7 @@ export default async function Preview({
       recurring: false,
       interval: null,
       publicUrl: "https://console.anuntech.com/pagar/ghi",
+      terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
       editable: null,
       cancellable: false,
     },
@@ -461,6 +466,7 @@ export default async function Preview({
       description: "Manutenção mensal — outubro",
       amountCents: 189000,
       dueDate: day(12),
+      terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
       status: invoiceStatus,
       display:
         invoiceStatus === "draft"
@@ -521,6 +527,7 @@ export default async function Preview({
             amountCents: 189000,
             description: "Manutenção mensal",
             lastError: null,
+      terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
           },
     scheduled: tela === "fatura-recorrente",
     scheduledIssueDate: tela === "fatura-recorrente" ? day(7) : null,
@@ -1047,6 +1054,7 @@ export default async function Preview({
               tela === "pagamento-processando" || tela === "pagamento-paga"
                 ? null
                 : "07790000112345678901234567890123456789012345678",
+            terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
           }}
           qr={
             tela === "pagamento-processando" || tela === "pagamento-paga"

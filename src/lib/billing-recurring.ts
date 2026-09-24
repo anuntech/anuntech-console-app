@@ -67,6 +67,9 @@ export async function processSubscriptions() {
             description: current.description,
             amountCents: current.amountCents,
             dueDate: current.nextDueDate,
+            discountCents: current.discountCents,
+            fineBps: current.fineBps,
+            interestMonthlyBps: current.interestMonthlyBps,
           })
           .returning();
         await tx.insert(auditEvents).values({

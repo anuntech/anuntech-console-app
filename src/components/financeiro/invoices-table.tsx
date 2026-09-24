@@ -1,4 +1,5 @@
 "use client";
+import type { ChargeTerms } from "@/lib/billing-terms";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -75,6 +76,7 @@ export type InvoiceRow = {
   /** Which sheet "Editar" opens; null when nothing can change any more. */
   editable: "draft" | "issued" | null;
   cancellable: boolean;
+  terms: ChargeTerms;
 };
 
 export const billingTypeLabel = (

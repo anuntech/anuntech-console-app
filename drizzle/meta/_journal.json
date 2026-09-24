@@ -176,6 +176,13 @@
       "when": 1790221284034,
       "tag": "0024_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790222358940,
+      "tag": "0025_charge_terms",
+      "breakpoints": true
     }
   ]
 }

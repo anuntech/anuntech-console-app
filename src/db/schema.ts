@@ -406,6 +406,10 @@ export const subscriptions = pgTable("console_subscriptions", {
   description: text("description").notNull(),
   amountCents: integer("amount_cents").notNull(),
   interval: text("interval", { enum: ["monthly", "yearly"] }).notNull(),
+  /** Charge terms copied into each period's invoice. */
+  discountCents: integer("discount_cents"),
+  fineBps: integer("fine_bps"),
+  interestMonthlyBps: integer("interest_monthly_bps"),
   anchorDay: integer("anchor_day").notNull(),
   anchorMonth: integer("anchor_month").notNull(),
   nextDueDate: date("next_due_date").notNull(),
@@ -437,6 +441,10 @@ export const invoices = pgTable(
     description: text("description").notNull(),
     amountCents: integer("amount_cents").notNull(),
     dueDate: date("due_date").notNull(),
+    /** Charge terms sent to the bank: a discount until the due date, and fine + monthly interest after it (basis points). */
+    discountCents: integer("discount_cents"),
+    fineBps: integer("fine_bps"),
+    interestMonthlyBps: integer("interest_monthly_bps"),
     status: text("status", { enum: ["draft", "issued", "paid", "cancelled"] })
       .notNull()
       .default("draft"),

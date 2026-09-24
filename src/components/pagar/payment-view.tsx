@@ -17,6 +17,7 @@ import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { currency, dateLabel } from "@/lib/format";
+import { lateFeesLabel, noChargeTerms, type ChargeTerms } from "@/lib/billing-terms";
 import { PaymentRefresh, PaymentStatusAnnouncer } from "./payment-live";
 
 export type PublicInvoiceView = {
@@ -27,6 +28,7 @@ export type PublicInvoiceView = {
   status: "issued" | "paid" | "cancelled";
   pix: string | null;
   boletoLine: string | null;
+  terms?: ChargeTerms;
 };
 
 function MethodHeading({
@@ -111,6 +113,9 @@ export function PaymentView({
   const cancelled = i.status === "cancelled";
   const ready = Boolean(i.pix || i.boletoLine);
   const display = payable && i.dueDate < today ? "overdue" : i.status;
+  const terms = i.terms ?? noChargeTerms;
+  const discountValid = payable && !!terms.discountCents && i.dueDate >= today;
+  const lateFees = lateFeesLabel(terms);
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 sm:py-10">
       <PaymentStatusAnnouncer status={i.status} ready={ready} />
@@ -160,6 +165,21 @@ export function PaymentView({
             <p className="mt-1 text-4xl font-semibold tracking-[-0.03em] tabular-nums break-words text-foreground">
               {currency(i.amountCents)}
             </p>
+            {discountValid && (
+              <p className="mt-2 text-sm text-success">
+                Pagando até {dateLabel(i.dueDate)}:{" "}
+                <span className="font-semibold tabular-nums">
+                  {currency(i.amountCents - terms.discountCents!)}
+                </span>
+                <span className="text-muted-foreground"> (desconto de {currency(terms.discountCents!)})</span>
+              </p>
+            )}
+            {payable && lateFees && (
+              <p className={cn("mt-2 text-xs", display === "overdue" ? "text-destructive" : "text-muted-foreground")}>
+                {display === "overdue" ? "Vencida: " : "Após o vencimento: "}
+                {lateFees}, calculados pelo banco no pagamento.
+              </p>
+            )}
           </div>
           <dl className="mt-6 grid gap-3 border-t pt-5 text-sm">
             <div className="flex items-center justify-between gap-4">

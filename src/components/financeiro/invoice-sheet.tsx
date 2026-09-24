@@ -29,12 +29,17 @@ import {
   type InvoiceEngagementOption,
 } from "./invoice-form";
 import { MoneyInput } from "./invoice-money";
+import { ChargeTermsFields } from "./charge-terms-fields";
+import { sameTerms, type ChargeTerms } from "@/lib/billing-terms";
 
 export type InvoiceEditable = {
   id: string;
   description: string;
   amountCents: number;
   dueDate: string;
+  terms: ChargeTerms;
+  /** The invoice belongs to a recurrence, so terms can apply to the next ones too. */
+  recurring: boolean;
 };
 /** Everything on a draft; on an issued charge too, but a new amount or due
     date means a new charge at the bank; the next periods of a recurrence. */
@@ -79,10 +84,13 @@ function EditForm({
   const text = copy[mode];
   const [cents, setCents] = useState(invoice.amountCents);
   const [dueDate, setDueDate] = useState(invoice.dueDate);
-  // Only a changed amount or date sends the issued charge back to the bank.
+  const [terms, setTerms] = useState(invoice.terms);
+  // A changed amount, date or condition sends the issued charge back to the bank.
   const reissue =
     mode === "issued" &&
-    (cents !== invoice.amountCents || dueDate !== invoice.dueDate);
+    (cents !== invoice.amountCents ||
+      dueDate !== invoice.dueDate ||
+      !sameTerms(terms, invoice.terms));
   return (
     <ServerForm
       action={actions[mode]}
@@ -135,6 +143,16 @@ function EditForm({
             />
           </div>
         </div>
+        <ChargeTermsFields
+          idPrefix="edit-terms"
+          defaultValue={invoice.terms}
+          onChange={setTerms}
+          scope={
+            mode !== "subscription" && invoice.recurring
+              ? { recurring: true, defaultValue: "this" }
+              : undefined
+          }
+        />
         {mode === "issued" &&
           (reissue ? (
             <div
@@ -144,13 +162,13 @@ function EditForm({
               <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
               <span>
                 O boleto e o Pix atuais são cancelados no Inter e novos são
-                emitidos com estes dados. O link de pagamento continua o mesmo.
+                emitidos com estes dados e condições. O link de pagamento continua o mesmo.
               </span>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Mudar o valor ou o vencimento cancela o boleto e o Pix atuais no
-              Inter e emite novos. O link de pagamento continua o mesmo.
+              Mudar o valor, o vencimento ou as condições cancela o boleto e o
+              Pix atuais no Inter e emite novos. O link de pagamento continua o mesmo.
             </p>
           ))}
       </div>
