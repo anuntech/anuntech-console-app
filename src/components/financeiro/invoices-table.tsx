@@ -262,6 +262,24 @@ export function InvoicesTable({
               ))}
             </SelectContent>
           </Select>
+          {query.period === "custom" && (
+            <>
+              <DateField
+                name="de"
+                value={query.from}
+                onChange={(from) => go({ from, page: 1 })}
+                placeholder="De"
+                className="w-36 [&>button]:bg-card"
+              />
+              <DateField
+                name="ate"
+                value={query.to}
+                onChange={(to) => go({ to, page: 1 })}
+                placeholder="Até"
+                className="w-36 [&>button]:bg-card"
+              />
+            </>
+          )}
           <Select
             value={query.status}
             onValueChange={(status) =>
@@ -280,27 +298,6 @@ export function InvoicesTable({
             </SelectContent>
           </Select>
         </div>
-        {query.period === "custom" && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="text-sm text-muted-foreground">Vencimento de</span>
-            <DateField
-              name="de"
-              value={query.from}
-              onChange={(from) => go({ from, page: 1 })}
-              placeholder="Início"
-              className="w-40"
-            />
-            <span className="text-sm text-muted-foreground">até</span>
-            <DateField
-              name="ate"
-              value={query.to}
-              onChange={(to) => go({ to, page: 1 })}
-              placeholder="Fim"
-              className="w-40"
-            />
-          </div>
-        )}
-
         {rows.length ? (
           <Table>
             <TableHeader>
