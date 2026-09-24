@@ -109,11 +109,11 @@ export async function GET() {
     .where(
       and(
         gte(auditEvents.createdAt, new Date(Date.now() - 12 * 3600 * 1000)),
-        like(auditEvents.action, "invoice.%"),
+        like(auditEvents.action, "%"),
       ),
     )
     .orderBy(desc(auditEvents.createdAt))
-    .limit(120);
+    .limit(200);
   return Response.json({
     today,
     horizon: limit,
