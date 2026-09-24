@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, like, lte, sql } from "drizzle-orm";
 import { pool } from "@/lib/db";
 import { auditEvents, companies, invoices, subscriptions } from "@/db/schema";
 import { db } from "@/lib/db";
@@ -96,5 +96,31 @@ export async function GET() {
   const holders = await db.execute(
     sql`select pid, state, now() - xact_start as xact_age, left(query, 120) as query from pg_stat_activity where pid in (select pid from pg_locks where locktype = 'advisory' and objid = 72649184)`,
   );
-  return Response.json({ today, horizon: limit, lockFree, lockHolders: holders.rows, cronSelection, candidates: detailed });
+  // What happened to invoices and recurrences in the last 12 hours, newest first.
+  const recentEvents = await db
+    .select({
+      createdAt: auditEvents.createdAt,
+      action: auditEvents.action,
+      entityId: auditEvents.entityId,
+      companyId: auditEvents.companyId,
+      details: auditEvents.details,
+    })
+    .from(auditEvents)
+    .where(
+      and(
+        gte(auditEvents.createdAt, new Date(Date.now() - 12 * 3600 * 1000)),
+        like(auditEvents.action, "invoice.%"),
+      ),
+    )
+    .orderBy(desc(auditEvents.createdAt))
+    .limit(120);
+  return Response.json({
+    today,
+    horizon: limit,
+    lockFree,
+    lockHolders: holders.rows,
+    cronSelection,
+    candidates: detailed,
+    recentEvents,
+  });
 }
