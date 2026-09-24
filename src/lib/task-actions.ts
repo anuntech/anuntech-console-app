@@ -1,12 +1,21 @@
 "use server";
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { attachments, auditEvents, engagements, taskAssignees, tasks } from "@/db/schema";
+import {
+  attachments,
+  auditEvents,
+  engagements,
+  invoices,
+  subscriptions,
+  taskAssignees,
+  tasks,
+} from "@/db/schema";
 import { getActor, canAccess } from "./access";
 import type { ActionState } from "./action-state";
 import { db } from "./db";
 import { assigneeAllowed } from "./tasks";
+import { moneyToCents } from "./permissions";
 import { prepareTicketFiles, takeTicketUploads } from "./ticket-files";
 import {
   TASK_PRIORITIES,
@@ -404,8 +413,13 @@ export async function updateProject(
         name: z.string().trim().min(1, "Dê um nome.").max(160),
         description: z.string().trim().max(3000).default(""),
         url: z.string().trim().max(2048).optional(),
+        amount: z.string().trim().max(20).optional(),
       })
       .parse(Object.fromEntries(form));
+    const amountCents =
+      input.amount === undefined ? undefined : input.amount ? moneyToCents(input.amount) : null;
+    if (input.amount && amountCents === null)
+      return { error: "Informe um valor entre R$ 0,01 e R$ 9.999.999,99." };
     if (input.url) {
       try {
         const parsed = new URL(input.url);
@@ -422,10 +436,36 @@ export async function updateProject(
           name: input.name,
           description: input.description || null,
           ...(input.url !== undefined ? { url: input.url || null } : {}),
+          ...(amountCents !== undefined ? { amountCents } : {}),
         })
         .where(eq(engagements.id, input.id))
         .returning();
       if (!row) throw Error();
+      // A new price also drives the recurrence, for the periods not yet issued.
+      if (amountCents && row.subscriptionId) {
+        const [sub] = await tx
+          .select()
+          .from(subscriptions)
+          .where(eq(subscriptions.id, row.subscriptionId))
+          .for("update");
+        if (sub && sub.status !== "cancelled") {
+          await tx
+            .update(subscriptions)
+            .set({ amountCents })
+            .where(eq(subscriptions.id, sub.id));
+          await tx
+            .update(invoices)
+            .set({ amountCents })
+            .where(
+              and(
+                eq(invoices.subscriptionId, sub.id),
+                eq(invoices.dueDate, sub.nextDueDate),
+                eq(invoices.status, "draft"),
+                isNull(invoices.bankRequest),
+              ),
+            );
+        }
+      }
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.companyId,
@@ -434,6 +474,7 @@ export async function updateProject(
       });
     });
     refresh(input.id);
+    revalidatePath("/financeiro");
     return { success: "Alterações salvas." };
   } catch (error) {
     return failure(error);

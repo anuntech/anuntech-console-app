@@ -664,6 +664,10 @@ export async function updateDraft(
             ...(scope === "all" ? terms : {}),
           })
           .where(eq(subscriptions.id, sub.id));
+        await tx
+          .update(engagements)
+          .set({ amountCents })
+          .where(eq(engagements.subscriptionId, sub.id));
       }
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
@@ -675,6 +679,7 @@ export async function updateDraft(
     });
     if (!changed)
       return { error: "Somente faturas em rascunho podem ser editadas." };
+    revalidatePath("/produtos");
     revalidatePath(`/financeiro/${input.id}`);
     refresh();
     return { success: "Rascunho atualizado." };

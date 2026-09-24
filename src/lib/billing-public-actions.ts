@@ -8,10 +8,11 @@ import { revalidatePath } from "next/cache";
 import { getActor } from "./access";
 import { db } from "./db";
 import {
-  invoices,
-  billingNotices,
-  subscriptions,
   auditEvents,
+  billingNotices,
+  engagements,
+  invoices,
+  subscriptions,
 } from "@/db/schema";
 import { processBillingNotices } from "./billing-notices";
 import { saoPauloDate } from "./dates";
@@ -301,6 +302,10 @@ export async function updateSubscription(
           ...terms,
         })
         .where(eq(subscriptions.id, id));
+      await tx
+        .update(engagements)
+        .set({ amountCents })
+        .where(eq(engagements.subscriptionId, id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: s.companyId,
@@ -308,6 +313,7 @@ export async function updateSubscription(
         entityId: id,
       });
     });
+    revalidatePath("/produtos");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/[id]", "page");
     return {

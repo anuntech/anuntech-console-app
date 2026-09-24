@@ -57,6 +57,7 @@ export type ProductRow = {
   amountCents: number | null;
   interval: "monthly" | "yearly" | null;
   nextDueDate: string | null;
+  subscriptionId?: string | null;
   companyId: string;
   company: string;
 };
@@ -190,6 +191,8 @@ export function ProductsList({
                                   name: row.name,
                                   description: row.description,
                                   url: row.url,
+                                  amountCents: row.amountCents,
+                                  subscriptionId: row.subscriptionId ?? null,
                                 }),
                               0,
                             )

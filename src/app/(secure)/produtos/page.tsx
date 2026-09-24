@@ -42,9 +42,10 @@ export default async function Products({
         status: engagements.status,
         description: engagements.description,
         url: engagements.url,
-        amountCents: engagements.amountCents,
+        amountCents: sql<number | null>`coalesce(${subscriptions.amountCents}, ${engagements.amountCents})`,
         interval: subscriptions.interval,
         nextDueDate: subscriptions.nextDueDate,
+        subscriptionId: engagements.subscriptionId,
         companyId: engagements.companyId,
         company: companies.name,
       })

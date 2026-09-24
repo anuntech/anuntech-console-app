@@ -27,6 +27,7 @@ import {
 } from "@/components/console/server-form";
 import { createEngagement } from "@/lib/actions";
 import { updateProject } from "@/lib/task-actions";
+import { MoneyInput } from "@/components/financeiro/invoice-money";
 import type { ProjectCompanyOption } from "@/components/projetos/project-form";
 
 export type ProductFormValues = {
@@ -34,6 +35,9 @@ export type ProductFormValues = {
   name: string;
   description: string | null;
   url: string | null;
+  amountCents?: number | null;
+  /** Linked recurrence: a new price also updates its next periods. */
+  subscriptionId?: string | null;
 };
 
 /** Fields shared by creating and editing a product. Names match the actions. */
@@ -105,6 +109,23 @@ export function ProductFields({
           placeholder="https://"
         />
       </div>
+      {values?.id && (
+        <div>
+          <Label htmlFor="product-amount" className="mb-1.5">
+            Valor para esta empresa
+          </Label>
+          <MoneyInput
+            id="product-amount"
+            required={false}
+            defaultCents={values.amountCents ?? undefined}
+          />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {values.subscriptionId
+              ? "Atualiza a recorrência ligada para os próximos períodos; faturas já emitidas não mudam."
+              : "Só informativo: este item não tem recorrência ligada."}
+          </p>
+        </div>
+      )}
       <div>
         <Label htmlFor="product-description" className="mb-1.5">
           Descrição

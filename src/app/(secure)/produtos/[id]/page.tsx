@@ -18,6 +18,7 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
       item: catalogItems,
       nextDueDate: subscriptions.nextDueDate,
       subscriptionInterval: subscriptions.interval,
+      subscriptionAmount: subscriptions.amountCents,
     })
     .from(engagements)
     .innerJoin(companies, eq(companies.id, engagements.companyId))
@@ -38,7 +39,7 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
           description: row.engagement.description,
           companyId: row.engagement.companyId,
           company: row.company,
-          amountCents: row.engagement.amountCents,
+          amountCents: row.subscriptionAmount ?? row.engagement.amountCents,
           interval: row.subscriptionInterval ?? row.item?.interval ?? null,
           nextDueDate: row.nextDueDate,
           subscriptionId: row.engagement.subscriptionId,
