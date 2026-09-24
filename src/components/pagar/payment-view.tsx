@@ -115,18 +115,14 @@ export function PaymentView({
     <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 sm:py-10">
       <PaymentStatusAnnouncer status={i.status} ready={ready} />
       <header className="mb-8 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Image
-            src="/brand/symbol.png"
-            alt=""
-            width={36}
-            height={36}
-            className="rounded-lg"
-          />
-          <span className="text-lg font-bold tracking-[-0.03em] text-foreground">
-            Anuntech
-          </span>
-        </div>
+        <Image
+          src="/brand/logo-anuntech.png"
+          alt="Anuntech"
+          width={1200}
+          height={372}
+          priority
+          className="h-9 w-auto dark:brightness-0 dark:invert"
+        />
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs whitespace-nowrap text-muted-foreground">
           <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
           <span className="hidden sm:inline">Página oficial da Anuntech</span>
@@ -280,7 +276,7 @@ export function PaymentView({
                           label="Código Pix"
                           variant="default"
                           size="default"
-                          className="mt-3 w-full sm:w-auto"
+                          className="mt-3 w-full"
                         >
                           Copiar código Pix
                         </CopyButton>
@@ -296,26 +292,14 @@ export function PaymentView({
                       title="Boleto"
                       hint="Compensa em até 3 dias úteis."
                     />
-                    <label className="mt-5 block">
-                      <span className="text-xs font-medium text-foreground">
-                        Linha digitável
-                      </span>
-                      <input
-                        readOnly
-                        value={i.boletoLine}
-                        className="mt-1.5 block h-9 w-full rounded-md border border-input bg-field px-3 font-mono text-[11px] tabular-nums text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                      />
-                    </label>
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <CopyButton
-                        value={i.boletoLine}
-                        label="Linha digitável"
-                        variant="default"
-                        size="default"
+                    <div className="mt-5 flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="boleto-line"
+                        className="text-xs font-medium text-foreground"
                       >
-                        Copiar linha digitável
-                      </CopyButton>
-                      <Button variant="outline" asChild>
+                        Linha digitável
+                      </label>
+                      <Button variant="ghost" size="xs" asChild>
                         <DownloadLink
                           href={`/pagar/${publicId}/boleto`}
                           filename="boleto-anuntech.pdf"
@@ -325,6 +309,21 @@ export function PaymentView({
                         </DownloadLink>
                       </Button>
                     </div>
+                    <input
+                      id="boleto-line"
+                      readOnly
+                      value={i.boletoLine}
+                      className="mt-1.5 block h-9 w-full rounded-md border border-input bg-field px-3 font-mono text-[11px] tabular-nums text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    />
+                    <CopyButton
+                      value={i.boletoLine}
+                      label="Linha digitável"
+                      variant="default"
+                      size="default"
+                      className="mt-3 w-full"
+                    >
+                      Copiar linha digitável
+                    </CopyButton>
                     <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
                       Pague pelo app do banco, internet banking ou em qualquer
                       lotérica.
