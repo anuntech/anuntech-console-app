@@ -4,6 +4,8 @@ import { z } from "zod";
 import { and, eq, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "./db";
+import { resolveBankDueDate } from "./billing-notice-rules";
+import { saoPauloDate } from "./dates";
 import { getActor, canAccess } from "./access";
 import {
   companies,
@@ -480,6 +482,7 @@ export async function createInvoice(
         description: str(1000),
         amount: str(20),
         dueDate: z.iso.date(),
+        bankDueDate: z.union([z.iso.date(), z.literal("")]).default(""),
         billingType: z.enum(["one_time", "recurring"]).default("one_time"),
         interval: z.enum(["monthly", "yearly"]).default("monthly"),
       })
@@ -495,6 +498,11 @@ export async function createInvoice(
     } catch (error) {
       return { error: error instanceof Error ? error.message : "Condições inválidas." };
     }
+    const bank = resolveBankDueDate(
+      { dueDate: input.dueDate, bankDueDate: input.bankDueDate, recurring: input.billingType === "recurring" },
+      saoPauloDate(),
+    );
+    if ("error" in bank) return { error: bank.error };
     const invoice = await db.transaction(async (tx) => {
       if (input.engagementId) {
         const [eng] = await tx
@@ -536,6 +544,7 @@ export async function createInvoice(
           description: input.description,
           amountCents,
           dueDate: input.dueDate,
+          bankDueDate: bank.bankDueDate,
           ...terms,
         })
         .returning();
@@ -613,6 +622,7 @@ export async function updateDraft(
         description: str(1000),
         amount: str(20),
         dueDate: z.iso.date(),
+        bankDueDate: z.union([z.iso.date(), z.literal("")]).default(""),
       })
       .parse(Object.fromEntries(form));
     const amountCents = moneyToCents(input.amount);
@@ -625,6 +635,11 @@ export async function updateDraft(
       return { error: error instanceof Error ? error.message : "Condições inválidas." };
     }
     const scope = parseTermsScope(form);
+    const bank = resolveBankDueDate(
+      { dueDate: input.dueDate, bankDueDate: input.bankDueDate, recurring: false },
+      saoPauloDate(),
+    );
+    if ("error" in bank) return { error: bank.error };
     const changed = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(invoices)
@@ -632,6 +647,7 @@ export async function updateDraft(
           description: input.description,
           amountCents,
           dueDate: input.dueDate,
+          bankDueDate: bank.bankDueDate,
           ...terms,
         })
         .where(
@@ -644,6 +660,8 @@ export async function updateDraft(
         .returning();
       if (!row) return false;
       if (row.subscriptionId) {
+        if (bank.bankDueDate)
+          throw new Error("Para uma recorrência, escolha um vencimento a partir de amanhã.");
         const [sub] = await tx
           .select()
           .from(subscriptions)

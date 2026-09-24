@@ -7,7 +7,7 @@ import {
   lockCompanyNotifications,
 } from "./notification-preferences";
 import { enqueueBillingNotice } from "./billing-notice-queue";
-import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   billingNotices,
@@ -30,7 +30,9 @@ import {
   billingWhatsappParameters,
   noticeIsCurrent,
   daysOverdue,
-  reminderKind,
+  noticeDate,
+  payableUntil,
+  reminderKindFor,
 } from "./billing-notice-rules";
 
 const flwHeaders = () => ({
@@ -78,6 +80,7 @@ export async function queueBillingReminders() {
     .select({
       source: billingNotices,
       due: invoices.dueDate,
+      bankDue: invoices.bankDueDate,
       companyId: invoices.companyId,
     })
     .from(billingNotices)
@@ -86,8 +89,11 @@ export async function queueBillingReminders() {
       and(
         eq(billingNotices.kind, "initial"),
         eq(invoices.status, "issued"),
-        lte(invoices.dueDate, today),
-        sql`${invoices.dueDate} > ${today}::date - interval '30 days'`,
+        or(
+          and(lte(invoices.dueDate, today), sql`${invoices.dueDate} > ${today}::date - interval '30 days'`),
+          // A migrated debt gets its "last day" reminder on the boleto's date.
+          eq(invoices.bankDueDate, today),
+        ),
       ),
     );
   const groups = new Map(
@@ -96,8 +102,8 @@ export async function queueBillingReminders() {
       row,
     ]),
   );
-  for (const { source, due, companyId } of groups.values()) {
-    const kind = reminderKind(due, today);
+  for (const { source, due, bankDue, companyId } of groups.values()) {
+    const kind = reminderKindFor({ dueDate: due, bankDueDate: bankDue }, today);
     if (kind)
       await db.transaction((tx) =>
         enqueueBillingNotice(tx, {
@@ -339,10 +345,11 @@ export async function processBillingNotice(
         return;
       }
       // Recheck the reminder against the date just confirmed by the bank.
-      if (!noticeIsCurrent(notice.kind, row.i.dueDate, today)) {
+      const anchor = noticeDate(notice.kind, row.i);
+      if (!noticeIsCurrent(notice.kind, anchor, today)) {
         const future =
           notice.kind !== "initial" &&
-          daysOverdue(row.i.dueDate, today) <
+          daysOverdue(anchor, today) <
             (notice.kind === "due"
               ? 0
               : Number(notice.kind.replace("overdue_", "")));
@@ -359,6 +366,7 @@ export async function processBillingNotice(
         description: row.i.description,
         amountCents: row.i.amountCents,
         dueDate: row.i.dueDate,
+        payUntil: payableUntil(row.i),
         publicId: row.i.publicId!,
         today,
         kind: notice.kind,

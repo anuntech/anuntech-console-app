@@ -21,6 +21,7 @@ export async function publicInvoice(publicId: string) {
       description: invoices.description,
       amountCents: invoices.amountCents,
       dueDate: invoices.dueDate,
+      bankDueDate: invoices.bankDueDate,
       status: invoices.status,
       pix: invoices.pixCopyPaste,
       boletoLine: invoices.boletoLine,

@@ -1,5 +1,6 @@
 "use server";
 import { db } from "./db";
+import { resolveBankDueDate } from "./billing-notice-rules";
 import { invoices, subscriptions, auditEvents } from "@/db/schema";
 import { parseChargeTerms, parseTermsScope, sameTerms } from "./billing-terms";
 import { eq } from "drizzle-orm";
@@ -173,6 +174,7 @@ export async function reissueInvoice(
         .max(1000, "A descrição excede o tamanho permitido."),
       amount: z.string().trim().max(20),
       dueDate: z.iso.date("Informe um vencimento válido."),
+      bankDueDate: z.union([z.iso.date(), z.literal("")]).default(""),
     })
     .safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -200,9 +202,15 @@ export async function reissueInvoice(
   };
   if (scope === "all" && i.subscriptionId)
     await db.update(subscriptions).set(terms).where(eq(subscriptions.id, i.subscriptionId));
+  const bank = resolveBankDueDate(
+    { dueDate: input.dueDate, bankDueDate: input.bankDueDate, recurring: !!i.subscriptionId },
+    saoPauloDate(),
+  );
+  if ("error" in bank) return { error: bank.error };
   if (
     amountCents === i.amountCents &&
     input.dueDate === i.dueDate &&
+    bank.bankDueDate === i.bankDueDate &&
     sameTerms(terms, currentTerms)
   ) {
     if (input.description !== i.description) {
@@ -222,8 +230,6 @@ export async function reissueInvoice(
   }
   if (amountCents < 250)
     return { error: "O valor mínimo de uma cobrança Inter é R$ 2,50." };
-  if (input.dueDate <= saoPauloDate())
-    return { error: "Escolha um vencimento a partir de amanhã." };
   if (i.subscriptionId) {
     const [sub] = await db
       .select()
@@ -264,6 +270,7 @@ export async function reissueInvoice(
         description: input.description,
         amountCents,
         dueDate: input.dueDate,
+        bankDueDate: bank.bankDueDate,
         ...terms,
         status: "draft",
         providerId: null,
@@ -284,6 +291,7 @@ export async function reissueInvoice(
         providerId: i.providerId,
         amountCents: i.amountCents,
         dueDate: i.dueDate,
+        bankDueDate: i.bankDueDate,
         reason: "reissue",
       },
     });

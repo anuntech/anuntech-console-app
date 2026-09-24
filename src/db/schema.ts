@@ -522,6 +522,12 @@ export const invoices = pgTable(
     description: text("description").notNull(),
     amountCents: integer("amount_cents").notNull(),
     dueDate: date("due_date").notNull(),
+    /**
+     * When the obligation is already past due (a debt brought in from
+     * elsewhere), the bank still needs a future date for the boleto/Pix.
+     * Null means the boleto is due on `dueDate` itself.
+     */
+    bankDueDate: date("bank_due_date"),
     /** Charge terms sent to the bank: a discount until the due date, and fine + monthly interest after it (basis points). */
     discountCents: integer("discount_cents"),
     fineBps: integer("fine_bps"),

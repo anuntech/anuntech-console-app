@@ -81,6 +81,7 @@ const SCREENS = [
   "fatura-recorrente",
   "fatura-recorrente-atrasada",
   "fatura-paga",
+  "fatura-migrada",
   "fatura-cliente",
   "nova-cobranca",
   "pagamento",
@@ -476,9 +477,10 @@ export default async function Preview({
   const invoice: InvoiceDetailData = {
     invoice: {
       id: "i1",
-      description: "Manutenção mensal — outubro",
+      description: tela === "fatura-migrada" ? "Synova - Fatura atrasada de agosto" : "Manutenção mensal — outubro",
       amountCents: 189000,
-      dueDate: day(12),
+      dueDate: tela === "fatura-migrada" ? day(-46) : day(12),
+      bankDueDate: tela === "fatura-migrada" ? day(15) : null,
       terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
       status: invoiceStatus,
       display:
@@ -486,7 +488,9 @@ export default async function Preview({
           ? tela.startsWith("fatura-recorrente")
             ? "scheduled"
             : "draft"
-          : invoiceStatus,
+          : tela === "fatura-migrada"
+            ? "overdue"
+            : invoiceStatus,
       createdAt: ago(24 * 4),
       engagement: "Manutenção mensal",
       providerId: invoiceStatus === "draft" ? null : "7f3e1b2c-0000-4000-8000-000000000001",
@@ -1280,6 +1284,7 @@ export default async function Preview({
             company: "Maxipark Estacionamentos Ltda",
             amountCents: 270000,
             dueDate: tela === "pagamento-vencida" ? day(-6) : day(12),
+            bankDueDate: tela === "pagamento-vencida" ? day(10) : null,
             status: tela === "pagamento-paga" ? "paid" : "issued",
             pix:
               tela === "pagamento-processando" || tela === "pagamento-paga"

@@ -73,6 +73,8 @@ export type InvoiceRow = {
   status: InvoiceTableStatus;
   display: InvoiceDisplayStatus;
   dueDate: string;
+  /** The boleto's date when the obligation is already past due. */
+  bankDueDate?: string | null;
   recurring: boolean;
   interval: "monthly" | "yearly" | null;
   publicUrl: string | null;
@@ -422,7 +424,7 @@ export function InvoicesTable({
         open={editing !== null}
         onOpenChange={(open) => !open && setEditing(null)}
         mode={mode}
-        invoice={editing}
+        invoice={editing ? { ...editing, bankDueDate: editing.bankDueDate ?? null } : null}
       />
     </>
   );

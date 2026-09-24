@@ -32,6 +32,7 @@ export default async function Payment({
           company: i.company,
           amountCents: i.amountCents,
           dueDate: i.dueDate,
+          bankDueDate: i.bankDueDate,
           status: i.status as "issued" | "paid" | "cancelled",
           pix: i.pix,
           boletoLine: i.boletoLine,

@@ -117,6 +117,7 @@ export default async function Invoice({
           description: i.description,
           amountCents: i.amountCents,
           dueDate: i.dueDate,
+          bankDueDate: i.bankDueDate,
           status: i.status,
           display: invoiceDisplayStatus(
             { status: i.status, dueDate: i.dueDate, scheduled },

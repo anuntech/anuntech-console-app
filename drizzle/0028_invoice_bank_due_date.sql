@@ -1,0 +1,1 @@
+ALTER TABLE "console_invoices" ADD COLUMN "bank_due_date" date;

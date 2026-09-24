@@ -19,6 +19,7 @@ import {
 import { createInvoice } from "@/lib/actions";
 import { MoneyInput } from "./invoice-money";
 import { ChargeTermsFields } from "./charge-terms-fields";
+import { BankDueDateField } from "./bank-due-date-field";
 
 export type InvoiceCompanyOption = { id: string; name: string };
 export type InvoiceEngagementOption = {
@@ -56,6 +57,8 @@ export function InvoiceFields({
     companyId ?? (companies.length === 1 ? companies[0].id : ""),
   );
   const [type, setType] = useState<"one_time" | "recurring">("one_time");
+  const [dueDate, setDueDate] = useState("");
+  const [bankDueDate, setBankDueDate] = useState("");
   const items = engagements.filter((e) => e.companyId === company);
   return (
     <div className="grid gap-5">
@@ -173,9 +176,12 @@ export function InvoiceFields({
           <Label htmlFor="invoice-due" className="mb-1.5">
             {type === "recurring" ? "Primeiro vencimento" : "Vencimento"}
           </Label>
-          <DateField id="invoice-due" name="dueDate" required />
+          <DateField id="invoice-due" name="dueDate" required value={dueDate} onChange={setDueDate} />
         </div>
       </div>
+      {type === "one_time" && (
+        <BankDueDateField dueDate={dueDate} value={bankDueDate} onChange={setBankDueDate} idPrefix="invoice" />
+      )}
       <ChargeTermsFields idPrefix="invoice-terms" />
       {type === "recurring" && (
         <p className="text-xs text-muted-foreground">

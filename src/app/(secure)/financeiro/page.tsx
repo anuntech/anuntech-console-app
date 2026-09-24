@@ -115,6 +115,7 @@ export default async function Finance({
         status: invoices.status,
         display: displayStatus,
         dueDate: invoices.dueDate,
+        bankDueDate: invoices.bankDueDate,
         publicId: invoices.publicId,
         publicEnabled: invoices.publicEnabled,
         subscriptionId: invoices.subscriptionId,
@@ -223,6 +224,7 @@ export default async function Finance({
           status: row.status,
           display: row.display as InvoiceDisplayStatus,
           dueDate: row.dueDate,
+          bankDueDate: row.bankDueDate,
           recurring: !!row.subscriptionId,
           terms: {
             discountCents: row.discountCents,

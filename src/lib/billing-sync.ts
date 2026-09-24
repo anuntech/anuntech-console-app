@@ -69,7 +69,10 @@ export async function reconcileCharge(
     // The authenticated bank is authoritative for the effective due date
     // (for example, Sunday rolls to Monday). Identity, reference, amount and
     // payer must still match. Keep the requested date in the immutable request.
-    if (current.dueDate !== i.dueDate && c.dataVencimento !== current.dueDate)
+    // A past-due obligation keeps its own due date; the bank's date is the boleto's.
+    const field = current.bankDueDate ? "bankDueDate" : "dueDate";
+    const known = current[field] as string;
+    if (known !== (i[field] ?? i.dueDate) && c.dataVencimento !== known)
       return; // A concurrent reconciliation already applied a newer date.
     await tx
       .update(invoices)
@@ -79,8 +82,8 @@ export async function reconcileCharge(
         status: next,
         bankStatus: c.situacao,
         bankCheckedAt: new Date(),
-        dueDate: c.dataVencimento,
-        ...(current.dueDate !== c.dataVencimento ||
+        [field]: c.dataVencimento,
+        ...(known !== c.dataVencimento ||
         current.boletoLine !== (result.boleto?.linhaDigitavel || null)
           ? { boletoPdf: null }
           : {}),
@@ -91,17 +94,20 @@ export async function reconcileCharge(
     await advanceSubscription(tx, {
       ...current,
       status: next,
-      dueDate: z.iso.date().parse(current.bankRequest!.dataVencimento),
+      dueDate: current.bankDueDate
+        ? current.dueDate
+        : z.iso.date().parse(current.bankRequest!.dataVencimento),
     });
-    if (current.dueDate !== c.dataVencimento)
+    if (known !== c.dataVencimento)
       await tx.insert(auditEvents).values({
         actorId,
         companyId: i.companyId,
         action: "invoice.bank_due_date_updated",
         entityId: id,
         details: {
-          previousDueDate: current.dueDate,
+          previousDueDate: known,
           dueDate: c.dataVencimento,
+          field,
           source,
         },
       });

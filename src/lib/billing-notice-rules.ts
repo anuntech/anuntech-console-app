@@ -46,11 +46,49 @@ export function noticeIsCurrent(
 ) {
   return kind === "initial" ? today < due : kind === reminderKind(due, today);
 }
+/** The date the boleto/Pix can be paid until: the bank's date when the obligation is already past due. */
+export function payableUntil(i: { dueDate: string; bankDueDate?: string | null }) {
+  return i.bankDueDate ?? i.dueDate;
+}
+/**
+ * Which date a notice is judged against: the payable date for the first
+ * notice and for "due today", the real due date for arrears.
+ */
+export function noticeDate(kind: BillingNoticeKind, i: { dueDate: string; bankDueDate?: string | null }) {
+  return kind === "initial" || kind === "due" ? payableUntil(i) : i.dueDate;
+}
+/** The reminder an invoice calls for today: "due" on the payable date, arrears counted from the real due date. */
+export function reminderKindFor(
+  i: { dueDate: string; bankDueDate?: string | null },
+  today: string,
+): BillingNoticeKind | null {
+  if (payableUntil(i) === today) return "due";
+  const kind = reminderKind(i.dueDate, today);
+  return kind === "due" && i.bankDueDate ? null : kind;
+}
+/**
+ * A due date in the past is allowed for debts brought in from elsewhere,
+ * as long as the bank gets a future date to put on the boleto. A
+ * recurrence, though, always starts in the future.
+ */
+export function resolveBankDueDate(
+  input: { dueDate: string; bankDueDate: string; recurring: boolean },
+  today: string,
+): { bankDueDate: string | null } | { error: string } {
+  if (input.dueDate > today) return { bankDueDate: null };
+  if (input.recurring) return { error: "Para uma recorrência, escolha um primeiro vencimento a partir de amanhã." };
+  if (!input.bankDueDate)
+    return { error: "O vencimento já passou. Informe até quando o boleto e o Pix podem ser pagos." };
+  if (input.bankDueDate <= today) return { error: "A data para pagar precisa ser a partir de amanhã." };
+  return { bankDueDate: input.bankDueDate };
+}
 export function billingWhatsappParameters(data: {
   name: string;
   description: string;
   amountCents: number;
   dueDate: string;
+  /** When the boleto's date differs from the due date, the message names the payable one. */
+  payUntil?: string;
   publicId: string;
   today: string;
   kind: BillingNoticeKind;
@@ -62,7 +100,7 @@ export function billingWhatsappParameters(data: {
     "[id_fatura]": data.publicId,
   };
   if (data.kind === "initial")
-    parameters["[vencimento]"] = dateLabel(data.dueDate);
+    parameters["[vencimento]"] = dateLabel(data.payUntil ?? data.dueDate);
   if (data.kind.startsWith("overdue_"))
     parameters["[dias_em_atraso]"] = String(
       daysOverdue(data.dueDate, data.today),

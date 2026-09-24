@@ -25,6 +25,8 @@ export type PublicInvoiceView = {
   company: string;
   amountCents: number;
   dueDate: string;
+  /** The boleto's date when the obligation is already past due. */
+  bankDueDate?: string | null;
   status: "issued" | "paid" | "cancelled";
   pix: string | null;
   boletoLine: string | null;
@@ -196,6 +198,12 @@ export function PaymentView({
                 {dateLabel(i.dueDate)}
               </dd>
             </div>
+            {payable && i.bankDueDate && i.bankDueDate !== i.dueDate && (
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-muted-foreground">Pague até</dt>
+                <dd className="font-semibold text-foreground tabular-nums">{dateLabel(i.bankDueDate)}</dd>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-4">
               <dt className="text-muted-foreground">Emissor</dt>
               <dd className="font-semibold text-foreground">Anuntech</dd>

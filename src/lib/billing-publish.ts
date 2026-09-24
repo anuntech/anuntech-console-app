@@ -35,9 +35,13 @@ export async function publishInvoice(
       if (i.amountCents < 250)
         throw new Error("O valor mínimo de uma cobrança Inter é R$ 2,50.");
       const today = saoPauloDate();
-      if (i.dueDate <= today)
+      // A past-due obligation goes to the bank with the boleto's own date.
+      const payable = i.bankDueDate ?? i.dueDate;
+      if (payable <= today)
         throw new Error(
-          "Escolha um vencimento a partir de amanhã para emitir pelo Console.",
+          i.bankDueDate
+            ? "A data para pagar já passou. Edite a fatura e informe uma nova data."
+            : "Escolha um vencimento a partir de amanhã para emitir pelo Console.",
         );
       const [company] = await tx
         .select()
@@ -111,7 +115,7 @@ export async function publishInvoice(
           ? `${reference.slice(0, 14)}${Math.min(reissues, 9)}`
           : reference,
         valorNominal: i.amountCents / 100,
-        dataVencimento: i.dueDate,
+        dataVencimento: payable,
         numDiasAgenda,
         ...interChargeTerms({
           discountCents: i.discountCents,

@@ -13,6 +13,8 @@ export function billingEmailTemplate(data: {
   description: string;
   amountCents: number;
   dueDate: string;
+  /** The boleto's date when it differs from the due date (a debt brought in past due). */
+  payUntil?: string;
   url: string;
   kind?: BillingNoticeKind;
   today?: string;
@@ -20,6 +22,7 @@ export function billingEmailTemplate(data: {
 }) {
   const amount = currency(data.amountCents),
     due = dateLabel(data.dueDate),
+    payUntil = data.payUntil && data.payUntil !== data.dueDate ? dateLabel(data.payUntil) : null,
     kind = data.kind || "initial";
   const overdue = kind.startsWith("overdue_");
   const heading = overdue
@@ -49,7 +52,7 @@ export function billingEmailTemplate(data: {
     : null;
   const footer = `Anuntech${issuer ? ` · CNPJ ${issuer}` : ""}`;
   const supportUrl = "https://wa.me/551151073435";
-  const text = `Olá, ${data.name}!${kind === "initial" ? " Tudo bem?" : ""}\n\n${message}\n\nProduto ou serviço: ${data.description}\n${amountLabel}: ${amount}\nVencimento: ${due}\n\n${closing}\n\nPagar agora: ${data.url}\n\nSua cobrança é gerenciada pelo Console Anuntech, em ${domain}. Acesso direto ao pagamento, sem login.\n\nPrecisa de ajuda? Fale com nossa equipe: ${supportUrl}\n\n${footer}`;
+  const text = `Olá, ${data.name}!${kind === "initial" ? " Tudo bem?" : ""}\n\n${message}\n\nProduto ou serviço: ${data.description}\n${amountLabel}: ${amount}\nVencimento: ${due}${payUntil ? ` (em atraso)\nPague até: ${payUntil} com este boleto ou Pix` : ""}\n\n${closing}\n\nPagar agora: ${data.url}\n\nSua cobrança é gerenciada pelo Console Anuntech, em ${domain}. Acesso direto ao pagamento, sem login.\n\nPrecisa de ajuda? Fale com nossa equipe: ${supportUrl}\n\n${footer}`;
   const html = `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escape(subject)}</title></head>
 <body style="margin:0;padding:0;background:#f2f4f7;color:#101e40;font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%">
@@ -68,7 +71,7 @@ export function billingEmailTemplate(data: {
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6fa;border:1px solid #e7ebf1;border-radius:12px">
 <tr><td style="padding:24px 22px 18px"><p style="margin:0 0 7px;font-size:12px;line-height:18px;color:#617087">PRODUTO OU SERVIÇO</p><p style="margin:0;font-size:17px;line-height:24px;font-weight:700">${escape(data.description)}</p></td></tr>
 <tr><td style="padding:0 22px"><div style="border-top:1px solid #dfe5ee;height:1px;line-height:1px">&nbsp;</div></td></tr>
-<tr><td style="padding:20px 22px 24px"><p style="margin:0 0 6px;font-size:13px;line-height:20px;color:#617087">${amountLabel}</p><p style="margin:0 0 14px;font-size:34px;line-height:40px;letter-spacing:-1px;font-weight:700">${escape(amount)}</p><p style="margin:0;font-size:14px;line-height:22px;color:#465269">Vencimento: <strong style="color:#101e40">${escape(due)}</strong></p></td></tr>
+<tr><td style="padding:20px 22px 24px"><p style="margin:0 0 6px;font-size:13px;line-height:20px;color:#617087">${amountLabel}</p><p style="margin:0 0 14px;font-size:34px;line-height:40px;letter-spacing:-1px;font-weight:700">${escape(amount)}</p><p style="margin:0;font-size:14px;line-height:22px;color:#465269">Vencimento: <strong style="color:#101e40">${escape(due)}</strong>${payUntil ? ` · <span style="color:#b42318">em atraso</span><br>Pague até: <strong style="color:#101e40">${escape(payUntil)}</strong> com este boleto ou Pix` : ""}</p></td></tr>
 </table>
 <p style="margin:24px 0;font-size:15px;line-height:24px;color:#465269">${escape(closing)}</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" bgcolor="#101e40" style="border-radius:8px"><a href="${escape(data.url)}" style="display:block;border:1px solid #101e40;border-radius:8px;padding:17px 20px;color:#fff;text-decoration:none;font-size:16px;line-height:22px;font-weight:700">Pagar agora</a></td></tr></table>

@@ -76,6 +76,8 @@ export type InvoiceDetailData = {
     description: string;
     amountCents: number;
     dueDate: string;
+    /** The boleto's date when the obligation is already past due. */
+    bankDueDate?: string | null;
     status: InvoiceTableStatus;
     display: InvoiceDisplayStatus;
     createdAt: string;
@@ -276,6 +278,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           description: sub.description,
           amountCents: sub.amountCents,
           dueDate: sub.nextDueDate,
+          bankDueDate: null,
           terms: sub.terms,
           recurring: true,
         }
@@ -284,6 +287,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           description: invoice.description,
           amountCents: invoice.amountCents,
           dueDate: invoice.dueDate,
+          bankDueDate: invoice.bankDueDate ?? null,
           terms: invoice.terms,
           recurring: !!sub,
         };
@@ -423,6 +427,11 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   >
                     {dateLabel(invoice.dueDate)}
                   </p>
+                  {invoice.bankDueDate && invoice.bankDueDate !== invoice.dueDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Boleto e Pix válidos até {dateLabel(invoice.bankDueDate)}
+                    </p>
+                  )}
                   {late > 0 && (
                     <p className="text-xs text-destructive">
                       {late === 1 ? "1 dia de atraso" : `${late} dias de atraso`}

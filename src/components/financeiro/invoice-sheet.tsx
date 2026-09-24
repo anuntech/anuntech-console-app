@@ -30,6 +30,7 @@ import {
 } from "./invoice-form";
 import { MoneyInput } from "./invoice-money";
 import { ChargeTermsFields } from "./charge-terms-fields";
+import { BankDueDateField } from "./bank-due-date-field";
 import { sameTerms, type ChargeTerms } from "@/lib/billing-terms";
 
 export type InvoiceEditable = {
@@ -37,6 +38,8 @@ export type InvoiceEditable = {
   description: string;
   amountCents: number;
   dueDate: string;
+  /** The boleto's date when the obligation is already past due. */
+  bankDueDate: string | null;
   terms: ChargeTerms;
   /** The invoice belongs to a recurrence, so terms can apply to the next ones too. */
   recurring: boolean;
@@ -84,12 +87,14 @@ function EditForm({
   const text = copy[mode];
   const [cents, setCents] = useState(invoice.amountCents);
   const [dueDate, setDueDate] = useState(invoice.dueDate);
+  const [bankDueDate, setBankDueDate] = useState(invoice.bankDueDate ?? "");
   const [terms, setTerms] = useState(invoice.terms);
   // A changed amount, date or condition sends the issued charge back to the bank.
   const reissue =
     mode === "issued" &&
     (cents !== invoice.amountCents ||
       dueDate !== invoice.dueDate ||
+      bankDueDate !== (invoice.bankDueDate ?? "") ||
       !sameTerms(terms, invoice.terms));
   return (
     <ServerForm
@@ -143,6 +148,9 @@ function EditForm({
             />
           </div>
         </div>
+        {mode !== "subscription" && !invoice.recurring && (
+          <BankDueDateField dueDate={dueDate} value={bankDueDate} onChange={setBankDueDate} idPrefix="edit" />
+        )}
         <ChargeTermsFields
           idPrefix="edit-terms"
           defaultValue={invoice.terms}
