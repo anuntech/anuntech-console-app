@@ -597,7 +597,8 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
         contractId: c.id,
         party,
         userId: actor.user.id,
-        name: actor.user.name,
+        // A person who never set a name still signs identifiably, by the e-mail they logged in with.
+        name: actor.user.name || actor.user.email,
         email: actor.user.email,
         documentHash: c.documentHash!,
         ip,

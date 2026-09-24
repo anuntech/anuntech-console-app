@@ -126,7 +126,7 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           signedAt: s.signedAt.toISOString(),
           ip: s.ip,
         })),
-        viewer: { admin: actor.admin, party, name: actor.user.name },
+        viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email },
         events: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString() })),
         now: new Date().toISOString(),
         today: saoPauloDate(),

@@ -145,7 +145,7 @@ export default async function Company({
         links: {
           tickets: `/chamados?company=${id}`,
           invoices: `/financeiro?company=${id}`,
-          contracts: "/contratos",
+          contracts: `/contratos?company=${id}`,
           engagements: `/projetos?company=${id}`,
         },
       }}
