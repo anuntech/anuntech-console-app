@@ -32,11 +32,15 @@ export default async function RootLayout({
         </AppearanceProvider>
         {/* Synova support widget; the vendor limits it to console.anuntech.com, so only production loads it. */}
         {process.env.NODE_ENV === "production" && (
-          <Script
-            src="https://cdn.wts.chat/scripts/widget/v3/h-widget-min.js"
-            data-widget="support-nova-versao-b4caa2"
-            strategy="afterInteractive"
-          />
+          <>
+            {/* The widget binds to this at boot; every "Falar com o suporte" button clicks it. */}
+            <button type="button" id="support-widget-trigger" className="h-widget-trigger" hidden tabIndex={-1} aria-hidden="true" />
+            <Script
+              src="https://cdn.wts.chat/scripts/widget/v3/h-widget-min.js"
+              data-widget="support-nova-versao-b4caa2"
+              strategy="afterInteractive"
+            />
+          </>
         )}
       </body>
     </html>

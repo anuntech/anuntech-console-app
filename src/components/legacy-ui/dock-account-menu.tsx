@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { UserRound, Palette, Users, LogOut } from "lucide-react";
+import { UserRound, Palette, Users, LogOut, MessageCircleQuestion } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isCatalogAvatar } from "@/lib/avatar-catalog";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/settings/illustrated-avatar";
 import { useAppearance } from "@/components/appearance-provider";
 import { toast } from "@/components/notifications";
+import { openSupportWidget } from "@/components/support-trigger";
 import styles from "./bottom-menu.module.css";
 
 export function DockAccountMenu({ name, image, canManageMembers }: {
@@ -47,6 +48,9 @@ export function DockAccountMenu({ name, image, canManageMembers }: {
           <Menu.Item key={href} asChild disabled={pending} onSelect={() => { navigating.current = true; }}>
             <Link href={href} className={styles.panelLink}><Icon size={18} aria-hidden="true" />{label}</Link>
           </Menu.Item>)}
+        <Menu.Item className={styles.panelLink} disabled={pending} onSelect={() => setTimeout(openSupportWidget, 0)}>
+          <MessageCircleQuestion size={18} aria-hidden="true" />Falar com o suporte
+        </Menu.Item>
         <Menu.Separator className={styles.accountSeparator} />
         <Menu.Item className={`${styles.panelLink} ${styles.accountSignOut}`} disabled={pending} onSelect={async event => {
           event.preventDefault();

@@ -1,5 +1,6 @@
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthAlert } from "@/components/auth/feedback";
+import { SupportButton } from "@/components/support-trigger";
 import { LoginForm } from "@/components/auth/login-form";
 export const metadata = {
   title: "Entrar",
@@ -27,7 +28,14 @@ export default async function SignIn({
           )}
           <LoginForm />
           <p className="text-center text-xs text-muted-foreground">
-            Ainda não tem acesso? Solicite a liberação à equipe da Anuntech.
+            Ainda não tem acesso?{" "}
+            {process.env.NODE_ENV === "production" ? (
+              <SupportButton className="font-medium text-primary underline-offset-2 hover:underline">
+                Fale com a equipe da Anuntech
+              </SupportButton>
+            ) : (
+              "Solicite a liberação à equipe da Anuntech."
+            )}
           </p>
         </div>
       </AuthShell>
