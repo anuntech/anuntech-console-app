@@ -158,6 +158,12 @@ export default function BottomMenu({
                           allowed: admin,
                         },
                         {
+                          href: "/produtos/novo",
+                          label: "Novo produto ou projeto",
+                          icon: Layers3,
+                          allowed: admin,
+                        },
+                        {
                           href: "/contratos/novo",
                           label: "Novo contrato",
                           icon: Folders,

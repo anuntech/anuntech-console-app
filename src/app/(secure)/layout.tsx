@@ -8,8 +8,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function ConsoleLayout({
   children,
+  ticket,
 }: {
   children: React.ReactNode;
+  /** Intercepted "new" routes: sheets that slide over the current page. */
+  ticket: React.ReactNode;
 }) {
   const actor = await getActor();
   if (!actor.admin && !actor.grants.length && !actor.assisting)
@@ -45,6 +48,7 @@ export default async function ConsoleLayout({
           <main className="page-content" id="main-content" tabIndex={-1}>
             {children}
           </main>
+          {ticket}
         </div>
       </div>
     </>
