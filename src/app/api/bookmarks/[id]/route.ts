@@ -1,23 +1,36 @@
-import { eq } from "drizzle-orm";
-import { bookmarks } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { and, eq, or } from "drizzle-orm";
+import { bookmarkFolderShares, bookmarkFolders, bookmarks } from "@/db/schema";
+import { getActor } from "@/lib/access";
 import { db } from "@/lib/db";
+
+/** A saved file: for its owner, or for anyone the folder is shared with. */
 export async function GET(
   _: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const actor = await getActor();
   const { id } = await params;
-  const [meta] = await db
-    .select({ companyId: bookmarks.companyId })
-    .from(bookmarks)
-    .where(eq(bookmarks.id, id));
-  if (!meta || !canAccess(actor, meta.companyId, "overview"))
-    return new Response(null, { status: 404 });
   const [file] = await db
     .select({ content: bookmarks.content, name: bookmarks.fileName })
     .from(bookmarks)
-    .where(eq(bookmarks.id, id));
+    .leftJoin(bookmarkFolders, eq(bookmarkFolders.id, bookmarks.folderId))
+    .leftJoin(
+      bookmarkFolderShares,
+      and(
+        eq(bookmarkFolderShares.folderId, bookmarks.folderId),
+        eq(bookmarkFolderShares.userId, actor.user.id),
+      ),
+    )
+    .where(
+      and(
+        eq(bookmarks.id, id),
+        or(
+          eq(bookmarks.ownerId, actor.user.id),
+          eq(bookmarkFolders.ownerId, actor.user.id),
+          eq(bookmarkFolderShares.userId, actor.user.id),
+        ),
+      ),
+    );
   if (!file?.content || !file.name) return new Response(null, { status: 404 });
   return new Response(new Uint8Array(file.content), {
     headers: {

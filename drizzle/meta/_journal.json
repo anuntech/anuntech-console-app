@@ -148,6 +148,13 @@
       "when": 1790218150317,
       "tag": "0020_task_assignees",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790219651220,
+      "tag": "0021_bookmark_folders",
+      "breakpoints": true
     }
   ]
 }

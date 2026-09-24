@@ -629,17 +629,48 @@ export const environmentProfile = pgTable("console_environment_profile", {
     .defaultNow(),
 });
 
-export const bookmarks = pgTable("console_bookmarks", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  companyId: text("company_id").notNull().references(() => companies.id),
-  engagementId: text("engagement_id").references(() => engagements.id),
-  title: text("title").notNull(),
-  url: text("url"),
-  fileName: text("file_name"),
-  content: bytea("content"),
-  authorId: text("author_id").notNull().references(() => user.id),
-  createdAt: created(),
-}, (t) => [index("console_bookmark_company_idx").on(t.companyId)]);
+/** A personal folder; sharing it lets other people read it and add to it. */
+export const bookmarkFolders = pgTable(
+  "console_bookmark_folders",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    ownerId: text("owner_id").notNull().references(() => user.id),
+    name: text("name").notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("console_bookmark_folder_owner_idx").on(t.ownerId)],
+);
+export const bookmarkFolderShares = pgTable(
+  "console_bookmark_folder_shares",
+  {
+    folderId: text("folder_id").notNull().references(() => bookmarkFolders.id),
+    userId: text("user_id").notNull().references(() => user.id),
+    createdAt: created(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.folderId, t.userId] }),
+    index("console_bookmark_share_user_idx").on(t.userId),
+  ],
+);
+/** A link or a small file. Outside a folder it is private to its owner. */
+export const bookmarks = pgTable(
+  "console_bookmarks",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    ownerId: text("author_id").notNull().references(() => user.id),
+    folderId: text("folder_id").references(() => bookmarkFolders.id),
+    title: text("title").notNull(),
+    url: text("url"),
+    fileName: text("file_name"),
+    content: bytea("content"),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("console_bookmark_owner_idx").on(t.ownerId),
+    index("console_bookmark_folder_idx").on(t.folderId),
+  ],
+);
 
 export const ticketUploads = pgTable("console_ticket_uploads", {
   id: text("id").primaryKey(),

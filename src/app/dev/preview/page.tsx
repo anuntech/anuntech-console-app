@@ -37,6 +37,7 @@ import { PaymentView } from "@/components/pagar/payment-view";
 import { ProjectsList } from "@/components/projetos/projects-list";
 import { ProjectBoard } from "@/components/projetos/project-board";
 import { NewProjectForm } from "@/components/projetos/project-form";
+import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { SettingsNav } from "@/components/settings/settings-nav";
@@ -87,6 +88,8 @@ const SCREENS = [
   "projeto",
   "projeto-cliente",
   "novo-projeto",
+  "bookmarks",
+  "bookmarks-vazio",
 ];
 
 /**
@@ -711,6 +714,47 @@ export default async function Preview({
     today,
     now: now.toISOString(),
   };
+  const bookmarkFolders = [
+    {
+      id: "f1",
+      name: "Referências de design",
+      ownerId: "u1",
+      owner: "Kauan Ketner",
+      sharedWith: [person("u2", "Alexandre Souza"), person("u3", "Mariana Lopes")],
+      count: 4,
+    },
+    { id: "f2", name: "Fornecedores", ownerId: "u1", owner: "Kauan Ketner", sharedWith: [], count: 2 },
+    { id: "f3", name: "Materiais Maxipark", ownerId: "u2", owner: "Alexandre Souza", sharedWith: [], count: 2 },
+  ];
+  const bookmark = (id: string, title: string, url: string | null, folderId: string | null, fileName?: string) => ({
+    id,
+    title,
+    url,
+    fileName: fileName ?? null,
+    folderId,
+    ownerId: folderId === "f3" ? "u2" : "u1",
+    createdAt: ago(3),
+  });
+  const bookmarkItems = [
+    bookmark("b1", "Guia de componentes do shadcn", "https://ui.shadcn.com/docs/components", "f1"),
+    bookmark("b2", "Paleta de cores da marca", "https://www.figma.com/file/abc/anuntech-brand", "f1"),
+    bookmark("b3", "Ícones Lucide", "https://lucide.dev/icons", "f1"),
+    bookmark("b4", "Dribbble: dashboards", "https://dribbble.com/tags/dashboard", "f1"),
+    bookmark("b5", "Tabela de preços Resend", "https://resend.com/pricing", "f2"),
+    bookmark("b6", "Contrato padrão do fornecedor", null, "f2", "contrato-fornecedor.pdf"),
+    bookmark("b7", "Planilha de vagas do estacionamento", "https://docs.google.com/spreadsheets/d/xyz", "f3"),
+    bookmark("b8", "Fotos das unidades", "https://drive.google.com/drive/folders/123", "f3"),
+    bookmark("b9", "Documentação da API do Inter", "https://developers.inter.co/references/cobranca", null),
+    bookmark("b10", "Painel da Vercel", "https://vercel.com/anuntech", null),
+  ];
+  const bookmarksData = {
+    folders: bookmarkFolders,
+    items: tela === "bookmarks-vazio" ? [] : bookmarkItems,
+    query: { folder: "all", search: tela === "bookmarks-vazio" ? "zzz" : "" },
+    counts: { root: 2, total: 10 },
+    people: boardPeople.filter((p) => p.id !== "u1"),
+    viewerId: "u1",
+  };
   if (tela.startsWith("login"))
     return (
       <AuthShell
@@ -802,6 +846,8 @@ export default async function Preview({
             canCreate
           />
         </>
+      ) : tela.startsWith("bookmarks") ? (
+        <BookmarksView data={bookmarksData} />
       ) : tela.startsWith("projeto-") || tela === "projeto" ? (
         <ProjectBoard data={board} />
       ) : tela === "novo-projeto" ? (

@@ -1,0 +1,517 @@
+"use client";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
+import {
+  BookmarkIcon,
+  FileIcon,
+  FolderIcon,
+  FolderInputIcon,
+  FolderPlusIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  Share2Icon,
+  Trash2Icon,
+  UsersIcon,
+  XIcon,
+} from "lucide-react";
+import { cn } from "cn";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  NativeSelect,
+  NativeSelectOptGroup,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EmptyState, PageHeader } from "@/components/console/page-header";
+import { DownloadLink } from "@/components/console/download-link";
+import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
+import { AvatarStack } from "@/components/console/person-avatar";
+import type { PersonOption } from "@/components/console/people-field";
+import { moveBookmark, deleteBookmark } from "@/lib/bookmark-actions";
+import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks";
+import { BookmarkSheet, type BookmarkEditor } from "./bookmark-sheet";
+import { FolderDialogs, type FolderEditor } from "./folder-dialogs";
+
+export type BookmarksViewData = {
+  folders: FolderView[];
+  items: BookmarkView[];
+  query: BookmarkQuery;
+  counts: { root: number; total: number };
+  people: PersonOption[];
+  viewerId: string;
+};
+
+const tones = [
+  "bg-accent text-primary",
+  "bg-success-soft text-success",
+  "bg-warning-soft text-warning",
+  "bg-destructive-soft text-destructive",
+  "bg-secondary text-foreground",
+];
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+/** A letter tile stands in for the favicon, without calling anyone. */
+function Tile({ item }: { item: BookmarkView }) {
+  if (!item.url)
+    return (
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+        <FileIcon className="size-4" />
+      </span>
+    );
+  const host = hostOf(item.url);
+  let hash = 0;
+  for (const char of host) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold uppercase",
+        tones[hash % tones.length],
+      )}
+    >
+      {host.replace(/^[^a-z0-9]+/i, "").charAt(0) || "•"}
+    </span>
+  );
+}
+
+function href(query: BookmarkQuery, patch: Partial<BookmarkQuery>) {
+  const next = { ...query, ...patch };
+  const params = new URLSearchParams();
+  if (next.folder !== "all") params.set("pasta", next.folder);
+  if (next.search) params.set("q", next.search);
+  return `/bookmarks${params.size ? `?${params}` : ""}`;
+}
+
+/** Moves through one hidden form so the row menu stays a menu. */
+function useBookmarkMove() {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [move, setMove] = useState({ id: "", folderId: "" });
+  const submit = (id: string, folderId: string) =>
+    setTimeout(() => {
+      flushSync(() => setMove({ id, folderId }));
+      formRef.current?.requestSubmit();
+    }, 0);
+  const form = (
+    <ServerForm ref={formRef} action={moveBookmark}>
+      <input type="hidden" name="id" value={move.id} />
+      <input type="hidden" name="folderId" value={move.folderId} />
+    </ServerForm>
+  );
+  return { submit, form };
+}
+
+function NavItem({
+  active,
+  href: to,
+  icon,
+  label,
+  count,
+  hint,
+  menu,
+}: {
+  active: boolean;
+  href: string;
+  icon: ReactNode;
+  label: string;
+  count?: number;
+  hint?: string;
+  menu?: ReactNode;
+}) {
+  return (
+    <li className="group/nav relative">
+      <Link
+        href={to}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+          active
+            ? "bg-accent font-medium text-primary"
+            : "text-foreground hover:bg-secondary",
+          menu && "pr-9",
+        )}
+      >
+        <span className="shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">{label}</span>
+          {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
+        </span>
+        {typeof count === "number" && (
+          <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
+        )}
+      </Link>
+      {menu && (
+        <span className="absolute top-1/2 right-1 -translate-y-1/2 opacity-0 transition-opacity group-hover/nav:opacity-100 focus-within:opacity-100 data-[state=open]:opacity-100">
+          {menu}
+        </span>
+      )}
+    </li>
+  );
+}
+
+export function BookmarksView({ data }: { data: BookmarksViewData }) {
+  const { folders, items, query, counts, people, viewerId } = data;
+  const router = useRouter();
+  const pathname = usePathname();
+  const [editor, setEditor] = useState<BookmarkEditor | null>(null);
+  const [folderEditor, setFolderEditor] = useState<FolderEditor | null>(null);
+  const [removing, setRemoving] = useState<BookmarkView | null>(null);
+  const { submit: move, form: moveForm } = useBookmarkMove();
+  const own = folders.filter((folder) => folder.ownerId === viewerId);
+  const shared = folders.filter((folder) => folder.ownerId !== viewerId);
+  const folderById = new Map(folders.map((folder) => [folder.id, folder]));
+  const current = folderById.get(query.folder);
+  const canEdit = (item: BookmarkView) =>
+    item.ownerId === viewerId ||
+    (item.folderId ? folderById.get(item.folderId)?.ownerId === viewerId : false);
+  const createIn = query.folder !== "all" && query.folder !== "root" ? query.folder : "";
+  const later = (fn: () => void) => setTimeout(fn, 0);
+
+  const folderMenu = (folder: FolderView) => (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-xs" aria-label={`Ações da pasta ${folder.name}`}>
+          <MoreHorizontalIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "rename", folder }))}>
+          <PencilIcon />
+          Renomear
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "share", folder }))}>
+          <Share2Icon />
+          Compartilhar
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="destructive"
+          onSelect={() => later(() => setFolderEditor({ mode: "delete", folder }))}
+        >
+          <Trash2Icon />
+          Excluir pasta
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const list = (
+    <ul className="divide-y rounded-xl border bg-card shadow-card">
+      {items.map((item) => {
+        const folder = item.folderId ? folderById.get(item.folderId) : undefined;
+        const meta = [
+          item.url ? hostOf(item.url) : item.fileName,
+          query.folder === "all" && folder ? folder.name : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <li key={item.id} className="flex items-center gap-3 px-3 py-2">
+            <Tile item={item} />
+            <div className="min-w-0 flex-1">
+              {item.url ? (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block truncate text-sm font-medium text-foreground hover:text-primary"
+                >
+                  {item.title}
+                </a>
+              ) : (
+                <DownloadLink
+                  href={`/api/bookmarks/${item.id}`}
+                  filename={item.fileName ?? item.title}
+                  className="block truncate text-sm font-medium text-foreground hover:text-primary"
+                >
+                  {item.title}
+                </DownloadLink>
+              )}
+              <p className="truncate text-xs text-muted-foreground">{meta}</p>
+            </div>
+            {canEdit(item) && (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground"
+                    aria-label={`Ações de ${item.title}`}
+                  >
+                    <MoreHorizontalIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem onSelect={() => later(() => setEditor({ mode: "edit", item }))}>
+                    <PencilIcon />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <FolderInputIcon />
+                      Mover para
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-52">
+                      <DropdownMenuItem
+                        disabled={!item.folderId}
+                        onSelect={() => move(item.id, "")}
+                      >
+                        Sem pasta
+                      </DropdownMenuItem>
+                      {folders.map((folder) => (
+                        <DropdownMenuItem
+                          key={folder.id}
+                          disabled={folder.id === item.folderId}
+                          onSelect={() => move(item.id, folder.id)}
+                        >
+                          <FolderIcon />
+                          <span className="truncate">{folder.name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => later(() => setRemoving(item))}
+                  >
+                    <Trash2Icon />
+                    Remover
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  return (
+    <>
+      <PageHeader
+        title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Bookmarks"}
+        count={items.length}
+        description={
+          current && current.ownerId !== viewerId
+            ? `Pasta de ${current.owner}`
+            : current && current.sharedWith.length > 0
+              ? (
+                  <span className="flex items-center gap-2">
+                    <AvatarStack people={current.sharedWith} size={20} />
+                    Compartilhada com {current.sharedWith.length}{" "}
+                    {current.sharedWith.length === 1 ? "pessoa" : "pessoas"}
+                  </span>
+                )
+              : undefined
+        }
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setFolderEditor({ mode: "create" })}>
+              <FolderPlusIcon />
+              Nova pasta
+            </Button>
+            <Button onClick={() => setEditor({ mode: "create", folderId: createIn })}>
+              <PlusIcon />
+              Adicionar
+            </Button>
+          </>
+        }
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[232px_minmax(0,1fr)] lg:items-start">
+        <aside className="lg:sticky lg:top-6">
+          <div className="lg:hidden">
+            <NativeSelect
+              aria-label="Pasta"
+              value={query.folder}
+              onChange={(event) =>
+                router.push(href(query, { folder: event.target.value }), { scroll: false })
+              }
+              className="bg-card"
+            >
+              <NativeSelectOption value="all">Todos os bookmarks</NativeSelectOption>
+              <NativeSelectOption value="root">Sem pasta</NativeSelectOption>
+              {own.length > 0 && (
+                <NativeSelectOptGroup label="Minhas pastas">
+                  {own.map((folder) => (
+                    <NativeSelectOption key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelectOptGroup>
+              )}
+              {shared.length > 0 && (
+                <NativeSelectOptGroup label="Compartilhadas comigo">
+                  {shared.map((folder) => (
+                    <NativeSelectOption key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelectOptGroup>
+              )}
+            </NativeSelect>
+          </div>
+          <nav aria-label="Pastas" className="hidden lg:block">
+            <ul className="flex flex-col gap-0.5">
+              <NavItem
+                active={query.folder === "all"}
+                href={href(query, { folder: "all" })}
+                icon={<BookmarkIcon />}
+                label="Todos"
+                count={counts.total}
+              />
+              <NavItem
+                active={query.folder === "root"}
+                href={href(query, { folder: "root" })}
+                icon={<FolderIcon className="opacity-60" />}
+                label="Sem pasta"
+                count={counts.root}
+              />
+            </ul>
+            <p className="mt-5 mb-1.5 px-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Minhas pastas
+            </p>
+            <ul className="flex flex-col gap-0.5">
+              {own.map((folder) => (
+                <NavItem
+                  key={folder.id}
+                  active={query.folder === folder.id}
+                  href={href(query, { folder: folder.id })}
+                  icon={folder.sharedWith.length ? <UsersIcon /> : <FolderIcon />}
+                  label={folder.name}
+                  count={folder.count}
+                  menu={folderMenu(folder)}
+                />
+              ))}
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setFolderEditor({ mode: "create" })}
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  <FolderPlusIcon className="size-4" />
+                  Nova pasta
+                </button>
+              </li>
+            </ul>
+            {shared.length > 0 && (
+              <>
+                <p className="mt-5 mb-1.5 px-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Compartilhadas comigo
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  {shared.map((folder) => (
+                    <NavItem
+                      key={folder.id}
+                      active={query.folder === folder.id}
+                      href={href(query, { folder: folder.id })}
+                      icon={<UsersIcon />}
+                      label={folder.name}
+                      hint={folder.owner}
+                      count={folder.count}
+                    />
+                  ))}
+                </ul>
+              </>
+            )}
+          </nav>
+        </aside>
+
+        <div className="min-w-0">
+          <form
+            action={pathname}
+            role="search"
+            aria-label="Buscar bookmarks"
+            className="mb-4 flex items-center gap-2"
+          >
+            {query.folder !== "all" && <input type="hidden" name="pasta" value={query.folder} />}
+            <div className="relative w-full max-w-sm">
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                key={query.search}
+                type="search"
+                name="q"
+                defaultValue={query.search}
+                placeholder="Buscar por título ou link"
+                aria-label="Buscar por título ou link"
+                maxLength={160}
+                className="bg-card pl-9"
+              />
+            </div>
+            {query.search && (
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={href(query, { search: "" })}>
+                  <XIcon />
+                  Limpar
+                </Link>
+              </Button>
+            )}
+          </form>
+          {items.length ? (
+            list
+          ) : (
+            <section className="rounded-xl border bg-card shadow-card">
+              <EmptyState
+                icon={<BookmarkIcon />}
+                title={query.search ? "Nada encontrado" : "Nenhum bookmark aqui"}
+                description={
+                  query.search
+                    ? "Tente outro termo."
+                    : "Guarde links e arquivos pequenos, organize em pastas e compartilhe com quem precisar."
+                }
+                action={
+                  query.search ? (
+                    <Button variant="outline" asChild>
+                      <Link href={href(query, { search: "" })}>Limpar busca</Link>
+                    </Button>
+                  ) : (
+                    <Button onClick={() => setEditor({ mode: "create", folderId: createIn })}>
+                      <PlusIcon />
+                      Adicionar
+                    </Button>
+                  )
+                }
+              />
+            </section>
+          )}
+        </div>
+      </div>
+
+      <BookmarkSheet editor={editor} onClose={() => setEditor(null)} folders={folders} />
+      <FolderDialogs editor={folderEditor} onClose={() => setFolderEditor(null)} people={people} />
+      {removing && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setRemoving(null)}
+          action={deleteBookmark}
+          fields={{ id: removing.id }}
+          title="Remover bookmark?"
+          description={`"${removing.title}" sai da lista. Isso não pode ser desfeito.`}
+          confirmLabel="Remover"
+          destructive
+          onSuccess={() => setRemoving(null)}
+        />
+      )}
+      {moveForm}
+    </>
+  );
+}

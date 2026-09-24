@@ -41,7 +41,7 @@ import {
 } from "@/lib/task-model";
 import { fileSizeLabel, relativeLabel } from "@/lib/format";
 import { LabelField } from "./label-field";
-import { PeopleField, type PersonOption } from "./people-field";
+import { PeopleField, type PersonOption } from "@/components/console/people-field";
 
 export type TaskFile = {
   id: string;
