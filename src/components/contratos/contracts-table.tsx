@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2Icon, FileSignatureIcon, PlusIcon, XIcon } from "lucide-react";
+import { Building2Icon, CalendarClockIcon, FileSignatureIcon, PlusIcon, XIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,56 +21,52 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/console/page-header";
 import { SearchField } from "@/components/console/search-field";
-import { relativeLabel } from "@/lib/format";
+import { dateLabel, relativeLabel } from "@/lib/format";
 import {
-  clientContractFilters,
   contractFilterLabels,
   contractFilters,
   contractListHref,
+  contractTerm,
+  contractTermLabel,
   type ContractQuery,
-  type ContractStatus,
   type ContractStatusFilter,
 } from "@/lib/contract-table";
-import { ContractStatusBadge } from "./contract-badges";
+import { ContractKindChip, ContractStatusBadge } from "./contract-badges";
+import type { ContractRow } from "./contract-row";
 
-export type ContractRow = {
-  id: string;
-  title: string;
-  companyId: string;
-  company: string;
-  engagement: string | null;
-  status: ContractStatus;
-  signedBy: ("client" | "anuntech")[];
-  updatedAt: string;
-};
+export type { ContractRow } from "./contract-row";
 
+/**
+ * Anuntech's view: every client's contracts in one table, with the filters
+ * that many rows need. The alert line counts what is about to end.
+ */
 export function ContractsTable({
   rows,
   query,
-  admin,
-  showCompany,
+  alerts,
   companyFilter = null,
   now,
+  today,
 }: {
   rows: ContractRow[];
   query: ContractQuery;
-  admin: boolean;
-  showCompany: boolean;
+  alerts: { expiring: number; expired: number };
   companyFilter?: { id: string; name: string } | null;
   now: string;
+  today: string;
 }) {
   const router = useRouter();
   const href = (patch: Partial<ContractQuery>) => contractListHref({ ...query, ...patch });
   const go = (patch: Partial<ContractQuery>) => router.push(href(patch), { scroll: false });
-  const filters = admin ? contractFilters : clientContractFilters;
   const filtered = !!query.search || !!query.company || query.status !== "all";
+  const showAlerts = (alerts.expiring > 0 || alerts.expired > 0) && query.status !== "expiring" && query.status !== "expired";
   return (
     <section className="overflow-hidden rounded-xl border bg-card shadow-card">
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
         <SearchField
           value={query.search}
           onChange={(search) => go({ search })}
-          placeholder={showCompany ? "Buscar por título ou cliente" : "Buscar por título"}
+          placeholder="Buscar por título ou cliente"
           className="sm:flex-1"
         />
         {companyFilter && (
@@ -91,7 +87,7 @@ export function ContractsTable({
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="end">
-            {filters.map((status) => (
+            {contractFilters.map((status) => (
               <SelectItem key={status} value={status}>
                 {contractFilterLabels[status]}
               </SelectItem>
@@ -99,71 +95,122 @@ export function ContractsTable({
           </SelectContent>
         </Select>
       </div>
+      {showAlerts && (
+        <p
+          role="status"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-warning-soft/60 px-4 py-2 text-xs text-foreground"
+        >
+          <CalendarClockIcon className="size-3.5 text-warning" />
+          {alerts.expiring > 0 && (
+            <Link href={href({ status: "expiring" })} className="font-medium hover:text-primary">
+              {alerts.expiring === 1
+                ? "1 contrato vence nos próximos 30 dias"
+                : `${alerts.expiring} contratos vencem nos próximos 30 dias`}
+            </Link>
+          )}
+          {alerts.expiring > 0 && alerts.expired > 0 && <span aria-hidden="true">·</span>}
+          {alerts.expired > 0 && (
+            <Link href={href({ status: "expired" })} className="font-medium text-destructive hover:underline">
+              {alerts.expired === 1 ? "1 contrato vencido" : `${alerts.expired} contratos vencidos`}
+            </Link>
+          )}
+        </p>
+      )}
       {rows.length ? (
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Contrato</TableHead>
-              {showCompany && <TableHead>Cliente</TableHead>}
+              <TableHead>Cliente</TableHead>
               <TableHead>Situação</TableHead>
+              <TableHead>Vigência</TableHead>
               <TableHead>Assinaturas</TableHead>
               <TableHead className="pr-4 text-right">Atualizado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                className="cursor-pointer"
-                onClick={() => router.push(`/contratos/${row.id}`)}
-              >
-                <TableCell className="pl-4">
-                  <Link
-                    href={`/contratos/${row.id}`}
-                    className="font-medium text-foreground hover:text-primary"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {row.title}
-                  </Link>
-                  {row.engagement && (
-                    <span className="block text-xs text-muted-foreground">{row.engagement}</span>
-                  )}
-                </TableCell>
-                {showCompany && <TableCell className="text-muted-foreground">{row.company}</TableCell>}
-                <TableCell>
-                  <ContractStatusBadge status={row.status} />
-                </TableCell>
-                <TableCell>
-                  {row.status === "draft" || row.status === "cancelled" ? (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  ) : (
-                    <span className="flex items-center gap-2 text-xs">
-                      {(["client", "anuntech"] as const).map((party) => (
-                        <span
-                          key={party}
-                          className={cn(
-                            "inline-flex items-center gap-1",
-                            row.signedBy.includes(party) ? "text-success" : "text-muted-foreground",
-                          )}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              row.signedBy.includes(party) ? "bg-success" : "bg-muted-foreground/40",
-                            )}
-                          />
-                          {party === "client" ? "Cliente" : "Anuntech"}
-                        </span>
-                      ))}
+            {rows.map((row) => {
+              const term = row.status === "signed" ? contractTerm({ startsAt: row.startsAt, endsAt: row.endsAt }, today) : null;
+              const termLabel = term ? contractTermLabel(term) : null;
+              return (
+                <TableRow key={row.id} className="cursor-pointer" onClick={() => router.push(`/contratos/${row.id}`)}>
+                  <TableCell className="pl-4">
+                    <span className="flex items-center gap-2">
+                      <Link
+                        href={`/contratos/${row.id}`}
+                        className="font-medium text-foreground hover:text-primary"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {row.title}
+                      </Link>
+                      <ContractKindChip kind={row.kind} />
                     </span>
-                  )}
-                </TableCell>
-                <TableCell className="pr-4 text-right text-xs text-muted-foreground tabular-nums">
-                  {relativeLabel(row.updatedAt, now)}
-                </TableCell>
-              </TableRow>
-            ))}
+                    {(row.kind === "amendment" ? row.parentTitle : row.engagement) && (
+                      <span className="block text-xs text-muted-foreground">
+                        {row.kind === "amendment" ? `Aditivo de ${row.parentTitle}` : row.engagement}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{row.company}</TableCell>
+                  <TableCell>
+                    <ContractStatusBadge status={row.status} />
+                  </TableCell>
+                  <TableCell className="text-xs tabular-nums">
+                    {row.endsAt ? (
+                      <>
+                        <span className={cn(term?.state === "expired" ? "text-destructive" : "text-foreground")}>
+                          {row.startsAt ? `${dateLabel(row.startsAt)} – ` : "até "}
+                          {dateLabel(row.endsAt)}
+                        </span>
+                        {termLabel && term?.state !== "upcoming" && (
+                          <span
+                            className={cn(
+                              "block font-medium",
+                              term?.state === "expired" ? "text-destructive" : "text-warning",
+                            )}
+                          >
+                            {termLabel}
+                          </span>
+                        )}
+                      </>
+                    ) : row.startsAt ? (
+                      <span className="text-foreground">a partir de {dateLabel(row.startsAt)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {row.status === "draft" || row.status === "cancelled" ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <span className="flex items-center gap-2 text-xs">
+                        {(["client", "anuntech"] as const).map((party) => (
+                          <span
+                            key={party}
+                            className={cn(
+                              "inline-flex items-center gap-1",
+                              row.signedBy.includes(party) ? "text-success" : "text-muted-foreground",
+                            )}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "size-1.5 rounded-full",
+                                row.signedBy.includes(party) ? "bg-success" : "bg-muted-foreground/40",
+                              )}
+                            />
+                            {party === "client" ? "Cliente" : "Anuntech"}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="pr-4 text-right text-xs text-muted-foreground tabular-nums">
+                    {relativeLabel(row.updatedAt, now)}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       ) : (
@@ -171,25 +218,21 @@ export function ContractsTable({
           icon={<FileSignatureIcon />}
           title={filtered ? "Nada encontrado" : "Nenhum contrato ainda"}
           description={
-            filtered
-              ? "Tente outro termo ou mude os filtros."
-              : admin
-                ? "Crie um contrato a partir de um modelo e envie para o cliente assinar."
-                : "Os contratos da sua empresa com a Anuntech aparecem aqui para leitura e assinatura."
+            filtered ? "Tente outro termo ou mude os filtros." : "Crie um contrato a partir de um modelo e envie para o cliente assinar."
           }
           action={
             filtered ? (
               <Button variant="outline" asChild>
                 <Link href="/contratos">Limpar filtros</Link>
               </Button>
-            ) : admin ? (
+            ) : (
               <Button asChild>
                 <Link href="/contratos/novo">
                   <PlusIcon />
                   Novo contrato
                 </Link>
               </Button>
-            ) : undefined
+            )
           }
         />
       )}

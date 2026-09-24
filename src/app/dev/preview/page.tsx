@@ -41,6 +41,8 @@ import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 import { ProductsList } from "@/components/produtos/products-list";
 import { ServiceDetail } from "@/components/produtos/service-detail";
 import { ContractsTable } from "@/components/contratos/contracts-table";
+import { ContractCards } from "@/components/contratos/contract-cards";
+import { NewContractForm } from "@/components/contratos/contract-sheet";
 import { ContractDetail } from "@/components/contratos/contract-detail";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AppearanceSection } from "@/components/settings/appearance-section";
@@ -99,6 +101,8 @@ const SCREENS = [
   "produtos-busca",
   "servico",
   "contratos",
+  "contratos-cliente",
+  "novo-aditivo",
   "contrato",
   "contrato-assinar",
   "contrato-assinado",
@@ -837,30 +841,75 @@ export default async function Preview({
     {
       id: "c1",
       title: "Prestação de serviços — Maxipark Estacionamentos",
+      kind: "contract" as const,
+      parentId: null,
+      parentTitle: null,
       companyId: "a1",
       company: "Maxipark Estacionamentos",
       engagement: "Gestão de tráfego",
       status: "sent" as const,
+      startsAt: "2026-10-01",
+      endsAt: "2027-09-30",
       signedBy: ["anuntech" as const],
       updatedAt: ago(20),
     },
     {
       id: "c2",
       title: "Licença de uso do Synova — Paróquia Santa Rita",
+      kind: "contract" as const,
+      parentId: null,
+      parentTitle: null,
       companyId: "a2",
       company: "Paróquia Santa Rita",
       engagement: "Synova",
       status: "signed" as const,
+      startsAt: "2025-10-15",
+      endsAt: day(12),
       signedBy: ["client" as const, "anuntech" as const],
       updatedAt: ago(70),
     },
     {
+      id: "c4",
+      title: "Aditivo 1 — Licença de uso do Synova — Paróquia Santa Rita",
+      kind: "amendment" as const,
+      parentId: "c2",
+      parentTitle: "Licença de uso do Synova — Paróquia Santa Rita",
+      companyId: "a2",
+      company: "Paróquia Santa Rita",
+      engagement: "Synova",
+      status: "sent" as const,
+      startsAt: null,
+      endsAt: "2027-10-14",
+      signedBy: ["anuntech" as const],
+      updatedAt: ago(5),
+    },
+    {
+      id: "c5",
+      title: "Hospedagem e manutenção — Maxipark Estacionamentos",
+      kind: "contract" as const,
+      parentId: null,
+      parentTitle: null,
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      engagement: "Hospedagem",
+      status: "signed" as const,
+      startsAt: "2025-09-01",
+      endsAt: day(-8),
+      signedBy: ["client" as const, "anuntech" as const],
+      updatedAt: ago(400),
+    },
+    {
       id: "c3",
       title: "Desenvolvimento do site — Instituto Vida Plena",
+      kind: "contract" as const,
+      parentId: null,
+      parentTitle: null,
       companyId: "a3",
       company: "Instituto Vida Plena",
       engagement: null,
       status: "draft" as const,
+      startsAt: null,
+      endsAt: null,
       signedBy: [],
       updatedAt: ago(2),
     },
@@ -881,8 +930,12 @@ export default async function Preview({
       id: "c1",
       title: "Prestação de serviços — Maxipark Estacionamentos",
       body: contractStatus === "draft" ? contractBody : contractBody.replace("{{data}}", "23 de setembro de 2026"),
+      kind: "contract" as const,
       status: contractStatus,
       revision: 3,
+      version: contractStatus === "draft" ? 0 : 2,
+      startsAt: "2026-10-01",
+      endsAt: contractStatus === "signed" ? day(18) : "2027-09-30",
       companyId: "a1",
       company: "Maxipark Estacionamentos",
       companyDocument: "12345678000190",
@@ -895,6 +948,21 @@ export default async function Preview({
       createdAt: ago(72),
       pendingVariables: contractStatus === "draft" ? ["{{data}}"] : [],
     },
+    parent: null,
+    amendments:
+      contractStatus === "signed"
+        ? [
+            { id: "c6", title: "Aditivo 1 — Prorrogação", status: "signed" as const, signedAt: ago(24 * 10), endsAt: day(18) },
+            { id: "c7", title: "Aditivo 2 — Reajuste 2027", status: "sent" as const, signedAt: null, endsAt: null },
+          ]
+        : [],
+    versions:
+      contractStatus === "draft"
+        ? []
+        : [
+            { version: 2, sentAt: ago(30), hash: "9f2c1e7b", current: true, signedBy: ["anuntech" as const] },
+            { version: 1, sentAt: ago(24 * 6), hash: "1a2b3c4d", current: false, signedBy: ["anuntech" as const] },
+          ],
     signatures:
       contractStatus === "draft"
         ? []
@@ -917,6 +985,7 @@ export default async function Preview({
             { id: "e1", action: "contract.created", createdAt: ago(72) },
           ],
     now: now.toISOString(),
+    today: day(0),
   };
   if (tela.startsWith("login"))
     return (
@@ -1040,9 +1109,49 @@ export default async function Preview({
           <ContractsTable
             rows={contractRows}
             query={{ status: "all", search: "", company: "" }}
-            admin
-            showCompany
+            alerts={{ expiring: 1, expired: 1 }}
             now={now.toISOString()}
+            today={day(0)}
+          />
+        </>
+      ) : tela === "contratos-cliente" ? (
+        <>
+          <PageHeader
+            title="Contratos"
+            count={2}
+            description="Leia, assine e baixe os contratos da sua empresa com a Anuntech."
+          />
+          <ContractCards
+            rows={contractRows.filter((row) => row.companyId === "a2" || row.id === "c1")}
+            query={{ status: "all", search: "", company: "" }}
+            showCompany={false}
+            today={day(0)}
+          />
+        </>
+      ) : tela === "novo-aditivo" ? (
+        <>
+          <PageHeader
+            crumbs={[
+              { label: "Contratos", href: "/contratos" },
+              { label: "Licença de uso do Synova — Paróquia Santa Rita", href: "/contratos/c2" },
+              { label: "Novo aditivo" },
+            ]}
+            title="Novo aditivo"
+            description="Nasce como rascunho; você revisa o texto antes de enviar."
+          />
+          <NewContractForm
+            companies={companies}
+            templates={[{ id: "t1", name: "Aditivo de prorrogação", description: "Prorroga a vigência mantendo as demais cláusulas." }]}
+            engagements={[{ id: "pr3", name: "Synova", kind: "product", companyId: "a2" }]}
+            parent={{
+              id: "c2",
+              title: "Licença de uso do Synova — Paróquia Santa Rita",
+              companyId: "a2",
+              company: "Paróquia Santa Rita",
+              engagementId: "pr3",
+              endsAt: day(12),
+              amendments: 1,
+            }}
           />
         </>
       ) : tela.startsWith("contrato") ? (

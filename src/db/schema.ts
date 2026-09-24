@@ -196,6 +196,12 @@ export type ContractPublication = {
   body: string;
   companyName: string;
   companyDocument: string;
+  /** Present since the validity and amendment fields exist; older snapshots lack them. */
+  kind?: "contract" | "amendment";
+  parentTitle?: string | null;
+  parentHash?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
 };
 /** Contract text written once, with {{variáveis}} filled per client. */
 export const contractTemplates = pgTable("console_contract_templates", {
@@ -218,9 +224,17 @@ export const contracts = pgTable(
       .references(() => companies.id),
     templateId: text("template_id").references(() => contractTemplates.id),
     engagementId: text("engagement_id").references((): AnyPgColumn => engagements.id),
+    /** An amendment (aditivo) points at the contract it changes. */
+    kind: text("kind", { enum: ["contract", "amendment"] }).notNull().default("contract"),
+    parentId: text("parent_id").references((): AnyPgColumn => contracts.id),
     title: text("title").notNull(),
     body: text("body").notNull(),
     revision: integer("revision").notNull().default(1),
+    /** Validity, as metadata for alerts; the text is what binds. */
+    startsAt: date("starts_at"),
+    endsAt: date("ends_at"),
+    expiryNoticeSentAt: timestamp("expiry_notice_sent_at", { withTimezone: true }),
+    expiredNoticeSentAt: timestamp("expired_notice_sent_at", { withTimezone: true }),
     /** draft → sent (frozen, awaiting signatures) → signed; or cancelled. */
     status: text("status", { enum: ["draft", "sent", "signed", "cancelled"] })
       .notNull()
@@ -241,6 +255,25 @@ export const contracts = pgTable(
       .defaultNow(),
   },
   (t) => [index("console_contract_company_idx").on(t.companyId)],
+);
+/** Every text that went out for signature, so earlier versions stay readable. */
+export const contractVersions = pgTable(
+  "console_contract_versions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    contractId: text("contract_id")
+      .notNull()
+      .references(() => contracts.id),
+    version: integer("version").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    documentHash: text("document_hash").notNull(),
+    sentBy: text("sent_by")
+      .notNull()
+      .references(() => user.id),
+    sentAt: created(),
+  },
+  (t) => [uniqueIndex("console_contract_version_unique").on(t.contractId, t.version)],
 );
 /** One row per party that signed, with the evidence that backs it. */
 export const contractSignatures = pgTable(

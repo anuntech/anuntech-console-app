@@ -10,8 +10,12 @@ export default async function NewContract({ searchParams }: { searchParams: NewC
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Contratos", href: "/contratos" }, { label: "Novo" }]}
-        title="Novo contrato"
+        crumbs={[
+          { label: "Contratos", href: "/contratos" },
+          ...(context.parent ? [{ label: context.parent.title, href: `/contratos/${context.parent.id}` }] : []),
+          { label: context.parent ? "Novo aditivo" : "Novo" },
+        ]}
+        title={context.parent ? "Novo aditivo" : "Novo contrato"}
         description="Nasce como rascunho; você revisa o texto antes de enviar."
       />
       <NewContractForm {...context} />

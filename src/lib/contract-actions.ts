@@ -1,6 +1,6 @@
 "use server";
 import { createHash } from "node:crypto";
-import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -14,12 +14,14 @@ import {
   companies,
   contractSignatures,
   contractTemplates,
+  contractVersions,
   contracts,
   engagements,
   environmentProfile,
   memberships,
   subscriptions,
   user,
+  type ContractPublication,
 } from "@/db/schema";
 import type { ActionState } from "./action-state";
 import { addressLabel } from "./company-billing";
@@ -27,7 +29,7 @@ import { formatDocument } from "./company-input";
 import { contractPdf } from "./contract-pdf";
 import { deliverContractNotice } from "./contract-mail";
 import { fillContractTemplate } from "./contract-templates";
-import { currency } from "./format";
+import { currency, longDateLabel } from "./format";
 import { hasPermission } from "./permissions";
 
 const id = z.string().uuid();
@@ -43,6 +45,14 @@ const bodyText = z
       .max(100000, "O contrato pode ter até 100 mil caracteres.")
       .regex(/^[^\x00-\x08\x0b\x0c\x0e-\x1f]*$/, "Remova os caracteres de controle do texto."),
   );
+const civilDate = z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")]).default("");
+/** Start and end of validity; both optional, but never reversed. */
+const term = z
+  .object({ startsAt: civilDate, endsAt: civilDate })
+  .refine((t) => !t.startsAt || !t.endsAt || t.startsAt <= t.endsAt, {
+    message: "O fim da vigência precisa vir depois do início.",
+    path: ["endsAt"],
+  });
 const failure = (e: unknown): ActionState => ({
   error:
     e instanceof z.ZodError
@@ -53,12 +63,13 @@ const failure = (e: unknown): ActionState => ({
           ? e.message
           : "Não foi possível salvar o contrato. Confira os dados e tente novamente.",
 });
-function refresh(contractId?: string) {
+function refresh(contractId?: string, parentId?: string | null) {
   revalidatePath("/contratos");
   revalidatePath("/configuracoes/contratos");
   if (contractId) revalidatePath(`/contratos/${contractId}`);
+  if (parentId) revalidatePath(`/contratos/${parentId}`);
 }
-const hashOf = (publication: { title: string; body: string; companyName: string; companyDocument: string }) =>
+const hashOf = (publication: ContractPublication) =>
   createHash("sha256")
     .update(JSON.stringify(publication))
     .digest("hex");
@@ -130,7 +141,11 @@ export async function toggleContractTemplate(_: ActionState, form: FormData): Pr
 /* ---------- contracts ---------- */
 
 /** What fills the template for one company (and, when chosen, one item). */
-async function contractValues(companyId: string, engagementId: string | null) {
+async function contractValues(
+  companyId: string,
+  engagementId: string | null,
+  extra: { startsAt: string; endsAt: string; parent: { title: string; signedAt: Date | null } | null },
+) {
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
   if (!company) throw new Error("Empresa não encontrada.");
   const [anuntech] = await db.select().from(environmentProfile).limit(1);
@@ -160,7 +175,11 @@ async function contractValues(companyId: string, engagementId: string | null) {
       produto: linked?.name ?? "",
       valor: linked?.amountCents != null ? currency(linked.amountCents) : "",
       ciclo: interval === "yearly" ? "anual" : interval === "monthly" ? "mensal" : "",
-      data: new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "America/Sao_Paulo" }).format(new Date()),
+      inicio: extra.startsAt ? longDateLabel(extra.startsAt) : "",
+      fim: extra.endsAt ? longDateLabel(extra.endsAt) : "",
+      data: longDateLabel(new Date()),
+      contrato: extra.parent?.title ?? "",
+      contrato_data: extra.parent?.signedAt ? longDateLabel(extra.parent.signedAt) : "",
       anuntech: anuntech?.name ?? "",
       anuntech_cnpj: anuntech ? formatDocument(anuntech.document) : "",
       anuntech_endereco: anuntech?.billingAddress ? addressLabel(anuntech.billingAddress) : "",
@@ -168,19 +187,41 @@ async function contractValues(companyId: string, engagementId: string | null) {
   };
 }
 
-/** A draft from a template (or blank), with the company's data filled in. */
+const AMENDMENT_SKELETON = [
+  "TERMO ADITIVO AO CONTRATO",
+  "CONTRATANTE: {{empresa}}, CNPJ {{cnpj}}.\nCONTRATADA: {{anuntech}}, CNPJ {{anuntech_cnpj}}.",
+  "As partes acima resolvem aditar o contrato “{{contrato}}”, assinado em {{contrato_data}}, nos seguintes termos:",
+  "CLÁUSULA 1 — OBJETO DO ADITIVO\n",
+  "CLÁUSULA 2 — RATIFICAÇÃO\nPermanecem inalteradas as demais cláusulas e condições do contrato original.",
+  "São Paulo, {{data}}.",
+].join("\n\n");
+
+/**
+ * A draft from a template (or blank), with the company's data filled in.
+ * With `parentId`, it is an amendment to a signed contract of the same company.
+ */
 export async function createContract(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   if (!actor.admin) return blocked;
   try {
     const input = z
       .object({
-        companyId: id,
+        companyId: z.union([id, z.literal("")]).default(""),
+        parentId: z.union([id, z.literal("")]).default(""),
         templateId: z.union([id, z.literal("")]).default(""),
         engagementId: z.union([id, z.literal("")]).default(""),
         title: z.string().trim().max(160).default(""),
       })
+      .and(term)
       .parse(Object.fromEntries(form));
+    const parent = input.parentId
+      ? (await db.select().from(contracts).where(eq(contracts.id, input.parentId)))[0]
+      : null;
+    if (input.parentId && !parent) return { error: "Contrato original não encontrado." };
+    if (parent && parent.status !== "signed") return { error: "Só contratos assinados recebem aditivos." };
+    if (parent && parent.kind !== "contract") return { error: "Um aditivo não pode receber outro aditivo; adite o contrato original." };
+    const companyId = parent?.companyId ?? input.companyId;
+    if (!companyId) return { error: "Escolha a empresa." };
     const template = input.templateId
       ? (
           await db
@@ -190,17 +231,44 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         )[0]
       : null;
     if (input.templateId && !template) return { error: "Escolha um modelo ativo." };
-    const { company, values } = await contractValues(input.companyId, input.engagementId || null);
-    const title = input.title || (template ? `${template.name} — ${company.name}` : `Contrato — ${company.name}`);
-    const body = template ? fillContractTemplate(template.body, values) : "";
+    const engagementId = input.engagementId || parent?.engagementId || null;
+    const { company, values } = await contractValues(companyId, engagementId, {
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      parent: parent ? { title: parent.title, signedAt: parent.signedAt } : null,
+    });
+    const amendmentNumber = parent
+      ? (
+          await db
+            .select({ n: count() })
+            .from(contracts)
+            .where(and(eq(contracts.parentId, parent.id), ne(contracts.status, "cancelled")))
+        )[0].n + 1
+      : 0;
+    const title =
+      input.title ||
+      (parent
+        ? `Aditivo ${amendmentNumber} — ${parent.title}`
+        : template
+          ? `${template.name} — ${company.name}`
+          : `Contrato — ${company.name}`);
+    const body = template
+      ? fillContractTemplate(template.body, values)
+      : parent
+        ? fillContractTemplate(AMENDMENT_SKELETON, values)
+        : "";
     const [row] = await db
       .insert(contracts)
       .values({
         companyId: company.id,
         templateId: template?.id ?? null,
-        engagementId: input.engagementId || null,
+        engagementId,
+        kind: parent ? "amendment" : "contract",
+        parentId: parent?.id ?? null,
         title,
         body: body || "Escreva o contrato.",
+        startsAt: input.startsAt || null,
+        endsAt: input.endsAt || null,
         authorId: actor.user.id,
       })
       .returning({ id: contracts.id });
@@ -208,17 +276,30 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
       actorId: actor.user.id,
       companyId: company.id,
       entityId: row.id,
-      action: "contract.created",
-      details: { templateId: template?.id ?? null },
+      action: parent ? "contract.amendment_created" : "contract.created",
+      details: { templateId: template?.id ?? null, parentId: parent?.id ?? null },
     });
-    refresh(row.id);
-    return { success: "Rascunho criado. Revise o texto e envie para assinatura.", href: `/contratos/${row.id}` };
+    if (parent)
+      await db.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: company.id,
+        entityId: parent.id,
+        action: "contract.amendment_created",
+        details: { amendmentId: row.id },
+      });
+    refresh(row.id, parent?.id);
+    return {
+      success: parent
+        ? "Rascunho do aditivo criado. Revise o texto e envie para assinatura."
+        : "Rascunho criado. Revise o texto e envie para assinatura.",
+      href: `/contratos/${row.id}`,
+    };
   } catch (e) {
     return failure(e);
   }
 }
 
-/** Title and text of a draft; the revision guards against edits in another tab. */
+/** Title, text and validity of a draft; the revision guards against edits in another tab. */
 export async function saveContract(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   if (!actor.admin) return blocked;
@@ -230,14 +311,22 @@ export async function saveContract(_: ActionState, form: FormData): Promise<Acti
         title: z.string().trim().min(1, "Informe o título.").max(160),
         body: bodyText,
       })
+      .and(term)
       .parse(Object.fromEntries(form));
     await db.transaction(async (tx) => {
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, input.id)).for("update");
       if (!c || c.revision !== input.revision) throw Error("stale");
-      if (c.status !== "draft") throw Error("Só rascunhos podem ser editados. Cancele e crie outro contrato.");
+      if (c.status !== "draft") throw Error("Só rascunhos podem ser editados. Volte o contrato para rascunho ou crie um aditivo.");
       await tx
         .update(contracts)
-        .set({ title: input.title, body: input.body, revision: c.revision + 1, updatedAt: new Date() })
+        .set({
+          title: input.title,
+          body: input.body,
+          startsAt: input.startsAt || null,
+          endsAt: input.endsAt || null,
+          revision: c.revision + 1,
+          updatedAt: new Date(),
+        })
         .where(eq(contracts.id, c.id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
@@ -248,6 +337,43 @@ export async function saveContract(_: ActionState, form: FormData): Promise<Acti
     });
     refresh(input.id);
     return { success: "Rascunho salvo." };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/**
+ * The validity dates after the text is frozen. They drive the expiry alerts;
+ * what binds the parties is the signed text, so this never touches it.
+ */
+export async function setContractTerm(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const input = z.object({ id }).and(term).parse(Object.fromEntries(form));
+    const [c] = await db.select().from(contracts).where(eq(contracts.id, input.id));
+    if (!c) return blocked;
+    if (c.status === "cancelled") return { error: "Contrato cancelado não tem vigência." };
+    const endsAt = input.endsAt || null;
+    const changedEnd = endsAt !== c.endsAt;
+    await db
+      .update(contracts)
+      .set({
+        startsAt: input.startsAt || null,
+        endsAt,
+        ...(changedEnd ? { expiryNoticeSentAt: null, expiredNoticeSentAt: null } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(contracts.id, c.id));
+    await db.insert(auditEvents).values({
+      actorId: actor.user.id,
+      companyId: c.companyId,
+      entityId: c.id,
+      action: "contract.term_updated",
+      details: { startsAt: input.startsAt || null, endsAt },
+    });
+    refresh(c.id, c.parentId);
+    return { success: "Vigência atualizada." };
   } catch (e) {
     return failure(e);
   }
@@ -266,7 +392,7 @@ async function companySigners(companyId: string) {
     .where(and(eq(memberships.companyId, companyId), eq(memberships.active, true), eq(memberships.role, "manager")));
 }
 
-/** Freezes the text, hashes it and asks the client to sign. */
+/** Freezes the text as a new version, hashes it and asks the client to sign. */
 export async function sendContract(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   if (!actor.admin) return blocked;
@@ -277,21 +403,105 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
       if (!c) throw Error("Contrato não encontrado.");
       if (c.status !== "draft") throw Error("Este contrato já foi enviado.");
       const [company] = await tx.select().from(companies).where(eq(companies.id, c.companyId));
-      const publication = {
+      const parent = c.parentId
+        ? (await tx.select({ title: contracts.title, hash: contracts.documentHash }).from(contracts).where(eq(contracts.id, c.parentId)))[0]
+        : null;
+      const publication: ContractPublication = {
         title: c.title,
         body: c.body,
         companyName: company.name,
         companyDocument: company.document,
+        kind: c.kind,
+        parentTitle: parent?.title ?? null,
+        parentHash: parent?.hash ?? null,
+        startsAt: c.startsAt,
+        endsAt: c.endsAt,
       };
       const documentHash = hashOf(publication);
+      const version = c.publishedVersion + 1;
       await tx
         .update(contracts)
         .set({
           status: "sent",
           publication,
           publishedAt: new Date(),
-          publishedVersion: c.publishedVersion + 1,
+          publishedVersion: version,
           documentHash,
+          revision: c.revision + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(contracts.id, c.id));
+      await tx.insert(contractVersions).values({
+        contractId: c.id,
+        version,
+        title: c.title,
+        body: c.body,
+        documentHash,
+        sentBy: actor.user.id,
+      });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: c.companyId,
+        entityId: c.id,
+        action: "contract.sent",
+        details: { hash: documentHash, version },
+      });
+      return { ...c, version, companyName: company.name };
+    });
+    const url = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${sent.id}`;
+    const signers = await companySigners(sent.companyId);
+    let notified = 0;
+    for (const signer of signers) {
+      try {
+        await deliverContractNotice(signer.email, {
+          companyName: sent.companyName,
+          title: sent.title,
+          url,
+          kind: sent.kind,
+          version: sent.version,
+        });
+        notified += 1;
+      } catch {
+        /* The contract is out; the client can still open it in the Console. */
+      }
+    }
+    refresh(sent.id, sent.parentId);
+    const noun = sent.kind === "amendment" ? "Aditivo" : "Contrato";
+    return {
+      success: notified
+        ? `${noun} enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
+        : `${noun} enviado. Ninguém da empresa tem acesso de gestor para avisar; libere o acesso em Empresas.`,
+    };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/**
+ * Reopens a sent contract for editing. The version that went out stays on
+ * record, and any signature it received stays tied to that version's hash;
+ * the next send is a new version that both parties sign again.
+ */
+export async function revertContract(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const contractId = id.parse(form.get("id"));
+    const reverted = await db.transaction(async (tx) => {
+      const [c] = await tx.select().from(contracts).where(eq(contracts.id, contractId)).for("update");
+      if (!c) throw Error("Contrato não encontrado.");
+      if (c.status !== "sent") throw Error("Só um contrato aguardando assinatura volta para rascunho.");
+      const [signed] = await tx
+        .select({ n: count() })
+        .from(contractSignatures)
+        .where(and(eq(contractSignatures.contractId, c.id), eq(contractSignatures.documentHash, c.documentHash!)));
+      await tx
+        .update(contracts)
+        .set({
+          status: "draft",
+          publication: null,
+          documentHash: null,
+          publishedAt: null,
           revision: c.revision + 1,
           updatedAt: new Date(),
         })
@@ -300,27 +510,16 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
         actorId: actor.user.id,
         companyId: c.companyId,
         entityId: c.id,
-        action: "contract.sent",
-        details: { hash: documentHash },
+        action: "contract.reverted",
+        details: { version: c.publishedVersion, signaturesVoided: signed.n },
       });
-      return { ...c, companyName: company.name };
+      return { parentId: c.parentId, signaturesVoided: signed.n };
     });
-    const url = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${sent.id}`;
-    const signers = await companySigners(sent.companyId);
-    let notified = 0;
-    for (const signer of signers) {
-      try {
-        await deliverContractNotice(signer.email, { companyName: sent.companyName, title: sent.title, url });
-        notified += 1;
-      } catch {
-        /* The contract is out; the client can still open it in the Console. */
-      }
-    }
-    refresh(sent.id);
+    refresh(contractId, reverted.parentId);
     return {
-      success: notified
-        ? `Contrato enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
-        : "Contrato enviado. Ninguém da empresa tem acesso de gestor para avisar; libere o acesso em Empresas.",
+      success: reverted.signaturesVoided
+        ? "Voltou para rascunho. A assinatura dada na versão anterior fica no histórico e a nova versão precisa ser assinada de novo."
+        : "Voltou para rascunho. O próximo envio cria uma nova versão.",
     };
   } catch (e) {
     return failure(e);
@@ -336,7 +535,9 @@ function partyFor(actor: Actor, companyId: string): "anuntech" | "client" | null
 
 /**
  * Records the viewer's signature with the evidence behind it. When both
- * parties have signed, the contract closes and the final PDF is stored.
+ * parties have signed the current version, the contract closes and the
+ * final PDF is stored. A signed amendment that carries new dates moves
+ * the original contract's validity, so the alerts follow the amendment.
  */
 export async function signContract(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
@@ -361,10 +562,11 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
       requestHeaders.get("x-real-ip") ||
       null;
     const closed = await db.transaction(async (tx) => {
+      const current = and(eq(contractSignatures.contractId, c.id), eq(contractSignatures.documentHash, c.documentHash!));
       const [existing] = await tx
         .select({ id: contractSignatures.id })
         .from(contractSignatures)
-        .where(and(eq(contractSignatures.contractId, c.id), eq(contractSignatures.party, party)));
+        .where(and(current, eq(contractSignatures.party, party)));
       if (existing) throw Error("Esta parte já assinou o contrato.");
       await tx.insert(contractSignatures).values({
         contractId: c.id,
@@ -383,12 +585,12 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
         companyId: c.companyId,
         entityId: c.id,
         action: "contract.signed",
-        details: { party, ip },
+        details: { party, ip, version: c.publishedVersion },
       });
       const signatures = await tx
         .select()
         .from(contractSignatures)
-        .where(eq(contractSignatures.contractId, c.id))
+        .where(current)
         .orderBy(asc(contractSignatures.signedAt));
       const complete = ["client", "anuntech"].every((p) => signatures.some((s) => s.party === p));
       if (!complete) return false;
@@ -417,12 +619,30 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
         entityId: c.id,
         action: "contract.completed",
       });
+      if (c.kind === "amendment" && c.parentId && (c.startsAt || c.endsAt)) {
+        await tx
+          .update(contracts)
+          .set({
+            ...(c.startsAt ? { startsAt: c.startsAt } : {}),
+            ...(c.endsAt ? { endsAt: c.endsAt, expiryNoticeSentAt: null, expiredNoticeSentAt: null } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(contracts.id, c.parentId));
+        await tx.insert(auditEvents).values({
+          actorId: actor.user.id,
+          companyId: c.companyId,
+          entityId: c.parentId,
+          action: "contract.term_amended",
+          details: { amendmentId: c.id, startsAt: c.startsAt, endsAt: c.endsAt },
+        });
+      }
       return true;
     });
-    refresh(c.id);
+    refresh(c.id, c.parentId);
+    const noun = c.kind === "amendment" ? "Aditivo" : "Contrato";
     return {
       success: closed
-        ? "Contrato assinado pelas duas partes. O PDF final já está disponível."
+        ? `${noun} assinado pelas duas partes. O PDF final já está disponível.`
         : party === "client"
           ? "Sua assinatura foi registrada. Falta a assinatura da Anuntech."
           : "Sua assinatura foi registrada. Falta a assinatura do cliente.",
@@ -440,7 +660,7 @@ export async function cancelContract(_: ActionState, form: FormData): Promise<Ac
     const contractId = id.parse(form.get("id"));
     const [c] = await db.select().from(contracts).where(eq(contracts.id, contractId));
     if (!c) return blocked;
-    if (c.status === "signed") return { error: "Um contrato assinado não pode ser cancelado por aqui." };
+    if (c.status === "signed") return { error: "Um contrato assinado não pode ser cancelado por aqui; registre a rescisão por aditivo." };
     if (c.status === "cancelled") return { error: "Este contrato já está cancelado." };
     await db
       .update(contracts)
@@ -452,8 +672,8 @@ export async function cancelContract(_: ActionState, form: FormData): Promise<Ac
       entityId: c.id,
       action: "contract.cancelled",
     });
-    refresh(c.id);
-    return { success: "Contrato cancelado." };
+    refresh(c.id, c.parentId);
+    return { success: c.kind === "amendment" ? "Aditivo cancelado." : "Contrato cancelado." };
   } catch (e) {
     return failure(e);
   }

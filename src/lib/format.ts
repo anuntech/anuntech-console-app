@@ -9,6 +9,12 @@ export const dateLabel = (date: Date | string) =>
     timeZone: APP_TIME_ZONE,
     dateStyle: "short",
   }).format(typeof date === "string" ? new Date(date + "T12:00:00Z") : date);
+/** "24 de setembro de 2026", for contract text and notices. */
+export const longDateLabel = (date: Date | string) =>
+  new Intl.DateTimeFormat(APP_LOCALE, {
+    timeZone: typeof date === "string" ? "UTC" : APP_TIME_ZONE,
+    dateStyle: "long",
+  }).format(typeof date === "string" ? new Date(date + "T12:00:00Z") : date);
 /** "23 set" for a civil date, where the year would only be noise. */
 export const shortDateLabel = (date: string) =>
   new Intl.DateTimeFormat(APP_LOCALE, {
@@ -88,6 +94,12 @@ export const auditLabels: Record<string, string> = {
   "contract.signed": "Contrato assinado por uma das partes",
   "contract.completed": "Contrato assinado pelas duas partes",
   "contract.cancelled": "Contrato cancelado",
+  "contract.reverted": "Contrato voltou para rascunho",
+  "contract.amendment_created": "Aditivo criado",
+  "contract.term_updated": "Vigência atualizada",
+  "contract.term_amended": "Vigência alterada por aditivo",
+  "contract.expiry_notice": "Aviso de vencimento enviado",
+  "contract.expired_notice": "Aviso de contrato vencido enviado",
   "contract.published": "Contrato publicado para o cliente",
   "contract.unpublished": "Contrato retirado da área do cliente",
   "contract_template.created": "Modelo de contrato criado",
