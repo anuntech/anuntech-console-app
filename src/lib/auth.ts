@@ -140,6 +140,11 @@ export const auth = betterAuth({
               message:
                 "Não foi possível validar sua sessão para vincular o WhatsApp.",
             });
+          // Adding a login factor needs a fresh sign-in, as the account page already requires.
+          if (Date.now() - new Date(session.session.createdAt).getTime() > 600_000)
+            throw new APIError("UNAUTHORIZED", {
+              message: "Entre novamente para vincular o WhatsApp.",
+            });
         } else {
           const [user] = await db
             .select()
@@ -174,6 +179,11 @@ export const auth = betterAuth({
           throw new APIError("UNAUTHORIZED", {
             message:
               "Não foi possível validar sua sessão para alterar o WhatsApp.",
+          });
+        // Removing a login factor needs a fresh sign-in too.
+        if (Date.now() - new Date(session.session.createdAt).getTime() > 600_000)
+          throw new APIError("UNAUTHORIZED", {
+            message: "Entre novamente para alterar o WhatsApp.",
           });
         if (
           session.user.twoFactorEnabled ||
