@@ -16,6 +16,7 @@ import {
   subscriptions,
   auditEvents,
   attachments,
+  user,
 } from "@/db/schema";
 import { normalizeEmail, moneyToCents } from "./permissions";
 import { parseChargeTerms, parseTermsScope } from "./billing-terms";
@@ -261,6 +262,16 @@ export async function createTicket(
     return failure(e);
   }
 }
+/** The person who opened a ticket, so Anuntech's movements reach them directly; never the actor. */
+async function ticketOpener(
+  tx: Pick<typeof db, "select">,
+  ticket: { authorId: string },
+  actorEmail: string,
+): Promise<{ email: string; kind: "movement" } | null> {
+  const [opener] = await tx.select({ email: user.email }).from(user).where(eq(user.id, ticket.authorId));
+  if (!opener?.email || opener.email.toLowerCase() === actorEmail.toLowerCase()) return null;
+  return { email: opener.email, kind: "movement" };
+}
 export async function replyTicket(
   _: ActionState,
   form: FormData,
@@ -363,6 +374,7 @@ export async function replyTicket(
         ticket,
         actor.user.name,
         input.body ? "Nova resposta no chamado" : "Novo anexo no chamado",
+        actor.admin ? await ticketOpener(tx, ticket, actor.user.email) : null,
       );
       return { success: input.body ? "Resposta enviada." : "Anexo enviado." };
     });
@@ -458,6 +470,7 @@ export async function updateTicket(
         row,
         actor.user.name,
         changes.join(" · "),
+        await ticketOpener(tx, row, actor.user.email),
       );
     });
     revalidatePath(`/chamados/${input.ticketId}`);

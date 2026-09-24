@@ -29,9 +29,12 @@ export async function enqueueTicketNotice(
   ticket: { id: string; companyId: string; subject: string },
   actorName: string,
   movement: string,
-  /** Receipt for whoever performed the movement, independent of the company's
-      ticket preferences — those address the company's contacts, not the author. */
-  author?: { email: string } | null,
+  /**
+   * A direct e-mail that the company's ticket preferences cannot cancel:
+   * a receipt for whoever opened the ticket, or word to that person that
+   * the Anuntech side moved it. Preferences address the company's contacts.
+   */
+  author?: { email: string; kind?: "receipt" | "movement" } | null,
 ) {
   await lockTicketNotifications(tx);
   const operationalEnabled = await ticketNotificationsEnabled(tx);
@@ -133,7 +136,10 @@ export async function enqueueTicketNotice(
         from: process.env.EMAIL_FROM || "",
         to: authorEmail,
         subject: `${movement} · ${ticket.subject}`,
-        text: `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
+        text:
+          author?.kind === "movement"
+            ? `${movement}\n\nA equipe da Anuntech movimentou o seu chamado.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nResponsável pela movimentação: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`
+            : `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
       },
     });
   if (queued.length)
