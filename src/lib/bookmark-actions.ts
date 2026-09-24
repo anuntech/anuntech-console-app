@@ -1,5 +1,5 @@
 "use server";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -7,14 +7,16 @@ import {
   bookmarkFolderShares,
   bookmarkFolders,
   bookmarks,
-  user,
 } from "@/db/schema";
 import { db } from "./db";
-import { getActor } from "./access";
+import { getActor, canAccess, type Actor } from "./access";
 import { bookmarkInput, safeFileName } from "./bookmark-validation";
+import { personInScope, scopeOf, searchBookmarkPeople } from "./bookmarks";
 import type { ActionState } from "./action-state";
 
 const id = z.string().uuid();
+const companyField = z.union([id, z.literal("")]).default("");
+const visibility = z.enum(["company", "people"]).default("company");
 const folderName = z
   .string()
   .trim()
@@ -30,54 +32,86 @@ const failure = (error: unknown): ActionState => ({
 const refresh = () => revalidatePath("/bookmarks");
 const MAX_FILE = 1024 * 1024;
 
-/** Owner or someone the folder was shared with. */
-async function folderAccess(folderId: string, userId: string) {
-  const [folder] = await db
-    .select({ id: bookmarkFolders.id, ownerId: bookmarkFolders.ownerId })
-    .from(bookmarkFolders)
-    .leftJoin(
-      bookmarkFolderShares,
-      and(eq(bookmarkFolderShares.folderId, bookmarkFolders.id), eq(bookmarkFolderShares.userId, userId)),
-    )
-    .where(
-      and(
-        eq(bookmarkFolders.id, folderId),
-        or(eq(bookmarkFolders.ownerId, userId), eq(bookmarkFolderShares.userId, userId)),
-      ),
-    );
-  return folder ?? null;
+/** Anuntech's own space (null) is staff-only; a company needs access to it. */
+function companyAllowed(actor: Actor, companyId: string | null) {
+  return companyId ? canAccess(actor, companyId, "overview") : actor.admin;
 }
 
-/** The bookmark's owner, or the owner of the folder it sits in. */
-async function bookmarkAccess(bookmarkId: string, userId: string) {
+async function loadFolder(folderId: string) {
+  const [folder] = await db
+    .select({
+      id: bookmarkFolders.id,
+      companyId: bookmarkFolders.companyId,
+      ownerId: bookmarkFolders.ownerId,
+      name: bookmarkFolders.name,
+      visibility: bookmarkFolders.visibility,
+    })
+    .from(bookmarkFolders)
+    .where(eq(bookmarkFolders.id, folderId));
+  return folder ?? null;
+}
+type Folder = NonNullable<Awaited<ReturnType<typeof loadFolder>>>;
+
+/** Staff or the owner: rename, share, delete. */
+const manages = (actor: Actor, folder: Folder) => actor.admin || folder.ownerId === actor.user.id;
+
+/** Whoever can see the folder can add to it. */
+async function usable(actor: Actor, folder: Folder) {
+  if (!companyAllowed(actor, folder.companyId)) return false;
+  if (actor.admin || folder.visibility === "company" || folder.ownerId === actor.user.id) return true;
+  const [share] = await db
+    .select({ userId: bookmarkFolderShares.userId })
+    .from(bookmarkFolderShares)
+    .where(
+      and(eq(bookmarkFolderShares.folderId, folder.id), eq(bookmarkFolderShares.userId, actor.user.id)),
+    );
+  return !!share;
+}
+
+/** Staff, the person who saved it, or the owner of its folder. */
+async function editableBookmark(actor: Actor, bookmarkId: string) {
   const [item] = await db
     .select({
       id: bookmarks.id,
       ownerId: bookmarks.ownerId,
+      companyId: bookmarks.companyId,
       folderId: bookmarks.folderId,
       folderOwner: bookmarkFolders.ownerId,
       title: bookmarks.title,
+      fileName: bookmarks.fileName,
     })
     .from(bookmarks)
     .leftJoin(bookmarkFolders, eq(bookmarkFolders.id, bookmarks.folderId))
     .where(eq(bookmarks.id, bookmarkId));
-  if (!item || (item.ownerId !== userId && item.folderOwner !== userId)) return null;
-  return item;
+  if (!item) return null;
+  if (actor.admin || item.ownerId === actor.user.id || item.folderOwner === actor.user.id)
+    return item;
+  return null;
 }
 
-async function audit(actorId: string, action: string, entityId: string, details?: unknown) {
-  await db.insert(auditEvents).values({ actorId, action, entityId, details: details ?? null });
+async function audit(actor: Actor, action: string, entityId: string, companyId: string | null, details?: unknown) {
+  await db.insert(auditEvents).values({
+    actorId: actor.user.id,
+    companyId,
+    action,
+    entityId,
+    details: details ?? null,
+  });
 }
 
 export async function createFolder(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   try {
-    const name = folderName.parse(form.get("name"));
+    const input = z
+      .object({ name: folderName, companyId: companyField, visibility })
+      .parse(Object.fromEntries(form));
+    const companyId = input.companyId || null;
+    if (!companyAllowed(actor, companyId)) return blocked;
     const [folder] = await db
       .insert(bookmarkFolders)
-      .values({ ownerId: actor.user.id, name })
+      .values({ ownerId: actor.user.id, companyId, name: input.name, visibility: input.visibility })
       .returning({ id: bookmarkFolders.id });
-    await audit(actor.user.id, "bookmark_folder.created", folder.id, { name });
+    await audit(actor, "bookmark_folder.created", folder.id, companyId, { name: input.name });
     refresh();
     return { success: "Pasta criada.", href: `/bookmarks?pasta=${folder.id}` };
   } catch (error) {
@@ -90,13 +124,10 @@ export async function renameFolder(_: ActionState, form: FormData): Promise<Acti
   try {
     const folderId = id.parse(form.get("id"));
     const name = folderName.parse(form.get("name"));
-    const [folder] = await db
-      .update(bookmarkFolders)
-      .set({ name })
-      .where(and(eq(bookmarkFolders.id, folderId), eq(bookmarkFolders.ownerId, actor.user.id)))
-      .returning({ id: bookmarkFolders.id });
-    if (!folder) return blocked;
-    await audit(actor.user.id, "bookmark_folder.updated", folder.id, { name });
+    const folder = await loadFolder(folderId);
+    if (!folder || !manages(actor, folder)) return blocked;
+    await db.update(bookmarkFolders).set({ name }).where(eq(bookmarkFolders.id, folder.id));
+    await audit(actor, "bookmark_folder.updated", folder.id, folder.companyId, { name });
     refresh();
     return { success: "Pasta renomeada." };
   } catch (error) {
@@ -104,30 +135,19 @@ export async function renameFolder(_: ActionState, form: FormData): Promise<Acti
   }
 }
 
-/** The folder goes away; what was inside returns to each owner's "Sem pasta". */
+/** The folder goes away; what was inside stays with the company, loose. */
 export async function deleteFolder(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   try {
     const folderId = id.parse(form.get("id"));
-    const done = await db.transaction(async (tx) => {
-      const [folder] = await tx
-        .select({ id: bookmarkFolders.id, name: bookmarkFolders.name })
-        .from(bookmarkFolders)
-        .where(and(eq(bookmarkFolders.id, folderId), eq(bookmarkFolders.ownerId, actor.user.id)))
-        .for("update");
-      if (!folder) return false;
+    const folder = await loadFolder(folderId);
+    if (!folder || !manages(actor, folder)) return blocked;
+    await db.transaction(async (tx) => {
       await tx.update(bookmarks).set({ folderId: null }).where(eq(bookmarks.folderId, folder.id));
       await tx.delete(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, folder.id));
       await tx.delete(bookmarkFolders).where(eq(bookmarkFolders.id, folder.id));
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        action: "bookmark_folder.deleted",
-        entityId: folder.id,
-        details: { name: folder.name },
-      });
-      return true;
     });
-    if (!done) return blocked;
+    await audit(actor, "bookmark_folder.deleted", folder.id, folder.companyId, { name: folder.name });
     refresh();
     return { success: "Pasta excluída.", href: "/bookmarks" };
   } catch (error) {
@@ -135,50 +155,60 @@ export async function deleteFolder(_: ActionState, form: FormData): Promise<Acti
   }
 }
 
-/** Replaces who the folder is shared with. */
+/** Who sees the folder: the whole company, or only chosen people. */
 export async function shareFolder(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   try {
     const folderId = id.parse(form.get("id"));
-    const userIds = [
-      ...new Set(
-        form
-          .getAll("userIds")
-          .map((value) => String(value).trim())
-          .filter((value) => value && value.length <= 128 && value !== actor.user.id),
-      ),
-    ];
+    const mode = visibility.parse(form.get("visibility") ?? "company");
+    const userIds =
+      mode === "people"
+        ? [
+            ...new Set(
+              form
+                .getAll("userIds")
+                .map((value) => String(value).trim())
+                .filter((value) => value && value.length <= 128 && value !== actor.user.id),
+            ),
+          ]
+        : [];
     if (userIds.length > 50) return { error: "Compartilhe com até 50 pessoas." };
-    const done = await db.transaction(async (tx) => {
-      const [folder] = await tx
-        .select({ id: bookmarkFolders.id })
-        .from(bookmarkFolders)
-        .where(and(eq(bookmarkFolders.id, folderId), eq(bookmarkFolders.ownerId, actor.user.id)))
-        .for("update");
-      if (!folder) return false;
-      if (userIds.length) {
-        const known = await tx.select({ id: user.id }).from(user).where(inArray(user.id, userIds));
-        if (known.length !== userIds.length) throw new Error("Pessoa desconhecida.");
-      }
+    const folder = await loadFolder(folderId);
+    if (!folder || !manages(actor, folder)) return blocked;
+    for (const userId of userIds)
+      if (!(await personInScope(userId, folder.companyId)))
+        return { error: "Uma das pessoas escolhidas não participa desta empresa." };
+    await db.transaction(async (tx) => {
+      await tx
+        .update(bookmarkFolders)
+        .set({ visibility: mode })
+        .where(eq(bookmarkFolders.id, folder.id));
       await tx.delete(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, folder.id));
       if (userIds.length)
         await tx
           .insert(bookmarkFolderShares)
           .values(userIds.map((userId) => ({ folderId: folder.id, userId })));
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        action: "bookmark_folder.shared",
-        entityId: folder.id,
-        details: { people: userIds.length },
-      });
-      return true;
     });
-    if (!done) return blocked;
+    await audit(actor, "bookmark_folder.shared", folder.id, folder.companyId, {
+      visibility: mode,
+      people: userIds.length,
+    });
     refresh();
-    return { success: userIds.length ? "Compartilhamento atualizado." : "Pasta agora é só sua." };
+    return {
+      success:
+        mode === "company" ? "Pasta aberta para toda a empresa." : "Compartilhamento atualizado.",
+    };
   } catch (error) {
     return failure(error);
   }
+}
+
+/** Live search for the share dialog; only people the folder's company can include. */
+export async function searchPeople(folderId: string, query: string) {
+  const actor = await getActor();
+  const folder = id.safeParse(folderId).success ? await loadFolder(folderId) : null;
+  if (!folder || !manages(actor, folder) || query.trim().length < 1) return [];
+  return searchBookmarkPeople(scopeOf(actor), folder.companyId, query);
 }
 
 export async function saveBookmark(_: ActionState, form: FormData): Promise<ActionState> {
@@ -192,12 +222,18 @@ export async function saveBookmark(_: ActionState, form: FormData): Promise<Acti
   if (input.url && uploaded) return { error: "Salve um link ou um arquivo por vez." };
   if (uploaded && uploaded.size > MAX_FILE) return { error: "Escolha um arquivo de até 1 MB." };
   try {
-    if (input.folderId && !(await folderAccess(input.folderId, actor.user.id))) return blocked;
+    let companyId: string | null = input.companyId || null;
+    if (input.folderId) {
+      const folder = await loadFolder(input.folderId);
+      if (!folder || !(await usable(actor, folder))) return blocked;
+      companyId = folder.companyId;
+    } else if (!companyAllowed(actor, companyId)) return blocked;
     const content = uploaded ? Buffer.from(await uploaded.arrayBuffer()) : null;
     const [item] = await db
       .insert(bookmarks)
       .values({
         ownerId: actor.user.id,
+        companyId,
         folderId: input.folderId || null,
         title: input.title,
         url: input.url || null,
@@ -205,7 +241,7 @@ export async function saveBookmark(_: ActionState, form: FormData): Promise<Acti
         content,
       })
       .returning({ id: bookmarks.id });
-    await audit(actor.user.id, "bookmark.created", item.id, { title: input.title });
+    await audit(actor, "bookmark.created", item.id, companyId, { title: input.title });
     refresh();
     return { success: "Bookmark salvo." };
   } catch {
@@ -221,25 +257,26 @@ export async function updateBookmark(_: ActionState, form: FormData): Promise<Ac
     const parsed = bookmarkInput.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const input = parsed.data;
-    const item = await bookmarkAccess(bookmarkId, actor.user.id);
+    const item = await editableBookmark(actor, bookmarkId);
     if (!item) return blocked;
-    if (input.folderId && input.folderId !== item.folderId && !(await folderAccess(input.folderId, actor.user.id)))
-      return blocked;
-    const [current] = await db
-      .select({ fileName: bookmarks.fileName })
-      .from(bookmarks)
-      .where(eq(bookmarks.id, bookmarkId));
-    if (!current.fileName && !input.url) return { error: "Informe um link." };
+    if (!item.fileName && !input.url) return { error: "Informe um link." };
+    let companyId = item.companyId;
+    if (input.folderId && input.folderId !== item.folderId) {
+      const folder = await loadFolder(input.folderId);
+      if (!folder || !(await usable(actor, folder))) return blocked;
+      companyId = folder.companyId;
+    }
     await db
       .update(bookmarks)
       .set({
         title: input.title,
-        url: current.fileName ? null : input.url,
+        url: item.fileName ? null : input.url,
         folderId: input.folderId || null,
+        companyId,
         updatedAt: new Date(),
       })
       .where(eq(bookmarks.id, bookmarkId));
-    await audit(actor.user.id, "bookmark.updated", bookmarkId, { title: input.title });
+    await audit(actor, "bookmark.updated", bookmarkId, companyId, { title: input.title });
     refresh();
     return { success: "Bookmark atualizado." };
   } catch (error) {
@@ -253,12 +290,17 @@ export async function moveBookmark(_: ActionState, form: FormData): Promise<Acti
   try {
     const bookmarkId = id.parse(form.get("id"));
     const folderId = z.union([id, z.literal("")]).parse(form.get("folderId") ?? "");
-    const item = await bookmarkAccess(bookmarkId, actor.user.id);
+    const item = await editableBookmark(actor, bookmarkId);
     if (!item) return blocked;
-    if (folderId && !(await folderAccess(folderId, actor.user.id))) return blocked;
+    let companyId = item.companyId;
+    if (folderId) {
+      const folder = await loadFolder(folderId);
+      if (!folder || !(await usable(actor, folder))) return blocked;
+      companyId = folder.companyId;
+    }
     await db
       .update(bookmarks)
-      .set({ folderId: folderId || null, updatedAt: new Date() })
+      .set({ folderId: folderId || null, companyId, updatedAt: new Date() })
       .where(eq(bookmarks.id, bookmarkId));
     refresh();
     return { success: "Bookmark movido." };
@@ -271,10 +313,10 @@ export async function deleteBookmark(_: ActionState, form: FormData): Promise<Ac
   const actor = await getActor();
   try {
     const bookmarkId = id.parse(form.get("id"));
-    const item = await bookmarkAccess(bookmarkId, actor.user.id);
+    const item = await editableBookmark(actor, bookmarkId);
     if (!item) return blocked;
     await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId));
-    await audit(actor.user.id, "bookmark.deleted", bookmarkId, { title: item.title });
+    await audit(actor, "bookmark.deleted", bookmarkId, item.companyId, { title: item.title });
     refresh();
     return { success: "Bookmark removido." };
   } catch (error) {

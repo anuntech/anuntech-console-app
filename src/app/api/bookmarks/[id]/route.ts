@@ -1,9 +1,9 @@
-import { and, eq, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { bookmarkFolderShares, bookmarkFolders, bookmarks } from "@/db/schema";
-import { getActor } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access";
 import { db } from "@/lib/db";
 
-/** A saved file: for its owner, or for anyone the folder is shared with. */
+/** A saved file, for whoever can see the bookmark. */
 export async function GET(
   _: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -11,7 +11,15 @@ export async function GET(
   const actor = await getActor();
   const { id } = await params;
   const [file] = await db
-    .select({ content: bookmarks.content, name: bookmarks.fileName })
+    .select({
+      content: bookmarks.content,
+      name: bookmarks.fileName,
+      companyId: bookmarks.companyId,
+      ownerId: bookmarks.ownerId,
+      folderVisibility: bookmarkFolders.visibility,
+      folderOwner: bookmarkFolders.ownerId,
+      sharedWithMe: bookmarkFolderShares.userId,
+    })
     .from(bookmarks)
     .leftJoin(bookmarkFolders, eq(bookmarkFolders.id, bookmarks.folderId))
     .leftJoin(
@@ -21,17 +29,15 @@ export async function GET(
         eq(bookmarkFolderShares.userId, actor.user.id),
       ),
     )
-    .where(
-      and(
-        eq(bookmarks.id, id),
-        or(
-          eq(bookmarks.ownerId, actor.user.id),
-          eq(bookmarkFolders.ownerId, actor.user.id),
-          eq(bookmarkFolderShares.userId, actor.user.id),
-        ),
-      ),
-    );
+    .where(eq(bookmarks.id, id));
   if (!file?.content || !file.name) return new Response(null, { status: 404 });
+  const inCompany = file.companyId ? canAccess(actor, file.companyId, "overview") : actor.admin;
+  const folderOpen =
+    !file.folderVisibility ||
+    file.folderVisibility === "company" ||
+    file.folderOwner === actor.user.id ||
+    !!file.sharedWithMe;
+  if (!actor.admin && !(inCompany && folderOpen)) return new Response(null, { status: 404 });
   return new Response(new Uint8Array(file.content), {
     headers: {
       "Content-Type": "application/octet-stream",

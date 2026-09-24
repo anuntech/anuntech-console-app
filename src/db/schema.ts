@@ -631,16 +631,27 @@ export const environmentProfile = pgTable("console_environment_profile", {
     .defaultNow(),
 });
 
-/** A personal folder; sharing it lets other people read it and add to it. */
+/**
+ * A folder of a company's bookmarks (companyId null = Anuntech's own).
+ * "company" folders are open to everyone in the company; "people" folders
+ * only to the owner and the people it was shared with.
+ */
 export const bookmarkFolders = pgTable(
   "console_bookmark_folders",
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id").references(() => companies.id),
     ownerId: text("owner_id").notNull().references(() => user.id),
     name: text("name").notNull(),
+    visibility: text("visibility", { enum: ["company", "people"] })
+      .notNull()
+      .default("company"),
     createdAt: created(),
   },
-  (t) => [index("console_bookmark_folder_owner_idx").on(t.ownerId)],
+  (t) => [
+    index("console_bookmark_folder_owner_idx").on(t.ownerId),
+    index("console_bookmark_folder_company_idx").on(t.companyId),
+  ],
 );
 export const bookmarkFolderShares = pgTable(
   "console_bookmark_folder_shares",
@@ -654,11 +665,12 @@ export const bookmarkFolderShares = pgTable(
     index("console_bookmark_share_user_idx").on(t.userId),
   ],
 );
-/** A link or a small file. Outside a folder it is private to its owner. */
+/** A link or a small file of a company (companyId null = Anuntech's own). */
 export const bookmarks = pgTable(
   "console_bookmarks",
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id").references(() => companies.id),
     ownerId: text("author_id").notNull().references(() => user.id),
     folderId: text("folder_id").references(() => bookmarkFolders.id),
     title: text("title").notNull(),
@@ -671,6 +683,7 @@ export const bookmarks = pgTable(
   (t) => [
     index("console_bookmark_owner_idx").on(t.ownerId),
     index("console_bookmark_folder_idx").on(t.folderId),
+    index("console_bookmark_company_idx").on(t.companyId),
   ],
 );
 

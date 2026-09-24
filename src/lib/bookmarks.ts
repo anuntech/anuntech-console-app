@@ -1,24 +1,47 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
+import {
+  accountEmails,
   bookmarkFolderShares,
   bookmarkFolders,
   bookmarks,
+  companies,
   consoleStaffMembers,
   memberships,
-  accountEmails,
   user,
 } from "@/db/schema";
 import type { Actor } from "./access";
+import { getAccountEmails } from "./account-identity";
+import { hasConsoleStaffAccess } from "./console-members";
 import { db } from "./db";
-import { isNotNull } from "drizzle-orm";
+
+/** What the viewer may see: staff sees every company; a member, their own. */
+export type Scope = { admin: boolean; userId: string; companyIds: string[] };
+export const scopeOf = (actor: Actor): Scope => ({
+  admin: actor.admin,
+  userId: actor.user.id,
+  companyIds: actor.grants.map((g) => g.company.id),
+});
 
 export type FolderView = {
   id: string;
   name: string;
+  companyId: string | null;
+  company: string | null;
   ownerId: string;
   owner: string;
-  /** People the folder is shared with (owner's folders only). */
+  visibility: "company" | "people";
   sharedWith: { id: string; name: string; image: string | null }[];
   count: number;
 };
@@ -28,40 +51,81 @@ export type BookmarkView = {
   url: string | null;
   fileName: string | null;
   folderId: string | null;
+  companyId: string | null;
   ownerId: string;
   createdAt: string;
 };
-export type BookmarkQuery = { folder: string; search: string };
+/** `company`: "all", "internal" (Anuntech's own) or a company id. */
+export type BookmarkQuery = { folder: string; search: string; company: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function bookmarkQuery(params: Record<string, string | string[] | undefined>): BookmarkQuery {
+export function bookmarkQuery(
+  params: Record<string, string | string[] | undefined>,
+  scope: Scope,
+): BookmarkQuery {
   const scalar = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
   const folder = scalar("pasta");
+  const company = scalar("empresa");
+  const companyOk =
+    (company === "internal" && scope.admin) ||
+    (UUID.test(company) && (scope.admin || scope.companyIds.includes(company.toLowerCase())));
   return {
     folder: folder === "root" || UUID.test(folder) ? folder : "all",
     search: scalar("q").trim().slice(0, 160),
+    company: companyOk ? (company === "internal" ? company : company.toLowerCase()) : "all",
   };
 }
 
-/** Folders the person owns or was given, with counts. */
-export async function foldersFor(userId: string): Promise<FolderView[]> {
+/** The company condition for a query, on any table with a company_id column. */
+function companyCondition(
+  column: typeof bookmarks.companyId | typeof bookmarkFolders.companyId,
+  scope: Scope,
+  company: string,
+) {
+  if (company === "internal") return isNull(column);
+  if (company !== "all") return eq(column, company);
+  return scope.admin
+    ? undefined
+    : scope.companyIds.length
+      ? inArray(column, scope.companyIds)
+      : sql`false`;
+}
+
+/** Folders the viewer may open, with counts and who they are shared with. */
+export async function foldersFor(scope: Scope, company: string): Promise<FolderView[]> {
   const rows = await db
     .select({
       id: bookmarkFolders.id,
       name: bookmarkFolders.name,
+      companyId: bookmarkFolders.companyId,
+      company: companies.name,
       ownerId: bookmarkFolders.ownerId,
       owner: user.name,
+      visibility: bookmarkFolders.visibility,
+      sharedWithMe: bookmarkFolderShares.userId,
     })
     .from(bookmarkFolders)
     .innerJoin(user, eq(user.id, bookmarkFolders.ownerId))
+    .leftJoin(companies, eq(companies.id, bookmarkFolders.companyId))
     .leftJoin(
       bookmarkFolderShares,
       and(
         eq(bookmarkFolderShares.folderId, bookmarkFolders.id),
-        eq(bookmarkFolderShares.userId, userId),
+        eq(bookmarkFolderShares.userId, scope.userId),
       ),
     )
-    .where(or(eq(bookmarkFolders.ownerId, userId), eq(bookmarkFolderShares.userId, userId)))
+    .where(
+      and(
+        companyCondition(bookmarkFolders.companyId, scope, company),
+        scope.admin
+          ? undefined
+          : or(
+              eq(bookmarkFolders.visibility, "company"),
+              eq(bookmarkFolders.ownerId, scope.userId),
+              isNotNull(bookmarkFolderShares.userId),
+            ),
+      ),
+    )
     .orderBy(asc(bookmarkFolders.name));
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
@@ -85,7 +149,13 @@ export async function foldersFor(userId: string): Promise<FolderView[]> {
   ]);
   const countOf = new Map(counts.map((row) => [row.folderId, row.n]));
   return rows.map((row) => ({
-    ...row,
+    id: row.id,
+    name: row.name,
+    companyId: row.companyId,
+    company: row.company,
+    ownerId: row.ownerId,
+    owner: row.owner,
+    visibility: row.visibility,
     sharedWith: shares
       .filter((share) => share.folderId === row.id)
       .map(({ id, name, image }) => ({ id, name, image })),
@@ -93,22 +163,22 @@ export async function foldersFor(userId: string): Promise<FolderView[]> {
   }));
 }
 
-/** Everything the person can see, narrowed by folder and search. */
+/** Bookmarks the viewer may see: loose ones of their companies, plus visible folders. */
 export async function bookmarksFor(
-  userId: string,
+  scope: Scope,
   folderIds: string[],
   query: BookmarkQuery,
 ): Promise<{ items: BookmarkView[]; rootCount: number; total: number }> {
-  const visible = or(
-    and(eq(bookmarks.ownerId, userId), isNull(bookmarks.folderId)),
-    folderIds.length ? inArray(bookmarks.folderId, folderIds) : sql`false`,
+  const visible = and(
+    companyCondition(bookmarks.companyId, scope, query.company),
+    or(isNull(bookmarks.folderId), folderIds.length ? inArray(bookmarks.folderId, folderIds) : sql`false`),
   );
-  const scope =
+  const narrowed =
     query.folder === "root"
-      ? and(eq(bookmarks.ownerId, userId), isNull(bookmarks.folderId))
+      ? and(visible, isNull(bookmarks.folderId))
       : query.folder !== "all"
         ? folderIds.includes(query.folder)
-          ? eq(bookmarks.folderId, query.folder)
+          ? and(visible, eq(bookmarks.folderId, query.folder))
           : sql`false`
         : visible;
   const search = query.search.replace(/[\\%_]/g, "\\$&");
@@ -120,13 +190,14 @@ export async function bookmarksFor(
         url: bookmarks.url,
         fileName: bookmarks.fileName,
         folderId: bookmarks.folderId,
+        companyId: bookmarks.companyId,
         ownerId: bookmarks.ownerId,
         createdAt: bookmarks.createdAt,
       })
       .from(bookmarks)
       .where(
         and(
-          scope,
+          narrowed,
           search
             ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`))
             : undefined,
@@ -149,12 +220,38 @@ export async function bookmarksFor(
   };
 }
 
-/** Who a folder can be shared with: colleagues in the same companies and the Anuntech team. */
-export async function bookmarkPeople(actor: Actor) {
+/** Staff, or an active member of the company: who a company folder can be shared with. */
+export async function personInScope(userId: string, companyId: string | null) {
+  const [person] = await db.select({ email: user.email }).from(user).where(eq(user.id, userId));
+  if (!person) return false;
+  if (await hasConsoleStaffAccess(person.email)) return true;
+  if (!companyId) return false;
+  const emails = await getAccountEmails(userId, person.email);
+  const [member] = await db
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(
+      and(
+        eq(memberships.companyId, companyId),
+        inArray(memberships.email, emails),
+        eq(memberships.active, true),
+      ),
+    )
+    .limit(1);
+  return !!member;
+}
+
+/** Up to a few people matching a name, among the company's members and the team. */
+export async function searchBookmarkPeople(
+  scope: Scope,
+  companyId: string | null,
+  query: string,
+  limit = 8,
+) {
+  const term = `%${query.trim().replace(/[\\%_]/g, "\\$&")}%`;
   const columns = { id: user.id, name: user.name, image: user.image };
-  const companyIds = actor.grants.map((g) => g.company.id);
   const [members, staff] = await Promise.all([
-    actor.admin || companyIds.length
+    companyId
       ? db
           .select(columns)
           .from(memberships)
@@ -168,10 +265,12 @@ export async function bookmarkPeople(actor: Actor) {
           )
           .where(
             and(
+              eq(memberships.companyId, companyId),
               eq(memberships.active, true),
-              actor.admin ? undefined : inArray(memberships.companyId, companyIds),
+              ilike(user.name, term),
             ),
           )
+          .limit(limit)
       : [],
     db
       .select(columns)
@@ -187,10 +286,13 @@ export async function bookmarkPeople(actor: Actor) {
         user,
         or(eq(user.email, consoleStaffMembers.email), eq(user.id, accountEmails.userId)),
       )
-      .where(eq(consoleStaffMembers.active, true)),
+      .where(and(eq(consoleStaffMembers.active, true), ilike(user.name, term)))
+      .limit(limit),
   ]);
   const people = new Map<string, { id: string; name: string; image: string | null }>();
-  for (const row of [...staff, ...members])
-    if (row.id !== actor.user.id && !people.has(row.id)) people.set(row.id, row);
-  return [...people.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  for (const row of [...members, ...staff])
+    if (row.id !== scope.userId && !people.has(row.id)) people.set(row.id, row);
+  return [...people.values()]
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+    .slice(0, limit);
 }

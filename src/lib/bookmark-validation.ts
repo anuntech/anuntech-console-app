@@ -1,5 +1,6 @@
 import { z } from "zod";
 export const bookmarkInput = z.object({
+  companyId: z.union([z.string().uuid(), z.literal("")]).default(""),
   folderId: z.union([z.string().uuid(), z.literal("")]).default(""),
   title: z.string().trim().min(1, "Informe um título.").max(160),
   url: z

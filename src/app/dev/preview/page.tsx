@@ -736,13 +736,36 @@ export default async function Preview({
     {
       id: "f1",
       name: "Referências de design",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
       ownerId: "u1",
       owner: "Kauan Ketner",
+      visibility: "people" as const,
       sharedWith: [person("u2", "Alexandre Souza"), person("u3", "Mariana Lopes")],
       count: 4,
     },
-    { id: "f2", name: "Fornecedores", ownerId: "u1", owner: "Kauan Ketner", sharedWith: [], count: 2 },
-    { id: "f3", name: "Materiais Maxipark", ownerId: "u2", owner: "Alexandre Souza", sharedWith: [], count: 2 },
+    {
+      id: "f2",
+      name: "Fornecedores",
+      companyId: null,
+      company: null,
+      ownerId: "u1",
+      owner: "Kauan Ketner",
+      visibility: "company" as const,
+      sharedWith: [],
+      count: 2,
+    },
+    {
+      id: "f3",
+      name: "Materiais Maxipark",
+      companyId: "a1",
+      company: "Maxipark Estacionamentos",
+      ownerId: "u2",
+      owner: "Alexandre Souza",
+      visibility: "company" as const,
+      sharedWith: [],
+      count: 2,
+    },
   ];
   const bookmark = (id: string, title: string, url: string | null, folderId: string | null, fileName?: string) => ({
     id,
@@ -750,6 +773,7 @@ export default async function Preview({
     url,
     fileName: fileName ?? null,
     folderId,
+    companyId: folderId === "f2" || folderId === null ? null : "a1",
     ownerId: folderId === "f3" ? "u2" : "u1",
     createdAt: ago(3),
   });
@@ -768,10 +792,14 @@ export default async function Preview({
   const bookmarksData = {
     folders: bookmarkFolders,
     items: tela === "bookmarks-vazio" ? [] : bookmarkItems,
-    query: { folder: "all", search: tela === "bookmarks-vazio" ? "zzz" : "" },
+    query: { folder: "all", search: tela === "bookmarks-vazio" ? "zzz" : "", company: "all" },
     counts: { root: 2, total: 10 },
-    people: boardPeople.filter((p) => p.id !== "u1"),
-    viewerId: "u1",
+    companies: [
+      { id: "", name: "Anuntech" },
+      { id: "a1", name: "Maxipark Estacionamentos" },
+      { id: "a2", name: "Paróquia Santa Rita" },
+    ],
+    viewer: { id: "u1", admin: true },
   };
   if (tela.startsWith("login"))
     return (

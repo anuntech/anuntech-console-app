@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,28 +23,38 @@ import {
 } from "@/components/console/server-form";
 import { saveBookmark, updateBookmark } from "@/lib/bookmark-actions";
 import type { BookmarkView, FolderView } from "@/lib/bookmarks";
+import type { CompanyOption } from "./folder-dialogs";
 
 export type BookmarkEditor =
-  | { mode: "create"; folderId: string }
+  | { mode: "create"; companyId: string; folderId: string }
   | { mode: "edit"; item: BookmarkView };
 
-/** Create or edit: title, link (or a small file when creating) and folder. */
+/** Create or edit: company, folder, title and a link (or a small file when creating). */
 export function BookmarkSheet({
   editor,
   onClose,
   folders,
+  companies,
 }: {
   editor: BookmarkEditor | null;
   onClose: () => void;
   folders: FolderView[];
+  companies: CompanyOption[];
 }) {
   const item = editor?.mode === "edit" ? editor.item : null;
+  const initialCompany = item
+    ? (item.companyId ?? "")
+    : editor?.mode === "create"
+      ? editor.companyId
+      : "";
+  const [company, setCompany] = useState(initialCompany);
   const folderId = editor?.mode === "create" ? editor.folderId : (item?.folderId ?? "");
+  const options = folders.filter((folder) => (folder.companyId ?? "") === company);
   return (
     <Sheet open={editor !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
         <ServerForm
-          key={item?.id ?? `new-${folderId}`}
+          key={item?.id ?? `new-${folderId}-${initialCompany}`}
           action={item ? updateBookmark : saveBookmark}
           onSuccess={onClose}
           className="flex h-full min-h-0 flex-col"
@@ -58,6 +69,29 @@ export function BookmarkSheet({
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
             <FormError className="mb-5" />
             <div className="grid gap-5">
+              {!item &&
+                (companies.length > 1 ? (
+                  <div>
+                    <Label htmlFor="bookmark-company" className="mb-1.5">
+                      Empresa
+                    </Label>
+                    <NativeSelect
+                      id="bookmark-company"
+                      name="companyId"
+                      value={company}
+                      onChange={(event) => setCompany(event.target.value)}
+                      className="bg-field"
+                    >
+                      {companies.map((option) => (
+                        <NativeSelectOption key={option.id || "internal"} value={option.id}>
+                          {option.name}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                ) : (
+                  <input type="hidden" name="companyId" value={companies[0]?.id ?? ""} />
+                ))}
               <div>
                 <Label htmlFor="bookmark-title" className="mb-1.5">
                   Título
@@ -103,11 +137,12 @@ export function BookmarkSheet({
                 <NativeSelect
                   id="bookmark-folder"
                   name="folderId"
-                  defaultValue={folderId}
+                  key={company}
+                  defaultValue={options.some((f) => f.id === folderId) ? folderId : ""}
                   className="bg-field"
                 >
                   <NativeSelectOption value="">Sem pasta</NativeSelectOption>
-                  {folders.map((folder) => (
+                  {options.map((folder) => (
                     <NativeSelectOption key={folder.id} value={folder.id}>
                       {folder.name}
                     </NativeSelectOption>

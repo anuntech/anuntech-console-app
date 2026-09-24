@@ -162,6 +162,13 @@
       "when": 1790220056729,
       "tag": "0022_engagement_url",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790220441686,
+      "tag": "0023_bookmark_company_scope",
+      "breakpoints": true
     }
   ]
 }

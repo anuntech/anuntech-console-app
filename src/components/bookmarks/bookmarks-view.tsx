@@ -40,19 +40,26 @@ import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { DownloadLink } from "@/components/console/download-link";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
-import type { PersonOption } from "@/components/console/people-field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { moveBookmark, deleteBookmark } from "@/lib/bookmark-actions";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks";
 import { BookmarkSheet, type BookmarkEditor } from "./bookmark-sheet";
-import { FolderDialogs, type FolderEditor } from "./folder-dialogs";
+import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
 
 export type BookmarksViewData = {
   folders: FolderView[];
   items: BookmarkView[];
   query: BookmarkQuery;
   counts: { root: number; total: number };
-  people: PersonOption[];
-  viewerId: string;
+  /** Companies the viewer can file under; id "" is Anuntech's own space (staff). */
+  companies: CompanyOption[];
+  viewer: { id: string; admin: boolean };
 };
 
 const tones = [
@@ -96,6 +103,7 @@ function Tile({ item }: { item: BookmarkView }) {
 function href(query: BookmarkQuery, patch: Partial<BookmarkQuery>) {
   const next = { ...query, ...patch };
   const params = new URLSearchParams();
+  if (next.company !== "all") params.set("empresa", next.company);
   if (next.folder !== "all") params.set("pasta", next.folder);
   if (next.search) params.set("q", next.search);
   return `/bookmarks${params.size ? `?${params}` : ""}`;
@@ -168,22 +176,51 @@ function NavItem({
 }
 
 export function BookmarksView({ data }: { data: BookmarksViewData }) {
-  const { folders, items, query, counts, people, viewerId } = data;
+  const { folders, items, query, counts, companies, viewer } = data;
   const router = useRouter();
   const pathname = usePathname();
   const [editor, setEditor] = useState<BookmarkEditor | null>(null);
   const [folderEditor, setFolderEditor] = useState<FolderEditor | null>(null);
   const [removing, setRemoving] = useState<BookmarkView | null>(null);
   const { submit: move, form: moveForm } = useBookmarkMove();
-  const own = folders.filter((folder) => folder.ownerId === viewerId);
-  const shared = folders.filter((folder) => folder.ownerId !== viewerId);
   const folderById = new Map(folders.map((folder) => [folder.id, folder]));
+  const companyName = new Map(companies.map((company) => [company.id, company.name]));
   const current = folderById.get(query.folder);
+  const manyCompanies = companies.length > 1;
+  const showCompany = manyCompanies && query.company === "all";
+  const manages = (folder: FolderView) => viewer.admin || folder.ownerId === viewer.id;
   const canEdit = (item: BookmarkView) =>
-    item.ownerId === viewerId ||
-    (item.folderId ? folderById.get(item.folderId)?.ownerId === viewerId : false);
+    viewer.admin ||
+    item.ownerId === viewer.id ||
+    (item.folderId ? folderById.get(item.folderId)?.ownerId === viewer.id : false);
   const createIn = query.folder !== "all" && query.folder !== "root" ? query.folder : "";
+  // A new item lands in the company being looked at, or the folder's company.
+  const createCompany = current
+    ? (current.companyId ?? "")
+    : query.company === "internal"
+      ? ""
+      : query.company !== "all"
+        ? query.company
+        : (companies[0]?.id ?? "");
   const later = (fn: () => void) => setTimeout(fn, 0);
+  const companyPicker = manyCompanies && (
+    <Select
+      value={query.company}
+      onValueChange={(company) => router.push(href(query, { company, folder: "all" }), { scroll: false })}
+    >
+      <SelectTrigger aria-label="Empresa" className="w-full bg-card">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Todas as empresas</SelectItem>
+        {companies.map((company) => (
+          <SelectItem key={company.id || "internal"} value={company.id || "internal"}>
+            {company.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   const folderMenu = (folder: FolderView) => (
     <DropdownMenu modal={false}>
@@ -220,6 +257,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         const meta = [
           item.url ? hostOf(item.url) : item.fileName,
           query.folder === "all" && folder ? folder.name : null,
+          showCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -276,7 +314,9 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                       >
                         Sem pasta
                       </DropdownMenuItem>
-                      {folders.map((folder) => (
+                      {folders
+                        .filter((folder) => (folder.companyId ?? "") === (item.companyId ?? ""))
+                        .map((folder) => (
                         <DropdownMenuItem
                           key={folder.id}
                           disabled={folder.id === item.folderId}
@@ -311,17 +351,24 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Bookmarks"}
         count={items.length}
         description={
-          current && current.ownerId !== viewerId
-            ? `Pasta de ${current.owner}`
-            : current && current.sharedWith.length > 0
-              ? (
-                  <span className="flex items-center gap-2">
+          current ? (
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {manyCompanies && <span>{companyName.get(current.companyId ?? "")}</span>}
+              {manyCompanies && <span aria-hidden="true">·</span>}
+              {current.visibility === "people" ? (
+                <span className="flex items-center gap-2">
+                  {current.sharedWith.length > 0 && (
                     <AvatarStack people={current.sharedWith} size={20} />
-                    Compartilhada com {current.sharedWith.length}{" "}
-                    {current.sharedWith.length === 1 ? "pessoa" : "pessoas"}
-                  </span>
-                )
-              : undefined
+                  )}
+                  {current.sharedWith.length
+                    ? `Só ${current.owner} e ${current.sharedWith.length} ${current.sharedWith.length === 1 ? "pessoa" : "pessoas"}`
+                    : `Só ${current.ownerId === viewer.id ? "você" : current.owner}`}
+                </span>
+              ) : (
+                <span>Todos da empresa</span>
+              )}
+            </span>
+          ) : undefined
         }
         actions={
           <>
@@ -329,7 +376,11 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               <FolderPlusIcon />
               Nova pasta
             </Button>
-            <Button onClick={() => setEditor({ mode: "create", folderId: createIn })}>
+            <Button
+              onClick={() =>
+                setEditor({ mode: "create", companyId: createCompany, folderId: createIn })
+              }
+            >
               <PlusIcon />
               Adicionar
             </Button>
@@ -338,7 +389,8 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       />
 
       <div className="grid gap-6 lg:grid-cols-[232px_minmax(0,1fr)] lg:items-start">
-        <aside className="lg:sticky lg:top-6">
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
+          {companyPicker}
           <div className="lg:hidden">
             <NativeSelect
               aria-label="Pasta"
@@ -350,20 +402,12 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             >
               <NativeSelectOption value="all">Todos os bookmarks</NativeSelectOption>
               <NativeSelectOption value="root">Sem pasta</NativeSelectOption>
-              {own.length > 0 && (
-                <NativeSelectOptGroup label="Minhas pastas">
-                  {own.map((folder) => (
+              {folders.length > 0 && (
+                <NativeSelectOptGroup label="Pastas">
+                  {folders.map((folder) => (
                     <NativeSelectOption key={folder.id} value={folder.id}>
                       {folder.name}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelectOptGroup>
-              )}
-              {shared.length > 0 && (
-                <NativeSelectOptGroup label="Compartilhadas comigo">
-                  {shared.map((folder) => (
-                    <NativeSelectOption key={folder.id} value={folder.id}>
-                      {folder.name}
+                      {showCompany ? ` · ${companyName.get(folder.companyId ?? "") ?? ""}` : ""}
                     </NativeSelectOption>
                   ))}
                 </NativeSelectOptGroup>
@@ -388,18 +432,19 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               />
             </ul>
             <p className="mt-5 mb-1.5 px-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Minhas pastas
+              Pastas
             </p>
             <ul className="flex flex-col gap-0.5">
-              {own.map((folder) => (
+              {folders.map((folder) => (
                 <NavItem
                   key={folder.id}
                   active={query.folder === folder.id}
                   href={href(query, { folder: folder.id })}
-                  icon={folder.sharedWith.length ? <UsersIcon /> : <FolderIcon />}
+                  icon={folder.visibility === "people" ? <UsersIcon /> : <FolderIcon />}
                   label={folder.name}
+                  hint={showCompany ? companyName.get(folder.companyId ?? "") : undefined}
                   count={folder.count}
-                  menu={folderMenu(folder)}
+                  menu={manages(folder) ? folderMenu(folder) : undefined}
                 />
               ))}
               <li>
@@ -413,26 +458,6 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 </button>
               </li>
             </ul>
-            {shared.length > 0 && (
-              <>
-                <p className="mt-5 mb-1.5 px-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Compartilhadas comigo
-                </p>
-                <ul className="flex flex-col gap-0.5">
-                  {shared.map((folder) => (
-                    <NavItem
-                      key={folder.id}
-                      active={query.folder === folder.id}
-                      href={href(query, { folder: folder.id })}
-                      icon={<UsersIcon />}
-                      label={folder.name}
-                      hint={folder.owner}
-                      count={folder.count}
-                    />
-                  ))}
-                </ul>
-              </>
-            )}
           </nav>
         </aside>
 
@@ -443,6 +468,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             aria-label="Buscar bookmarks"
             className="mb-4 flex items-center gap-2"
           >
+            {query.company !== "all" && <input type="hidden" name="empresa" value={query.company} />}
             {query.folder !== "all" && <input type="hidden" name="pasta" value={query.folder} />}
             <div className="relative w-full max-w-sm">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -476,7 +502,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 description={
                   query.search
                     ? "Tente outro termo."
-                    : "Guarde links e arquivos pequenos, organize em pastas e compartilhe com quem precisar."
+                    : "Guarde links e arquivos pequenos da empresa e organize em pastas."
                 }
                 action={
                   query.search ? (
@@ -484,7 +510,11 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                       <Link href={href(query, { search: "" })}>Limpar busca</Link>
                     </Button>
                   ) : (
-                    <Button onClick={() => setEditor({ mode: "create", folderId: createIn })}>
+                    <Button
+                      onClick={() =>
+                        setEditor({ mode: "create", companyId: createCompany, folderId: createIn })
+                      }
+                    >
                       <PlusIcon />
                       Adicionar
                     </Button>
@@ -496,8 +526,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         </div>
       </div>
 
-      <BookmarkSheet editor={editor} onClose={() => setEditor(null)} folders={folders} />
-      <FolderDialogs editor={folderEditor} onClose={() => setFolderEditor(null)} people={people} />
+      <BookmarkSheet
+        editor={editor}
+        onClose={() => setEditor(null)}
+        folders={folders}
+        companies={companies}
+      />
+      <FolderDialogs
+        editor={folderEditor}
+        onClose={() => setFolderEditor(null)}
+        companies={companies}
+        defaultCompany={createCompany}
+      />
       {removing && (
         <ConfirmDialog
           open
