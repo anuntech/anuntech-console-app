@@ -173,7 +173,7 @@ export function ProductSheet({
             <SheetTitle>{editing ? "Editar produto" : "Novo produto"}</SheetTitle>
             <SheetDescription>
               {editing
-                ? "Nome, link e descrição."
+                ? "Nome, link, valor e descrição."
                 : "Um produto que a empresa contratou; o cliente abre pelo link."}
             </SheetDescription>
           </SheetHeader>
