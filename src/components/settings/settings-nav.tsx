@@ -11,6 +11,7 @@ export type SettingsSection =
   | "company"
   | "members"
   | "notifications"
+  | "catalog"
   | "integrations";
 
 export type SettingsGroup = {

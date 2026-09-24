@@ -169,6 +169,13 @@
       "when": 1790220441686,
       "tag": "0023_bookmark_company_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790221284034,
+      "tag": "0024_catalog",
+      "breakpoints": true
     }
   ]
 }

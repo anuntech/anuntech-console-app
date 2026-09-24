@@ -39,6 +39,7 @@ import { ProjectBoard } from "@/components/projetos/project-board";
 import { NewProjectForm } from "@/components/projetos/project-form";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 import { ProductsList } from "@/components/produtos/products-list";
+import { ServiceDetail } from "@/components/produtos/service-detail";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { SettingsNav } from "@/components/settings/settings-nav";
@@ -92,6 +93,7 @@ const SCREENS = [
   "bookmarks",
   "bookmarks-vazio",
   "produtos",
+  "servico",
 ];
 
 /**
@@ -579,28 +581,40 @@ export default async function Preview({
   const productRows = [
     {
       id: "pr1",
+      kind: "product" as const,
       name: "Synova",
       status: "active",
       description: "Atendimento automático no WhatsApp com relatórios semanais.",
       url: "https://app.synova.com.br",
+      amountCents: 29700,
+      interval: "monthly" as const,
+      nextDueDate: day(12),
       companyId: "a2",
       company: "Paróquia Santa Rita",
     },
     {
       id: "pr2",
-      name: "Workspace",
+      kind: "service" as const,
+      name: "Gestão de tráfego",
       status: "active",
-      description: "E-mail profissional, agenda e arquivos da equipe.",
-      url: "https://workspace.anuntech.com",
+      description: "Campanhas no Google e Meta com relatório mensal.",
+      url: null,
+      amountCents: 150000,
+      interval: "monthly" as const,
+      nextDueDate: day(5),
       companyId: "a1",
       company: "Maxipark Estacionamentos",
     },
     {
       id: "pr3",
+      kind: "product" as const,
       name: "Hospedagem do site",
       status: "paused",
       description: null,
       url: null,
+      amountCents: null,
+      interval: null,
+      nextDueDate: null,
       companyId: "a3",
       company: "Instituto Vida Plena",
     },
@@ -905,17 +919,44 @@ export default async function Preview({
           />
           <NewProjectForm companies={companies} />
         </>
+      ) : tela === "servico" ? (
+        <ServiceDetail
+          data={{
+            service: {
+              id: "pr2",
+              name: "Gestão de tráfego",
+              status: "active",
+              description: "Campanhas no Google e Meta com relatório mensal.",
+              companyId: "a1",
+              company: "Maxipark Estacionamentos",
+              amountCents: 150000,
+              interval: "monthly",
+              nextDueDate: day(5),
+              subscriptionId: "s1",
+            },
+            sections: {
+              whatWeDo:
+                "Planejamos, publicamos e otimizamos campanhas de busca e social. Acompanhamos custo por lead toda semana e ajustamos verba entre canais.",
+              whatWeNeed:
+                "Acesso às contas de anúncios, catálogo de serviços com preços e um contato para aprovar criativos em até 2 dias úteis.",
+              expectedResults:
+                "Leads qualificados com custo abaixo de R$ 40 no terceiro mês e relatório mensal com o que foi aprendido.",
+              deadlines: "Setup nas duas primeiras semanas. Relatório todo dia 5. Reunião de revisão a cada mês.",
+            },
+            viewer: { admin: true },
+          }}
+        />
       ) : tela === "produtos" ? (
         <>
           <PageHeader
-            title="Produtos"
+            title="Produtos e serviços"
             count={productRows.length}
-            description="O que cada cliente contratou, com o link para abrir."
+            description="O que cada cliente contratou. Produtos abrem pelo link; serviços têm uma página de detalhes."
             actions={
               <Button asChild>
                 <Link href="/produtos/novo">
                   <PlusIcon />
-                  Novo produto
+                  Vincular
                 </Link>
               </Button>
             }

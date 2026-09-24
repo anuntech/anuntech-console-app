@@ -3,6 +3,7 @@ import {
   BellIcon,
   Building2Icon,
   PaletteIcon,
+  PackageIcon,
   PlugZapIcon,
   ShieldCheckIcon,
   UserRoundIcon,
@@ -86,6 +87,12 @@ export async function SettingsShell({
           {
             title: "Console",
             items: [
+              {
+                key: "catalog" as const,
+                href: "/configuracoes/catalogo",
+                label: "Catálogo",
+                icon: <PackageIcon />,
+              },
               {
                 key: "integrations" as const,
                 href: "/configuracoes/integracoes",

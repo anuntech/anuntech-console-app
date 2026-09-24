@@ -33,7 +33,7 @@ const items = [
   { href: "/painel", label: "Visão geral", icon: LayoutDashboard },
   { href: "/empresas", label: "Empresas", icon: Building2, admin: true },
   { href: "/projetos", label: "Projetos", icon: FolderKanban },
-  { href: "/produtos", label: "Produtos", icon: Package },
+  { href: "/produtos", label: "Produtos e serviços", icon: Package },
   {
     href: "/chamados",
     label: "Chamados",
@@ -167,7 +167,7 @@ export default function BottomMenu({
                         },
                         {
                           href: "/produtos/novo",
-                          label: "Novo produto",
+                          label: "Vincular produto ou serviço",
                           icon: Package,
                           allowed: admin,
                         },

@@ -10,6 +10,7 @@ import {
   jsonb,
   customType,
   primaryKey,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 const created = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -217,6 +218,25 @@ export const contracts = pgTable(
   },
   (t) => [index("console_contract_company_idx").on(t.companyId)],
 );
+/** What Anuntech offers, defined once; companies get linked to items. */
+export const catalogItems = pgTable("console_catalog_items", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  kind: text("kind", { enum: ["product", "service"] }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  /** Products: where the client opens it. */
+  url: text("url"),
+  defaultAmountCents: integer("default_amount_cents"),
+  interval: text("interval", { enum: ["monthly", "yearly"] }),
+  /** Services: the fixed sections of the detail page. */
+  whatWeDo: text("what_we_do"),
+  whatWeNeed: text("what_we_need"),
+  expectedResults: text("expected_results"),
+  deadlines: text("deadlines"),
+  active: boolean("active").notNull().default(true),
+  createdAt: created(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const engagements = pgTable(
   "console_engagements",
   {
@@ -227,13 +247,17 @@ export const engagements = pgTable(
       .notNull()
       .references(() => companies.id),
     name: text("name").notNull(),
-    kind: text("kind", { enum: ["product", "project"] }).notNull(),
+    kind: text("kind", { enum: ["product", "project", "service"] }).notNull(),
     status: text("status", { enum: ["active", "paused", "completed"] })
       .notNull()
       .default("active"),
     description: text("description"),
     /** Where a product lives; the client opens it from here. */
     url: text("url"),
+    /** Products and services come from the catalog, with this company's price. */
+    catalogItemId: text("catalog_item_id").references(() => catalogItems.id),
+    amountCents: integer("amount_cents"),
+    subscriptionId: text("subscription_id").references((): AnyPgColumn => subscriptions.id),
     createdAt: created(),
   },
   (t) => [index("console_engagement_company_idx").on(t.companyId)],

@@ -3,11 +3,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  ArrowRightIcon,
   Building2Icon,
   CircleCheckIcon,
   ExternalLinkIcon,
   MoreHorizontalIcon,
   PackageIcon,
+  WrenchIcon,
   PauseIcon,
   PencilIcon,
   PlayIcon,
@@ -41,18 +43,24 @@ import {
   type ProjectStatusFilter,
 } from "@/lib/project-table";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
+import { currency, shortDateLabel } from "@/lib/format";
 import { useEngagementStatus } from "@/components/projetos/engagement-status";
 import { ProductSheet, type ProductFormValues } from "./product-form";
 
 export type ProductRow = {
   id: string;
+  kind: "product" | "service";
   name: string;
   status: string;
   description: string | null;
   url: string | null;
+  amountCents: number | null;
+  interval: "monthly" | "yearly" | null;
+  nextDueDate: string | null;
   companyId: string;
   company: string;
 };
+const intervalLabel = { monthly: "/mês", yearly: "/ano" } as const;
 
 function hostOf(url: string) {
   try {
@@ -88,7 +96,7 @@ export function ProductsList({
         <form
           action="/produtos"
           role="search"
-          aria-label="Buscar produtos"
+          aria-label="Buscar produtos e serviços"
           className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1"
         >
           <input type="hidden" name="status" value={query.status} />
@@ -156,7 +164,7 @@ export function ProductsList({
             >
               <div className="flex items-start justify-between gap-3">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-5">
-                  <PackageIcon />
+                  {row.kind === "service" ? <WrenchIcon /> : <PackageIcon />}
                 </span>
                 <div className="flex items-center gap-1">
                   <EngagementStatusBadge status={row.status} />
@@ -224,9 +232,10 @@ export function ProductsList({
                 <h2 className="m-0 truncate text-base leading-6 font-semibold text-foreground">
                   {row.name}
                 </h2>
-                {showCompany && (
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.company}</p>
-                )}
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {row.kind === "service" ? "Serviço" : "Produto"}
+                  {showCompany && ` · ${row.company}`}
+                </p>
                 <p
                   className={cn(
                     "mt-3 line-clamp-2 text-sm",
@@ -235,9 +244,26 @@ export function ProductsList({
                 >
                   {row.description || "Sem descrição."}
                 </p>
+                {row.amountCents != null && (
+                  <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+                    <span className="font-medium text-foreground">{currency(row.amountCents)}</span>
+                    {row.interval && intervalLabel[row.interval]}
+                    {row.nextDueDate && ` · próximo vencimento ${shortDateLabel(row.nextDueDate)}`}
+                  </p>
+                )}
               </div>
               <div className="mt-auto flex items-center justify-between gap-3">
-                {row.url ? (
+                {row.kind === "service" ? (
+                  <>
+                    <span className="truncate text-xs text-muted-foreground">O que fazemos, prazos e resultados</span>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/produtos/${row.id}`}>
+                        Ver detalhes
+                        <ArrowRightIcon />
+                      </Link>
+                    </Button>
+                  </>
+                ) : row.url ? (
                   <>
                     <span className="truncate text-xs text-muted-foreground">{hostOf(row.url)}</span>
                     <Button variant="outline" size="sm" asChild>
@@ -258,13 +284,13 @@ export function ProductsList({
         <section className="rounded-xl border bg-card shadow-card">
           <EmptyState
             icon={<PackageIcon />}
-            title={filtered ? "Nada encontrado" : "Nenhum produto ainda"}
+            title={filtered ? "Nada encontrado" : "Nenhum produto ou serviço ainda"}
             description={
               filtered
                 ? "Tente outro termo ou mude o filtro de situação."
                 : admin
-                  ? "Cadastre o produto que um cliente contratou e o link para abri-lo."
-                  : "Os produtos que sua empresa tem com a Anuntech aparecem aqui."
+                  ? "Vincule um item do catálogo a um cliente, com o preço dele."
+                  : "Os produtos e serviços que sua empresa tem com a Anuntech aparecem aqui."
             }
             action={
               query.search ? (
@@ -275,7 +301,7 @@ export function ProductsList({
                 <Button asChild>
                   <Link href="/produtos/novo">
                     <PlusIcon />
-                    Novo produto
+                    Vincular
                   </Link>
                 </Button>
               ) : undefined

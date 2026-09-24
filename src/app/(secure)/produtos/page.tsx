@@ -3,15 +3,15 @@ import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { companies, engagements } from "@/db/schema";
+import { companies, engagements, subscriptions } from "@/db/schema";
 import { getActor } from "@/lib/access";
 import { projectQuery } from "@/lib/project-table";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { ProductsList } from "@/components/produtos/products-list";
 export const metadata: Metadata = {
-  title: "Produtos",
-  description: "Os produtos que cada empresa tem com a Anuntech.",
+  title: "Produtos e serviços",
+  description: "Os produtos e serviços que cada empresa tem com a Anuntech.",
 };
 
 export default async function Products({
@@ -25,7 +25,7 @@ export default async function Products({
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const where = and(
-    eq(engagements.kind, "product"),
+    inArray(engagements.kind, ["product", "service"]),
     actor.admin ? undefined : ids.length ? inArray(engagements.companyId, ids) : sql`false`,
     query.status === "all" ? undefined : eq(engagements.status, query.status),
     query.company ? eq(engagements.companyId, query.company) : undefined,
@@ -37,15 +37,20 @@ export default async function Products({
     db
       .select({
         id: engagements.id,
+        kind: engagements.kind,
         name: engagements.name,
         status: engagements.status,
         description: engagements.description,
         url: engagements.url,
+        amountCents: engagements.amountCents,
+        interval: subscriptions.interval,
+        nextDueDate: subscriptions.nextDueDate,
         companyId: engagements.companyId,
         company: companies.name,
       })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
+      .leftJoin(subscriptions, eq(subscriptions.id, engagements.subscriptionId))
       .where(where)
       .orderBy(asc(engagements.name)),
     query.company
@@ -59,26 +64,29 @@ export default async function Products({
   return (
     <>
       <PageHeader
-        title="Produtos"
+        title="Produtos e serviços"
         count={rows.length}
         description={
           actor.admin
-            ? "O que cada cliente contratou, com o link para abrir."
-            : "O que sua empresa tem com a Anuntech. Abra pelo link."
+            ? "O que cada cliente contratou. Produtos abrem pelo link; serviços têm uma página de detalhes."
+            : "O que sua empresa tem com a Anuntech."
         }
         actions={
           actor.admin && (
             <Button asChild>
               <Link href="/produtos/novo">
                 <PlusIcon />
-                Novo produto
+                Vincular
               </Link>
             </Button>
           )
         }
       />
       <ProductsList
-        rows={rows}
+        rows={rows.map((row) => ({
+          ...row,
+          kind: row.kind === "service" ? "service" : "product",
+        }))}
         query={query}
         admin={actor.admin}
         showCompany={actor.admin || ids.length > 1}

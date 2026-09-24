@@ -1,27 +1,20 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/console/page-header";
-import { NewProductForm } from "@/components/produtos/product-form";
-import {
-  newProjectContext,
-  type NewProjectSearchParams,
-} from "@/components/projetos/new-project-context";
-export const metadata: Metadata = { title: "Novo produto" };
+import { AddFromCatalogForm } from "@/components/produtos/add-from-catalog";
+import { addFromCatalogContext, type AddSearchParams } from "@/components/produtos/add-context";
+export const metadata: Metadata = { title: "Vincular produto ou serviço" };
 
 /** Direct loads only; in-app navigation shows the sheet from @ticket instead. */
-export default async function NewProduct({
-  searchParams,
-}: {
-  searchParams: NewProjectSearchParams;
-}) {
-  const context = await newProjectContext(searchParams);
+export default async function AddProduct({ searchParams }: { searchParams: AddSearchParams }) {
+  const context = await addFromCatalogContext(searchParams);
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Produtos", href: "/produtos" }, { label: "Novo" }]}
-        title="Novo produto"
-        description="Um produto que a empresa contratou; o cliente abre pelo link."
+        crumbs={[{ label: "Produtos e serviços", href: "/produtos" }, { label: "Vincular" }]}
+        title="Vincular produto ou serviço"
+        description="Escolha do catálogo e defina o preço desta empresa."
       />
-      <NewProductForm {...context} />
+      <AddFromCatalogForm {...context} />
     </>
   );
 }
