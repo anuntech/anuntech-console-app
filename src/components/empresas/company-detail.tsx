@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
+  CalculatorIcon,
   ChevronRightIcon,
   FoldersIcon,
   HeadsetIcon,
@@ -100,12 +101,14 @@ export type CompanyDetailData = {
     openInvoices: number;
     openInvoicesCents: number;
     contracts: number;
+    quotes: number;
     engagements: number;
   };
   links: {
     tickets: string;
     invoices: string;
     contracts: string;
+    quotes: string;
     engagements: string;
   };
 };
@@ -359,6 +362,12 @@ export function CompanyDetail({
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <Link href={`/orcamentos/novo?companyId=${company.id}`}>
+                    <CalculatorIcon />
+                    Novo orçamento
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href={`/contratos/novo?companyId=${company.id}`}>
                     <FoldersIcon />
                     Novo contrato
@@ -607,6 +616,12 @@ export function CompanyDetail({
                     : undefined
                 }
                 value={relations.openInvoices}
+              />
+              <RelationRow
+                href={links.quotes}
+                icon={<CalculatorIcon />}
+                label="Orçamentos"
+                value={relations.quotes}
               />
               <RelationRow
                 href={links.contracts}

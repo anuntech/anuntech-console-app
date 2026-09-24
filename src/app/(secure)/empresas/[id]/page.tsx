@@ -6,6 +6,7 @@ import {
   auditEvents,
   companies,
   contracts,
+  quotes,
   engagements,
   invoices,
   memberships,
@@ -40,6 +41,7 @@ export default async function Company({
     [ticketRow],
     [invoiceRow],
     [contractRow],
+    [quoteRow],
     [engagementRow],
   ] = await Promise.all([
     db
@@ -96,6 +98,10 @@ export default async function Company({
       .where(eq(contracts.companyId, id)),
     db
       .select({ n: count() })
+      .from(quotes)
+      .where(eq(quotes.companyId, id)),
+    db
+      .select({ n: count() })
       .from(engagements)
       .where(eq(engagements.companyId, id)),
   ]);
@@ -139,6 +145,7 @@ export default async function Company({
           openInvoices: invoiceRow?.n ?? 0,
           openInvoicesCents: Number(invoiceRow?.cents ?? 0),
           contracts: contractRow?.n ?? 0,
+          quotes: quoteRow?.n ?? 0,
           engagements: engagementRow?.n ?? 0,
         },
         // Lists that filter by company get a deep link; the rest arrives per subject.
@@ -146,6 +153,7 @@ export default async function Company({
           tickets: `/chamados?company=${id}`,
           invoices: `/financeiro?company=${id}`,
           contracts: `/contratos?company=${id}`,
+          quotes: `/orcamentos?company=${id}`,
           engagements: `/projetos?company=${id}`,
         },
       }}

@@ -204,6 +204,13 @@
       "when": 1790229686039,
       "tag": "0028_invoice_bank_due_date",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790285849733,
+      "tag": "0029_quotes",
+      "breakpoints": true
     }
   ]
 }

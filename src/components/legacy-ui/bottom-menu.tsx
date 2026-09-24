@@ -15,6 +15,7 @@ import {
   ReceiptText,
   Folders,
   Bookmark,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 import { useAppearance } from "@/components/appearance-provider";
@@ -48,6 +49,7 @@ const items = [
     area: "finance",
   },
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
+  { href: "/orcamentos", label: "Orçamentos", icon: Calculator, area: "finance" },
   { href: "/contratos", label: "Contratos", icon: Folders, area: "finance" },
 ];
 
@@ -124,6 +126,7 @@ export default function BottomMenu({
     { href: "/financeiro/nova", label: "Nova cobrança", icon: ReceiptText, allowed: admin },
     { href: "/projetos/novo", label: "Novo projeto", icon: FolderKanban, allowed: admin },
     { href: "/produtos/novo", label: "Vincular produto ou serviço", icon: Package, allowed: admin },
+    { href: "/orcamentos/novo", label: "Novo orçamento", icon: Calculator, allowed: admin },
     { href: "/contratos/novo", label: "Novo contrato", icon: Folders, allowed: admin },
     { href: "/empresas/nova", label: "Cadastrar empresa", icon: Building2, allowed: admin },
   ].filter((item) => item.allowed);

@@ -304,6 +304,69 @@ export const contractSignatures = pgTable(
     uniqueIndex("console_contract_signature_party_unique").on(t.contractId, t.party),
   ],
 );
+/** A commercial proposal: phases with hour ranges, an hourly rate and the payment split. */
+export const quotes = pgTable(
+  "console_quotes",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    /** "2026-007": numbered per year, in creation order. */
+    year: integer("year").notNull(),
+    seq: integer("seq").notNull(),
+    title: text("title").notNull(),
+    content: jsonb("content").$type<import("@/lib/quote-model").QuoteContent>().notNull(),
+    validUntil: date("valid_until"),
+    revision: integer("revision").notNull().default(1),
+    /** draft → sent (frozen, awaiting the client) → accepted | declined; or cancelled. */
+    status: text("status", { enum: ["draft", "sent", "accepted", "declined", "cancelled"] })
+      .notNull()
+      .default("draft"),
+    publication: jsonb("publication").$type<import("@/lib/quote-model").QuotePublication>(),
+    publishedVersion: integer("published_version").notNull().default(0),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    /** SHA-256 of the frozen proposal; printed on the PDF and checked at acceptance. */
+    documentHash: text("document_hash"),
+    /** The answer, with the evidence behind it. */
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: text("decided_by").references(() => user.id),
+    decidedParty: text("decided_party", { enum: ["client", "anuntech"] }),
+    decidedName: text("decided_name"),
+    decidedEmail: text("decided_email"),
+    decidedIp: text("decided_ip"),
+    decisionNote: text("decision_note"),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("console_quote_company_idx").on(t.companyId),
+    uniqueIndex("console_quote_number_unique").on(t.year, t.seq),
+  ],
+);
+/** Every proposal that went out, so earlier versions stay readable. */
+export const quoteVersions = pgTable(
+  "console_quote_versions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    quoteId: text("quote_id")
+      .notNull()
+      .references(() => quotes.id),
+    version: integer("version").notNull(),
+    publication: jsonb("publication").$type<import("@/lib/quote-model").QuotePublication>().notNull(),
+    documentHash: text("document_hash").notNull(),
+    sentBy: text("sent_by")
+      .notNull()
+      .references(() => user.id),
+    sentAt: created(),
+  },
+  (t) => [uniqueIndex("console_quote_version_unique").on(t.quoteId, t.version)],
+);
 /** What Anuntech offers, defined once; companies get linked to items. */
 export const catalogItems = pgTable("console_catalog_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

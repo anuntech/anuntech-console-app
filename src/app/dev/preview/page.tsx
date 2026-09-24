@@ -244,12 +244,14 @@ export default async function Preview({
       openInvoices: 1,
       openInvoicesCents: 189000,
       contracts: 2,
+      quotes: 0,
       engagements: 3,
     },
     links: {
       tickets: "/chamados?company=a1",
       invoices: "/financeiro?company=a1",
       contracts: "/contratos",
+      quotes: "/orcamentos",
       engagements: "/produtos",
     },
   };
