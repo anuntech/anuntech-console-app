@@ -6,6 +6,7 @@ import { saoPauloDate } from "./dates";
 import { issueDate } from "./recurrence";
 import { publishInvoice } from "./billing-publish";
 import { reconcileCharge } from "./billing-sync";
+import { alertRecurrencePaused } from "./ops-alerts";
 
 export async function processSubscriptions() {
   const today = saoPauloDate();
@@ -138,6 +139,7 @@ export async function processSubscriptions() {
             eq(subscriptions.nextDueDate, sub.nextDueDate),
           ),
         );
+      await alertRecurrencePaused(sub.id, error instanceof Error ? error.message : "Falha ao emitir recorrência.");
     }
   }
   return { today, selected: rows.map((r) => r.id), issued, failed, skipped, errors };

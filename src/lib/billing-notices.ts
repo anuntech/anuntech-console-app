@@ -23,6 +23,7 @@ import {
 import { paymentUrl } from "./payment-link";
 import { reconcileCharge } from "./billing-sync";
 import { saoPauloDate } from "./dates";
+import { alertNoticeProblem } from "./ops-alerts";
 import {
   billingTemplates,
   billingSender,
@@ -176,6 +177,8 @@ export async function processBillingNotice(
       .update(billingNotices)
       .set({ ...fields, lockedUntil: null })
       .where(eq(billingNotices.id, id));
+    // A state nobody retries is something the Anuntech side must hear about now.
+    if (fields.status && ["failed", "expired", "uncertain"].includes(fields.status)) await alertNoticeProblem(id);
   };
   let postingWhatsapp = false;
   let checkingBank = false;

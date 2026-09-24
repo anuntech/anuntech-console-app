@@ -1,21 +1,11 @@
 import "server-only";
 import { and, asc, eq, gte, isNull, lt, lte } from "drizzle-orm";
-import { auditEvents, companies, consoleStaffMembers, contracts } from "@/db/schema";
+import { auditEvents, companies, contracts } from "@/db/schema";
 import { db } from "./db";
 import { saoPauloDate } from "./dates";
 import { deliverContractExpiryNotice } from "./contract-mail";
 import { addDays, contractTerm, EXPIRY_WARNING_DAYS } from "./contract-table";
-import { normalizeEmail } from "./permissions";
-
-/** The Anuntech people who get contract alerts: the owner and active staff. */
-async function staffEmails() {
-  const owner = process.env.CONSOLE_ADMIN_EMAIL?.trim();
-  const members = await db
-    .select({ email: consoleStaffMembers.email })
-    .from(consoleStaffMembers)
-    .where(eq(consoleStaffMembers.active, true));
-  return [...new Set([owner, ...members.map((m) => m.email)].filter((e): e is string => !!e).map(normalizeEmail))];
-}
+import { staffEmails } from "./ops-alerts";
 
 /**
  * One e-mail per signed contract when it enters the warning window, and
