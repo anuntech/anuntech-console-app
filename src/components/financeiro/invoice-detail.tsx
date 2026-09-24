@@ -223,6 +223,10 @@ function Count({ children }: { children: ReactNode }) {
   );
 }
 
+/** Whole days from one civil date to another. */
+const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86400000);
+
 export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
   const {
     invoice,
@@ -425,8 +429,10 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     </p>
                   )}
                   {scheduled && scheduledIssueDate && (
-                    <p className="text-xs text-muted-foreground">
-                      Emissão automática em {dateLabel(scheduledIssueDate)}
+                    <p className={cn("text-xs", scheduledIssueDate <= today ? "text-warning" : "text-muted-foreground")}>
+                      {scheduledIssueDate <= today
+                        ? "Emissão automática em instantes"
+                        : `Emissão automática em ${dateLabel(scheduledIssueDate)}`}
                     </p>
                   )}
                 </div>
@@ -595,11 +601,22 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
               </CardHeader>
               <CardContent>
                 <Notice icon={<Loader2Icon />}>
-                  Emissão prevista para{" "}
-                  <span className="font-medium text-foreground">
-                    {scheduledIssueDate ? dateLabel(scheduledIssueDate) : "—"}
-                  </span>
-                  , 5 dias antes do vencimento. Os avisos saem após a emissão.
+                  {scheduledIssueDate && scheduledIssueDate <= today ? (
+                    <>
+                      A data de emissão ({dateLabel(scheduledIssueDate)}) já chegou: a rotina automática roda a cada 5
+                      minutos e emite na próxima passagem. Os avisos saem logo depois.
+                    </>
+                  ) : (
+                    <>
+                      Emissão prevista para{" "}
+                      <span className="font-medium text-foreground">
+                        {scheduledIssueDate ? dateLabel(scheduledIssueDate) : "—"}
+                      </span>
+                      {scheduledIssueDate &&
+                        `, ${daysBetween(scheduledIssueDate, invoice.dueDate)} dias antes do vencimento`}
+                      . Os avisos saem após a emissão.
+                    </>
+                  )}
                 </Notice>
               </CardContent>
             </Card>

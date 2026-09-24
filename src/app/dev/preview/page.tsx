@@ -79,6 +79,7 @@ const SCREENS = [
   "fatura-processando",
   "fatura-rascunho",
   "fatura-recorrente",
+  "fatura-recorrente-atrasada",
   "fatura-paga",
   "fatura-cliente",
   "nova-cobranca",
@@ -466,7 +467,7 @@ export default async function Preview({
     },
   ];
   const invoiceStatus =
-    tela === "fatura-rascunho" || tela === "fatura-recorrente"
+    tela === "fatura-rascunho" || tela.startsWith("fatura-recorrente")
       ? "draft"
       : tela === "fatura-paga"
         ? "paid"
@@ -482,7 +483,7 @@ export default async function Preview({
       status: invoiceStatus,
       display:
         invoiceStatus === "draft"
-          ? tela === "fatura-recorrente"
+          ? tela.startsWith("fatura-recorrente")
             ? "scheduled"
             : "draft"
           : invoiceStatus,
@@ -532,7 +533,7 @@ export default async function Preview({
         ? null
         : {
             id: "s1",
-            status: tela === "fatura-recorrente" ? "active" : "active",
+            status: tela.startsWith("fatura-recorrente") ? "active" : "active",
             interval: "monthly",
             nextDueDate: day(42),
             issueDate: day(37),
@@ -541,8 +542,8 @@ export default async function Preview({
             lastError: null,
       terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
           },
-    scheduled: tela === "fatura-recorrente",
-    scheduledIssueDate: tela === "fatura-recorrente" ? day(7) : null,
+    scheduled: tela.startsWith("fatura-recorrente"),
+    scheduledIssueDate: tela === "fatura-recorrente-atrasada" ? day(-2) : tela.startsWith("fatura-recorrente") ? day(7) : null,
     notices:
       invoiceStatus === "draft" || processing
         ? []
