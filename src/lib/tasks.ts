@@ -110,7 +110,7 @@ export async function taskSummary(engagementIds: string[]) {
       done: sql<number>`count(*) filter (where ${tasks.status} = 'done')::int`,
     })
     .from(tasks)
-    .where(sql`${tasks.engagementId} = any(${engagementIds})`)
+    .where(inArray(tasks.engagementId, engagementIds))
     .groupBy(tasks.engagementId);
   return new Map(rows.map((row) => [row.engagementId, { total: row.total, done: row.done }]));
 }
