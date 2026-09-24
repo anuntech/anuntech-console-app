@@ -129,9 +129,10 @@ export default async function Invoice({
           bankStatus: i.bankStatus,
           bankCheckedAt: i.bankCheckedAt?.toISOString() ?? null,
           bankRequested: !!i.bankRequest,
+          // The bank's date is compared with the date we asked it to use, not the obligation's.
           requestedDueDate:
             typeof requestedDueDate === "string" &&
-            requestedDueDate !== i.dueDate
+            requestedDueDate !== (i.bankDueDate ?? i.dueDate)
               ? requestedDueDate
               : null,
           boletoLine: i.boletoLine,
