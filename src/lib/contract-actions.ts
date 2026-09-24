@@ -1,6 +1,6 @@
 "use server";
 import { createHash } from "node:crypto";
-import { and, asc, count, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, ne, or } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -702,13 +702,4 @@ export async function cancelContract(_: ActionState, form: FormData): Promise<Ac
   } catch (e) {
     return failure(e);
   }
-}
-
-/** Companies whose managers still have not signed, for lists and reminders. */
-export async function contractsAwaiting(companyIds: string[]) {
-  if (!companyIds.length) return [];
-  return db
-    .select({ id: contracts.id, companyId: contracts.companyId })
-    .from(contracts)
-    .where(and(inArray(contracts.companyId, companyIds), eq(contracts.status, "sent")));
 }

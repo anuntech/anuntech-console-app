@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
+          {
+            // Kept to what cannot break the app: no plugins, no base hijack, no framing.
+            key: "Content-Security-Policy",
+            value: "object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+          },
           { key: "Referrer-Policy", value: "no-referrer" },
           {
             key: "Permissions-Policy",

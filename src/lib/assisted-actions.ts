@@ -39,6 +39,8 @@ export async function endAssistedSession(
   _previous: ActionState,
   _form: FormData,
 ): Promise<ActionState> {
+  void _previous;
+  void _form;
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { error: "Sessão inválida." };
   const companyId = (await cookies()).get(ASSIST_COOKIE)?.value;

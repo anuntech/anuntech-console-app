@@ -60,8 +60,10 @@ export function ActionForm({
 }: ActionFormProps) {
   const setCreationBusy = useCreationBusy();
   const [state, formAction, actionPending] = useActionState(action, {});
+  const [dismissedFor, setDismissedFor] = useState<typeof state | null>(null);
+  // "Salvo ✓" follows the last successful response until the user edits or resubmits.
+  const completed = !!state.success && dismissedFor !== state;
   const [preparing, setPreparing] = useState(false);
-  const [completed, setCompleted] = useState(false);
   const pending = actionPending || preparing;
   const [confirmationFor, setConfirmationFor] = useState<ActionState | null>(
     null,
@@ -102,7 +104,6 @@ export function ActionForm({
     if (state.error) {
       errorRef.current?.focus();
     }
-    if (state.success) setCompleted(true);
     if (state.success || state.href) onSuccess?.();
     if (state.href) router.push(state.href);
     else if (state.success) {
@@ -136,7 +137,7 @@ export function ActionForm({
     }
     event.preventDefault();
     setValidationError("");
-    setCompleted(false);
+    setDismissedFor(state);
     invalidReturnFocus.current = null;
     submissionLock.current = true;
     onPendingChange?.(true);
@@ -191,7 +192,7 @@ export function ActionForm({
         className={className}
         ref={ref}
         onSubmit={handleSubmit}
-        onChange={() => setCompleted(false)}
+        onChange={() => setDismissedFor(state)}
         onInvalidCapture={(event) => {
           if (!confirmationOpen) {
             focusFirstInvalid(event.currentTarget);
