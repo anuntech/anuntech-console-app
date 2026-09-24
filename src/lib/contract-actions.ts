@@ -69,10 +69,35 @@ function refresh(contractId?: string, parentId?: string | null) {
   if (contractId) revalidatePath(`/contratos/${contractId}`);
   if (parentId) revalidatePath(`/contratos/${parentId}`);
 }
-const hashOf = (publication: ContractPublication) =>
-  createHash("sha256")
-    .update(JSON.stringify(publication))
-    .digest("hex");
+/**
+ * SHA-256 of the frozen text. Keys are sorted first: JSONB gives them back
+ * in its own order, so the hash must not depend on insertion order.
+ */
+const sha256 = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+const canonical = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.map(canonical)
+    : value && typeof value === "object"
+      ? Object.fromEntries(
+          Object.keys(value as Record<string, unknown>)
+            .sort()
+            .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
+        )
+      : value;
+const hashOf = (publication: ContractPublication) => sha256(canonical(publication));
+/** Contracts sent before the canonical hash were hashed in insertion order. */
+const LEGACY_ORDERS: (keyof ContractPublication)[][] = [
+  ["title", "body", "companyName", "companyDocument", "kind", "parentTitle", "parentHash", "startsAt", "endsAt"],
+  ["title", "body", "companyName", "companyDocument"],
+];
+function hashMatches(publication: ContractPublication, documentHash: string) {
+  if (hashOf(publication) === documentHash) return true;
+  return LEGACY_ORDERS.some((order) => {
+    const ordered: Record<string, unknown> = {};
+    for (const key of order) if (key in publication) ordered[key] = publication[key];
+    return Object.keys(ordered).length === Object.keys(publication).length && sha256(ordered) === documentHash;
+  });
+}
 
 /* ---------- templates (staff) ---------- */
 
@@ -551,7 +576,7 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
     if (!party) return { error: "Só gestores da empresa podem assinar." };
     if (c.status !== "sent" || !c.publication || !c.documentHash)
       return { error: "Este contrato não está aguardando assinatura." };
-    if (hashOf(c.publication) !== c.documentHash)
+    if (!hashMatches(c.publication, c.documentHash))
       return { error: "O texto do contrato não confere com o registro. Peça um novo envio." };
     const [session, requestHeaders] = await Promise.all([
       auth.api.getSession({ headers: await headers() }),

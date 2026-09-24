@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ContractPublication } from "@/db/schema";
 import { APP_LOCALE, APP_TIME_ZONE } from "./dates";
 import { longDateLabel } from "./format";
+import { contractBlocks } from "./contract-text";
 
 export type ContractSignatureLine = {
   party: "client" | "anuntech";
@@ -99,18 +100,60 @@ export async function contractPdf(
     `${draft ? "Rascunho atualizado" : input.status === "signed" ? "Assinado" : "Enviado para assinatura"} em ${when(input.date)}`,
     { width },
   );
-  doc.moveDown(1.5).fontSize(11).fillColor("#202630");
-  const paragraphs = input.body.split("\n\n");
-  const options = { width, align: "left" as const, lineGap: 3 };
-  for (let p = 0; p < paragraphs.length; p++) {
-    const paragraph = paragraphs[p];
-    const height = doc.heightOfString(paragraph || " ", options);
-    const nextLines = paragraph.length < 120 && p + 1 < paragraphs.length ? 40 : 0;
-    if (height + nextLines < doc.page.height - 118 && doc.y + height + nextLines > doc.page.height - 64)
-      doc.addPage();
-    doc.text(paragraph || " ", options);
-    if (p < paragraphs.length - 1) doc.moveDown(0.6);
-  }
+  doc.moveDown(1.5).fillColor("#202630");
+  const blocks = contractBlocks(input.body);
+  const bottom = doc.page.height - 64;
+  const body = { width, align: "left" as const, lineGap: 3 };
+  const numberWidth = 40;
+  /** Keeps a block (plus a heading's first lines) off the page edge. */
+  const fit = (height: number, keepWith = 0) => {
+    if (height + keepWith < doc.page.height - 118 && doc.y + height + keepWith > bottom) doc.addPage();
+  };
+  blocks.forEach((block, index) => {
+    const left = 54;
+    switch (block.type) {
+      case "title": {
+        doc.font("Bold").fontSize(13);
+        fit(doc.heightOfString(block.text, { width }));
+        doc.text(block.text, left, doc.y, { width, align: "center", characterSpacing: 0.4 });
+        doc.moveDown(1.4);
+        break;
+      }
+      case "heading": {
+        doc.font("Bold").fontSize(10.5);
+        if (index > 0) doc.moveDown(1.1);
+        fit(doc.heightOfString(block.text, { width }), 48);
+        doc.text(block.text, left, doc.y, { width, characterSpacing: 0.6 });
+        doc.moveDown(0.5);
+        break;
+      }
+      case "party": {
+        doc.font("Regular").fontSize(11);
+        const line = `${block.label}: ${block.text}`;
+        fit(doc.heightOfString(line, body));
+        doc.font("Bold").text(`${block.label}: `, left, doc.y, { ...body, continued: true });
+        doc.font("Regular").text(block.text, body);
+        doc.moveDown(0.5);
+        break;
+      }
+      case "clause": {
+        doc.font("Regular").fontSize(11);
+        const textWidth = width - numberWidth;
+        fit(doc.heightOfString(block.text, { ...body, width: textWidth }));
+        const y = doc.y;
+        doc.fillColor("#53637a").text(block.number, left, y, { width: numberWidth, lineGap: 3 });
+        doc.fillColor("#202630").text(block.text, left + numberWidth, y, { ...body, width: textWidth });
+        doc.moveDown(0.35);
+        break;
+      }
+      default: {
+        doc.font("Regular").fontSize(11);
+        fit(doc.heightOfString(block.text, body));
+        doc.text(block.text, left, doc.y, body);
+        doc.moveDown(0.7);
+      }
+    }
+  });
 
   if (!draft) {
     doc.addPage();

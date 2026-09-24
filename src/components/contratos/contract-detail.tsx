@@ -67,6 +67,7 @@ import {
   type ContractStatus,
 } from "@/lib/contract-table";
 import { ContractKindChip, ContractStatusBadge, ContractTermBadge } from "./contract-badges";
+import { ContractText } from "./contract-text";
 
 export type ContractDetailData = {
   contract: {
@@ -189,7 +190,6 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
   const amendment = c.kind === "amendment";
   const noun = amendment ? "aditivo" : "contrato";
   const pdfHref = `/api/contratos/${c.id}/pdf`;
-  const paragraphs = c.body.split("\n\n");
   const term = c.status === "signed" ? contractTerm({ startsAt: c.startsAt, endsAt: c.endsAt }, today) : null;
   const termLabel = term ? contractTermLabel(term) : null;
   const canAmend = viewer.admin && !amendment && c.status === "signed";
@@ -368,14 +368,8 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                   }
                 />
               </CardHeader>
-              <CardContent>
-                <article className="max-w-[72ch] font-serif text-[15px] leading-7 text-foreground">
-                  {paragraphs.map((paragraph, index) => (
-                    <p key={index} className={cn("whitespace-pre-wrap", index > 0 && "mt-4")}>
-                      {paragraph || " "}
-                    </p>
-                  ))}
-                </article>
+              <CardContent className="px-6 py-8 sm:px-12 sm:py-10">
+                <ContractText body={c.body} />
               </CardContent>
             </Card>
           )}

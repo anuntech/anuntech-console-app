@@ -918,7 +918,7 @@ export default async function Preview({
   const contractBody = [
     "CONTRATO DE PRESTAÇÃO DE SERVIÇOS",
     "CONTRATANTE: Maxipark Estacionamentos Ltda, CNPJ 12.345.678/0001-90, com sede na Avenida Paulista, 1578, São Paulo/SP.\nCONTRATADA: Anuntech Tecnologia Ltda, CNPJ 98.765.432/0001-10.",
-    "CLÁUSULA 1 — OBJETO\nA CONTRATADA prestará o serviço de Gestão de tráfego, compreendendo o planejamento, a publicação e a otimização de campanhas de mídia paga.",
+    "CLÁUSULA 1 — OBJETO\n1.1. A CONTRATADA prestará o serviço de Gestão de tráfego, compreendendo o planejamento, a publicação e a otimização de campanhas de mídia paga.\n1.2. Não fazem parte do objeto os valores investidos em mídia, pagos pela CONTRATANTE diretamente às plataformas.\n1.3. Relatórios mensais de desempenho acompanham cada ciclo.",
     "CLÁUSULA 2 — VALOR E PAGAMENTO\nPelos serviços, a CONTRATANTE pagará R$ 1.500,00 mensais, com vencimento todo dia 5, por boleto ou Pix emitidos pelo Console.",
     "CLÁUSULA 3 — VIGÊNCIA\nO presente contrato vigora por 12 meses a partir da assinatura, renovando-se automaticamente por iguais períodos salvo aviso com 30 dias de antecedência.",
     "CLÁUSULA 4 — RESCISÃO\nQualquer das partes pode rescindir mediante aviso prévio de 30 dias, sem multa, respeitados os valores devidos até a data.",
