@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   accountEmails,
+  attachments,
   consoleStaffMembers,
   memberships,
   tasks,
@@ -115,10 +116,12 @@ export async function taskSummary(engagementIds: string[]) {
   return new Map(rows.map((row) => [row.engagementId, { total: row.total, done: row.done }]));
 }
 
-/** The board's cards, in column order. */
+export type TaskFile = { id: string; name: string; size: number; mime: string; authorId: string };
+
+/** The board's cards, in column order, each with its files. */
 export async function boardTasks(engagementId: string) {
   const creator = alias(user, "creator");
-  return db
+  const rows = await db
     .select({
       id: tasks.id,
       title: tasks.title,
@@ -128,6 +131,8 @@ export async function boardTasks(engagementId: string) {
       assigneeId: tasks.assigneeId,
       assignee: user.name,
       dueDate: tasks.dueDate,
+      labels: tasks.labels,
+      estimateMinutes: tasks.estimateMinutes,
       position: tasks.position,
       createdBy: tasks.createdBy,
       creator: creator.name,
@@ -138,4 +143,24 @@ export async function boardTasks(engagementId: string) {
     .leftJoin(creator, eq(creator.id, tasks.createdBy))
     .where(eq(tasks.engagementId, engagementId))
     .orderBy(asc(tasks.position), asc(tasks.createdAt));
+  const files = rows.length
+    ? await db
+        .select({
+          id: attachments.id,
+          taskId: attachments.taskId,
+          name: attachments.name,
+          size: attachments.size,
+          mime: attachments.mime,
+          authorId: attachments.authorId,
+        })
+        .from(attachments)
+        .where(inArray(attachments.taskId, rows.map((row) => row.id)))
+        .orderBy(asc(attachments.createdAt))
+    : [];
+  const byTask = new Map<string, TaskFile[]>();
+  for (const { taskId, ...file } of files) {
+    if (!taskId) continue;
+    byTask.set(taskId, [...(byTask.get(taskId) ?? []), file]);
+  }
+  return rows.map((row) => ({ ...row, files: byTask.get(row.id) ?? [] }));
 }

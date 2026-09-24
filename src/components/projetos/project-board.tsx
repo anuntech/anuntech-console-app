@@ -43,9 +43,11 @@ import {
   Building2Icon,
   CalendarIcon,
   CircleCheckIcon,
+  Clock3Icon,
   GripVerticalIcon,
   Loader2Icon,
   MoreHorizontalIcon,
+  PaperclipIcon,
   PauseIcon,
   PencilIcon,
   PlayIcon,
@@ -69,10 +71,11 @@ import { initials, shortDateLabel } from "@/lib/format";
 import {
   TASK_STATUSES,
   engagementKindLabels,
+  estimateLabel,
   taskStatusLabels,
   type TaskStatus,
 } from "@/lib/task-model";
-import { EngagementStatusBadge, TaskPriorityMark } from "./project-badges";
+import { EngagementStatusBadge, LabelChip, TaskPriorityMark } from "./project-badges";
 import { ProjectSheet } from "./project-form";
 import { TaskSheet, type BoardPerson, type BoardTask, type TaskEditor } from "./task-sheet";
 
@@ -136,7 +139,13 @@ function TaskCard({
   handle?: ReactNode;
   dragging?: boolean;
 }) {
-  const meta = task.priority !== "normal" || task.dueDate || task.assignee;
+  const meta =
+    task.priority !== "normal" ||
+    task.dueDate ||
+    task.assignee ||
+    task.estimateMinutes != null ||
+    task.files.length > 0;
+  const shownLabels = task.labels.slice(0, 3);
   return (
     <div
       className={cn(
@@ -157,8 +166,20 @@ function TaskCard({
         >
           {task.title}
         </span>
+        {shownLabels.length > 0 && (
+          <span className="flex w-full flex-wrap items-center gap-1">
+            {shownLabels.map((label) => (
+              <LabelChip key={label} label={label} />
+            ))}
+            {task.labels.length > shownLabels.length && (
+              <span className="text-[11px] text-muted-foreground">
+                +{task.labels.length - shownLabels.length}
+              </span>
+            )}
+          </span>
+        )}
         {meta && (
-          <span className="flex w-full items-center gap-2.5 text-xs">
+          <span className="flex w-full flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
             {task.priority !== "normal" && <TaskPriorityMark priority={task.priority} />}
             {task.dueDate && (
               <span
@@ -170,6 +191,21 @@ function TaskCard({
               >
                 <CalendarIcon className="size-3" />
                 {shortDateLabel(task.dueDate)}
+              </span>
+            )}
+            {task.estimateMinutes != null && (
+              <span className="inline-flex items-center gap-1 tabular-nums" title="Estimativa">
+                <Clock3Icon className="size-3" />
+                {estimateLabel(task.estimateMinutes)}
+              </span>
+            )}
+            {task.files.length > 0 && (
+              <span
+                className="inline-flex items-center gap-1 tabular-nums"
+                title={`${task.files.length} ${task.files.length === 1 ? "anexo" : "anexos"}`}
+              >
+                <PaperclipIcon className="size-3" />
+                {task.files.length}
               </span>
             )}
             {task.assignee && (
@@ -258,6 +294,7 @@ function Column({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: "column" } });
   const label = taskStatusLabels[status];
+  const estimate = ids.reduce((sum, id) => sum + (tasks.get(id)?.estimateMinutes ?? 0), 0);
   return (
     <section
       ref={setNodeRef}
@@ -273,6 +310,15 @@ function Column({
           {label}
         </h2>
         <span className="text-xs tabular-nums text-muted-foreground">{ids.length}</span>
+        {estimate > 0 && (
+          <span
+            className="ml-1 inline-flex items-center gap-1 text-xs tabular-nums text-muted-foreground"
+            title="Soma das estimativas"
+          >
+            <Clock3Icon className="size-3" />
+            {estimateLabel(estimate)}
+          </span>
+        )}
         <Button
           variant="ghost"
           size="icon-xs"
@@ -446,6 +492,14 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   }
 
   const activeTask = activeId ? byId.get(activeId) : undefined;
+  // After a refresh the open sheet shows the task as the server now has it.
+  const currentEditor: TaskEditor | null =
+    editor?.mode === "edit"
+      ? { mode: "edit", task: byId.get(editor.task.id) ?? editor.task }
+      : editor;
+  const labelSuggestions = [...new Set(tasks.flatMap((task) => task.labels))].sort((a, b) =>
+    a.localeCompare(b, "pt-BR"),
+  );
   const titleOf = (id: UniqueIdentifier) => byId.get(String(id))?.title ?? "tarefa";
   const placeOf = (id: UniqueIdentifier) =>
     isColumn(id)
@@ -607,10 +661,11 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
       </DndContext>
 
       <TaskSheet
-        editor={editor}
+        editor={currentEditor}
         onClose={() => setEditor(null)}
         projectId={project.id}
         people={people}
+        labelSuggestions={labelSuggestions}
         viewer={viewer}
         now={now}
       />

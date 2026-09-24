@@ -1,13 +1,19 @@
 "use server";
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auditEvents, engagements, tasks } from "@/db/schema";
+import { attachments, auditEvents, engagements, tasks } from "@/db/schema";
 import { getActor, canAccess } from "./access";
 import type { ActionState } from "./action-state";
 import { db } from "./db";
 import { assigneeAllowed } from "./tasks";
-import { TASK_PRIORITIES, TASK_STATUSES, type TaskStatus } from "./task-model";
+import { prepareTicketFiles, takeTicketUploads } from "./ticket-files";
+import {
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+  hoursToMinutes,
+  type TaskStatus,
+} from "./task-model";
 
 const id = z.string().uuid();
 const blocked = { error: "Você não tem permissão para realizar esta ação." };
@@ -15,7 +21,9 @@ const failure = (error: unknown): ActionState => ({
   error:
     error instanceof z.ZodError
       ? error.issues[0].message
-      : "Não foi possível salvar. Confira os dados e tente novamente.",
+      : error instanceof Error && /etiqueta|estimativa/i.test(error.message)
+        ? error.message
+        : "Não foi possível salvar. Confira os dados e tente novamente.",
 });
 function refresh(engagementId: string) {
   revalidatePath(`/produtos/${engagementId}`);
@@ -47,7 +55,36 @@ const taskInput = z.object({
   // User ids come from better-auth and are not UUIDs; membership is checked separately.
   assigneeId: z.union([z.string().trim().min(1).max(128), z.literal("")]).default(""),
   dueDate: z.union([z.iso.date("Informe uma data válida."), z.literal("")]).default(""),
+  estimate: z.string().trim().max(10).default(""),
 });
+const MAX_LABELS = 8;
+const MAX_FILES_PER_TASK = 20;
+
+/** Tags typed in the sheet: trimmed, unique, short. */
+function parseLabels(values: FormDataEntryValue[]) {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const value of values) {
+    const label = String(value).trim().replace(/\s+/g, " ");
+    if (!label) continue;
+    if (label.length > 24) throw new Error("Cada etiqueta tem até 24 caracteres.");
+    const key = label.toLocaleLowerCase("pt-BR");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    labels.push(label);
+  }
+  if (labels.length > MAX_LABELS) throw new Error(`Use até ${MAX_LABELS} etiquetas.`);
+  return labels;
+}
+function parseEstimate(input: string) {
+  if (!input) return null;
+  const minutes = hoursToMinutes(input);
+  if (minutes === null || minutes > 100_000)
+    throw new Error("Informe a estimativa em horas, como 2 ou 1,5.");
+  return minutes;
+}
+const message = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 export async function createTask(
   _: ActionState,
@@ -57,12 +94,28 @@ export async function createTask(
     const input = taskInput
       .extend({ engagementId: id })
       .parse(Object.fromEntries(form));
+    const labels = parseLabels(form.getAll("labels"));
+    const estimateMinutes = parseEstimate(input.estimate);
     const context = await projectFor(input.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
     if (input.assigneeId && !(await assigneeAllowed(input.assigneeId, project.companyId)))
       return { error: "Essa pessoa não participa deste projeto." };
-    await db.transaction(async (tx) => {
+    let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
+    try {
+      direct = await prepareTicketFiles(form.getAll("files"));
+    } catch (error) {
+      return { error: message(error, "Anexos inválidos.") };
+    }
+    const result = await db.transaction(async (tx): Promise<ActionState> => {
+      let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
+      try {
+        uploaded = await takeTicketUploads(tx, actor.user.id, form);
+      } catch (error) {
+        return { error: message(error, "Anexos inválidos.") };
+      }
+      const files = [...direct, ...uploaded];
+      if (files.length > 5) return { error: "Selecione até 5 anexos por vez." };
       const [{ last }] = await tx
         .select({ last: max(tasks.position) })
         .from(tasks)
@@ -78,10 +131,16 @@ export async function createTask(
           priority: input.priority,
           assigneeId: input.assigneeId || null,
           dueDate: input.dueDate || null,
+          labels,
+          estimateMinutes,
           position: (last ?? 0) + STEP,
           createdBy: actor.user.id,
         })
         .returning({ id: tasks.id });
+      if (files.length)
+        await tx.insert(attachments).values(
+          files.map((file) => ({ ...file, taskId: row.id, authorId: actor.user.id })),
+        );
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: project.companyId,
@@ -89,9 +148,10 @@ export async function createTask(
         entityId: row.id,
         details: { engagementId: project.id, title: input.title },
       });
+      return { success: "Tarefa criada." };
     });
-    refresh(project.id);
-    return { success: "Tarefa criada." };
+    if (result.success) refresh(project.id);
+    return result;
   } catch (error) {
     return failure(error);
   }
@@ -103,6 +163,8 @@ export async function updateTask(
 ): Promise<ActionState> {
   try {
     const input = taskInput.extend({ id }).parse(Object.fromEntries(form));
+    const labels = parseLabels(form.getAll("labels"));
+    const estimateMinutes = parseEstimate(input.estimate);
     const [current] = await db.select().from(tasks).where(eq(tasks.id, input.id));
     if (!current) return blocked;
     const context = await projectFor(current.engagementId);
@@ -110,7 +172,32 @@ export async function updateTask(
     const { actor, project } = context;
     if (input.assigneeId && !(await assigneeAllowed(input.assigneeId, project.companyId)))
       return { error: "Essa pessoa não participa deste projeto." };
-    await db.transaction(async (tx) => {
+    let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
+    try {
+      direct = await prepareTicketFiles(form.getAll("files"));
+    } catch (error) {
+      return { error: message(error, "Anexos inválidos.") };
+    }
+    const result = await db.transaction(async (tx): Promise<ActionState> => {
+      let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
+      try {
+        uploaded = await takeTicketUploads(tx, actor.user.id, form);
+      } catch (error) {
+        return { error: message(error, "Anexos inválidos.") };
+      }
+      const files = [...direct, ...uploaded];
+      if (files.length > 5) return { error: "Selecione até 5 anexos por vez." };
+      if (files.length) {
+        const [total] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(attachments)
+          .where(eq(attachments.taskId, input.id));
+        if (total.n + files.length > MAX_FILES_PER_TASK)
+          return { error: `Limite de ${MAX_FILES_PER_TASK} anexos por tarefa atingido.` };
+        await tx.insert(attachments).values(
+          files.map((file) => ({ ...file, taskId: input.id, authorId: actor.user.id })),
+        );
+      }
       // A status change through the form lands at the end of the new column.
       const position =
         input.status === current.status
@@ -130,6 +217,8 @@ export async function updateTask(
           priority: input.priority,
           assigneeId: input.assigneeId || null,
           dueDate: input.dueDate || null,
+          labels,
+          estimateMinutes,
           position,
           updatedAt: new Date(),
         })
@@ -141,9 +230,47 @@ export async function updateTask(
         entityId: input.id,
         details: { engagementId: project.id, status: input.status },
       });
+      return { success: "Tarefa atualizada." };
+    });
+    if (result.success) refresh(project.id);
+    return result;
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Removes one attachment: the person who added it, the task's creator or staff. */
+export async function removeTaskFile(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  try {
+    const fileId = id.parse(form.get("id"));
+    const [file] = await db
+      .select({ id: attachments.id, taskId: attachments.taskId, authorId: attachments.authorId, name: attachments.name })
+      .from(attachments)
+      .where(eq(attachments.id, fileId));
+    if (!file?.taskId) return blocked;
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, file.taskId));
+    if (!task) return blocked;
+    const context = await projectFor(task.engagementId);
+    if (!context) return blocked;
+    const { actor, project } = context;
+    if (!actor.admin && file.authorId !== actor.user.id && task.createdBy !== actor.user.id)
+      return blocked;
+    await db.transaction(async (tx) => {
+      await tx.delete(attachments).where(eq(attachments.id, fileId));
+      await tx.update(tasks).set({ updatedAt: new Date() }).where(eq(tasks.id, task.id));
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: project.companyId,
+        action: "task.updated",
+        entityId: task.id,
+        details: { engagementId: project.id, removedFile: file.name },
+      });
     });
     refresh(project.id);
-    return { success: "Tarefa atualizada." };
+    return { success: "Anexo removido." };
   } catch (error) {
     return failure(error);
   }
@@ -230,6 +357,7 @@ export async function deleteTask(
     if (!actor.admin && current.createdBy !== actor.user.id)
       return { error: "Só quem criou a tarefa ou a equipe pode excluí-la." };
     await db.transaction(async (tx) => {
+      await tx.delete(attachments).where(eq(attachments.taskId, taskId));
       await tx.delete(tasks).where(eq(tasks.id, taskId));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,

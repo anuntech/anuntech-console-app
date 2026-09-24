@@ -1,9 +1,8 @@
 "use client";
 import { useState } from "react";
-import { CalendarIcon, XIcon } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { ptBR } from "date-fns/locale";
 import { cn } from "cn";
-import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -26,6 +25,7 @@ function toIso(date: Date) {
  * A civil-date field for server forms: a button that opens the Console's
  * calendar and a hidden input carrying the ISO value under `name`. Works
  * uncontrolled (`defaultValue`) or controlled (`value` + `onChange`).
+ * Clicking the chosen day again clears it, unless `required`.
  */
 export function DateField({
   id,
@@ -34,7 +34,6 @@ export function DateField({
   defaultValue = "",
   onChange,
   required = false,
-  clearable = false,
   placeholder = "Escolher data",
   min,
   className,
@@ -45,8 +44,6 @@ export function DateField({
   defaultValue?: string;
   onChange?: (value: string) => void;
   required?: boolean;
-  /** Show a quiet clear button once a date is chosen. */
-  clearable?: boolean;
   placeholder?: string;
   /** Earliest selectable day, ISO. */
   min?: string;
@@ -61,50 +58,38 @@ export function DateField({
     onChange?.(next);
   };
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn("relative w-full", className)}>
       <input type="hidden" name={name} value={value} />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
+          <button
             id={id}
             type="button"
-            variant="outline"
-            aria-required={required || undefined}
             className={cn(
-              "h-9 min-w-0 flex-1 justify-start bg-field px-3 font-normal shadow-xs hover:bg-field",
-              !value && "text-muted-foreground hover:text-muted-foreground",
+              "flex h-9 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-field px-3 py-1 text-left text-sm shadow-xs transition-[color,box-shadow] outline-none",
+              "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              value ? "text-foreground" : "text-muted-foreground",
             )}
           >
-            <CalendarIcon className="text-muted-foreground" />
+            <CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
             <span className="truncate">{value ? dateLabel(value) : placeholder}</span>
-          </Button>
+          </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-0">
           <Calendar
             mode="single"
+            required={required}
             locale={ptBR}
             selected={selected}
             defaultMonth={selected}
             disabled={min ? { before: parseIso(min) } : undefined}
-            onSelect={(date) => {
+            onSelect={(date: Date | undefined) => {
               set(date ? toIso(date) : "");
               setOpen(false);
             }}
           />
         </PopoverContent>
       </Popover>
-      {clearable && value && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Limpar data"
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-          onClick={() => set("")}
-        >
-          <XIcon />
-        </Button>
-      )}
     </div>
   );
 }

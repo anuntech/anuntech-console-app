@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { attachments, tickets, memberships } from "@/db/schema";
+import { attachments, tasks, tickets, memberships } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, type Area } from "@/lib/permissions";
 import { getConsoleStaffAccess } from "@/lib/console-members";
 import { getAccountEmails } from "@/lib/account-identity";
 export async function GET(
@@ -13,12 +13,19 @@ export async function GET(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user.emailVerified) return new Response(null, { status: 401 });
   const { id } = await params;
+  // A file belongs to a ticket (support access) or to a task (any company access).
   const [meta] = await db
-    .select({ companyId: tickets.companyId })
+    .select({
+      ticketCompany: tickets.companyId,
+      taskCompany: tasks.companyId,
+    })
     .from(attachments)
-    .innerJoin(tickets, eq(tickets.id, attachments.ticketId))
+    .leftJoin(tickets, eq(tickets.id, attachments.ticketId))
+    .leftJoin(tasks, eq(tasks.id, attachments.taskId))
     .where(eq(attachments.id, id));
-  if (!meta) return new Response(null, { status: 404 });
+  const companyId = meta?.ticketCompany ?? meta?.taskCompany;
+  if (!meta || !companyId) return new Response(null, { status: 404 });
+  const area: Area = meta.ticketCompany ? "support" : "overview";
   if (!(await getConsoleStaffAccess(session.user.email)).admin) {
     const emails = await getAccountEmails(session.user.id, session.user.email);
     const grants = await db
@@ -26,12 +33,12 @@ export async function GET(
       .from(memberships)
       .where(
         and(
-          eq(memberships.companyId, meta.companyId),
+          eq(memberships.companyId, companyId),
           inArray(memberships.email, emails),
           eq(memberships.active, true),
         ),
       );
-    if (!grants.some((grant) => hasPermission(grant.role, "support")))
+    if (!grants.some((grant) => hasPermission(grant.role, area)))
       return new Response(null, { status: 404 });
   }
   const [file] = await db

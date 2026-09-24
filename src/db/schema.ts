@@ -261,6 +261,10 @@ export const tasks = pgTable(
       .default("normal"),
     assigneeId: text("assignee_id").references(() => user.id),
     dueDate: date("due_date"),
+    /** Free-form tags, kept per task; colours derive from the text. */
+    labels: text("labels").array().notNull().default([]),
+    /** Development estimate, stored in minutes so "1,5 h" survives intact. */
+    estimateMinutes: integer("estimate_minutes"),
     position: integer("position").notNull().default(0),
     createdBy: text("created_by")
       .notNull()
@@ -331,9 +335,9 @@ export const attachments = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
-    ticketId: text("ticket_id")
-      .notNull()
-      .references(() => tickets.id),
+    /** Exactly one of ticketId / taskId is set. */
+    ticketId: text("ticket_id").references(() => tickets.id),
+    taskId: text("task_id").references(() => tasks.id),
     authorId: text("author_id")
       .notNull()
       .references(() => user.id),
@@ -343,7 +347,10 @@ export const attachments = pgTable(
     content: bytea("content").notNull(),
     createdAt: created(),
   },
-  (t) => [index("console_attachment_ticket_idx").on(t.ticketId)],
+  (t) => [
+    index("console_attachment_ticket_idx").on(t.ticketId),
+    index("console_attachment_task_idx").on(t.taskId),
+  ],
 );
 export const subscriptions = pgTable("console_subscriptions", {
   id: text("id")

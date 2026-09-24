@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { cn } from "cn";
 import { engagementLabels } from "@/lib/format";
 import { taskPriorityLabels, type TaskPriority } from "@/lib/task-model";
@@ -64,6 +65,43 @@ export function TaskPriorityMark({
     >
       <span aria-hidden="true" className={cn("size-1.5 rounded-full", priorityDots[priority])} />
       {taskPriorityLabels[priority]}
+    </span>
+  );
+}
+
+const labelTones = [
+  "bg-accent text-primary",
+  "bg-success-soft text-success",
+  "bg-warning-soft text-warning",
+  "bg-destructive-soft text-destructive",
+  "bg-secondary text-foreground",
+];
+/** Same text, same colour, everywhere. */
+export function labelTone(label: string) {
+  let hash = 0;
+  for (const char of label.toLocaleLowerCase("pt-BR")) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return labelTones[hash % labelTones.length];
+}
+
+export function LabelChip({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4",
+        labelTone(label),
+        className,
+      )}
+    >
+      <span className="truncate">{label}</span>
+      {children}
     </span>
   );
 }

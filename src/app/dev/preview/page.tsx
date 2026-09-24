@@ -629,6 +629,9 @@ export default async function Preview({
       assignee: string;
       dueDate: string;
       description: string;
+      labels: string[];
+      estimate: number;
+      files: number;
     }> = {},
   ) => ({
     id,
@@ -639,6 +642,15 @@ export default async function Preview({
     assigneeId: extra.assignee ? boardPeople.find((p) => p.name === extra.assignee)?.id ?? null : null,
     assignee: extra.assignee ?? null,
     dueDate: extra.dueDate ?? null,
+    labels: extra.labels ?? [],
+    estimateMinutes: extra.estimate ?? null,
+    files: Array.from({ length: extra.files ?? 0 }, (_, i) => ({
+      id: `${id}-f${i}`,
+      name: i ? "referencia.pdf" : "layout-home.webp",
+      size: i ? 184_000 : 412_000,
+      mime: i ? "application/pdf" : "image/webp",
+      authorId: "u1",
+    })),
     createdBy: "u1",
     creator: "Kauan Ketner",
     updatedAt: ago(5),
@@ -650,6 +662,8 @@ export default async function Preview({
       assignee: "Alexandre Souza",
       dueDate: day(4),
       description: "Um parágrafo por serviço, com o diferencial e uma chamada para contato.",
+      labels: ["Conteúdo"],
+      estimate: 180,
     }),
     boardTask("t4", "Aprovar a paleta de cores com o cliente", "todo", {
       priority: "high",
@@ -659,11 +673,16 @@ export default async function Preview({
     boardTask("t5", "Montar o layout da página inicial", "in_progress", {
       assignee: "Mariana Lopes",
       dueDate: day(0),
+      labels: ["Design", "Home"],
+      estimate: 480,
+      files: 2,
     }),
     boardTask("t6", "Integrar o formulário de contato ao WhatsApp", "in_progress", {
       priority: "urgent",
       assignee: "Kauan Ketner",
       dueDate: day(1),
+      labels: ["Integração", "WhatsApp", "Backend", "Urgente"],
+      estimate: 90,
     }),
     boardTask("t7", "Revisar textos da página Sobre", "review", { assignee: "Alexandre Souza" }),
     boardTask("t8", "Registrar o domínio e apontar o DNS", "done", { dueDate: day(-10) }),

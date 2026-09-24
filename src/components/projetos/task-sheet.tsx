@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
-import { Trash2Icon } from "lucide-react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { FileTextIcon, ImageIcon, Trash2Icon, XIcon } from "lucide-react";
+import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,23 +21,35 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { DateField } from "@/components/console/date-field";
+import { DownloadLink } from "@/components/console/download-link";
 import {
   ConfirmDialog,
   FormError,
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { createTask, deleteTask, updateTask } from "@/lib/task-actions";
+import { AttachmentField } from "@/components/chamados/attachment-field";
+import { useTicketUploads } from "@/components/chamados/ticket-uploads";
+import { createTask, deleteTask, removeTaskFile, updateTask } from "@/lib/task-actions";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
+  minutesToHours,
   taskPriorityLabels,
   taskStatusLabels,
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/task-model";
-import { relativeLabel } from "@/lib/format";
+import { fileSizeLabel, relativeLabel } from "@/lib/format";
+import { LabelField } from "./label-field";
 
+export type TaskFile = {
+  id: string;
+  name: string;
+  size: number;
+  mime: string;
+  authorId: string;
+};
 export type BoardTask = {
   id: string;
   title: string;
@@ -45,6 +59,9 @@ export type BoardTask = {
   assigneeId: string | null;
   assignee: string | null;
   dueDate: string | null;
+  labels: string[];
+  estimateMinutes: number | null;
+  files: TaskFile[];
   createdBy: string;
   creator: string | null;
   updatedAt: string;
@@ -53,6 +70,58 @@ export type BoardPerson = { id: string; name: string };
 export type TaskEditor =
   | { mode: "create"; status: TaskStatus }
   | { mode: "edit"; task: BoardTask };
+
+/** Removes attachments through one hidden form that lives outside the sheet's form. */
+function useFileRemoval() {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [fileId, setFileId] = useState("");
+  const remove = (id: string) => {
+    flushSync(() => setFileId(id));
+    formRef.current?.requestSubmit();
+  };
+  const form = (
+    <ServerForm ref={formRef} action={removeTaskFile}>
+      <input type="hidden" name="id" value={fileId} />
+    </ServerForm>
+  );
+  return { remove, form };
+}
+
+function FileChip({
+  file,
+  onRemove,
+}: {
+  file: TaskFile;
+  onRemove?: () => void;
+}) {
+  const Icon = file.mime.startsWith("image/") ? ImageIcon : FileTextIcon;
+  return (
+    <li className="flex max-w-full items-center gap-1.5 rounded-md border bg-card py-1 pr-1 pl-2.5 text-xs">
+      <DownloadLink
+        href={`/api/anexos/${file.id}`}
+        filename={file.name}
+        className="group flex min-w-0 items-center gap-1.5"
+      >
+        <Icon className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+        <span className="max-w-[14rem] truncate font-medium text-foreground">{file.name}</span>
+        <span className="shrink-0 text-muted-foreground">{fileSizeLabel(file.size)}</span>
+      </DownloadLink>
+      {onRemove ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Remover ${file.name}`}
+          onClick={onRemove}
+        >
+          <XIcon />
+        </Button>
+      ) : (
+        <span className="w-1" />
+      )}
+    </li>
+  );
+}
 
 /**
  * One sheet for creating and editing a task. The column is a field like any
@@ -63,6 +132,7 @@ export function TaskSheet({
   onClose,
   projectId,
   people,
+  labelSuggestions = [],
   viewer,
   now,
 }: {
@@ -70,13 +140,18 @@ export function TaskSheet({
   onClose: () => void;
   projectId: string;
   people: BoardPerson[];
+  labelSuggestions?: string[];
   viewer: { id: string; admin: boolean };
   now: string;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const uploads = useTicketUploads();
+  const { remove, form: removalForm } = useFileRemoval();
   const task = editor?.mode === "edit" ? editor.task : null;
   const status = editor?.mode === "create" ? editor.status : (task?.status ?? "todo");
   const canDelete = !!task && (viewer.admin || task.createdBy === viewer.id);
+  const canRemoveFile = (file: TaskFile) =>
+    viewer.admin || file.authorId === viewer.id || task?.createdBy === viewer.id;
   return (
     <>
       <Sheet open={editor !== null} onOpenChange={(open) => !open && onClose()}>
@@ -84,6 +159,7 @@ export function TaskSheet({
           <ServerForm
             key={task?.id ?? `new-${status}`}
             action={task ? updateTask : createTask}
+            prepare={uploads}
             onSuccess={onClose}
             className="flex h-full min-h-0 flex-col"
           >
@@ -124,11 +200,11 @@ export function TaskSheet({
                   <Textarea
                     id="task-description"
                     name="description"
-                    rows={6}
+                    rows={5}
                     maxLength={5000}
                     defaultValue={task?.description ?? ""}
                     placeholder="Contexto, o que precisa estar pronto, links úteis."
-                    className="min-h-32"
+                    className="min-h-28"
                   />
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2">
@@ -188,8 +264,49 @@ export function TaskSheet({
                       name="dueDate"
                       defaultValue={task?.dueDate ?? ""}
                       placeholder="Sem prazo"
-                      clearable
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="task-estimate" className="mb-1.5">
+                      Estimativa (horas)
+                    </Label>
+                    <Input
+                      id="task-estimate"
+                      name="estimate"
+                      inputMode="decimal"
+                      maxLength={10}
+                      defaultValue={
+                        task?.estimateMinutes != null ? minutesToHours(task.estimateMinutes) : ""
+                      }
+                      placeholder="Ex.: 1,5"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="task-labels" className="mb-1.5">
+                    Etiquetas
+                  </Label>
+                  <LabelField
+                    id="task-labels"
+                    defaultValue={task?.labels ?? []}
+                    suggestions={labelSuggestions}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-foreground">Anexos</p>
+                  <div className="flex flex-col gap-2">
+                    {task && task.files.length > 0 && (
+                      <ul className="flex flex-wrap gap-2">
+                        {task.files.map((file) => (
+                          <FileChip
+                            key={file.id}
+                            file={file}
+                            onRemove={canRemoveFile(file) ? () => remove(file.id) : undefined}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                    <AttachmentField variant="compact" className={cn(task?.files.length && "mt-1")} />
                   </div>
                 </div>
               </div>
@@ -218,6 +335,7 @@ export function TaskSheet({
           </ServerForm>
         </SheetContent>
       </Sheet>
+      {removalForm}
       {task && (
         <ConfirmDialog
           open={deleting}
@@ -225,7 +343,7 @@ export function TaskSheet({
           action={deleteTask}
           fields={{ id: task.id }}
           title="Excluir tarefa?"
-          description={`"${task.title}" sai do quadro. Isso não pode ser desfeito.`}
+          description={`"${task.title}" sai do quadro, com os anexos. Isso não pode ser desfeito.`}
           confirmLabel="Excluir"
           destructive
           onSuccess={onClose}
