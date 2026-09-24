@@ -462,7 +462,8 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           <SearchField
             value={query.search}
             onChange={(search) => router.push(href(query, { search }), { scroll: false })}
-            placeholder={"Buscar por título ou link"}
+            placeholder="Buscar por título ou link"
+            className="mb-4"
           />
           {items.length ? (
             list

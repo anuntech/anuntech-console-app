@@ -203,7 +203,7 @@ export function CompaniesTable({
           <SearchField
             value={query.search}
             onChange={(search) => go({ search, page: 1 })}
-            placeholder={"Buscar por nome, CNPJ ou e-mail"}
+            placeholder="Buscar por nome, CNPJ ou e-mail"
           />
           <Select
             value={query.status}
