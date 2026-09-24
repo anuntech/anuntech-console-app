@@ -19,7 +19,13 @@ https.request = function (url, options, callback) {
       const path = new URL(url).pathname;
       if (path === "/oauth/v2/token")
         result = { access_token: "test-token", expires_in: 3600 };
-      else if (options.method === "POST") {
+      else if (options.method === "POST" && path.endsWith("/cancelar")) {
+        // Cancelling a charge; a reissue then posts a new one.
+        const charge = charges.get(path.split("/")[4]);
+        if (!charge) res.statusCode = 404;
+        else charge.cancelled = true;
+        result = {};
+      } else if (options.method === "POST") {
         const payload = JSON.parse(body);
         if (
           [...charges.values()].some(
@@ -58,11 +64,13 @@ https.request = function (url, options, callback) {
               codigoSolicitacao: id,
               dataVencimento:
                 flags.billingBankDue || charge.payload.dataVencimento,
-              situacao: flags.bankUnpaid
-                ? "A_RECEBER"
-                : charge.checks > 1
-                  ? "RECEBIDO"
-                  : "A_RECEBER",
+              situacao: charge.cancelled
+                ? "CANCELADO"
+                : flags.bankUnpaid
+                  ? "A_RECEBER"
+                  : charge.checks > 1
+                    ? "RECEBIDO"
+                    : "A_RECEBER",
             },
             boleto: { linhaDigitavel: "1".repeat(47) },
             pix: { pixCopiaECola: "test-pix-payload" },

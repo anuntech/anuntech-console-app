@@ -25,9 +25,14 @@ export async function reconcileCharge(
   );
   const c = result.cobranca;
   const payer = i.bankRequest.pagador as { cpfCnpj: string };
+  // The reference sent to the bank; reissued charges carry a suffix.
+  const reference =
+    typeof i.bankRequest.seuNumero === "string"
+      ? i.bankRequest.seuNumero
+      : bankReference(i.id);
   if (
     c.codigoSolicitacao !== providerId ||
-    c.seuNumero !== bankReference(i.id) ||
+    c.seuNumero !== reference ||
     Math.round(Number(c.valorNominal) * 100) !== i.amountCents ||
     c.pagador.cpfCnpj.replace(/\D/g, "") !== payer.cpfCnpj
   )

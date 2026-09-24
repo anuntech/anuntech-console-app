@@ -12,11 +12,14 @@ export function MoneyInput({
   name = "amount",
   defaultCents,
   required = true,
+  onCentsChange,
 }: {
   id?: string;
   name?: string;
   defaultCents?: number;
   required?: boolean;
+  /** Fires with the current value in cents (0 while empty). */
+  onCentsChange?: (cents: number) => void;
 }) {
   const [value, setValue] = useState(
     defaultCents === undefined ? "" : (defaultCents / 100).toFixed(2),
@@ -28,7 +31,10 @@ export function MoneyInput({
         customInput={Input}
         value={value}
         valueIsNumericString
-        onValueChange={(values) => setValue(values.value)}
+        onValueChange={(values) => {
+          setValue(values.value);
+          onCentsChange?.(Math.round((values.floatValue ?? 0) * 100));
+        }}
         thousandSeparator="."
         decimalSeparator=","
         allowedDecimalSeparators={[","]}

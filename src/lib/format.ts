@@ -99,6 +99,7 @@ export const auditLabels: Record<string, string> = {
   "invoice.notice_resent": "Reenvio de aviso solicitado",
   "invoice.draft_cancelled": "Rascunho cancelado",
   "invoice.public_link_updated": "Link de pagamento alterado",
+  "invoice.bank_cancelled": "Cobrança anterior cancelada no Inter",
   "invoice.bank_due_date_updated": "Vencimento ajustado pelo Inter",
   "subscription.activated": "Recorrência ativada",
   "subscription.status_changed": "Recorrência pausada ou retomada",

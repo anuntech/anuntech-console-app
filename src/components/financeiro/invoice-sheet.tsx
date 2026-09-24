@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,15 +15,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Fact } from "@/components/console/fact";
 import {
   FormError,
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { createInvoice, updateDraft, updateIssuedDescription } from "@/lib/actions";
+import { createInvoice, updateDraft } from "@/lib/actions";
+import { reissueInvoice } from "@/lib/billing-actions";
 import { updateSubscription } from "@/lib/billing-public-actions";
-import { currency, dateLabel } from "@/lib/format";
 import {
   InvoiceFields,
   type InvoiceCompanyOption,
@@ -36,40 +36,138 @@ export type InvoiceEditable = {
   amountCents: number;
   dueDate: string;
 };
-/** What can still change: everything on a draft, only the words once the
-    bank holds amount and due date, the next periods of a recurrence. */
+/** Everything on a draft; on an issued charge too, but a new amount or due
+    date means a new charge at the bank; the next periods of a recurrence. */
 export type InvoiceEditMode = "draft" | "issued" | "subscription";
 
 const copy: Record<
   InvoiceEditMode,
-  { title: string; description: string; submit: string; pending: string }
+  { title: string; description: string; submit: string }
 > = {
   draft: {
     title: "Editar rascunho",
     description: "Nada foi emitido: valor e vencimento ainda podem mudar.",
     submit: "Salvar alterações",
-    pending: "Salvando…",
   },
   issued: {
     title: "Editar fatura",
-    description:
-      "A descrição vale para a página de pagamento e os próximos avisos.",
+    description: "Descrição, valor e vencimento desta cobrança.",
     submit: "Salvar alterações",
-    pending: "Salvando…",
   },
   subscription: {
     title: "Editar próximas cobranças",
     description:
       "Vale para os próximos períodos. Faturas já emitidas não mudam.",
     submit: "Salvar próximas cobranças",
-    pending: "Salvando…",
   },
 };
 const actions = {
   draft: updateDraft,
-  issued: updateIssuedDescription,
+  issued: reissueInvoice,
   subscription: updateSubscription,
 };
+
+function EditForm({
+  mode,
+  invoice,
+  onDone,
+}: {
+  mode: InvoiceEditMode;
+  invoice: InvoiceEditable;
+  onDone: () => void;
+}) {
+  const text = copy[mode];
+  const [cents, setCents] = useState(invoice.amountCents);
+  const [dueDate, setDueDate] = useState(invoice.dueDate);
+  // Only a changed amount or date sends the issued charge back to the bank.
+  const reissue =
+    mode === "issued" &&
+    (cents !== invoice.amountCents || dueDate !== invoice.dueDate);
+  return (
+    <ServerForm
+      action={actions[mode]}
+      onSuccess={onDone}
+      className="flex h-full min-h-0 flex-col"
+    >
+      <input type="hidden" name="id" value={invoice.id} />
+      <SheetHeader className="border-b px-6 py-5">
+        <SheetTitle>{text.title}</SheetTitle>
+        <SheetDescription>{text.description}</SheetDescription>
+      </SheetHeader>
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
+        <FormError />
+        <div>
+          <Label htmlFor="edit-description" className="mb-1.5">
+            Descrição
+          </Label>
+          <Textarea
+            id="edit-description"
+            name="description"
+            required
+            maxLength={1000}
+            rows={2}
+            defaultValue={invoice.description}
+            autoFocus
+            className="min-h-16"
+          />
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="edit-amount" className="mb-1.5">
+              {mode === "subscription" ? "Valor por período" : "Valor"}
+            </Label>
+            <MoneyInput
+              id="edit-amount"
+              defaultCents={invoice.amountCents}
+              onCentsChange={setCents}
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-due" className="mb-1.5">
+              {mode === "subscription" ? "Próximo vencimento" : "Vencimento"}
+            </Label>
+            <Input
+              id="edit-due"
+              name="dueDate"
+              type="date"
+              required
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+            />
+          </div>
+        </div>
+        {mode === "issued" &&
+          (reissue ? (
+            <div
+              role="status"
+              className="flex items-start gap-3 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
+            >
+              <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+              <span>
+                O boleto e o Pix atuais são cancelados no Inter e novos são
+                emitidos com estes dados. O link de pagamento continua o mesmo.
+              </span>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Mudar o valor ou o vencimento cancela o boleto e o Pix atuais no
+              Inter e emite novos. O link de pagamento continua o mesmo.
+            </p>
+          ))}
+      </div>
+      <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
+        <SheetClose asChild>
+          <Button type="button" variant="outline">
+            Cancelar
+          </Button>
+        </SheetClose>
+        <SubmitButton pendingLabel={reissue ? "Reemitindo…" : "Salvando…"}>
+          {reissue ? "Salvar e reemitir" : text.submit}
+        </SubmitButton>
+      </SheetFooter>
+    </ServerForm>
+  );
+}
 
 export function InvoiceSheet({
   open,
@@ -82,86 +180,16 @@ export function InvoiceSheet({
   mode: InvoiceEditMode;
   invoice: InvoiceEditable | null;
 }) {
-  const text = copy[mode];
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
         {invoice && (
-          <ServerForm
+          <EditForm
             key={`${mode}-${invoice.id}-${open ? "open" : "closed"}`}
-            action={actions[mode]}
-            onSuccess={() => onOpenChange(false)}
-            className="flex h-full min-h-0 flex-col"
-          >
-            <input type="hidden" name="id" value={invoice.id} />
-            <SheetHeader className="border-b px-6 py-5">
-              <SheetTitle>{text.title}</SheetTitle>
-              <SheetDescription>{text.description}</SheetDescription>
-            </SheetHeader>
-            <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
-              <FormError />
-              <div>
-                <Label htmlFor="edit-description" className="mb-1.5">
-                  Descrição
-                </Label>
-                <Textarea
-                  id="edit-description"
-                  name="description"
-                  required
-                  maxLength={1000}
-                  rows={2}
-                  defaultValue={invoice.description}
-                  autoFocus
-                  className="min-h-16"
-                />
-              </div>
-              {mode === "issued" ? (
-                <dl className="grid gap-4 rounded-lg border bg-secondary/40 px-4 py-3 sm:grid-cols-2">
-                  <Fact label="Valor">
-                    <span className="tabular-nums">
-                      {currency(invoice.amountCents)}
-                    </span>
-                  </Fact>
-                  <Fact label="Vencimento">{dateLabel(invoice.dueDate)}</Fact>
-                  <p className="text-xs text-muted-foreground sm:col-span-2">
-                    Registrados no Inter junto com o boleto e o Pix. Para
-                    alterar, cancele a cobrança no banco e emita outra.
-                  </p>
-                </dl>
-              ) : (
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="edit-amount" className="mb-1.5">
-                      {mode === "subscription" ? "Valor por período" : "Valor"}
-                    </Label>
-                    <MoneyInput id="edit-amount" defaultCents={invoice.amountCents} />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-due" className="mb-1.5">
-                      {mode === "subscription"
-                        ? "Próximo vencimento"
-                        : "Vencimento"}
-                    </Label>
-                    <Input
-                      id="edit-due"
-                      name="dueDate"
-                      type="date"
-                      required
-                      defaultValue={invoice.dueDate}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-            <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-              <SheetClose asChild>
-                <Button type="button" variant="outline">
-                  Cancelar
-                </Button>
-              </SheetClose>
-              <SubmitButton pendingLabel={text.pending}>{text.submit}</SubmitButton>
-            </SheetFooter>
-          </ServerForm>
+            mode={mode}
+            invoice={invoice}
+            onDone={() => onOpenChange(false)}
+          />
         )}
       </SheetContent>
     </Sheet>

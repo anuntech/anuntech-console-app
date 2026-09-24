@@ -146,19 +146,25 @@ function CodeField({
   label,
   value,
   rows,
+  actions,
 }: {
   label: string;
   value: string;
   rows?: number;
+  /** Other quiet actions beside "Copiar" (the boleto PDF). */
+  actions?: ReactNode;
 }) {
   const id = useId();
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <Label htmlFor={id}>{label}</Label>
-        <CopyButton value={value} label={label} size="xs" variant="ghost">
-          Copiar
-        </CopyButton>
+        <span className="flex items-center gap-1">
+          {actions}
+          <CopyButton value={value} label={label} size="xs" variant="ghost">
+            Copiar
+          </CopyButton>
+        </span>
       </div>
       {rows ? (
         <Textarea
@@ -239,6 +245,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
   >(null);
   const [send, setSend] = useState<null | "email" | "whatsapp">(null);
   const [resend, setResend] = useState<string | null>(null);
+  const [allEvents, setAllEvents] = useState(false);
   const ask = (which: "link" | "subscription" | "cancel") =>
     setTimeout(() => setConfirm(which), 0);
 
@@ -667,20 +674,21 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   <CodeField label="Pix copia e cola" value={invoice.pixCopyPaste} rows={3} />
                 )}
                 {issued && invoice.boletoLine && (
-                  <div className="flex flex-col gap-3">
-                    <CodeField label="Linha digitável do boleto" value={invoice.boletoLine} />
-                    <div>
-                      <Button variant="outline" size="sm" asChild>
+                  <CodeField
+                    label="Linha digitável do boleto"
+                    value={invoice.boletoLine}
+                    actions={
+                      <Button variant="ghost" size="xs" asChild>
                         <DownloadLink
                           href={`/api/boletos/${invoice.id}`}
                           filename={`boleto-${invoice.id}.pdf`}
                         >
                           <FileDownIcon />
-                          Baixar boleto em PDF
+                          Baixar PDF
                         </DownloadLink>
                       </Button>
-                    </div>
-                  </div>
+                    }
+                  />
                 )}
                 {admin && invoice.bankStatus && (
                   <p className="text-xs text-muted-foreground">
@@ -776,17 +784,18 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   </p>
                 )}
                 {(canSend.email || canSend.whatsapp) && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                    <span>Enviar a cobrança</span>
                     {canSend.email && (
-                      <Button size="sm" variant="outline" onClick={() => setSend("email")}>
+                      <Button size="xs" variant="ghost" onClick={() => setSend("email")}>
                         <MailIcon />
-                        Enviar por e-mail
+                        por e-mail
                       </Button>
                     )}
                     {canSend.whatsapp && (
-                      <Button size="sm" variant="outline" onClick={() => setSend("whatsapp")}>
+                      <Button size="xs" variant="ghost" onClick={() => setSend("whatsapp")}>
                         <MessageCircleIcon />
-                        Enviar por WhatsApp
+                        por WhatsApp
                       </Button>
                     )}
                   </div>
@@ -828,15 +837,6 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                         <ExternalLinkIcon />
                         Abrir página de pagamento
                       </a>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="justify-start text-muted-foreground"
-                      onClick={() => setConfirm("link")}
-                    >
-                      <Link2OffIcon />
-                      Desativar link
                     </Button>
                   </>
                 ) : (
@@ -947,7 +947,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
               <CardContent>
                 {events.length ? (
                   <ol className="relative flex flex-col gap-4 border-l border-border pl-5">
-                    {events.map((event) => (
+                    {(allEvents ? events : events.slice(0, 5)).map((event) => (
                       <li key={event.id} className="relative text-sm">
                         <span
                           aria-hidden="true"
@@ -969,6 +969,16 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   <p className="text-sm text-muted-foreground">
                     Nenhum registro ainda.
                   </p>
+                )}
+                {events.length > 5 && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="mt-4 text-muted-foreground"
+                    onClick={() => setAllEvents((value) => !value)}
+                  >
+                    {allEvents ? "Mostrar menos" : `Mostrar mais ${events.length - 5}`}
+                  </Button>
                 )}
               </CardContent>
             </Card>

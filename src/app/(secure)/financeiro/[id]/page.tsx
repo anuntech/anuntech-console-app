@@ -77,7 +77,7 @@ export default async function Invoice({
           .from(auditEvents)
           .where(inArray(auditEvents.entityId, sub ? [i.id, sub.id] : [i.id]))
           .orderBy(desc(auditEvents.createdAt))
-          .limit(12),
+          .limit(30),
       ])
     : [[], null, []];
   const canSend = (channel: "email" | "whatsapp") => {

@@ -1,7 +1,7 @@
 import "server-only";
 import { enqueueBillingNotice } from "./billing-notice-queue";
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { saoPauloDate } from "./dates";
 import { db } from "./db";
@@ -93,8 +93,22 @@ export async function publishInvoice(
             kind: "initial",
           });
       const location = savedAddress.data;
+      // Each reissue gets its own reference; the bank keeps the cancelled
+      // charge under the previous one.
+      const [{ reissues }] = await tx
+        .select({ reissues: count() })
+        .from(auditEvents)
+        .where(
+          and(
+            eq(auditEvents.entityId, i.id),
+            eq(auditEvents.action, "invoice.bank_cancelled"),
+          ),
+        );
+      const reference = bankReference(i.id);
       const data = {
-        seuNumero: bankReference(i.id),
+        seuNumero: reissues
+          ? `${reference.slice(0, 14)}${Math.min(reissues, 9)}`
+          : reference,
         valorNominal: i.amountCents / 100,
         dataVencimento: i.dueDate,
         numDiasAgenda,
@@ -134,7 +148,8 @@ export async function publishInvoice(
           providerId: result.codigoSolicitacao,
           status: "issued",
           bankStatus: "EM_PROCESSAMENTO",
-          publicId: randomBytes(32).toString("base64url"),
+          // A reissued charge keeps the link the client already received.
+          publicId: sql`coalesce(${invoices.publicId}, ${randomBytes(32).toString("base64url")})`,
         })
         .where(and(eq(invoices.id, id), isNull(invoices.providerId)))
         .returning();
