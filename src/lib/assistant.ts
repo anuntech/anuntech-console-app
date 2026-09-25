@@ -7,6 +7,7 @@ import { saoPauloDate } from "./dates";
 import { longDateLabel } from "./format";
 import { hasPermission } from "./permissions";
 import { runTool, toolCatalog, type ClientAction } from "./assistant-tools";
+import { modelSupportsReasoning } from "./openrouter-models";
 
 export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
@@ -124,7 +125,22 @@ type ToolCall = { id: string; type: "function"; function: { name: string; argume
 
 export class AssistantError extends Error {}
 
-async function complete(model: string, messages: Message[], tools: ReturnType<typeof toolCatalog>) {
+/** Providers differ on the shape of `content`; this flattens it to text. */
+const textOf = (content: unknown): string =>
+  typeof content === "string"
+    ? content
+    : Array.isArray(content)
+      ? content.map((part) => (part && typeof part === "object" && "text" in part ? String((part as { text: unknown }).text ?? "") : "")).join("")
+      : "";
+
+type Completion = { content: string; toolCalls: ToolCall[]; finishReason: string | null };
+
+async function complete(
+  model: string,
+  messages: Message[],
+  tools: ReturnType<typeof toolCatalog>,
+  options: { maxTokens: number; reasoning: boolean },
+): Promise<Completion> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new AssistantError("O assistente ainda não foi ligado: falta a chave do OpenRouter nas variáveis do ambiente.");
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -141,21 +157,37 @@ async function complete(model: string, messages: Message[], tools: ReturnType<ty
       tools,
       tool_choice: "auto",
       temperature: 0.3,
-      max_tokens: 1500,
+      max_tokens: options.maxTokens,
+      // Thinking models spend the output budget on reasoning first; keep it short so text remains.
+      ...(options.reasoning ? { reasoning: { effort: "low" } } : {}),
     }),
     signal: AbortSignal.timeout(90000),
   });
   const data = (await res.json().catch(() => null)) as
-    | { choices?: { message: Message & { tool_calls?: ToolCall[] } }[]; error?: { message?: string } }
+    | {
+        choices?: { message: { content?: unknown; tool_calls?: ToolCall[] }; finish_reason?: string }[];
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+        error?: { message?: string };
+      }
     | null;
   if (!res.ok || !data?.choices?.length) {
     const detail = data?.error?.message ?? `HTTP ${res.status}`;
+    console.warn("[assistant] OpenRouter refused", { model, status: res.status, detail, maxTokens: options.maxTokens });
     if (res.status === 401) throw new AssistantError("A chave do OpenRouter foi recusada. Confira em Configurações › Assistente.");
-    if (res.status === 402) throw new AssistantError("O OpenRouter está sem créditos. Recarregue a conta para o assistente voltar.");
+    if (res.status === 402) {
+      // "You requested up to 4000 tokens, but can only afford 3372": shrink the budget once and go on.
+      const affordable = Number(/afford (\d+)/.exec(detail)?.[1]);
+      if (affordable >= 600 && affordable < options.maxTokens) return complete(model, messages, tools, { ...options, maxTokens: affordable - 50 });
+      throw new AssistantError("A conta do OpenRouter está sem créditos. Adicione créditos em openrouter.ai/settings/credits para o assistente voltar.");
+    }
     if (res.status === 404 || /model/i.test(detail)) throw new AssistantError(`O modelo "${model}" não foi aceito pelo OpenRouter: ${detail}`);
     throw new AssistantError(`O OpenRouter não respondeu (${detail}). Tente de novo em instantes.`);
   }
-  return data.choices[0].message;
+  const choice = data.choices[0];
+  const completion = { content: textOf(choice.message.content).trim(), toolCalls: choice.message.tool_calls ?? [], finishReason: choice.finish_reason ?? null };
+  if (!completion.content && !completion.toolCalls.length)
+    console.warn("[assistant] empty reply", { model, finishReason: completion.finishReason, usage: data.usage, maxTokens: options.maxTokens });
+  return completion;
 }
 
 /**
@@ -166,16 +198,26 @@ async function complete(model: string, messages: Message[], tools: ReturnType<ty
 export async function converse(actor: Actor, history: ChatTurn[]): Promise<AssistantReply> {
   const config = await assistantConfig();
   const tools = toolCatalog(actor);
-  const messages: Message[] = [{ role: "system", content: await systemPrompt(actor, config.prompt) }, ...trimHistory(history)];
+  const [prompt, reasoning] = await Promise.all([systemPrompt(actor, config.prompt), modelSupportsReasoning(config.model)]);
+  const messages: Message[] = [{ role: "system", content: prompt }, ...trimHistory(history)];
   const noted = new Map<string, number>();
   const actions: ClientAction[] = [];
   const ctx = { actor, today: saoPauloDate() };
+  let retried = false;
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const message = await complete(config.model, messages, tools);
-    const calls = message.tool_calls ?? [];
-    if (!calls.length) return { reply: (message.content ?? "").trim() || "Não consegui formular uma resposta. Pode repetir de outro jeito?", steps: collapse(noted), actions };
-    messages.push({ role: "assistant", content: message.content ?? "", tool_calls: calls });
-    for (const call of calls) {
+    const turn = await complete(config.model, messages, tools, { maxTokens: retried ? 6000 : 3000, reasoning });
+    if (!turn.toolCalls.length) {
+      if (turn.content) return { reply: turn.content, steps: collapse(noted), actions };
+      if (!retried) {
+        // Nothing came back (usually the budget went to reasoning): ask once more, plainly.
+        retried = true;
+        messages.push({ role: "system", content: "Escreva agora a resposta final em texto, em português, usando o que as ferramentas devolveram. Não chame mais ferramentas." });
+        continue;
+      }
+      return { reply: "Não consegui formular uma resposta. Pode repetir de outro jeito?", steps: collapse(noted), actions };
+    }
+    messages.push({ role: "assistant", content: turn.content, tool_calls: turn.toolCalls });
+    for (const call of turn.toolCalls) {
       const outcome = await runTool(ctx, call.function.name, call.function.arguments);
       if ("error" in outcome) {
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ erro: outcome.error }) });

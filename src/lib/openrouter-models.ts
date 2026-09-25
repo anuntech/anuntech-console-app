@@ -9,6 +9,8 @@ export type OpenRouterModel = {
   promptPerMillion: number | null;
   completionPerMillion: number | null;
   free: boolean;
+  /** Accepts the `reasoning` parameter (thinking budget). */
+  reasoning: boolean;
 };
 
 /** Ids we suggest first when they exist in the live list: capable with tools, sane prices. */
@@ -68,6 +70,7 @@ export async function openRouterModels(): Promise<OpenRouterModel[]> {
           promptPerMillion: perMillion(m.pricing?.prompt),
           completionPerMillion: perMillion(m.pricing?.completion),
           free: m.id.endsWith(":free") || (!perMillion(m.pricing?.prompt) && !perMillion(m.pricing?.completion)),
+          reasoning: !!m.supported_parameters?.includes("reasoning"),
         };
       })
       .sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
@@ -77,4 +80,10 @@ export async function openRouterModels(): Promise<OpenRouterModel[]> {
     console.warn("[assistant] OpenRouter models unavailable", error instanceof Error ? error.message : error);
     return [];
   }
+}
+
+/** Whether a model takes a reasoning budget; unknown models are treated as not. */
+export async function modelSupportsReasoning(id: string) {
+  const models = await openRouterModels();
+  return models.find((m) => m.id === id)?.reasoning ?? false;
 }
