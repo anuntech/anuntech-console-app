@@ -38,6 +38,9 @@
   --primary: #1a428a;
   --primary-foreground: #fff;
   --secondary: #eef2f8;
+  /* Chart series (validated for colour-vision deficiency and contrast): billing received, billing to receive. */
+  --chart-received: #2a78d6;
+  --chart-open: #eb6834;
   --secondary-foreground: #244268;
   --muted-foreground: #5d6c81;
   --accent: #edf2fc;
@@ -1378,6 +1381,8 @@ select:not([multiple]):not([size]) {
   --primary: #9ebfff;
   --primary-foreground: #102448;
   --primary-hover: #bed2ff;
+  --chart-received: #3987e5;
+  --chart-open: #d95926;
   --secondary: #222f42;
   --secondary-foreground: #d6e3f7;
   --muted-foreground: #acb9cc;
@@ -1413,6 +1418,8 @@ select:not([multiple]):not([size]) {
   --primary: #9ebfff;
   --primary-foreground: #102448;
   --primary-hover: #bed2ff;
+  --chart-received: #3987e5;
+  --chart-open: #d95926;
   --secondary: #222f42;
   --secondary-foreground: #d6e3f7;
   --muted-foreground: #acb9cc;
