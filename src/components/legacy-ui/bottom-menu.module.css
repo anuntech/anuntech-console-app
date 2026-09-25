@@ -10,7 +10,7 @@
   display: flex;
   justify-content: center;
   pointer-events: none;
-  z-index: 60;
+  z-index: 40; /* below sheet and dialog backdrops (z-50), so an open panel dims the dock with the page */
 }
 .dock {
   display: flex;

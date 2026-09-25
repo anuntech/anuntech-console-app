@@ -12,7 +12,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { createTicket } from "@/lib/actions";
-import { AttachmentField } from "./attachment-field";
+import { AttachmentField } from "@/components/console/attachment-field";
 import { useTicketUploads } from "./ticket-uploads";
 
 export type TicketCompanyOption = CompanyOption;

@@ -1,4 +1,5 @@
 import "server-only";
+import { AttachmentField } from "@/components/console/attachment-field";
 import { desc } from "drizzle-orm";
 import { CheckCircle2Icon, FileTextIcon, TriangleAlertIcon } from "lucide-react";
 import { db } from "@/lib/db";
@@ -151,9 +152,13 @@ export async function AssistantSection() {
               </div>
               <div>
                 <Label htmlFor="assistant-doc-file" className="mb-1.5">
-                  Arquivo (.md, .txt, .csv)
+                  Arquivo
                 </Label>
-                <Input id="assistant-doc-file" name="file" type="file" accept=".md,.markdown,.txt,.csv,text/plain,text/markdown,text/csv" className="pt-1.5" />
+                <AttachmentField
+                  id="assistant-doc-file"
+                  name="file"
+                  rules={{ accept: [".md", ".markdown", ".txt", ".csv", "text/plain", "text/markdown", "text/csv"], acceptLabel: ".md, .txt ou .csv", max: 1, maxBytes: 300 * 1024 }}
+                />
               </div>
             </div>
             <div>

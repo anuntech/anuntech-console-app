@@ -8,6 +8,7 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { CompanyField } from "@/components/console/company-field";
+import { AttachmentField } from "@/components/console/attachment-field";
 import {
   Sheet,
   SheetClose,
@@ -122,7 +123,7 @@ export function BookmarkSheet({
                   <Label htmlFor="bookmark-file" className="mb-1.5">
                     Ou um arquivo
                   </Label>
-                  <Input id="bookmark-file" name="file" type="file" className="pt-1.5" />
+                  <AttachmentField id="bookmark-file" name="file" rules={{ max: 1, maxBytes: 1024 * 1024 }} />
                 </div>
               )}
               <div>

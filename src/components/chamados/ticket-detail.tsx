@@ -3,17 +3,13 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
-  DownloadIcon,
-  FileTextIcon,
   HeadsetIcon,
-  ImageIcon,
   LockIcon,
   MoreHorizontalIcon,
   PaperclipIcon,
   RotateCcwIcon,
   SendIcon,
 } from "lucide-react";
-import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,7 +33,6 @@ import {
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
 import { PersonAvatar } from "@/components/console/person-avatar";
-import { DownloadLink } from "@/components/console/download-link";
 import {
   FormError,
   ServerForm,
@@ -48,13 +43,13 @@ import { replyTicket, updateTicket } from "@/lib/actions";
 import {
   dateLabel,
   dateTimeLabel,
-  fileSizeLabel,
   priorityLabels,
   relativeLabel,
   ticketLabels,
 } from "@/lib/format";
 import type { TicketPriority, TicketStatus } from "@/lib/ticket-table";
-import { AttachmentField } from "./attachment-field";
+import { AttachmentField } from "@/components/console/attachment-field";
+import { FileChip, FileRow } from "@/components/console/file-chip";
 import { CloseTicketDialog, useTicketMove } from "./ticket-actions";
 import { TicketPriorityMark, TicketStatusBadge } from "./ticket-badges";
 import { useTicketUploads } from "./ticket-uploads";
@@ -118,26 +113,6 @@ function When({ at, now }: { at: string; now: string }) {
     >
       {relativeLabel(at, now)}
     </time>
-  );
-}
-
-function FileChip({ file, className }: { file: TicketFile; className?: string }) {
-  const Icon = file.mime.startsWith("image/") ? ImageIcon : FileTextIcon;
-  return (
-    <DownloadLink
-      href={`/api/anexos/${file.id}`}
-      filename={file.name}
-      className={cn(
-        "group inline-flex max-w-full items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-xs transition-colors hover:bg-accent",
-        className,
-      )}
-    >
-      <Icon className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
-      <span className="truncate font-medium text-foreground">{file.name}</span>
-      <span className="shrink-0 text-muted-foreground">
-        {fileSizeLabel(file.size)}
-      </span>
-    </DownloadLink>
   );
 }
 
@@ -370,7 +345,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                         </span>
                         <When at={entry.file.createdAt} now={now} />
                       </div>
-                      <FileChip file={entry.file} className="mt-1.5" />
+                      <FileChip file={entry.file} href={`/api/anexos/${entry.file.id}`} className="mt-1.5" />
                     </div>
                   </li>
                 ),
@@ -522,32 +497,11 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
             <CardContent>
               {files.length ? (
                 <ul className="flex flex-col gap-2">
-                  {files.map((file) => {
-                    const Icon = file.mime.startsWith("image/")
-                      ? ImageIcon
-                      : FileTextIcon;
-                    return (
-                      <li key={file.id}>
-                        <DownloadLink
-                          href={`/api/anexos/${file.id}`}
-                          filename={file.name}
-                          className="group flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors hover:bg-accent"
-                        >
-                          <Icon className="size-4 shrink-0 text-muted-foreground group-hover:text-primary" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">
-                              {file.name}
-                            </span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {fileSizeLabel(file.size)} ·{" "}
-                              {dateLabel(new Date(file.createdAt))}
-                            </span>
-                          </span>
-                          <DownloadIcon className="size-4 shrink-0 text-muted-foreground/60 group-hover:text-primary" />
-                        </DownloadLink>
-                      </li>
-                    );
-                  })}
+                  {files.map((file) => (
+                    <li key={file.id}>
+                      <FileRow file={file} href={`/api/anexos/${file.id}`} detail={dateLabel(new Date(file.createdAt))} />
+                    </li>
+                  ))}
                 </ul>
               ) : (
                 <p className="text-sm text-muted-foreground">

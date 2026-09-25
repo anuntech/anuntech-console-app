@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { FileTextIcon, ImageIcon, Trash2Icon, XIcon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,14 +20,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { DateField } from "@/components/console/date-field";
-import { DownloadLink } from "@/components/console/download-link";
 import {
   ConfirmDialog,
   FormError,
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { AttachmentField } from "@/components/chamados/attachment-field";
+import { AttachmentField } from "@/components/console/attachment-field";
+import { FileChip, FileChips } from "@/components/console/file-chip";
 import { useTicketUploads } from "@/components/chamados/ticket-uploads";
 import { createTask, deleteTask, removeTaskFile, updateTask } from "@/lib/task-actions";
 import {
@@ -39,7 +39,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/task-model";
-import { fileSizeLabel, relativeLabel } from "@/lib/format";
+import { relativeLabel } from "@/lib/format";
 import { LabelField } from "./label-field";
 import { PeopleField, type PersonOption } from "@/components/console/people-field";
 
@@ -84,42 +84,6 @@ function useFileRemoval() {
     </ServerForm>
   );
   return { remove, form };
-}
-
-function FileChip({
-  file,
-  onRemove,
-}: {
-  file: TaskFile;
-  onRemove?: () => void;
-}) {
-  const Icon = file.mime.startsWith("image/") ? ImageIcon : FileTextIcon;
-  return (
-    <li className="flex max-w-full items-center gap-1.5 rounded-md border bg-card py-1 pr-1 pl-2.5 text-xs">
-      <DownloadLink
-        href={`/api/anexos/${file.id}`}
-        filename={file.name}
-        className="group flex min-w-0 items-center gap-1.5"
-      >
-        <Icon className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
-        <span className="max-w-[14rem] truncate font-medium text-foreground">{file.name}</span>
-        <span className="shrink-0 text-muted-foreground">{fileSizeLabel(file.size)}</span>
-      </DownloadLink>
-      {onRemove ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`Remover ${file.name}`}
-          onClick={onRemove}
-        >
-          <XIcon />
-        </Button>
-      ) : (
-        <span className="w-1" />
-      )}
-    </li>
-  );
 }
 
 /**
@@ -284,19 +248,23 @@ export function TaskSheet({
                   </div>
                 </div>
                 <div>
-                  <Label className="mb-1.5">Anexos</Label>
+                  <Label htmlFor="task-files" className="mb-1.5">
+                    Anexos
+                  </Label>
                   {task && task.files.length > 0 && (
-                    <ul className="mb-3 flex flex-wrap gap-2">
+                    <FileChips className="mb-3">
                       {task.files.map((file) => (
-                        <FileChip
-                          key={file.id}
-                          file={file}
-                          onRemove={canRemoveFile(file) ? () => remove(file.id) : undefined}
-                        />
+                        <li key={file.id}>
+                          <FileChip
+                            file={file}
+                            href={`/api/anexos/${file.id}`}
+                            onRemove={canRemoveFile(file) ? () => remove(file.id) : undefined}
+                          />
+                        </li>
                       ))}
-                    </ul>
+                    </FileChips>
                   )}
-                  <AttachmentField />
+                  <AttachmentField id="task-files" />
                 </div>
               </div>
             </div>
