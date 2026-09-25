@@ -2269,3 +2269,20 @@ select option { background: var(--background); color: var(--foreground); }
 }
 .assistant-filled { animation: assistant-fill 1.6s ease-out; border-radius: 8px; }
 @media (prefers-reduced-motion: reduce) { .assistant-filled { animation: none; outline: 2px solid var(--primary); outline-offset: 1px; } }
+
+/* LiquidMetalButton: the shader canvas fills its host; the tap ripple grows and fades. */
+.liquid-metal-shader canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 9999px;
+}
+.liquid-metal-ripple {
+  animation: liquid-metal-ripple 600ms ease-out forwards;
+}
+@keyframes liquid-metal-ripple {
+  from { transform: translate(-50%, -50%) scale(0); opacity: 0.6; }
+  to { transform: translate(-50%, -50%) scale(4); opacity: 0; }
+}

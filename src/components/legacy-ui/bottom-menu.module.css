@@ -169,6 +169,10 @@
   }
 }
 
+.assistant {
+  flex: 0 0 auto;
+  margin: 2px;
+}
 .create {
   border: 0;
   background: var(--secondary);

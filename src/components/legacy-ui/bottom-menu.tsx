@@ -4,7 +4,6 @@ import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@base-ui/react/tooltip";
 import {
-  Sparkles,
   LayoutDashboard,
   Building2,
   FolderKanban,
@@ -20,6 +19,7 @@ import { useAppearance } from "@/components/appearance-provider";
 import { DockAccountMenu } from "./dock-account-menu";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
+import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
 import styles from "./bottom-menu.module.css";
 
 export type NavigationProps = {
@@ -156,14 +156,10 @@ export default function BottomMenu({
           <nav className={styles.dock} aria-label="Navegação principal">
             <Tooltip.Root>
               <Tooltip.Trigger
-                render={<button type="button" onClick={() => setAssistantOpen(true)} />}
-                className={`${styles.link} ${styles.create}`}
-                aria-label="Assistente"
+                render={<LiquidMetalButton viewMode="icon" size={40} label="Assistente" className={styles.assistant} onClick={() => setAssistantOpen(true)} />}
                 aria-haspopup="dialog"
                 aria-expanded={assistantOpen}
-              >
-                <Sparkles size={22} strokeWidth={1.8} aria-hidden="true" />
-              </Tooltip.Trigger>
+              />
               <Tooltip.Portal>
                 <Tooltip.Positioner
                   side={position === "top" ? "bottom" : position === "left" ? "right" : position === "right" ? "left" : "top"}
