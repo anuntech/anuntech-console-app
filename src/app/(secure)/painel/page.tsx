@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { auditEvents, companies, contracts, invoices, quotes, subscriptions, tickets, user } from "@/db/schema";
-import { getActor, allowedIds } from "@/lib/access";
+import { getActor } from "@/lib/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
 import { addDays, EXPIRY_WARNING_DAYS } from "@/lib/contract-table";
@@ -31,6 +31,7 @@ import { TicketStatusBadge } from "@/components/chamados/ticket-badges";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { BillingChart, type BillingMonth } from "@/components/painel/billing-chart";
 import { ActivityFeed, AttentionList, KpiTile, type ActivityEntry, type AttentionItem } from "@/components/painel/dashboard-parts";
+import { ClientDashboard } from "@/components/painel/client-dashboard";
 
 export const metadata: Metadata = {
   title: "Visão geral",
@@ -89,12 +90,13 @@ function SeeAll({ href, label }: { href: string; label: string }) {
   );
 }
 
+/**
+ * Staff see the whole Console: billing, what is stuck and the latest activity.
+ * Everyone else (including staff inside a company) gets the client widgets.
+ */
 export default async function Dashboard() {
   const actor = await getActor();
-  const supportIds = allowedIds(actor, "support");
-  const financeIds = allowedIds(actor, "finance");
-  const canSupport = actor.admin || supportIds.length > 0;
-  const canFinance = actor.admin || financeIds.length > 0;
+  if (!actor.admin) return <ClientDashboard actor={actor} />;
   const now = new Date();
   const today = saoPauloDate(now);
   const months = monthWindow(today);
@@ -102,16 +104,6 @@ export default async function Dashboard() {
   const [nextYear, nextMonth] = today.split("-").map(Number);
   const afterLast = new Date(Date.UTC(nextYear, nextMonth, 1)).toISOString().slice(0, 10);
 
-  // Same scopes as the lists: staff see everything; clients only their companies,
-  // and never drafts or cancellations.
-  const ticketScope = actor.admin ? sql`true` : supportIds.length ? inArray(tickets.companyId, supportIds) : sql`false`;
-  const invoiceScope = actor.admin
-    ? sql`true`
-    : financeIds.length
-      ? and(inArray(invoices.companyId, financeIds), inArray(invoices.status, ["issued", "paid"]))
-      : sql`false`;
-  const quoteScope = actor.admin ? sql`true` : financeIds.length ? inArray(quotes.companyId, financeIds) : sql`false`;
-  const contractScope = actor.admin ? sql`true` : financeIds.length ? inArray(contracts.companyId, financeIds) : sql`false`;
   const actorUser = alias(user, "actor_user");
 
   const [
@@ -120,7 +112,6 @@ export default async function Dashboard() {
     [overdue],
     [ticketsActive],
     [ticketsWaitingTeam],
-    [ticketsWaitingCustomer],
     [draftInvoices],
     [quotesSent],
     [contractsSent],
@@ -130,55 +121,40 @@ export default async function Dashboard() {
     recentInvoices,
     activity,
   ] = await Promise.all([
-    canFinance
-      ? db
-          .select({
-            month: sql<string>`to_char(${invoices.dueDate}::date, 'YYYY-MM')`,
-            received: sql<string>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.status} = 'paid'), 0)`,
-            open: sql<string>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.status} = 'issued'), 0)`,
-          })
-          .from(invoices)
-          .where(and(invoiceScope, gte(invoices.dueDate, firstDay), lt(invoices.dueDate, afterLast)))
-          .groupBy(sql`1`)
-      : [],
+    db
+      .select({
+        month: sql<string>`to_char(${invoices.dueDate}::date, 'YYYY-MM')`,
+        received: sql<string>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.status} = 'paid'), 0)`,
+        open: sql<string>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.status} = 'issued'), 0)`,
+      })
+      .from(invoices)
+      .where(and(gte(invoices.dueDate, firstDay), lt(invoices.dueDate, afterLast)))
+      .groupBy(sql`1`),
     db
       .select({ n: count(), total: sql<string>`coalesce(sum(${invoices.amountCents}), 0)` })
       .from(invoices)
-      .where(and(invoiceScope, eq(invoices.status, "issued"), gte(invoices.dueDate, today))),
+      .where(and(eq(invoices.status, "issued"), gte(invoices.dueDate, today))),
     db
       .select({ n: count(), total: sql<string>`coalesce(sum(${invoices.amountCents}), 0)` })
       .from(invoices)
-      .where(and(invoiceScope, eq(invoices.status, "issued"), lt(invoices.dueDate, today))),
-    db.select({ n: count() }).from(tickets).where(and(ticketScope, inArray(tickets.status, ["open", "in_progress", "waiting_customer"]))),
+      .where(and(eq(invoices.status, "issued"), lt(invoices.dueDate, today))),
+    db.select({ n: count() }).from(tickets).where(inArray(tickets.status, ["open", "in_progress", "waiting_customer"])),
     db
       .select({ n: count(), oldest: sql<Date | null>`min(${tickets.updatedAt})` })
       .from(tickets)
-      .where(and(ticketScope, eq(tickets.status, "open"))),
-    db.select({ n: count() }).from(tickets).where(and(ticketScope, eq(tickets.status, "waiting_customer"))),
-    actor.admin ? db.select({ n: count() }).from(invoices).where(eq(invoices.status, "draft")) : [{ n: 0 }],
-    db.select({ n: count() }).from(quotes).where(and(quoteScope, eq(quotes.status, "sent"), sql`(${quotes.validUntil} is null or ${quotes.validUntil} >= ${today})`)),
-    db.select({ n: count() }).from(contracts).where(and(contractScope, eq(contracts.status, "sent"))),
-    actor.admin
-      ? db
-          .select({ n: count() })
-          .from(contracts)
-          .where(and(eq(contracts.status, "signed"), gte(contracts.endsAt, today), lte(contracts.endsAt, addDays(today, EXPIRY_WARNING_DAYS))))
-      : [{ n: 0 }],
+      .where(eq(tickets.status, "open")),
+    db.select({ n: count() }).from(invoices).where(eq(invoices.status, "draft")),
+    db.select({ n: count() }).from(quotes).where(and(eq(quotes.status, "sent"), sql`(${quotes.validUntil} is null or ${quotes.validUntil} >= ${today})`)),
+    db.select({ n: count() }).from(contracts).where(eq(contracts.status, "sent")),
     db
       .select({ n: count() })
-      .from(companies)
-      .where(
-        actor.admin
-          ? eq(companies.archived, false)
-          : actor.grants.length
-            ? inArray(companies.id, actor.grants.map((g) => g.company.id))
-            : sql`false`,
-      ),
+      .from(contracts)
+      .where(and(eq(contracts.status, "signed"), gte(contracts.endsAt, today), lte(contracts.endsAt, addDays(today, EXPIRY_WARNING_DAYS)))),
+    db.select({ n: count() }).from(companies).where(eq(companies.archived, false)),
     db
       .select({ ticket: tickets, company: companies.name })
       .from(tickets)
       .innerJoin(companies, eq(companies.id, tickets.companyId))
-      .where(ticketScope)
       .orderBy(desc(tickets.updatedAt))
       .limit(5),
     db
@@ -186,28 +162,24 @@ export default async function Dashboard() {
       .from(invoices)
       .innerJoin(companies, eq(companies.id, invoices.companyId))
       .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
-      .where(invoiceScope)
       .orderBy(desc(invoices.createdAt))
       .limit(5),
-    // The audit log names internal steps (drafts, bank calls); only staff see it.
-    actor.admin
-      ? db
-          .select({
-            id: auditEvents.id,
-            action: auditEvents.action,
-            at: auditEvents.createdAt,
-            who: actorUser.name,
-            email: actorUser.email,
-            // A deleted company's events keep its name in the details.
-            where: sql<string | null>`coalesce(${companies.name}, ${auditEvents.details}->>'company')`,
-          })
-          .from(auditEvents)
-          .leftJoin(actorUser, eq(actorUser.id, auditEvents.actorId))
-          .leftJoin(companies, eq(companies.id, auditEvents.companyId))
-          .where(sql`${auditEvents.action} not like 'account.%'`)
-          .orderBy(desc(auditEvents.createdAt))
-          .limit(6)
-      : [],
+    db
+      .select({
+        id: auditEvents.id,
+        action: auditEvents.action,
+        at: auditEvents.createdAt,
+        who: actorUser.name,
+        email: actorUser.email,
+        // A deleted company's events keep its name in the details.
+        where: sql<string | null>`coalesce(${companies.name}, ${auditEvents.details}->>'company')`,
+      })
+      .from(auditEvents)
+      .leftJoin(actorUser, eq(actorUser.id, auditEvents.actorId))
+      .leftJoin(companies, eq(companies.id, auditEvents.companyId))
+      .where(sql`${auditEvents.action} not like 'account.%'`)
+      .orderBy(desc(auditEvents.createdAt))
+      .limit(6),
   ]);
 
   const byMonth = new Map(billing.map((row) => [row.month, row]));
@@ -228,41 +200,31 @@ export default async function Dashboard() {
       key: "overdue",
       icon: <AlertTriangleIcon />,
       tone: "critical" as const,
-      title: actor.admin ? "Faturas vencidas" : "Faturas vencidas para pagar",
+      title: "Faturas vencidas",
       detail: `${currency(cents(overdue.total))} em atraso`,
       count: overdue.n,
       href: "/financeiro?status=overdue",
     },
-    ticketsWaitingTeam.n > 0 &&
-      actor.admin && {
-        key: "tickets",
-        icon: <HeadsetIcon />,
-        tone: "warning" as const,
-        title: "Chamados aguardando a equipe",
-        detail: ticketsWaitingTeam.oldest ? `O mais antigo, ${relativeLabel(ticketsWaitingTeam.oldest, now)}` : undefined,
-        count: ticketsWaitingTeam.n,
-        href: "/chamados?status=open",
-      },
-    ticketsWaitingCustomer.n > 0 &&
-      !actor.admin && {
-        key: "tickets-you",
-        icon: <HeadsetIcon />,
-        tone: "warning" as const,
-        title: "Chamados esperando sua resposta",
-        count: ticketsWaitingCustomer.n,
-        href: "/chamados?status=waiting_customer",
-      },
+    ticketsWaitingTeam.n > 0 && {
+      key: "tickets",
+      icon: <HeadsetIcon />,
+      tone: "warning" as const,
+      title: "Chamados aguardando a equipe",
+      detail: ticketsWaitingTeam.oldest ? `O mais antigo, ${relativeLabel(ticketsWaitingTeam.oldest, now)}` : undefined,
+      count: ticketsWaitingTeam.n,
+      href: "/chamados?status=open",
+    },
     quotesSent.n > 0 && {
       key: "quotes",
       icon: <FileTextIcon />,
-      title: actor.admin ? "Orçamentos aguardando resposta" : "Orçamentos para você responder",
+      title: "Orçamentos aguardando resposta",
       count: quotesSent.n,
       href: "/orcamentos?status=sent",
     },
     contractsSent.n > 0 && {
       key: "contracts",
       icon: <PenLineIcon />,
-      title: actor.admin ? "Contratos aguardando assinatura" : "Contratos para você assinar",
+      title: "Contratos aguardando assinatura",
       count: contractsSent.n,
       href: "/contratos?status=sent",
     },
@@ -304,27 +266,23 @@ export default async function Dashboard() {
         description={`${greeting(now)}${firstName ? `, ${firstName}` : ""} · ${dateLine}`}
         actions={
           <>
-            {actor.admin && (
-              <Button variant="outline" asChild>
-                <Link href="/empresas/nova">
-                  <PlusIcon />
-                  Cadastrar empresa
-                </Link>
-              </Button>
-            )}
-            {canSupport && (
-              <Button asChild>
-                <Link href="/chamados/novo">
-                  <PlusIcon />
-                  Abrir chamado
-                </Link>
-              </Button>
-            )}
+            <Button variant="outline" asChild>
+              <Link href="/empresas/nova">
+                <PlusIcon />
+                Cadastrar empresa
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/chamados/novo">
+                <PlusIcon />
+                Abrir chamado
+              </Link>
+            </Button>
           </>
         }
       />
 
-      {actor.admin && companyCount.n === 0 && (
+      {companyCount.n === 0 && (
         <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-5 shadow-card">
           <div className="flex min-w-0 items-center gap-4">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-5">
@@ -346,81 +304,55 @@ export default async function Dashboard() {
 
       {/* indicators */}
       <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {canFinance && (
-          <KpiTile
-            label={actor.admin ? `Recebido em ${thisMonth.longLabel.split(" ")[0]}` : `Pago em ${thisMonth.longLabel.split(" ")[0]}`}
-            value={currency(thisMonth.receivedCents)}
-            icon={<WalletIcon />}
-            tone="good"
-            delta={receivedDelta}
-            detail={<span>de {currency(thisMonth.receivedCents + thisMonth.openCents)} com vencimento no mês</span>}
-            href="/financeiro?status=paid"
-          />
-        )}
-        {canFinance && (
-          <KpiTile
-            label={actor.admin ? "A receber" : "A pagar"}
-            value={currency(cents(toReceive.total))}
-            icon={<CircleDollarSignIcon />}
-            detail={plural(toReceive.n, "fatura em aberto", "faturas em aberto")}
-            href="/financeiro?status=issued"
-          />
-        )}
-        {canFinance && (
-          <KpiTile
-            label="Em atraso"
-            value={currency(cents(overdue.total))}
-            icon={<AlertTriangleIcon />}
-            tone={overdue.n > 0 ? "critical" : "default"}
-            detail={overdue.n > 0 ? plural(overdue.n, "fatura vencida", "faturas vencidas") : "Nenhuma fatura vencida"}
-            href="/financeiro?status=overdue"
-          />
-        )}
-        {canSupport && (
-          <KpiTile
-            label="Chamados em andamento"
-            value={ticketsActive.n}
-            icon={<HeadsetIcon />}
-            tone={actor.admin && ticketsWaitingTeam.n > 0 ? "warning" : "default"}
-            detail={
-              actor.admin
-                ? ticketsWaitingTeam.n > 0
-                  ? `${plural(ticketsWaitingTeam.n, "aguardando", "aguardando")} a equipe`
-                  : "Nenhum aguardando a equipe"
-                : ticketsWaitingCustomer.n > 0
-                  ? `${plural(ticketsWaitingCustomer.n, "esperando", "esperando")} sua resposta`
-                  : "Nenhum esperando por você"
-            }
-            href="/chamados"
-          />
-        )}
-        {!canFinance && (
-          <KpiTile
-            label={actor.admin ? "Empresas ativas" : "Empresas com acesso"}
-            value={companyCount.n}
-            icon={<Building2Icon />}
-            detail={actor.admin ? "Clientes no Console" : "Vinculadas ao seu acesso"}
-          />
-        )}
+        <KpiTile
+          label={`Recebido em ${thisMonth.longLabel.split(" ")[0]}`}
+          value={currency(thisMonth.receivedCents)}
+          icon={<WalletIcon />}
+          tone="good"
+          delta={receivedDelta}
+          detail={<span>de {currency(thisMonth.receivedCents + thisMonth.openCents)} com vencimento no mês</span>}
+          href="/financeiro?status=paid"
+        />
+        <KpiTile
+          label="A receber"
+          value={currency(cents(toReceive.total))}
+          icon={<CircleDollarSignIcon />}
+          detail={plural(toReceive.n, "fatura em aberto", "faturas em aberto")}
+          href="/financeiro?status=issued"
+        />
+        <KpiTile
+          label="Em atraso"
+          value={currency(cents(overdue.total))}
+          icon={<AlertTriangleIcon />}
+          tone={overdue.n > 0 ? "critical" : "default"}
+          detail={overdue.n > 0 ? plural(overdue.n, "fatura vencida", "faturas vencidas") : "Nenhuma fatura vencida"}
+          href="/financeiro?status=overdue"
+        />
+        <KpiTile
+          label="Chamados em andamento"
+          value={ticketsActive.n}
+          icon={<HeadsetIcon />}
+          tone={ticketsWaitingTeam.n > 0 ? "warning" : "default"}
+          detail={ticketsWaitingTeam.n > 0 ? `${plural(ticketsWaitingTeam.n, "aguardando", "aguardando")} a equipe` : "Nenhum aguardando a equipe"}
+          href="/chamados"
+        />
       </div>
 
       {/* billing + attention */}
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
-        {canFinance && (
-          <Card className="min-w-0 lg:col-span-2">
-            <CardHeader>
-              <SectionTitle
-                title="Faturamento"
-                description={`Por mês de vencimento, nos últimos ${MONTHS} meses.`}
-                action={<SeeAll href="/financeiro" label="Ver o financeiro" />}
-              />
-            </CardHeader>
-            <CardContent>
-              <BillingChart months={chart} />
-            </CardContent>
-          </Card>
-        )}
-        <Card className={canFinance ? "min-w-0" : "min-w-0 lg:col-span-3"}>
+        <Card className="min-w-0 lg:col-span-2">
+          <CardHeader>
+            <SectionTitle
+              title="Faturamento"
+              description={`Por mês de vencimento, nos últimos ${MONTHS} meses.`}
+              action={<SeeAll href="/financeiro" label="Ver o financeiro" />}
+            />
+          </CardHeader>
+          <CardContent>
+            <BillingChart months={chart} />
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
           <CardHeader>
             <SectionTitle
               title="Precisa de atenção"
@@ -434,10 +366,10 @@ export default async function Dashboard() {
       </div>
 
       {/* recent work */}
-      <div className={actor.admin ? "grid items-start gap-6 lg:grid-cols-3" : "grid items-start gap-6 lg:grid-cols-2"}>
+      <div className="grid items-start gap-6 lg:grid-cols-3">
         <Card className="min-w-0">
           <CardHeader>
-            <SectionTitle title="Últimos chamados" description="Atualizados recentemente." action={canSupport && <SeeAll href="/chamados" label="Ver todos os chamados" />} />
+            <SectionTitle title="Últimos chamados" description="Atualizados recentemente." action={<SeeAll href="/chamados" label="Ver todos os chamados" />} />
           </CardHeader>
           <CardContent className="px-0">
             {recentTickets.length ? (
@@ -453,7 +385,7 @@ export default async function Dashboard() {
         </Card>
         <Card className="min-w-0">
           <CardHeader>
-            <SectionTitle title="Últimas faturas" description="Cobranças mais recentes." action={canFinance && <SeeAll href="/financeiro" label="Ver todas as faturas" />} />
+            <SectionTitle title="Últimas faturas" description="Cobranças mais recentes." action={<SeeAll href="/financeiro" label="Ver todas as faturas" />} />
           </CardHeader>
           <CardContent className="px-0">
             {recentInvoices.length ? (
@@ -477,16 +409,14 @@ export default async function Dashboard() {
             )}
           </CardContent>
         </Card>
-        {actor.admin && (
-          <Card className="min-w-0">
-            <CardHeader>
-              <SectionTitle title="Atividade" description="O que aconteceu por último no Console." />
-            </CardHeader>
-            <CardContent>
-              <ActivityFeed entries={feed} />
-            </CardContent>
-          </Card>
-        )}
+        <Card className="min-w-0">
+          <CardHeader>
+            <SectionTitle title="Atividade" description="O que aconteceu por último no Console." />
+          </CardHeader>
+          <CardContent>
+            <ActivityFeed entries={feed} />
+          </CardContent>
+        </Card>
       </div>
     </>
   );
