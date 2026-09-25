@@ -117,9 +117,8 @@ export function ServerForm({
   );
 }
 
-export function FormError({ className }: { className?: string }) {
-  const error = useContext(ErrorContext);
-  if (!error) return null;
+/** The error block every form shows above its fields; also for forms that are not ServerForms. */
+export function FormAlert({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <p
       role="alert"
@@ -128,9 +127,15 @@ export function FormError({ className }: { className?: string }) {
         className,
       )}
     >
-      {error}
+      {children}
     </p>
   );
+}
+
+export function FormError({ className }: { className?: string }) {
+  const error = useContext(ErrorContext);
+  if (!error) return null;
+  return <FormAlert className={className}>{error}</FormAlert>;
 }
 
 /** Submit button that reflects the surrounding form's pending state. */
