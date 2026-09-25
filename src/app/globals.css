@@ -2257,6 +2257,10 @@ select:not([multiple]):not([size]) {
   html[data-dock="top"] .workspace { padding-top: 80px; padding-bottom: 0; }
   html[data-dock="left"] .workspace { padding-left: 88px; padding-bottom: 0; }
   html[data-dock="right"] .workspace { padding-right: 88px; padding-bottom: 0; }
+  /* With the dock on a side, the content sits next to it instead of centering away from it,
+     and takes a little more width so the far side doesn't open a gap of its own. */
+  html[data-dock="left"] .page-content { max-width: 1760px; margin-left: 0; }
+  html[data-dock="right"] .page-content { max-width: 1760px; margin-right: 0; }
 }
 
 select option { background: var(--background); color: var(--foreground); }
