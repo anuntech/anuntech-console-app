@@ -35,12 +35,23 @@ function decide(messages) {
         if (row.erro) return `- Erro: ${row.erro}`;
         if (row.rascunho && row.link) return `- Orçamento em rascunho: [abrir](${row.link}) · ${row.esforco} · ${row.valorTotal}`;
         if (row.aberto && row.link) return `- Chamado aberto: [${row.assunto ?? "ver"}](${row.link})`;
+        if (row.atualizadas) return `- ${row.atualizadas} tarefas atualizadas · [quadro](${row.link})`;
         return `- ${JSON.stringify(row).slice(0, 200)}`;
       })
       .join("\n");
   // Second round onwards: chain or finish.
-  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela"))
+  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela") || calls.includes("atualizar_tarefa"))
     return reply(`Feito.\n\n${summarize()}`);
+  // "vincule todos os cards do projeto X a mim": projects → tasks → one bulk update.
+  if (user.includes("vincul") && calls.includes("listar_projetos_e_produtos") && !calls.includes("listar_tarefas")) {
+    const rows = tools.flat();
+    const project = rows.find((r) => r.engagementId && /site institucional/i.test(r.nome)) ?? rows.find((r) => r.engagementId && r.tipo === "Projeto");
+    if (project) return reply(null, [call("listar_tarefas", { engagementId: project.engagementId })]);
+  }
+  if (user.includes("vincul") && calls.includes("listar_tarefas") && !calls.includes("atualizar_tarefa")) {
+    const board = tools.flat().find((r) => r.tarefas);
+    if (board?.tarefas?.length) return reply(null, [call("atualizar_tarefa", { tarefaIds: board.tarefas.map((t) => t.tarefaId), responsaveis: ["eu"] })]);
+  }
   if (user.includes("igual") && calls.includes("listar_empresas") && !calls.includes("listar_orcamentos")) return reply(null, [call("listar_orcamentos", {})]);
   if (user.includes("igual") && calls.includes("listar_orcamentos") && !calls.includes("criar_orcamento")) {
     const company = tools.flat().find((r) => r.companyId && r.cnpj);
@@ -120,7 +131,7 @@ globalThis.fetch = async function (input, init) {
     if (req.questions.aprovado) {
       const recent = req.state?.conversa_recente ?? [];
       const person = [...recent].reverse().find((m) => m.de === "pessoa")?.texto?.toLowerCase() ?? "";
-      const approved = /\b(sim|aprovo|pode|fa[cç]a|crie|abra|confirmo|preencha|envie|manda)\b/.test(person);
+      const approved = /\b(sim|aprovo|pode|fa[cç]a|crie|abra|confirmo|preencha|envie|manda|vincul\w*)\b/.test(person);
       answers.aprovado = { type: "noul", noul: approved ? 0.95 : 0.15 };
     }
     return new Response(JSON.stringify({ model: "typesafe/jev-mock", answers, usage: { cost: 0 } }), { status: 200, headers: { "Content-Type": "application/json" } });

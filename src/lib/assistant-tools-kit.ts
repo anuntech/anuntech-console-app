@@ -38,6 +38,8 @@ export type AnyTool = {
   area?: ToolArea;
   /** Hidden from clients; the executor refuses it too. */
   staffOnly?: boolean;
+  /** Pointless for staff (they are the team); hidden from them. */
+  clientOnly?: boolean;
   /** Changes data; the consent gate runs before it. */
   write?: boolean;
   run: (ctx: ToolContext, input: never) => Promise<ToolOutcome>;
@@ -48,6 +50,7 @@ export function tool<S extends z.ZodType>(def: {
   input: S;
   area?: ToolArea;
   staffOnly?: boolean;
+  clientOnly?: boolean;
   write?: boolean;
   run: (ctx: ToolContext, input: z.output<S>) => Promise<ToolOutcome>;
 }): AnyTool {
@@ -91,6 +94,10 @@ export async function submit(
   if (state.error) throw new ToolError(state.error);
   return state;
 }
+
+/** People for a task: user ids from ler_projeto, or "eu"/"mim"/the person's e-mail for themselves. */
+export const resolvePeople = (actor: Actor, people: string[] | undefined) =>
+  people?.map((value) => (["eu", "mim", "me", actor.user.email.toLowerCase()].includes(value.trim().toLowerCase()) ? actor.user.id : value.trim()));
 
 /** "1234,56" for the money fields the actions parse with moneyToCents. */
 export const reais = (value: number) => value.toFixed(2).replace(".", ",");

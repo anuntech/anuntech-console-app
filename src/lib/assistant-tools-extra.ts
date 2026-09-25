@@ -42,7 +42,8 @@ import { currency, engagementLabels, priorityLabels, roleLabels, ticketLabels } 
 import { hasPermission } from "./permissions";
 import { quoteTotals, type QuoteContent } from "./quote-model";
 import { estimateLabel, minutesToHours, TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "./task-model";
-import { civilDate, id, limit, reais, scopeOf, submit, tool, ToolError, within, fold } from "./assistant-tools-kit";
+import { civilDate, id, limit, reais, resolvePeople, scopeOf, submit, tool, ToolError, within, fold } from "./assistant-tools-kit";
+import { projectPeople } from "./tasks";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid" ? "paga" : status === "cancelled" ? "cancelada" : status === "draft" ? "rascunho (não emitida)" : dueDate < today ? "vencida" : "em aberto";
@@ -98,7 +99,10 @@ const readProject = tool({
   run: async ({ actor }, { engagementId }) => {
     const [w] = await db.select({ e: engagements, company: companies.name }).from(engagements).innerJoin(companies, eq(companies.id, engagements.companyId)).where(eq(engagements.id, engagementId));
     if (!w || !canAccess(actor, w.e.companyId, "overview")) throw new ToolError("Projeto não encontrado.");
-    const board = w.e.kind === "project" ? await db.select({ status: tasks.status }).from(tasks).where(eq(tasks.engagementId, engagementId)) : [];
+    const [board, people] =
+      w.e.kind === "project"
+        ? await Promise.all([db.select({ status: tasks.status }).from(tasks).where(eq(tasks.engagementId, engagementId)), projectPeople(w.e.companyId)])
+        : [[], []];
     const counts = Object.fromEntries(TASK_STATUSES.map((s) => [taskStatusLabels[s], board.filter((t) => t.status === s).length]));
     return {
       result: {
@@ -111,7 +115,9 @@ const readProject = tool({
         descricao: w.e.description,
         url: w.e.url,
         valor: w.e.amountCents ? currency(w.e.amountCents) : null,
-        ...(w.e.kind === "project" ? { tarefasPorColuna: counts, totalTarefas: board.length } : {}),
+        ...(w.e.kind === "project"
+          ? { tarefasPorColuna: counts, totalTarefas: board.length, pessoas: people.map((p) => ({ userId: p.id, nome: p.name || p.email, email: p.email })) }
+          : {}),
         link: w.e.kind === "project" ? `/projetos/${w.e.id}` : w.e.kind === "service" ? `/produtos/${w.e.id}` : (w.e.url ?? "/produtos"),
       },
       summary: `Li ${w.e.name}`,
@@ -345,34 +351,56 @@ const myAccount = tool({
 const editTask = tool({
   name: "atualizar_tarefa",
   area: "projetos",
-  description: "Altera uma tarefa: título, descrição, situação, prioridade, prazo ou estimativa em horas. Só o que for informado muda.",
-  input: z.object({
-    tarefaId: id,
-    titulo: z.string().trim().min(1).max(160).optional(),
-    descricao: z.string().trim().max(5000).optional(),
-    situacao: z.enum(TASK_STATUSES).optional(),
-    prioridade: z.enum(TASK_PRIORITIES).optional(),
-    prazo: civilDate.optional(),
-    estimativaHoras: z.number().min(0).max(1000).optional(),
-  }),
+  description:
+    "Altera uma ou várias tarefas de uma vez: título, descrição, situação, prioridade, prazo, estimativa em horas ou responsáveis. Só o que for informado muda. Para 'todas as tarefas', passe a lista em tarefaIds. responsaveis substitui a lista da tarefa: ids de pessoas (ler_projeto lista quem pode) ou 'eu' para a própria pessoa; [] tira todo mundo.",
+  input: z
+    .object({
+      tarefaId: id.optional(),
+      tarefaIds: z.array(id).min(1).max(100).optional(),
+      titulo: z.string().trim().min(1).max(160).optional(),
+      descricao: z.string().trim().max(5000).optional(),
+      situacao: z.enum(TASK_STATUSES).optional(),
+      prioridade: z.enum(TASK_PRIORITIES).optional(),
+      prazo: civilDate.optional(),
+      estimativaHoras: z.number().min(0).max(1000).optional(),
+      responsaveis: z.array(z.string().trim().min(1).max(128)).max(10).optional(),
+    })
+    .refine((v) => v.tarefaId || v.tarefaIds?.length, { message: "Informe tarefaId ou tarefaIds." }),
   write: true,
   run: async ({ actor }, input) => {
-    const t = await taskWithAccess(actor, input.tarefaId);
-    const people = await db.select({ userId: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, t.id));
-    await submit(
-      updateTask,
-      {
-        id: t.id,
-        title: input.titulo ?? t.title,
-        description: input.descricao ?? t.description ?? "",
-        status: input.situacao ?? t.status,
-        priority: input.prioridade ?? t.priority,
-        dueDate: input.prazo ?? t.dueDate ?? "",
-        estimate: input.estimativaHoras !== undefined ? String(input.estimativaHoras).replace(".", ",") : t.estimateMinutes ? minutesToHours(t.estimateMinutes) : "",
-      },
-      { labels: t.labels ?? [], assigneeIds: people.map((p) => p.userId) },
-    );
-    return { result: { atualizada: true, link: `/projetos/${t.engagementId}` }, summary: `Atualizei a tarefa "${input.titulo ?? t.title}"` };
+    const ids = [...new Set([...(input.tarefaId ? [input.tarefaId] : []), ...(input.tarefaIds ?? [])])];
+    const assignees = resolvePeople(actor, input.responsaveis);
+    const done: { tarefaId: string; titulo: string }[] = [];
+    const failed: { tarefaId: string; erro: string }[] = [];
+    let link = "/projetos";
+    for (const tarefaId of ids) {
+      try {
+        const t = await taskWithAccess(actor, tarefaId);
+        link = `/projetos/${t.engagementId}`;
+        const people = assignees ?? (await db.select({ userId: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, t.id))).map((p) => p.userId);
+        await submit(
+          updateTask,
+          {
+            id: t.id,
+            title: input.titulo ?? t.title,
+            description: input.descricao ?? t.description ?? "",
+            status: input.situacao ?? t.status,
+            priority: input.prioridade ?? t.priority,
+            dueDate: input.prazo ?? t.dueDate ?? "",
+            estimate: input.estimativaHoras !== undefined ? String(input.estimativaHoras).replace(".", ",") : t.estimateMinutes ? minutesToHours(t.estimateMinutes) : "",
+          },
+          { labels: t.labels ?? [], assigneeIds: people },
+        );
+        done.push({ tarefaId: t.id, titulo: input.titulo ?? t.title });
+      } catch (error) {
+        failed.push({ tarefaId, erro: error instanceof ToolError ? error.message : "Não consegui atualizar." });
+      }
+    }
+    if (!done.length) throw new ToolError(failed[0]?.erro ?? "Nenhuma tarefa atualizada.");
+    return {
+      result: { atualizadas: done.length, tarefas: done, ...(failed.length ? { falhas: failed } : {}), link },
+      summary: done.length === 1 ? `Atualizei a tarefa "${done[0].titulo}"` : `Atualizei ${done.length} tarefas`,
+    };
   },
 });
 

@@ -106,12 +106,18 @@ export async function systemPrompt(actor: Actor, custom: string, page?: PageSnap
     "- Listagens trazem só as primeiras linhas (limite padrão 5, máximo 50) e não servem para somar. Para totais, rankings, 'maior cliente', 'quanto faturamos' ou 'quem deve mais', use resumo_financeiro e cite o período usado.",
     "- Antes de ações que criam ou alteram algo (abrir_chamado, responder_chamado, criar_tarefa, mover_tarefa, criar_projeto), confirme o conteúdo com a pessoa, a não ser que o pedido já esteja completo e inequívoco. Depois de executar, diga o que foi feito com o link.",
     "- Cobranças, contratos e cadastros de empresa não são criados por você: leve a pessoa à tela com abrir_tela. Nunca diga que uma fatura foi paga se a situação não disser isso.",
-    "- Se a pessoa quiser falar com alguém, ou se você não conseguir ajudar, use abrir_chat_suporte e diga que a equipe responde por ali.",
+    "- Pedidos sobre 'todos' ou 'todas' são ações em lote: leia a lista e aplique de uma vez (atualizar_tarefa aceita tarefaIds; em responsaveis, 'eu' é a própria pessoa). Nunca diga que não existe ação em massa.",
+    "- Quando precisar de dados da pessoa, peça só o obrigatório, em uma frase (por exemplo: 'me passe os títulos, um por linha'); o resto assume padrões e pode ser ajustado depois.",
+    actor.admin
+      ? "- Quem fala com você é da equipe da Anuntech: não ofereça nem abra chat de suporte para ela. O que não der para fazer, diga em uma frase e aponte a tela."
+      : "- Só use abrir_chat_suporte quando a pessoa pedir para falar com alguém. Nunca abra o chat como saída para uma ação que você não conseguiu fazer: diga o que não dá e aponte a tela onde ela faz.",
     "- Você enxerga o formulário da tela em que a pessoa está (seção 'Tela atual'). Se ela pedir para preencher, completar ou ajustar a tela, use preencher_tela com os nomes exatos dos campos e valores no formato indicado; use clicar_na_tela para acionar botões. Só envie o formulário quando ela pedir para salvar/enviar. Prefira preencher a tela quando ela já está aberta; use as ferramentas de criação quando não está.",
-    "- Dúvidas sobre a Anuntech: responda com a base de conhecimento abaixo (ou buscar_conhecimento). Se não estiver lá, diga que não sabe e ofereça o chat com a equipe.",
+    actor.admin
+      ? "- Dúvidas sobre a Anuntech: responda com a base de conhecimento abaixo (ou buscar_conhecimento). Se não estiver lá, diga que não sabe."
+      : "- Dúvidas sobre a Anuntech: responda com a base de conhecimento abaixo (ou buscar_conhecimento). Se não estiver lá, diga que não sabe e ofereça o chat com a equipe.",
     "- Valores em reais no formato R$ 1.234,56 e datas como 24/09/2026.",
     actor.admin
-      ? "- Para a equipe da Anuntech, consultas sem empresa definida valem para todas as empresas: chame a ferramenta sem companyId em vez de perguntar qual. Você também organiza trabalho: pode montar um projeto inteiro (criar_projeto e depois uma criar_tarefa por tarefa, com prioridade, prazo e estimativa) a partir de uma descrição, criar orçamentos em rascunho com criar_orcamento (fases com horas, tarefas, taxa/hora, entrada e validade; o envio ao cliente é na tela) e responder chamados em nome da equipe. Apresente o plano antes de criar e execute quando a pessoa aprovar."
+      ? "- Para a equipe da Anuntech, consultas sem empresa definida valem para todas as empresas: chame a ferramenta sem companyId em vez de perguntar qual. Você também organiza trabalho: pode montar um projeto inteiro (criar_projeto e depois uma criar_tarefa por tarefa, com prioridade, prazo, estimativa e responsáveis) a partir de uma descrição, alterar tarefas em lote com atualizar_tarefa, criar orçamentos em rascunho com criar_orcamento (fases com horas, tarefas, taxa/hora, entrada e validade; o envio ao cliente é na tela) e responder chamados em nome da equipe. Apresente o plano antes de criar e execute quando a pessoa aprovar."
       : "",
     "",
     "Base de conhecimento da Anuntech:",
@@ -231,7 +237,7 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
     );
     const route = await routeIntent({ message: last, previousAssistant, path: page?.path ?? "", formOnScreen: !!page?.forms.length, destinations: allowed });
     if (route) {
-      if (route.intent === "humano" && route.confidence >= 0.9)
+      if (route.intent === "humano" && route.confidence >= 0.9 && !actor.admin)
         return { reply: "Abrindo o chat com a equipe da Anuntech. Eles respondem por ali.", steps: ["Jev: você quer falar com a equipe"], actions: [{ type: "open_support" }] };
       if (route.intent === "navegar" && route.destination && route.destinationConfidence >= 0.9) {
         try {

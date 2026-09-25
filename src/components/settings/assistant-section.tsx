@@ -197,6 +197,7 @@ export async function AssistantSection() {
                     <span className="flex flex-wrap items-center gap-1.5">
                       <code className="rounded bg-secondary px-1 py-0.5 text-[12px]">{t.name}</code>
                       {t.staffOnly && <span className="rounded-full bg-accent px-1.5 py-px text-[10px] font-medium text-primary">equipe</span>}
+                      {t.clientOnly && <span className="rounded-full bg-secondary px-1.5 py-px text-[10px] font-medium text-muted-foreground">clientes</span>}
                     </span>
                     <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{t.description}</span>
                   </li>

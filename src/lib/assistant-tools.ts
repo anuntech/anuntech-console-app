@@ -12,6 +12,7 @@ import {
   messages,
   quotes,
   subscriptions,
+  taskAssignees,
   tasks,
   tickets,
   user,
@@ -28,7 +29,7 @@ import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } 
 import { OPEN_TICKET_STATUSES } from "./ticket-status";
 
 /* ---------- plumbing (shared with assistant-tools-extra) ---------- */
-import { fold, id, limit, scopeOf, submit, tool, ToolError, within, type AnyTool, type ToolArea, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
+import { fold, id, limit, resolvePeople, scopeOf, submit, tool, ToolError, within, type AnyTool, type ToolArea, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
 export { ToolError } from "./assistant-tools-kit";
 export type { AnyTool, ClientAction, ToolArea, ToolContext, ToolOutcome } from "./assistant-tools-kit";
 export { toolAreas } from "./assistant-tools-kit";
@@ -410,7 +411,7 @@ async function projectAccess(actor: Actor, engagementId: string) {
 const listTasks = tool({
   name: "listar_tarefas",
   area: "projetos",
-  description: "As tarefas do quadro de um projeto, com situação, prioridade e prazo.",
+  description: "As tarefas do quadro de um projeto, com situação, prioridade, prazo e responsáveis.",
   input: z.object({ engagementId: id, situacao: z.enum([...TASK_STATUSES, "all"]).default("all") }),
   run: async ({ actor }, { engagementId, situacao }) => {
     const work = await projectAccess(actor, engagementId);
@@ -420,6 +421,13 @@ const listTasks = tool({
       .where(and(eq(tasks.engagementId, engagementId), situacao === "all" ? undefined : eq(tasks.status, situacao)))
       .orderBy(asc(tasks.status), asc(tasks.position))
       .limit(100);
+    const assigned = rows.length
+      ? await db
+          .select({ taskId: taskAssignees.taskId, name: user.name, email: user.email })
+          .from(taskAssignees)
+          .innerJoin(user, eq(user.id, taskAssignees.userId))
+          .where(inArray(taskAssignees.taskId, rows.map((t) => t.id)))
+      : [];
     return {
       result: {
         projeto: work.name,
@@ -430,6 +438,7 @@ const listTasks = tool({
           situacao: taskStatusLabels[t.status as keyof typeof taskStatusLabels] ?? t.status,
           prioridade: taskPriorityLabels[t.priority],
           prazo: t.dueDate,
+          responsaveis: assigned.filter((a) => a.taskId === t.id).map((a) => a.name || a.email),
           descricao: t.description?.slice(0, 200) ?? null,
         })),
       },
@@ -442,7 +451,7 @@ const addTask = tool({
   name: "criar_tarefa",
   area: "projetos",
   description:
-    "Cria uma tarefa no quadro de um projeto. Para montar um projeto inteiro, chame uma vez por tarefa, na ordem em que devem acontecer. Confirme a lista com a pessoa antes de criar muitas.",
+    "Cria uma tarefa no quadro de um projeto. Para montar um projeto inteiro, chame uma vez por tarefa, na ordem em que devem acontecer. Confirme a lista com a pessoa antes de criar muitas. responsaveis: ids de pessoas (ler_projeto lista quem pode) ou 'eu' para a própria pessoa.",
   input: z.object({
     engagementId: id,
     titulo: z.string().trim().min(1).max(160),
@@ -451,19 +460,24 @@ const addTask = tool({
     prioridade: z.enum(TASK_PRIORITIES).default("normal"),
     prazo: z.union([z.iso.date(), z.literal("")]).default(""),
     estimativaHoras: z.number().min(0).max(1000).optional(),
+    responsaveis: z.array(z.string().trim().min(1).max(128)).max(10).optional(),
   }),
   write: true,
   run: async ({ actor }, input) => {
     const work = await projectAccess(actor, input.engagementId);
-    await submit(createTask, {
-      engagementId: input.engagementId,
-      title: input.titulo,
-      description: input.descricao,
-      status: input.situacao,
-      priority: input.prioridade,
-      dueDate: input.prazo,
-      estimate: input.estimativaHoras ? String(input.estimativaHoras).replace(".", ",") : "",
-    });
+    await submit(
+      createTask,
+      {
+        engagementId: input.engagementId,
+        title: input.titulo,
+        description: input.descricao,
+        status: input.situacao,
+        priority: input.prioridade,
+        dueDate: input.prazo,
+        estimate: input.estimativaHoras ? String(input.estimativaHoras).replace(".", ",") : "",
+      },
+      { assigneeIds: resolvePeople(actor, input.responsaveis) ?? [] },
+    );
     return { result: { criada: true, projeto: work.name, link: `/projetos/${work.id}` }, summary: `Criei a tarefa "${input.titulo}" em ${work.name}` };
   },
 });
@@ -732,7 +746,8 @@ const clickScreen = tool({
 
 const openSupport = tool({
   name: "abrir_chat_suporte",
-  description: "Abre o chat com a equipe da Anuntech (pessoas de verdade) para a pessoa conversar. Use quando ela quiser falar com alguém ou quando você não conseguir resolver.",
+  clientOnly: true,
+  description: "Abre o chat com a equipe da Anuntech (pessoas de verdade). Só quando a pessoa pede para falar com alguém; nunca como saída para uma ação que você não conseguiu fazer.",
   input: z.object({}),
   run: async () => ({ result: { aberto: true }, summary: "Abri o chat com a equipe da Anuntech", actions: [{ type: "open_support" }] }),
 });
@@ -836,6 +851,7 @@ export const assistantTools: AnyTool[] = [
 export function toolCatalog(actor: Pick<Actor, "admin">, areas: ReadonlySet<ToolArea> | null = null) {
   return assistantTools
     .filter((t) => !t.staffOnly || actor.admin)
+    .filter((t) => !t.clientOnly || !actor.admin)
     .filter((t) => !areas || !t.area || areas.has(t.area))
     .map((t) => {
       const schema = z.toJSONSchema(t.input) as Record<string, unknown>;
@@ -847,7 +863,7 @@ export function toolCatalog(actor: Pick<Actor, "admin">, areas: ReadonlySet<Tool
 /** Runs one tool call; errors come back as text the model can relay. */
 export async function runTool(ctx: ToolContext, name: string, rawArguments: string): Promise<ToolOutcome | { error: string }> {
   const def = assistantTools.find((t) => t.name === name);
-  if (!def || (def.staffOnly && !ctx.actor.admin)) return { error: `Ferramenta desconhecida: ${name}.` };
+  if (!def || (def.staffOnly && !ctx.actor.admin) || (def.clientOnly && ctx.actor.admin)) return { error: `Ferramenta desconhecida: ${name}.` };
   let parsed: unknown;
   try {
     parsed = rawArguments ? JSON.parse(rawArguments) : {};
