@@ -147,6 +147,9 @@ globalThis.fetch = async function (input, init) {
   }
   const body = JSON.parse(init.body);
   if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length }) + "\n");
+  // A slow model on request, to watch the UI while the assistant works.
+  const wait = Number(process.env.CONSOLE_TEST_ASSISTANT_DELAY_MS || 0);
+  if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   const payload = decide(body.messages);
   return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
 };

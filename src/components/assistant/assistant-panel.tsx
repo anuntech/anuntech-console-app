@@ -1,11 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeftIcon,
   CheckIcon,
   HistoryIcon,
+  Maximize2Icon,
+  PanelRightIcon,
   RotateCcwIcon,
   SparklesIcon,
   Trash2Icon,
@@ -41,6 +43,16 @@ type Conversation = {
   messages: number;
 };
 const STORAGE_KEY = "assistant:conversation";
+
+// Wide screens have room for the assistant beside the page.
+const wideQuery = "(min-width: 1024px)";
+function subscribeWide(onChange: () => void) {
+  const query = window.matchMedia(wideQuery);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const getWide = () => window.matchMedia(wideQuery).matches;
+const getServerWide = () => false;
 
 type Reply = {
   reply: string;
@@ -82,6 +94,9 @@ function suggestionsFor(admin: boolean, finance: boolean, support: boolean) {
  * person's own data through the API, which runs every tool with their
  * permissions. Lives next to the dock, keeps the thread while the app
  * navigates, and hands off to the human support chat when asked.
+ *
+ * On wide screens it moves beside the page while it works, so the person
+ * keeps using the Console; closed, it keeps working and says when it's done.
  */
 export function AssistantPanel({
   open,
@@ -91,9 +106,12 @@ export function AssistantPanel({
   support,
   userName,
   shortcuts,
+  onBusyChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Lets the dock show that the assistant is still working while closed. */
+  onBusyChange?: (busy: boolean) => void;
   admin: boolean;
   finance: boolean;
   support: boolean;
@@ -109,6 +127,26 @@ export function AssistantPanel({
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const wide = useSyncExternalStore(subscribeWide, getWide, getServerWide);
+  const [docked, setDocked] = useState(false);
+  // Centered by hand: sending stops moving it aside until it is moved back.
+  const [keepCentered, setKeepCentered] = useState(false);
+  const side = docked && wide;
+  // Read after an answer arrives, when the render that started the request is stale.
+  const live = useRef({ open, side });
+  useEffect(() => {
+    live.current = { open, side };
+  }, [open, side]);
+  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange]);
+  // The page makes room for the panel instead of hiding under it.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (open && side) root.dataset.assistantDocked = "";
+    else delete root.dataset.assistantDocked;
+    return () => {
+      delete root.dataset.assistantDocked;
+    };
+  }, [open, side]);
   const firstName = userName.trim().split(/\s+/)[0] || "";
 
   const remember = (id: string | null) => {
@@ -221,12 +259,28 @@ export function AssistantPanel({
     if (!open) return;
     const node = scroller.current;
     if (node) node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
-  }, [turns, busy, open]);
+  }, [turns, busy, open, side]);
 
   const close = () => onOpenChange(false);
+  // Beside the page the panel stays while the page changes; centered, it gets out of the way.
+  const leave = () => {
+    if (!live.current.side) close();
+  };
   const go = (href: string) => {
-    close();
+    leave();
     router.push(href);
+  };
+  const toggleSide = () => {
+    setKeepCentered(side);
+    setDocked(!side);
+  };
+
+  // The answer arrived while the panel was closed: say so, one tap away.
+  const announce = (failed: boolean) => {
+    if (live.current.open) return;
+    const show = { label: "Ver", onClick: () => onOpenChange(true) };
+    if (failed) toast.error("O assistente não conseguiu terminar.", { action: show });
+    else toast.success("O assistente terminou.", { action: show });
   };
 
   const send = async (text: string) => {
@@ -237,6 +291,7 @@ export function AssistantPanel({
     ];
     setTurns(history);
     setBusy(true);
+    if (!keepCentered && getWide()) setDocked(true);
     // Reading the screen is a bonus: if it fails, the message still goes, without it.
     let page: ReturnType<typeof snapshotPage> | undefined;
     try {
@@ -273,6 +328,7 @@ export function AssistantPanel({
             failed: true,
           },
         ]);
+        announce(true);
         return;
       }
       const reply = data as Reply;
@@ -289,15 +345,21 @@ export function AssistantPanel({
         setConversationId(reply.conversationId);
         remember(reply.conversationId);
       }
+      announce(false);
+      // Closed, the person moved on to something else: only refresh what it
+      // changed, never take them to another page or type into their screen.
+      const actions = live.current.open
+        ? reply.actions
+        : reply.actions.filter((action) => action.type === "refresh");
       let delay = 0;
-      for (const action of reply.actions) {
+      for (const action of actions) {
         if (action.type === "open_support") {
           close();
           setTimeout(openSupportWidget, 300);
         } else if (action.type === "navigate") go(action.href);
         else if (action.type === "refresh") router.refresh();
         else if (action.type === "fill") {
-          close();
+          leave();
           delay += 300;
           setTimeout(() => {
             const outcome = fillPage(action.fields, action.submit);
@@ -309,7 +371,7 @@ export function AssistantPanel({
               toast.error(`Não achei na tela: ${outcome.missing.join(", ")}.`);
           }, delay);
         } else if (action.type === "click") {
-          close();
+          leave();
           delay += 400;
           setTimeout(() => {
             if (!clickPage(action.text))
@@ -328,18 +390,34 @@ export function AssistantPanel({
           failed: true,
         },
       ]);
+      announce(true);
     } finally {
       setBusy(false);
     }
   };
 
-  const chips = shortcuts.slice(0, 3).map((s) => s.label);
+  // Beside the page the composer is narrower: two shortcuts fit without scrolling.
+  const chips = shortcuts.slice(0, side ? 2 : 3).map((s) => s.label);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // Beside the page it isn't modal: no scrim, and the page stays clickable.
+    <Dialog open={open} onOpenChange={onOpenChange} modal={!side}>
       <DialogContent
         data-assistant=""
-        className="top-auto bottom-0 left-0 flex h-[min(720px,88svh)] w-full max-w-none sm:h-[min(720px,calc(100svh-128px))] translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-2xl rounded-b-none p-0 sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
+        className={cn(
+          "flex translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden p-0",
+          side
+            ? "top-3 right-(--assistant-right) bottom-3 left-auto h-auto w-[400px] max-w-none rounded-2xl shadow-xl data-[state=closed]:zoom-out-100 data-[state=closed]:slide-out-to-right-8 data-[state=open]:zoom-in-100 data-[state=open]:slide-in-from-right-8"
+            : "top-auto bottom-0 left-0 h-[min(720px,88svh)] w-full max-w-none rounded-t-2xl rounded-b-none sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:h-[min(720px,calc(100svh-128px))] sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl",
+        )}
         onOpenAutoFocus={(event) => event.preventDefault()}
+        onInteractOutside={(event) => {
+          if (side) event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          // Escape in the page belongs to the page; only Escape in the panel closes it.
+          const target = event.target instanceof Element ? event.target : null;
+          if (side && !target?.closest("[data-assistant]")) event.preventDefault();
+        }}
       >
         <DialogTitle className="sr-only">Assistente</DialogTitle>
         <DialogDescription className="sr-only">
@@ -382,6 +460,19 @@ export function AssistantPanel({
             >
               <RotateCcwIcon />
               Nova conversa
+            </Button>
+          )}
+          {wide && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              aria-label={side ? "Centralizar o assistente" : "Mover o assistente para o lado"}
+              title={side ? "Centralizar" : "Mover para o lado"}
+              onClick={toggleSide}
+            >
+              {side ? <Maximize2Icon /> : <PanelRightIcon />}
             </Button>
           )}
         </div>
@@ -474,13 +565,13 @@ export function AssistantPanel({
                     </li>
                   ))}
                 </ul>
-                {shortcuts.length > 3 && (
+                {shortcuts.length > chips.length && (
                   <div>
                     <p className="m-0 mb-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
                       Mais atalhos
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {shortcuts.slice(3).map((s) => (
+                      {shortcuts.slice(chips.length).map((s) => (
                         <Button
                           key={s.href}
                           type="button"
@@ -488,7 +579,7 @@ export function AssistantPanel({
                           size="sm"
                           asChild
                         >
-                          <Link href={s.href} onClick={close}>
+                          <Link href={s.href} onClick={leave}>
                             {s.label}
                           </Link>
                         </Button>
@@ -543,7 +634,7 @@ export function AssistantPanel({
                         ) : (
                           <MessageMarkdown
                             text={turn.content}
-                            onNavigate={close}
+                            onNavigate={leave}
                           />
                         )}
                       </div>
@@ -562,7 +653,7 @@ export function AssistantPanel({
                       <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
                       <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
                       <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
-                      <span className="ml-2">Pensando…</span>
+                      <span className="sr-only">Pensando</span>
                     </span>
                   </li>
                 )}

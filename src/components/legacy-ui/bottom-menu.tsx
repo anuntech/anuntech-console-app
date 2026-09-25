@@ -20,6 +20,7 @@ import { DockAccountMenu } from "./dock-account-menu";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
+import { cn } from "cn";
 import styles from "./bottom-menu.module.css";
 
 export type NavigationProps = {
@@ -111,6 +112,7 @@ export default function BottomMenu({
   const pathname = usePathname();
   const { position } = useAppearance();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantBusy, setAssistantBusy] = useState(false);
   const visible = items.filter(
     (item) =>
       (!item.admin || admin) &&
@@ -145,6 +147,7 @@ export default function BottomMenu({
       <AssistantPanel
         open={assistantOpen}
         onOpenChange={setAssistantOpen}
+        onBusyChange={setAssistantBusy}
         admin={admin}
         finance={finance}
         support={support}
@@ -156,9 +159,18 @@ export default function BottomMenu({
           <nav className={styles.dock} aria-label="Navegação principal">
             <Tooltip.Root>
               <Tooltip.Trigger
-                render={<LiquidMetalButton viewMode="icon" size={40} label="Assistente" className={styles.assistant} onClick={() => setAssistantOpen(true)} />}
+                render={
+                  <LiquidMetalButton
+                    viewMode="icon"
+                    size={40}
+                    label="Assistente"
+                    className={cn(styles.assistant, assistantBusy && styles.assistantBusy)}
+                    onClick={() => setAssistantOpen(true)}
+                  />
+                }
                 aria-haspopup="dialog"
                 aria-expanded={assistantOpen}
+                aria-busy={assistantBusy}
               />
               <Tooltip.Portal>
                 <Tooltip.Positioner
@@ -167,7 +179,7 @@ export default function BottomMenu({
                   collisionPadding={12}
                   className={styles.tooltipPositioner}
                 >
-                  <Tooltip.Popup className={styles.tooltip}>Assistente</Tooltip.Popup>
+                  <Tooltip.Popup className={styles.tooltip}>{assistantBusy ? "Assistente trabalhando…" : "Assistente"}</Tooltip.Popup>
                 </Tooltip.Positioner>
               </Tooltip.Portal>
             </Tooltip.Root>

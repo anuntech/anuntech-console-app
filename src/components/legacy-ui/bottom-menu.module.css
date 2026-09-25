@@ -173,6 +173,26 @@
   flex: 0 0 auto;
   margin: 2px;
 }
+/* Still working with the panel closed: a quiet dot on the button. */
+.assistantBusy::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px var(--card);
+  animation: assistantPulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes assistantPulse {
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistantBusy::after { animation: none; }
+}
 .create {
   border: 0;
   background: var(--secondary);
@@ -293,6 +313,10 @@
   :global(html[data-dock="left"]) .floating,
   :global(html[data-dock="right"]) .floating { top: 12px; bottom: 12px; right: auto; width: 64px; align-items: center; }
   :global(html[data-dock="right"]) .floating { left: auto; right: 12px; }
+}
+/* The assistant beside the page: the dock centers on what is left of it. */
+@media (min-width: 1024px) {
+  :global(html[data-assistant-docked]:not([data-dock="left"], [data-dock="right"])) .floating { right: calc(var(--assistant-right) + 412px); }
   :global(html:is([data-dock="left"], [data-dock="right"])) .dock { flex-direction: column; max-height: 100%; }
   :global(html:is([data-dock="left"], [data-dock="right"])) .routes { flex-direction: column; overflow-x: hidden; overflow-y: auto; min-height: 0; flex-shrink: 1; }
   :global(html:is([data-dock="left"], [data-dock="right"])) .divider { width: 28px; height: 1px; margin: 4px 0; }

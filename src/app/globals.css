@@ -1457,6 +1457,14 @@ select:not([multiple]):not([size]) {
   html[data-dock="right"] .page-content { max-width: 1760px; margin-right: 0; }
 }
 
+/* The assistant beside the page (wide screens): 400px panel with 12px around it,
+   next to the dock when the dock sits on the right. The page makes room for it. */
+:root { --assistant-right: 12px; }
+html[data-dock="right"] { --assistant-right: 88px; }
+@media (min-width: 1024px) {
+  html[data-assistant-docked] .workspace { padding-right: calc(var(--assistant-right) + 412px); }
+}
+
 select option { background: var(--background); color: var(--foreground); }
 }
 

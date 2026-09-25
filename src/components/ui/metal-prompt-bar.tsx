@@ -141,7 +141,6 @@ export function MetalPromptBar({
             </button>
           ))}
         </div>
-        <span className="hidden shrink-0 text-xs text-muted-foreground sm:block">Enter envia</span>
         <MetalFx
           variant="circle"
           preset={preset}
