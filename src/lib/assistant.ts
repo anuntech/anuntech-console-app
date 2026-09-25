@@ -8,6 +8,7 @@ import { longDateLabel } from "./format";
 import { hasPermission } from "./permissions";
 import { destinations, runTool, screenFor, toolCatalog, writeToolNames, type ClientAction, type Destination, type ToolArea } from "./assistant-tools";
 import { approveAction, intents, jevEnabled, routeIntent } from "./jev";
+import { plainApproval } from "./assistant-consent";
 import { modelSupportsReasoning } from "./openrouter-models";
 import { describePage, type PageSnapshot, areaOfPath } from "./page-snapshot";
 
@@ -230,6 +231,9 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
   let retried = false;
   // A write changes what the open screen shows; the panel reloads the page's data after the reply.
   let wrote = false;
+  // A plain "sim" to the assistant's question is consent; a tool approved once in this
+  // turn isn't asked about again for each of its calls (32 tasks, 32 calls).
+  const consented = new Set<string>(plainApproval(turns) ? writeToolNames : []);
   const done = (reply: string) => ({
     reply,
     steps: collapse(noted),
@@ -287,9 +291,16 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
     }
     messages.push({ role: "assistant", content: turn.content, tool_calls: turn.toolCalls });
     for (const call of turn.toolCalls) {
-      if (jevEnabled() && writeToolNames.has(call.function.name) && needsConsent(call.function.name, call.function.arguments)) {
+      if (
+        jevEnabled() &&
+        writeToolNames.has(call.function.name) &&
+        !consented.has(call.function.name) &&
+        needsConsent(call.function.name, call.function.arguments)
+      ) {
         // A second opinion before anything changes: was this exact action asked for or approved?
         const verdict = await approveAction({ conversation: turns, tool: call.function.name, args: parseArgs(call.function.arguments) });
+        console.info("[assistant] consent", { tool: call.function.name, approved: verdict?.approved ?? null, score: verdict?.score ?? null });
+        if (verdict?.approved) consented.add(call.function.name);
         if (verdict && !verdict.approved) {
           messages.push({
             role: "tool",

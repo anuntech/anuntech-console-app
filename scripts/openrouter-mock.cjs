@@ -18,7 +18,9 @@ const reply = (content, tool_calls) => ({
 });
 
 function decide(messages) {
-  const user = [...messages].reverse().find((m) => m.role === "user")?.content?.toLowerCase() ?? "";
+  const users = messages.filter((m) => m.role === "user").map((m) => m.content.toLowerCase());
+  // A short "sim" answers the request before it: act on that one.
+  const user = /^(sim|confirmo|pode|ok)\b/.test(users.at(-1) ?? "") && users.length > 1 ? users.at(-2) : (users.at(-1) ?? "");
   const tools = messages.filter((m) => m.role === "tool").map((m) => JSON.parse(m.content));
   const calls = messages.flatMap((m) => m.tool_calls ?? []).map((c) => c.function.name);
   const summarize = () =>
@@ -140,7 +142,8 @@ globalThis.fetch = async function (input, init) {
     if (req.questions.aprovado) {
       const recent = req.state?.conversa_recente ?? [];
       const person = [...recent].reverse().find((m) => m.de === "pessoa")?.texto?.toLowerCase() ?? "";
-      const approved = /\b(sim|aprovo|pode|fa[cç]a|crie|abra|confirmo|preencha|envie|manda|vincul\w*)\b/.test(person);
+      // CONSOLE_TEST_JEV_REJECT=1 plays a strict Jev that never sees approval.
+      const approved = process.env.CONSOLE_TEST_JEV_REJECT !== "1" && /\b(sim|aprovo|pode|fa[cç]a|crie|abra|confirmo|preencha|envie|manda|vincul\w*)\b/.test(person);
       answers.aprovado = { type: "noul", noul: approved ? 0.95 : 0.15 };
     }
     return new Response(JSON.stringify({ model: "typesafe/jev-mock", answers, usage: { cost: 0 } }), { status: 200, headers: { "Content-Type": "application/json" } });
