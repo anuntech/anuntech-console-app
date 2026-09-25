@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, inArray, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { allowedIds, canAccess, type Actor } from "./access";
@@ -11,6 +11,7 @@ import {
   invoices,
   messages,
   quotes,
+  subscriptions,
   tasks,
   tickets,
   user,
@@ -225,6 +226,95 @@ const listInvoices = tool({
       };
     });
     return { result: list, summary: "Consultei as faturas" };
+  },
+});
+
+/** A civil date N months before another, ISO; clamps the day to the target month. */
+const monthsBefore = (iso: string, months: number) => {
+  const d = new Date(`${iso}T12:00:00Z`);
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - months);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, last));
+  return d.toISOString().slice(0, 10);
+};
+
+const financeSummary = tool({
+  name: "resumo_financeiro",
+  description:
+    "Totais por cliente (empresa) em um período: faturado, pago, em aberto, vencido, quantidade de faturas e recorrência mensal ativa. É a ferramenta certa para 'maior cliente', 'quanto faturamos', 'quem deve mais', rankings e comparações. Nunca some listas de faturas para chegar a totais. Conta só faturas emitidas ou pagas (rascunhos e canceladas ficam de fora), pela data de vencimento.",
+  input: z.object({
+    companyId: id.optional(),
+    periodo: z.enum(["ultimos_12_meses", "ano_atual", "mes_atual", "tudo"]).default("ultimos_12_meses"),
+    ordenarPor: z.enum(["faturado", "em_aberto", "vencido", "recorrencia"]).default("faturado"),
+    limite: limit(10),
+  }),
+  run: async ({ actor, today }, { companyId, periodo, ordenarPor, limite }) => {
+    const ids = scopeOf(actor, "finance", companyId);
+    const from =
+      periodo === "tudo"
+        ? null
+        : periodo === "ano_atual"
+          ? `${today.slice(0, 4)}-01-01`
+          : periodo === "mes_atual"
+            ? `${today.slice(0, 7)}-01`
+            : monthsBefore(today, 12);
+    const [rows, recurring] = await Promise.all([
+      db
+        .select({ companyId: invoices.companyId, company: companies.name, status: invoices.status, amount: invoices.amountCents, dueDate: invoices.dueDate })
+        .from(invoices)
+        .innerJoin(companies, eq(companies.id, invoices.companyId))
+        .where(and(within(invoices.companyId, ids), inArray(invoices.status, ["issued", "paid"]), from ? gte(invoices.dueDate, from) : undefined)),
+      db
+        .select({ companyId: subscriptions.companyId, company: companies.name, amount: subscriptions.amountCents, interval: subscriptions.interval })
+        .from(subscriptions)
+        .innerJoin(companies, eq(companies.id, subscriptions.companyId))
+        .where(and(within(subscriptions.companyId, ids), eq(subscriptions.status, "active"))),
+    ]);
+    type Line = { companyId: string; nome: string; faturado: number; pago: number; emAberto: number; vencido: number; faturas: number; recorrenciaMensal: number };
+    const byCompany = new Map<string, Line>();
+    const line = (cid: string, name: string) => {
+      const found = byCompany.get(cid);
+      if (found) return found;
+      const fresh: Line = { companyId: cid, nome: name, faturado: 0, pago: 0, emAberto: 0, vencido: 0, faturas: 0, recorrenciaMensal: 0 };
+      byCompany.set(cid, fresh);
+      return fresh;
+    };
+    for (const r of rows) {
+      const l = line(r.companyId, r.company);
+      l.faturado += r.amount;
+      l.faturas += 1;
+      if (r.status === "paid") l.pago += r.amount;
+      else {
+        l.emAberto += r.amount;
+        if (r.dueDate < today) l.vencido += r.amount;
+      }
+    }
+    for (const r of recurring) line(r.companyId, r.company).recorrenciaMensal += r.interval === "yearly" ? Math.round(r.amount / 12) : r.amount;
+    const key = { faturado: "faturado", em_aberto: "emAberto", vencido: "vencido", recorrencia: "recorrenciaMensal" }[ordenarPor] as keyof Line;
+    const lines = [...byCompany.values()].sort((a, b) => (b[key] as number) - (a[key] as number));
+    const sum = (field: keyof Line) => lines.reduce((n, l) => n + (l[field] as number), 0);
+    const money = (l: Line) => ({
+      companyId: l.companyId,
+      nome: l.nome,
+      faturado: currency(l.faturado),
+      pago: currency(l.pago),
+      emAberto: currency(l.emAberto),
+      vencido: currency(l.vencido),
+      faturas: l.faturas,
+      recorrenciaMensal: currency(l.recorrenciaMensal),
+      linkFaturas: `/financeiro?company=${l.companyId}`,
+    });
+    return {
+      result: {
+        periodo: { de: from ?? "início", ate: today, criterio: "data de vencimento; só faturas emitidas ou pagas" },
+        ordenadoPor: ordenarPor,
+        clientes: lines.slice(0, limite).map(money),
+        totais: { faturado: currency(sum("faturado")), pago: currency(sum("pago")), emAberto: currency(sum("emAberto")), vencido: currency(sum("vencido")), recorrenciaMensal: currency(sum("recorrenciaMensal")), clientes: lines.length },
+      },
+      summary: "Consultei o resumo financeiro",
+    };
   },
 });
 
@@ -575,6 +665,7 @@ export const assistantTools: AnyTool[] = [
   listCompanies,
   companyOverview,
   listInvoices,
+  financeSummary,
   listTickets,
   readTicket,
   openTicket,

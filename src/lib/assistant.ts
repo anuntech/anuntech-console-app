@@ -99,6 +99,7 @@ export async function systemPrompt(actor: Actor, custom: string) {
     "- Links: use caminhos relativos do Console em Markdown, como [ver fatura](/financeiro/abc). O painel transforma em links reais. Para PDF de boleto use o link boletoPdf; para pagar use linkPagamento.",
     "- Quando a pessoa tem uma única empresa, não pergunte qual; use o companyId dela. Com várias, pergunte ou use listar_empresas.",
     "- As ferramentas de listagem aceitam companyId opcional: sem ele, trazem todas as empresas que a pessoa vê em uma única chamada. Prefira isso a chamar uma vez por empresa.",
+    "- Listagens trazem só as primeiras linhas (limite padrão 5, máximo 50) e não servem para somar. Para totais, rankings, 'maior cliente', 'quanto faturamos' ou 'quem deve mais', use resumo_financeiro e cite o período usado.",
     "- Antes de ações que criam ou alteram algo (abrir_chamado, responder_chamado, criar_tarefa, mover_tarefa, criar_projeto), confirme o conteúdo com a pessoa, a não ser que o pedido já esteja completo e inequívoco. Depois de executar, diga o que foi feito com o link.",
     "- Cobranças, orçamentos, contratos e cadastros de empresa não são criados por você: leve a pessoa à tela com abrir_tela. Nunca diga que uma fatura foi paga se a situação não disser isso.",
     "- Se a pessoa quiser falar com alguém, ou se você não conseguir ajudar, use abrir_chat_suporte e diga que a equipe responde por ali.",
@@ -139,7 +140,7 @@ async function complete(
   model: string,
   messages: Message[],
   tools: ReturnType<typeof toolCatalog>,
-  options: { maxTokens: number; reasoning: boolean },
+  options: { maxTokens: number; reasoning: boolean; attempt?: number },
 ): Promise<Completion> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new AssistantError("O assistente ainda não foi ligado: falta a chave do OpenRouter nas variáveis do ambiente.");
@@ -174,6 +175,13 @@ async function complete(
     const detail = data?.error?.message ?? `HTTP ${res.status}`;
     console.warn("[assistant] OpenRouter refused", { model, status: res.status, detail, maxTokens: options.maxTokens });
     if (res.status === 401) throw new AssistantError("A chave do OpenRouter foi recusada. Confira em Configurações › Assistente.");
+    if ((res.status === 429 || res.status >= 500) && !(options.attempt ?? 0)) {
+      // Free and busy models hiccup; one short pause usually clears it.
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return complete(model, messages, tools, { ...options, attempt: 1 });
+    }
+    if (res.status === 429)
+      throw new AssistantError("O modelo está no limite de uso do OpenRouter agora (comum nos modelos gratuitos). Tente de novo em instantes ou escolha outro modelo em Configurações › Assistente.");
     if (res.status === 402) {
       // "You requested up to 4000 tokens, but can only afford 3372": shrink the budget once and go on.
       const affordable = Number(/afford (\d+)/.exec(detail)?.[1]);

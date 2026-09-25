@@ -27,6 +27,7 @@ function decide(messages) {
       .flat()
       .slice(0, 5)
       .map((row) => {
+        if (row.clientes) return `- ${row.clientes.map((c) => `${c.nome}: ${c.faturado} faturado, ${c.emAberto} em aberto`).join("; ")} (total ${row.totais.faturado})`;
         if (row.faturaId) return `- ${row.descricao}: **${row.valor}**, vence ${row.vencimento}, ${row.situacao}${row.linkPagamento ? ` · [pagar](${row.linkPagamento})` : ""}${row.boletoPdf ? ` · [boleto PDF](${row.boletoPdf})` : ""}`;
         if (row.chamadoId) return `- [${row.assunto}](${row.link}) · ${row.situacao}`;
         if (row.engagementId) return `- [${row.nome}](${row.link}) · ${row.tipo} · ${row.situacao}`;
@@ -46,6 +47,7 @@ function decide(messages) {
   }
   if (tools.length) return reply(`Aqui está o que encontrei:\n\n${summarize()}`);
   // First round: pick a tool from the wording.
+  if (user.includes("maior cliente") || user.includes("faturamos")) return reply(null, [call("resumo_financeiro", { periodo: "tudo" })]);
   if (user.includes("boleto") || user.includes("fatura")) return reply(null, [call("listar_faturas", { situacao: "todas", limite: 3 })]);
   if (user.includes("falar")) return reply(null, [call("abrir_chat_suporte", {})]);
   if (user.includes("chamado") || user.includes("resumo")) return reply(null, [call("listar_empresas", { limite: 5 })]);
