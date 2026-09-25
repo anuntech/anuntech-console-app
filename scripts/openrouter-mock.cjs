@@ -154,5 +154,7 @@ globalThis.fetch = async function (input, init) {
   const wait = Number(process.env.CONSOLE_TEST_ASSISTANT_DELAY_MS || 0);
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   const payload = decide(body.messages);
+  // Roughly what a real model would bill, so the panel's token counter has numbers.
+  payload.usage = { prompt_tokens: Math.ceil(init.body.length / 4), completion_tokens: Math.ceil(JSON.stringify(payload.choices).length / 4) };
   return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
 };

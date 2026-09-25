@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MetalPromptBar } from "@/components/ui/metal-prompt-bar";
-import { EnergyOrb, StaticOrb } from "@/components/ui/energy-orb";
+import { EnergyOrb } from "@/components/ui/energy-orb";
 import { openSupportWidget } from "@/components/support-trigger";
 import { toast } from "@/components/notifications";
 import { relativeLabel } from "@/lib/format";
@@ -35,6 +35,8 @@ type Turn = {
   content: string;
   steps?: string[];
   failed?: boolean;
+  /** How long it took and what it spent; only for answers given in this session. */
+  spent?: { ms: number; tokens: number };
 };
 type Conversation = {
   id: string;
@@ -43,6 +45,76 @@ type Conversation = {
   messages: number;
 };
 const STORAGE_KEY = "assistant:conversation";
+
+const fallbackError = "O assistente não respondeu. Tente de novo em instantes.";
+
+/**
+ * Reads a turn as it streams: progress lines report the tokens spent so far,
+ * then one line carries the reply or the error. Refusals before the turn
+ * starts come back as plain JSON.
+ */
+async function readTurn(res: Response, onTokens: (tokens: number) => void): Promise<Reply | { error: string }> {
+  if (!res.body || !res.headers.get("content-type")?.includes("ndjson")) {
+    const data = (await res.json().catch(() => null)) as (Reply & { error?: string }) | null;
+    return res.ok && data && !data.error ? data : { error: data?.error || fallbackError };
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: Reply | { error: string } | null = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buffer += decoder.decode(value, { stream: true });
+    let end: number;
+    while ((end = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, end).trim();
+      buffer = buffer.slice(end + 1);
+      if (!line) continue;
+      let event: { type?: string; tokens?: number; error?: string } & Partial<Reply>;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (event.type === "progress") onTokens(event.tokens ?? 0);
+      else if (event.type === "done") result = event as Reply;
+      else if (event.type === "error") result = { error: event.error || fallbackError };
+    }
+    if (done) break;
+  }
+  return result ?? { error: "A resposta chegou incompleta. Tente de novo." };
+}
+
+// Read in event handlers only (the compiler's purity rule can't tell them from render).
+const clock = () => Date.now();
+
+const tokenCount = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
+/** "8 s · 3,4 mil tokens" */
+function spentLabel(ms: number, tokens: number) {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  const time = seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
+  return tokens ? `${time} · ${tokenCount.format(tokens)} tokens` : time;
+}
+
+/** The live row while the assistant works: the orb, the clock and the tokens so far. */
+function Working({ startedAt, tokens }: { startedAt: number; tokens: number }) {
+  const [now, setNow] = useState(startedAt);
+  useEffect(() => {
+    const tick = setInterval(() => setNow(clock()), 1000);
+    return () => clearInterval(tick);
+  }, []);
+  return (
+    <li className="flex items-center gap-3 text-xs text-muted-foreground">
+      <EnergyOrb size={28} energy={1.4} speed={2.5} glow={false} interactive={false} className="shrink-0" />
+      <span className="tabular-nums" aria-hidden="true">
+        {spentLabel(now - startedAt, tokens)}
+      </span>
+      <span className="sr-only" aria-live="polite">
+        Pensando
+      </span>
+    </li>
+  );
+}
 
 // Wide screens have room for the assistant beside the page.
 const wideQuery = "(min-width: 1024px)";
@@ -56,6 +128,7 @@ const getServerWide = () => false;
 
 type Reply = {
   reply: string;
+  tokens?: number;
   steps: string[];
   conversationId?: string | null;
   actions: (
@@ -121,6 +194,7 @@ export function AssistantPanel({
   const router = useRouter();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
+  const [working, setWorking] = useState<{ startedAt: number; tokens: number } | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "history">("chat");
   const [history, setHistory] = useState<Conversation[] | null>(null);
@@ -291,6 +365,9 @@ export function AssistantPanel({
     ];
     setTurns(history);
     setBusy(true);
+    const startedAt = clock();
+    let spentTokens = 0;
+    setWorking({ startedAt, tokens: 0 });
     if (!keepCentered && getWide()) setDocked(true);
     // Reading the screen is a bonus: if it fails, the message still goes, without it.
     let page: ReturnType<typeof snapshotPage> | undefined;
@@ -313,25 +390,24 @@ export function AssistantPanel({
           conversationId: conversationId ?? undefined,
         }),
       });
-      const data = (await res.json().catch(() => null)) as
-        (Reply & { error?: string }) | { error: string } | null;
-      if (!res.ok || !data || ("error" in data && data.error)) {
-        const message =
-          (data && "error" in data && data.error) ||
-          "O assistente não respondeu. Tente de novo em instantes.";
+      const data = await readTurn(res, (tokens) => {
+        spentTokens = tokens;
+        setWorking({ startedAt, tokens });
+      });
+      if ("error" in data) {
         setTurns((current) => [
           ...current,
           {
             id: crypto.randomUUID(),
             role: "assistant",
-            content: message,
+            content: data.error,
             failed: true,
           },
         ]);
         announce(true);
         return;
       }
-      const reply = data as Reply;
+      const reply = data;
       setTurns((current) => [
         ...current,
         {
@@ -339,6 +415,7 @@ export function AssistantPanel({
           role: "assistant",
           content: reply.reply,
           steps: reply.steps,
+          spent: { ms: clock() - startedAt, tokens: reply.tokens ?? spentTokens },
         },
       ]);
       if (reply.conversationId) {
@@ -393,6 +470,7 @@ export function AssistantPanel({
       announce(true);
     } finally {
       setBusy(false);
+      setWorking(null);
     }
   };
 
@@ -599,13 +677,11 @@ export function AssistantPanel({
                     </li>
                   ) : (
                     <li key={turn.id} className="flex gap-3">
-                      {/* Answers wear the orb standing still; only the live one animates. */}
-                      {turn.failed ? (
+                      {/* The orb shows only while it works; a failure keeps its warning. */}
+                      {turn.failed && (
                         <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                           <TriangleAlertIcon className="size-3.5" />
                         </span>
-                      ) : (
-                        <StaticOrb size={28} className="mt-1" />
                       )}
                       <div className="min-w-0 flex-1">
                         {turn.steps && turn.steps.length > 0 && (
@@ -631,30 +707,20 @@ export function AssistantPanel({
                             onNavigate={leave}
                           />
                         )}
+                        {turn.spent && (
+                          <p className="m-0 mt-1.5 text-[11px] text-muted-foreground tabular-nums">
+                            {spentLabel(turn.spent.ms, turn.spent.tokens)}
+                          </p>
+                        )}
                       </div>
                     </li>
                   ),
                 )}
-                {busy && (
-                  <li className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <EnergyOrb
-                      size={28}
-                      energy={1.4}
-                      speed={2.5}
-                      glow={false}
-                      interactive={false}
-                      className="shrink-0"
-                    />
-                    <span
-                      className="inline-flex items-center gap-1"
-                      aria-live="polite"
-                    >
-                      <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
-                      <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
-                      <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
-                      <span className="sr-only">Pensando</span>
-                    </span>
-                  </li>
+                {working && (
+                  <Working
+                    startedAt={working.startedAt}
+                    tokens={working.tokens}
+                  />
                 )}
               </ol>
             )}

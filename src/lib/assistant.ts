@@ -24,7 +24,11 @@ export type AssistantReply = {
   reply: string;
   steps: string[];
   actions: ClientAction[];
+  /** Model tokens this answer spent (prompt + output, every round). */
+  tokens?: number;
 };
+/** While a turn runs: what it has spent so far. */
+export type AssistantProgress = { tokens: number };
 
 /* ---------- settings ---------- */
 
@@ -150,7 +154,7 @@ const textOf = (content: unknown): string =>
       ? content.map((part) => (part && typeof part === "object" && "text" in part ? String((part as { text: unknown }).text ?? "") : "")).join("")
       : "";
 
-type Completion = { content: string; toolCalls: ToolCall[]; finishReason: string | null };
+type Completion = { content: string; toolCalls: ToolCall[]; finishReason: string | null; tokens: number };
 
 async function complete(
   model: string,
@@ -208,7 +212,12 @@ async function complete(
     throw new AssistantError(`O OpenRouter não respondeu (${detail}). Tente de novo em instantes.`);
   }
   const choice = data.choices[0];
-  const completion = { content: textOf(choice.message.content).trim(), toolCalls: choice.message.tool_calls ?? [], finishReason: choice.finish_reason ?? null };
+  const completion = {
+    content: textOf(choice.message.content).trim(),
+    toolCalls: choice.message.tool_calls ?? [],
+    finishReason: choice.finish_reason ?? null,
+    tokens: (data.usage?.prompt_tokens ?? 0) + (data.usage?.completion_tokens ?? 0),
+  };
   if (!completion.content && !completion.toolCalls.length)
     console.warn("[assistant] empty reply", { model, finishReason: completion.finishReason, usage: data.usage, maxTokens: options.maxTokens });
   return completion;
@@ -219,7 +228,12 @@ async function complete(
  * times as it needs (bounded), every tool running with the caller's own
  * permissions. Returns the final text plus what was done along the way.
  */
-export async function converse(actor: Actor, history: ChatTurn[], page?: PageSnapshot): Promise<AssistantReply> {
+export async function converse(
+  actor: Actor,
+  history: ChatTurn[],
+  page?: PageSnapshot,
+  onProgress?: (progress: AssistantProgress) => void,
+): Promise<AssistantReply> {
   const config = await assistantConfig();
   let tools = toolCatalog(actor);
   const [prompt, reasoning] = await Promise.all([systemPrompt(actor, config.prompt, page), modelSupportsReasoning(config.model)]);
@@ -234,8 +248,10 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
   // A plain "sim" to the assistant's question is consent; a tool approved once in this
   // turn isn't asked about again for each of its calls (32 tasks, 32 calls).
   const consented = new Set<string>(plainApproval(turns) ? writeToolNames : []);
+  let tokens = 0;
   const done = (reply: string) => ({
     reply,
+    tokens,
     steps: collapse(noted),
     actions: wrote && !actions.some((a) => a.type === "navigate") ? [...actions, { type: "refresh" as const }] : actions,
   });
@@ -279,6 +295,8 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
   }
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const turn = await complete(config.model, messages, tools, { maxTokens: retried ? 6000 : 3000, reasoning });
+    tokens += turn.tokens;
+    onProgress?.({ tokens });
     if (!turn.toolCalls.length) {
       if (turn.content) return done(turn.content);
       if (!retried) {

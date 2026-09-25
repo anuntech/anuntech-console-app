@@ -33,17 +33,6 @@ const load = () => (loading ??= import("./energy-orb-element.js"));
 // The component's own fallback look, shown before the script runs.
 const placeholder = "radial-gradient(circle at 40% 35%, #cfe9ff 0%, #5d9cf0 25%, #2553b5 60%, #86c2ff 100%)";
 
-/** The orb standing still: its fallback gradient, no WebGL. For places that repeat it. */
-export function StaticOrb({ size, className }: { size: number; className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={className}
-      style={{ display: "inline-block", flexShrink: 0, width: size, height: size, borderRadius: "50%", background: placeholder }}
-    />
-  );
-}
-
 export function EnergyOrb({
   size,
   energy = 1,
