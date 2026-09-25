@@ -73,7 +73,7 @@ export async function runBillingTests({
     "update console_companies set phone='11999990002' where id=$1",
     [ids.a],
   );
-  await submitForm("/financeiro/nova", "admin", "manager", "Salvar rascunho", {
+  await submitForm("/financeiro/nova", "admin", "manager", "Criar rascunho", {
     companyId: ids.a,
     engagementId: "",
     description: `Recurring forbidden ${marker}`,
@@ -86,7 +86,7 @@ export async function runBillingTests({
     !(await one("select count(*)::int n from console_subscriptions")).n,
     "Cliente não cria recorrência por ação administrativa forjada",
   );
-  await submitForm("/financeiro/nova", "admin", "admin", "Salvar rascunho", {
+  await submitForm("/financeiro/nova", "admin", "admin", "Criar rascunho", {
     companyId: ids.a,
     engagementId: "",
     description: `Recurring QA ${marker}`,

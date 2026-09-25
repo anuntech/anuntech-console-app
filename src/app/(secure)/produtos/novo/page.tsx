@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/console/page-header";
 import { AddFromCatalogForm } from "@/components/produtos/add-from-catalog";
 import { addFromCatalogContext, type AddSearchParams } from "@/components/produtos/add-context";
-export const metadata: Metadata = { title: "Vincular produto ou serviço" };
+export const metadata: Metadata = { title: "Novo produto ou serviço" };
 
 /** Direct loads only; in-app navigation shows the sheet from @ticket instead. */
 export default async function AddProduct({ searchParams }: { searchParams: AddSearchParams }) {
@@ -10,8 +10,8 @@ export default async function AddProduct({ searchParams }: { searchParams: AddSe
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Produtos e serviços", href: "/produtos" }, { label: "Vincular" }]}
-        title="Vincular produto ou serviço"
+        crumbs={[{ label: "Produtos e serviços", href: "/produtos" }, { label: "Novo" }]}
+        title="Novo produto ou serviço"
         description="Escolha do catálogo e defina o preço desta empresa."
       />
       <AddFromCatalogForm {...context} />

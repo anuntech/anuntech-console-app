@@ -5,7 +5,7 @@ import {
   newTicketContext,
   type NewTicketSearchParams,
 } from "@/components/chamados/new-ticket-context";
-export const metadata: Metadata = { title: "Abrir chamado" };
+export const metadata: Metadata = { title: "Novo chamado" };
 
 /** Direct loads only; in-app navigation shows the sheet from @ticket instead. */
 export default async function NewTicket({
@@ -17,8 +17,8 @@ export default async function NewTicket({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Chamados", href: "/chamados" }, { label: "Abrir chamado" }]}
-        title="Abrir chamado"
+        crumbs={[{ label: "Chamados", href: "/chamados" }, { label: "Novo" }]}
+        title="Novo chamado"
         description="Como podemos ajudar?"
       />
       <NewTicketForm companies={companies} companyId={companyId} />

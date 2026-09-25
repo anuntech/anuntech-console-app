@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
-import { ArrowLeft, FileQuestion } from "lucide-react";
+import { ArrowLeftIcon, FileQuestionIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import styles from "@/components/public-layout.module.css";
 export const metadata = {
   title: "Página não encontrada",
@@ -14,7 +15,7 @@ export default function NotFound() {
       </header>
       <section className={styles.stateCard}>
         <div className={styles.stateIcon}>
-          <FileQuestion size={26} aria-hidden="true" />
+          <FileQuestionIcon size={26} aria-hidden="true" />
         </div>
         <p className={styles.eyebrow}>ERRO 404</p>
         <h1>Página não encontrada</h1>
@@ -23,9 +24,12 @@ export default function NotFound() {
           recebido ou volte ao Console.
         </p>
         <div className={styles.stateActions}>
-          <Link href="/painel" className="button primary">
-            <ArrowLeft size={16} aria-hidden="true" /> Voltar ao Console
-          </Link>
+          <Button size="lg" asChild>
+            <Link href="/painel">
+              <ArrowLeftIcon />
+              Voltar ao Console
+            </Link>
+          </Button>
         </div>
       </section>
     </main>

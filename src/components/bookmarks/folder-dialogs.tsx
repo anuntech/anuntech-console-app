@@ -11,12 +11,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { CompanyField, type CompanyOption } from "@/components/console/company-field";
+import { FormField } from "@/components/console/form-field";
 import {
   ConfirmDialog,
   FormError,
@@ -48,7 +48,6 @@ function VisibilitySelect({
       id={id}
       name="visibility"
       defaultValue={defaultValue}
-      className="bg-field"
       onChange={(event) => onChange?.(event.target.value as "company" | "people")}
     >
       <NativeSelectOption value="company">Todos da empresa</NativeSelectOption>
@@ -68,18 +67,16 @@ function ShareForm({ folder, onClose }: { folder: FolderView; onClose: () => voi
         <DialogDescription>Quem vê a pasta também pode adicionar bookmarks nela.</DialogDescription>
       </DialogHeader>
       <FormError />
-      <div>
-        <Label htmlFor="share-visibility" className="mb-1.5">
-          Quem vê
-        </Label>
-        <VisibilitySelect id="share-visibility" defaultValue={folder.visibility} onChange={setMode} />
+      <div className="grid gap-5">
+        <FormField label="Quem vê" htmlFor="share-visibility">
+          <VisibilitySelect id="share-visibility" defaultValue={folder.visibility} onChange={setMode} />
+        </FormField>
+        {mode === "people" && (
+          <FormField label="Pessoas" htmlFor="share-people">
+            <SharePeoplePicker id="share-people" folderId={folder.id} initial={folder.sharedWith} />
+          </FormField>
+        )}
       </div>
-      {mode === "people" && (
-        <div>
-          <Label className="mb-1.5">Pessoas</Label>
-          <SharePeoplePicker folderId={folder.id} initial={folder.sharedWith} />
-        </div>
-      )}
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">
@@ -110,7 +107,7 @@ export function FolderDialogs({
   return (
     <>
       <Dialog open={naming} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-md">
           <ServerForm
             key={folder?.id ?? "new"}
             action={folder ? renameFolder : createFolder}
@@ -125,54 +122,50 @@ export function FolderDialogs({
               </DialogDescription>
             </DialogHeader>
             <FormError />
-            {!folder &&
-              (companies.length > 1 ? (
-                <div>
-                  <Label htmlFor="folder-company" className="mb-1.5">
-                    Empresa
-                  </Label>
-                  <CompanyField
-                    id="folder-company"
-                    name="companyId"
-                    companies={companies}
-                    defaultValue={defaultCompany}
-                  />
-                </div>
-              ) : (
-                <input type="hidden" name="companyId" value={companies[0]?.id ?? ""} />
-              ))}
-            <div>
-              <Label htmlFor="folder-name" className="mb-1.5">
-                Nome
-              </Label>
-              <Input
-                id="folder-name"
-                name="name"
-                required
-                maxLength={80}
-                autoFocus
-                defaultValue={folder?.name ?? ""}
-                placeholder="Ex.: Referências de design"
-              />
+            <div className="grid gap-5">
+              {!folder &&
+                (companies.length > 1 ? (
+                  <FormField label="Empresa" htmlFor="folder-company">
+                    <CompanyField
+                      id="folder-company"
+                      name="companyId"
+                      companies={companies}
+                      defaultValue={defaultCompany}
+                    />
+                  </FormField>
+                ) : (
+                  <input type="hidden" name="companyId" value={companies[0]?.id ?? ""} />
+                ))}
+              <FormField label="Nome" htmlFor="folder-name">
+                <Input
+                  id="folder-name"
+                  name="name"
+                  required
+                  maxLength={80}
+                  autoFocus
+                  defaultValue={folder?.name ?? ""}
+                  placeholder="Ex.: Referências de design"
+                />
+              </FormField>
+              {!folder && (
+                <FormField
+                  label="Quem vê"
+                  htmlFor="folder-visibility"
+                  hint="Pessoas escolhidas você define depois, em Compartilhar."
+                >
+                  <VisibilitySelect id="folder-visibility" defaultValue="company" />
+                </FormField>
+              )}
             </div>
-            {!folder && (
-              <div>
-                <Label htmlFor="folder-visibility" className="mb-1.5">
-                  Quem vê
-                </Label>
-                <VisibilitySelect id="folder-visibility" defaultValue="company" />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Pessoas escolhidas você define depois, em Compartilhar.
-                </p>
-              </div>
-            )}
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline">
                   Cancelar
                 </Button>
               </DialogClose>
-              <SubmitButton pendingLabel="Salvando…">{folder ? "Salvar" : "Criar pasta"}</SubmitButton>
+              <SubmitButton pendingLabel={folder ? "Salvando…" : "Criando…"}>
+                {folder ? "Salvar" : "Criar pasta"}
+              </SubmitButton>
             </DialogFooter>
           </ServerForm>
         </DialogContent>

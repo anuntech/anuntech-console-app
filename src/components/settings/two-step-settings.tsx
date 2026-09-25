@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { SectionTitle } from "@/components/console/page-header";
 import { AuthAlert } from "@/components/auth/feedback";
+import { FormAlert } from "@/components/console/server-form";
 import { CodeInput } from "@/components/auth/login-form";
 import { useCooldown } from "@/components/auth/otp";
 import { securityRequest } from "@/components/security-request";
@@ -128,7 +129,13 @@ export function TwoStepSettings({
           description="Ao entrar, um segundo código confirma que é você. Escolha por onde ele chega."
         />
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-5">
+        {/* Same block as every form error; the id wraps it so the code field can point at it. */}
+        {error && (
+          <div id={errorId}>
+            <FormAlert>{error}</FormAlert>
+          </div>
+        )}
         {!phone && (
           <AuthAlert kind="info">
             Vincule seu WhatsApp em Minha conta para ativar a verificação.
@@ -231,11 +238,6 @@ export function TwoStepSettings({
               </Button>
             </div>
           </form>
-        )}
-        {error && (
-          <AuthAlert kind="error" id={errorId}>
-            {error}
-          </AuthAlert>
         )}
         {message && <AuthAlert kind="info">{message}</AuthAlert>}
         <p className="sr-only" role="status">

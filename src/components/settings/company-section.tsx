@@ -60,7 +60,7 @@ export async function CompanySection() {
           />
         </CardContent>
         <CardFooter className="justify-end border-t">
-          <SubmitButton pendingLabel="Salvando…">Salvar dados</SubmitButton>
+          <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
         </CardFooter>
       </ServerForm>
     </Card>

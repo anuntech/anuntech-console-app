@@ -3,7 +3,6 @@ import { useState } from "react";
 import { MoreHorizontalIcon, ShieldCheckIcon, UserRoundXIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -24,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { FormField } from "@/components/console/form-field";
 import {
   ConfirmDialog,
   FormError,
@@ -37,6 +37,7 @@ import {
   saveConsoleStaffMember,
 } from "@/lib/members-actions";
 
+/** The company permission picker; also used by the company page's "Liberar acesso". */
 export function RoleSelect({
   id,
   defaultValue = "member",
@@ -45,7 +46,7 @@ export function RoleSelect({
   defaultValue?: string;
 }) {
   return (
-    <NativeSelect id={id} name="role" defaultValue={defaultValue} required className="bg-field">
+    <NativeSelect id={id} name="role" defaultValue={defaultValue} required>
       <NativeSelectOption value="member">Membro — chamados, bookmarks e projetos</NativeSelectOption>
       <NativeSelectOption value="manager">Administrador — tudo, inclusive financeiro</NativeSelectOption>
     </NativeSelect>
@@ -72,10 +73,7 @@ export function InviteForm({
       {companyId && <input type="hidden" name="companyId" value={companyId} />}
       <FormError />
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="min-w-0 flex-1">
-          <Label htmlFor="invite-email" className="mb-1.5">
-            Convidar pessoa
-          </Label>
+        <FormField label="Convidar pessoa" htmlFor="invite-email" className="flex-1">
           <Input
             id="invite-email"
             name="email"
@@ -85,14 +83,11 @@ export function InviteForm({
             autoComplete="off"
             placeholder="nome@empresa.com.br"
           />
-        </div>
+        </FormField>
         {!staff && (
-          <div className="sm:w-72">
-            <Label htmlFor="invite-role" className="mb-1.5">
-              Permissão
-            </Label>
+          <FormField label="Permissão" htmlFor="invite-role" className="sm:w-72">
             <RoleSelect id="invite-role" />
-          </div>
+          </FormField>
         )}
         <SubmitButton pendingLabel="Convidando…">Convidar pessoa</SubmitButton>
       </div>
@@ -164,19 +159,16 @@ export function MemberMenu({
                 <DialogDescription>{email}</DialogDescription>
               </DialogHeader>
               <FormError />
-              <div>
-                <Label htmlFor={`role-${memberId}`} className="mb-1.5">
-                  Permissão
-                </Label>
+              <FormField label="Permissão" htmlFor={`role-${memberId}`}>
                 <RoleSelect id={`role-${memberId}`} defaultValue={role} />
-              </div>
+              </FormField>
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline">
                     Cancelar
                   </Button>
                 </DialogClose>
-                <SubmitButton pendingLabel="Salvando…">Salvar permissão</SubmitButton>
+                <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
               </DialogFooter>
             </ServerForm>
           </DialogContent>

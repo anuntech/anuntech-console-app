@@ -13,6 +13,7 @@ import { getActor, canAccess, type Actor } from "./access";
 import { bookmarkInput, safeFileName } from "./bookmark-validation";
 import { personInScope, scopeOf, searchBookmarkPeople } from "./bookmarks";
 import type { ActionState } from "./action-state";
+import { BOOKMARK_FILE, limitLabel } from "./attachment-rules";
 
 const id = z.string().uuid();
 const companyField = z.union([id, z.literal("")]).default("");
@@ -30,7 +31,7 @@ const failure = (error: unknown): ActionState => ({
       : "Não foi possível salvar. Tente novamente.",
 });
 const refresh = () => revalidatePath("/bookmarks");
-const MAX_FILE = 1024 * 1024;
+const MAX_FILE = BOOKMARK_FILE.maxBytes;
 
 /** Anuntech's own space (null) is staff-only; a company needs access to it. */
 function companyAllowed(actor: Actor, companyId: string | null) {
@@ -220,7 +221,8 @@ export async function saveBookmark(_: ActionState, form: FormData): Promise<Acti
   const uploaded = file instanceof File && file.size > 0 ? file : null;
   if (!input.url && !uploaded) return { error: "Informe um link ou selecione um arquivo." };
   if (input.url && uploaded) return { error: "Salve um link ou um arquivo por vez." };
-  if (uploaded && uploaded.size > MAX_FILE) return { error: "Escolha um arquivo de até 1 MB." };
+  if (uploaded && uploaded.size > MAX_FILE)
+    return { error: `Escolha um arquivo de até ${limitLabel(MAX_FILE)}.` };
   try {
     let companyId: string | null = input.companyId || null;
     if (input.folderId) {
@@ -318,7 +320,7 @@ export async function deleteBookmark(_: ActionState, form: FormData): Promise<Ac
     await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId));
     await audit(actor, "bookmark.deleted", bookmarkId, item.companyId, { title: item.title });
     refresh();
-    return { success: "Bookmark removido." };
+    return { success: "Bookmark excluído." };
   } catch (error) {
     return failure(error);
   }

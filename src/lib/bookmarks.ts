@@ -50,6 +50,8 @@ export type BookmarkView = {
   title: string;
   url: string | null;
   fileName: string | null;
+  /** Bytes of the saved file; null for links. Optional so fixtures without it still type. */
+  fileSize?: number | null;
   folderId: string | null;
   companyId: string | null;
   ownerId: string;
@@ -189,6 +191,8 @@ export async function bookmarksFor(
         title: bookmarks.title,
         url: bookmarks.url,
         fileName: bookmarks.fileName,
+        // octet_length reads the stored size without loading the bytes.
+        fileSize: sql<number | null>`octet_length(${bookmarks.content})`,
         folderId: bookmarks.folderId,
         companyId: bookmarks.companyId,
         ownerId: bookmarks.ownerId,

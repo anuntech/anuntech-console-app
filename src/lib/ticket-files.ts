@@ -3,11 +3,14 @@ import { and, eq, gt, inArray } from "drizzle-orm";
 import { ticketUploads } from "@/db/schema";
 import type { db } from "./db";
 import { safeFileName } from "./bookmark-validation";
-export const MAX_TICKET_BYTES = 20 * 1024 * 1024;
+import { DOCUMENT_ATTACHMENTS, limitLabel } from "./attachment-rules";
+export const MAX_TICKET_BYTES = DOCUMENT_ATTACHMENTS.maxBytes;
+const MAX_TICKET_FILES = DOCUMENT_ATTACHMENTS.max;
+const limit = limitLabel(MAX_TICKET_BYTES);
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export async function normalizeTicketFile(content: Buffer, name: string) {
   if (!content.length || content.length > MAX_TICKET_BYTES)
-    throw new Error("Escolha um arquivo de até 20 MB.");
+    throw new Error(`Escolha um arquivo de até ${limit}.`);
   if (content.subarray(0, 5).toString() === "%PDF-")
     return {
       content,
@@ -52,10 +55,10 @@ export async function prepareTicketFiles(values: FormDataEntryValue[]) {
     (value): value is File => value instanceof File && value.size > 0,
   );
   if (
-    files.length > 5 ||
+    files.length > MAX_TICKET_FILES ||
     files.reduce((total, file) => total + file.size, 0) > MAX_TICKET_BYTES
   )
-    throw new Error("Selecione até 5 anexos, com no máximo 20 MB no total.");
+    throw new Error(`Selecione até ${MAX_TICKET_FILES} anexos, com no máximo ${limit} no total.`);
   const result = [];
   for (const file of files)
     result.push(
@@ -73,7 +76,7 @@ export async function takeTicketUploads(
 ) {
   const ids = form.getAll("uploadId").map(String);
   if (!ids.length) return [];
-  if (ids.length > 5 || new Set(ids).size !== ids.length)
+  if (ids.length > MAX_TICKET_FILES || new Set(ids).size !== ids.length)
     throw new Error("Anexos inválidos.");
   const rows = await tx
     .delete(ticketUploads)
@@ -89,7 +92,7 @@ export async function takeTicketUploads(
   if (rows.length !== ids.length)
     throw new Error("Os anexos expiraram. Selecione os arquivos novamente.");
   if (rows.reduce((sum, row) => sum + row.expectedSize, 0) > MAX_TICKET_BYTES)
-    throw new Error("Os anexos devem ter até 20 MB no total.");
+    throw new Error(`Os anexos devem ter até ${limit} no total.`);
   return rows.map((row) => ({
     content: row.content,
     name: row.name,

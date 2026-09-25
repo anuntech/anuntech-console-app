@@ -1,5 +1,6 @@
 "use server";
 import { prepareTicketFiles, takeTicketUploads } from "./ticket-files";
+import { DOCUMENT_ATTACHMENTS } from "./attachment-rules";
 import { z } from "zod";
 import { and, eq, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -207,7 +208,7 @@ export async function createTicket(
     catch (error) { return { error: error instanceof Error ? error.message : "Anexos inválidos." }; }
     const ticket = await db.transaction(async (tx) => {
       const uploaded = await takeTicketUploads(tx, actor.user.id, form);
-      if (files.length + uploaded.length > 5 || files.reduce((n, f) => n + f.size, 0) + uploaded.reduce((n, f) => n + f.size, 0) > 20 * 1024 * 1024) throw new Error("Limite de anexos excedido.");
+      if (files.length + uploaded.length > DOCUMENT_ATTACHMENTS.max || files.reduce((n, f) => n + f.size, 0) + uploaded.reduce((n, f) => n + f.size, 0) > DOCUMENT_ATTACHMENTS.maxBytes) throw new Error("Limite de anexos excedido.");
       if (input.engagementId) {
         const [eng] = await tx
           .select()
@@ -324,8 +325,8 @@ export async function replyTicket(
       if (!input.body && !files.length)
         return { error: "Escreva uma resposta ou anexe um arquivo." };
       if (
-        files.length > 5 ||
-        files.reduce((n, f) => n + f.size, 0) > 20 * 1024 * 1024
+        files.length > DOCUMENT_ATTACHMENTS.max ||
+        files.reduce((n, f) => n + f.size, 0) > DOCUMENT_ATTACHMENTS.maxBytes
       )
         return { error: "Selecione até 5 anexos, com no máximo 20 MB no total." };
       if (files.length) {

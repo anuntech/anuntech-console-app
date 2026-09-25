@@ -1,6 +1,6 @@
 "use client";
 import { DateField } from "@/components/console/date-field";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/console/form-field";
 import { saoPauloDate } from "@/lib/dates";
 import { dateLabel } from "@/lib/format";
 
@@ -24,10 +24,11 @@ export function BankDueDateField({
   if (!dueDate || dueDate > today) return null;
   const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
   return (
-    <div className="rounded-lg border border-warning-edge bg-warning-soft/50 px-4 py-3">
-      <Label htmlFor={`${idPrefix}-bank-due`} className="mb-1.5">
-        Pagar até
-      </Label>
+    <FormField
+      label="Pagar até"
+      htmlFor={`${idPrefix}-bank-due`}
+      className="rounded-lg border border-warning-edge bg-warning-soft/50 px-4 py-3"
+    >
       <DateField
         id={`${idPrefix}-bank-due`}
         name="bankDueDate"
@@ -41,6 +42,6 @@ export function BankDueDateField({
         Vencimento no passado: a fatura fica registrada como vencida desde {dateLabel(dueDate)}, e o boleto e o Pix
         valem até a data acima.
       </p>
-    </div>
+    </FormField>
   );
 }

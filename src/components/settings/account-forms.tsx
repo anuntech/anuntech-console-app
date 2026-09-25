@@ -30,12 +30,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { FormField } from "@/components/console/form-field";
 import {
+  FormAlert,
   FormError,
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { AuthAlert } from "@/components/auth/feedback";
 import { CodeInput } from "@/components/auth/login-form";
 import { normalizePhone, useCooldown } from "@/components/auth/otp";
 import { toast } from "@/components/notifications";
@@ -51,12 +52,9 @@ import { formatPhone } from "@/lib/company-input";
 export function NameForm({ name }: { name: string }) {
   const [value, setValue] = useState(name);
   return (
-    <ServerForm action={updateAccountName} className="flex flex-col gap-3">
+    <ServerForm action={updateAccountName} className="flex flex-col gap-5">
       <FormError />
-      <div>
-        <Label htmlFor="account-name" className="mb-1.5">
-          Nome
-        </Label>
+      <FormField label="Nome" htmlFor="account-name">
         <Input
           id="account-name"
           name="name"
@@ -67,10 +65,10 @@ export function NameForm({ name }: { name: string }) {
           value={value}
           onChange={(event) => setValue(event.target.value)}
         />
-      </div>
+      </FormField>
       <div className="flex justify-end">
-        <SubmitButton size="sm" pendingLabel="Salvando…" disabled={value.trim() === name.trim()}>
-          Salvar nome
+        <SubmitButton pendingLabel="Salvando…" disabled={value.trim() === name.trim()}>
+          Salvar
         </SubmitButton>
       </div>
     </ServerForm>
@@ -157,15 +155,13 @@ function EmailChangeDialog({ email, onClose }: { email: string; onClose: () => v
                 confirmar, entra novamente com o novo endereço.
               </DialogDescription>
             </DialogHeader>
+            {/* The id wraps the alert so the field can point at it. */}
             {state.error && (
-              <AuthAlert kind="error" id={`${id}-error`}>
-                {state.error}
-              </AuthAlert>
+              <div id={`${id}-error`}>
+                <FormAlert>{state.error}</FormAlert>
+              </div>
             )}
-            <div>
-              <Label htmlFor={`${id}-email`} className="mb-1.5">
-                Novo e-mail
-              </Label>
+            <FormField label="Novo e-mail" htmlFor={`${id}-email`}>
               <Input
                 id={`${id}-email`}
                 name="email"
@@ -177,7 +173,7 @@ function EmailChangeDialog({ email, onClose }: { email: string; onClose: () => v
                 placeholder="voce@empresa.com.br"
                 aria-describedby={state.error ? `${id}-error` : undefined}
               />
-            </div>
+            </FormField>
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button" variant="outline">
@@ -409,9 +405,9 @@ function WhatsappDialog({ current, onClose }: { current: string | null; onClose:
             </DialogDescription>
           </DialogHeader>
           {error && (
-            <AuthAlert kind="error" id={`${id}-error`}>
-              {error}
-            </AuthAlert>
+            <div id={`${id}-error`}>
+              <FormAlert>{error}</FormAlert>
+            </div>
           )}
           {sent ? (
             <>
@@ -448,10 +444,11 @@ function WhatsappDialog({ current, onClose }: { current: string | null; onClose:
               </div>
             </>
           ) : (
-            <div>
-              <Label htmlFor={`${id}-phone`} className="mb-1.5">
-                Número com DDD
-              </Label>
+            <FormField
+              label="Número com DDD"
+              htmlFor={`${id}-phone`}
+              hint="Para outro país, comece com + e o DDI."
+            >
               <Input
                 id={`${id}-phone`}
                 name="phone"
@@ -467,10 +464,7 @@ function WhatsappDialog({ current, onClose }: { current: string | null; onClose:
                   setError("");
                 }}
               />
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Para outro país, comece com + e o DDI.
-              </p>
-            </div>
+            </FormField>
           )}
           <DialogFooter className="sm:justify-between">
             {sent ? (

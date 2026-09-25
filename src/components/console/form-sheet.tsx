@@ -31,7 +31,7 @@ const widths = {
  *
  * Widths: `md` for four short fields or fewer, `xl` by default, `3xl` only
  * for long-text editors. The form closes the sheet on success unless the
- * action navigates (returns `href`).
+ * action navigates (returns `href`), in which case the navigation replaces it.
  */
 export function FormSheet({
   open,
@@ -45,6 +45,7 @@ export function FormSheet({
   formKey,
   submitLabel,
   pendingLabel = "Salvando…",
+  submitDisabled,
   onDelete,
   deleteLabel = "Excluir",
   footerStart,
@@ -57,12 +58,14 @@ export function FormSheet({
   description?: ReactNode;
   action: FormAction;
   prepare?: (form: FormData) => Promise<FormData>;
-  /** Defaults to closing the sheet. */
+  /** Defaults to closing the sheet, unless the action navigates (returns `href`). */
   onSuccess?: () => void;
   /** Remounts the form (and clears it) when the record changes. */
   formKey?: string;
   submitLabel: ReactNode;
   pendingLabel?: string;
+  /** Greys out the primary action, e.g. when there is nothing to post yet. */
+  submitDisabled?: boolean;
   /** Shows a destructive "Excluir" on the left of the footer; open a ConfirmDialog from it. */
   onDelete?: () => void;
   deleteLabel?: string;
@@ -77,7 +80,12 @@ export function FormSheet({
           key={formKey}
           action={action}
           prepare={prepare}
-          onSuccess={onSuccess ?? (() => onOpenChange(false))}
+          onSuccess={(state) => {
+            if (onSuccess) return onSuccess();
+            // An action that returns `href` navigates to the new record; closing here
+            // would make a route sheet go back and undo that navigation.
+            if (!state.href) onOpenChange(false);
+          }}
           className="flex h-full min-h-0 flex-col"
         >
           <SheetHeader className="border-b px-6 py-5">
@@ -101,7 +109,9 @@ export function FormSheet({
                 Cancelar
               </Button>
             </SheetClose>
-            <SubmitButton pendingLabel={pendingLabel}>{submitLabel}</SubmitButton>
+            <SubmitButton pendingLabel={pendingLabel} disabled={submitDisabled}>
+              {submitLabel}
+            </SubmitButton>
           </SheetFooter>
         </ServerForm>
       </SheetContent>

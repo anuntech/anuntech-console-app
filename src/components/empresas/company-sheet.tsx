@@ -1,25 +1,16 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  FormError,
-  ServerForm,
-  SubmitButton,
-} from "@/components/console/server-form";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
+import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { CompanyFields, type CompanyFormValues } from "./company-form";
 import { createCompany, updateCompany } from "@/lib/actions";
 
+const CREATE_DESCRIPTION = "Informe os dados do cliente. O CNPJ preenche o restante.";
 /** Create or edit a company in a side sheet; the task never leaves the list. */
 export function CompanySheet({
   open,
@@ -36,46 +27,62 @@ export function CompanySheet({
 }) {
   const editing = !!companyId;
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <ServerForm
-          key={open ? "open" : "closed"}
-          action={editing ? updateCompany : createCompany}
-          onSuccess={() => editing && onOpenChange(false)}
-          className="flex h-full min-h-0 flex-col"
-        >
-          {editing && <input type="hidden" name="id" value={companyId} />}
-          <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>
-              {editing ? "Editar dados da empresa" : "Cadastrar empresa"}
-            </SheetTitle>
-            <SheetDescription>
-              {editing
-                ? "As alterações valem para as próximas cobranças e notas."
-                : "Informe os dados do cliente. O CNPJ preenche o restante."}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <FormError className="mb-5" />
-            <CompanyFields company={company} lookupEnabled={lookupEnabled} />
-          </div>
-          <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-            <SheetClose asChild>
-              <Button type="button" variant="outline">
-                Cancelar
-              </Button>
-            </SheetClose>
-            <SubmitButton pendingLabel={editing ? "Salvando…" : "Cadastrando…"}>
-              {editing ? "Salvar alterações" : "Cadastrar empresa"}
-            </SubmitButton>
-          </SheetFooter>
-        </ServerForm>
-      </SheetContent>
-    </Sheet>
+    <FormSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      size="xl"
+      title={editing ? "Editar empresa" : "Nova empresa"}
+      description={editing ? "As alterações valem para as próximas cobranças e notas." : CREATE_DESCRIPTION}
+      action={editing ? updateCompany : createCompany}
+      formKey={open ? "open" : "closed"}
+      submitLabel={editing ? "Salvar" : "Cadastrar empresa"}
+      pendingLabel={editing ? "Salvando…" : "Cadastrando…"}
+    >
+      {editing && <input type="hidden" name="id" value={companyId} />}
+      <CompanyFields company={company} lookupEnabled={lookupEnabled} />
+    </FormSheet>
   );
 }
 
-/** Header action for the list; `?nova=1` (old deep links, the dock) opens it. */
+/** /empresas/nova reached by navigation (dock, Painel, assistant). */
+export function NewCompanySheet() {
+  const sheet = useRouteSheet();
+  return (
+    <FormSheet
+      {...sheet}
+      size="xl"
+      title="Nova empresa"
+      description={CREATE_DESCRIPTION}
+      action={createCompany}
+      submitLabel="Cadastrar empresa"
+      pendingLabel="Cadastrando…"
+    >
+      <CompanyFields />
+    </FormSheet>
+  );
+}
+
+/** /empresas/nova on a direct load. */
+export function NewCompanyForm() {
+  return (
+    <Card className="max-w-2xl">
+      <ServerForm action={createCompany} className="contents">
+        <CardContent className="flex flex-col gap-5">
+          <FormError />
+          <CompanyFields />
+        </CardContent>
+        <CardFooter className="justify-end gap-2 border-t">
+          <Button type="button" variant="outline" asChild>
+            <Link href="/empresas">Cancelar</Link>
+          </Button>
+          <SubmitButton pendingLabel="Cadastrando…">Cadastrar empresa</SubmitButton>
+        </CardFooter>
+      </ServerForm>
+    </Card>
+  );
+}
+
+/** Header action for the list; `?nova=1` (old deep links) opens it too. */
 export function NewCompanyButton() {
   const params = useSearchParams();
   const router = useRouter();

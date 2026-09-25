@@ -1,35 +1,19 @@
 "use client";
-import { useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { Trash2Icon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { DateField } from "@/components/console/date-field";
-import {
-  ConfirmDialog,
-  FormError,
-  ServerForm,
-  SubmitButton,
-} from "@/components/console/server-form";
+import { ConfirmDialog } from "@/components/console/server-form";
+import { FormSheet } from "@/components/console/form-sheet";
+import { FormField } from "@/components/console/form-field";
 import { AttachmentField } from "@/components/console/attachment-field";
 import { FileChip, FileChips } from "@/components/console/file-chip";
-import { useTicketUploads } from "@/components/chamados/ticket-uploads";
-import { createTask, deleteTask, removeTaskFile, updateTask } from "@/lib/task-actions";
+import { useStagedUploads } from "@/components/console/staged-uploads";
+import { createTask, deleteTask, updateTask } from "@/lib/task-actions";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -70,20 +54,43 @@ export type TaskEditor =
   | { mode: "create"; status: TaskStatus }
   | { mode: "edit"; task: BoardTask };
 
-/** Removes attachments through one hidden form that lives outside the sheet's form. */
-function useFileRemoval() {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [fileId, setFileId] = useState("");
-  const remove = (id: string) => {
-    flushSync(() => setFileId(id));
-    formRef.current?.requestSubmit();
-  };
-  const form = (
-    <ServerForm ref={formRef} action={removeTaskFile}>
-      <input type="hidden" name="id" value={fileId} />
-    </ServerForm>
+/**
+ * Saved files first, then the picker. Removing a saved file only marks it:
+ * the chip stays, struck through, with "Desfazer", and a hidden
+ * `removeFileId` tells updateTask to delete it when the sheet is saved.
+ * Cancelar closes the sheet and the marks go with it.
+ */
+function TaskFiles({
+  files,
+  canRemove,
+}: {
+  files: TaskFile[];
+  canRemove: (file: TaskFile) => boolean;
+}) {
+  const [marked, setMarked] = useState<string[]>([]);
+  return (
+    <FormField label="Anexos" htmlFor="task-files">
+      {files.length > 0 && (
+        <FileChips className="mb-3">
+          {files.map((file) => {
+            const removing = marked.includes(file.id);
+            return (
+              <li key={file.id}>
+                <FileChip
+                  file={file}
+                  href={`/api/anexos/${file.id}`}
+                  onRemove={canRemove(file) ? () => setMarked((ids) => [...ids, file.id]) : undefined}
+                  onRestore={removing ? () => setMarked((ids) => ids.filter((id) => id !== file.id)) : undefined}
+                />
+                {removing && <input type="hidden" name="removeFileId" value={file.id} />}
+              </li>
+            );
+          })}
+        </FileChips>
+      )}
+      <AttachmentField id="task-files" />
+    </FormField>
   );
-  return { remove, form };
 }
 
 /**
@@ -108,191 +115,119 @@ export function TaskSheet({
   now: string;
 }) {
   const [deleting, setDeleting] = useState(false);
-  const uploads = useTicketUploads();
-  const { remove, form: removalForm } = useFileRemoval();
-  const task = editor?.mode === "edit" ? editor.task : null;
-  const status = editor?.mode === "create" ? editor.status : (task?.status ?? "todo");
+  // The sheet keeps showing what it had while it slides out after closing.
+  const [shown, setShown] = useState(editor);
+  if (editor && editor !== shown) setShown(editor);
+  const current = editor ?? shown;
+  const uploads = useStagedUploads();
+  const task = current?.mode === "edit" ? current.task : null;
+  const status = current?.mode === "create" ? current.status : (task?.status ?? "todo");
   const canDelete = !!task && (viewer.admin || task.createdBy === viewer.id);
   const canRemoveFile = (file: TaskFile) =>
     viewer.admin || file.authorId === viewer.id || task?.createdBy === viewer.id;
   return (
     <>
-      <Sheet open={editor !== null} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-          <ServerForm
-            key={task?.id ?? `new-${status}`}
-            action={task ? updateTask : createTask}
-            prepare={uploads}
-            onSuccess={onClose}
-            className="flex h-full min-h-0 flex-col"
-          >
-            {task ? (
-              <input type="hidden" name="id" value={task.id} />
-            ) : (
-              <input type="hidden" name="engagementId" value={projectId} />
-            )}
-            <SheetHeader className="border-b px-6 py-5">
-              <SheetTitle>{task ? "Tarefa" : "Nova tarefa"}</SheetTitle>
-              <SheetDescription>
-                {task
-                  ? `${task.creator ? `Criada por ${task.creator} · ` : ""}atualizada ${relativeLabel(task.updatedAt, now)}`
-                  : `Entra na coluna ${taskStatusLabels[status]}.`}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-              <FormError className="mb-5" />
-              <div className="grid gap-5">
-                <div>
-                  <Label htmlFor="task-title" className="mb-1.5">
-                    Título
-                  </Label>
-                  <Input
-                    id="task-title"
-                    name="title"
-                    required
-                    maxLength={200}
-                    autoFocus
-                    defaultValue={task?.title ?? ""}
-                    placeholder="O que precisa ser feito"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="task-description" className="mb-1.5">
-                    Descrição
-                  </Label>
-                  <Textarea
-                    id="task-description"
-                    name="description"
-                    rows={5}
-                    maxLength={5000}
-                    defaultValue={task?.description ?? ""}
-                    placeholder="Contexto, o que precisa estar pronto, links úteis."
-                    className="min-h-28"
-                  />
-                </div>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="task-status" className="mb-1.5">
-                      Coluna
-                    </Label>
-                    <NativeSelect id="task-status" name="status" defaultValue={status} className="bg-field">
-                      {TASK_STATUSES.map((value) => (
-                        <NativeSelectOption key={value} value={value}>
-                          {taskStatusLabels[value]}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                  <div>
-                    <Label htmlFor="task-priority" className="mb-1.5">
-                      Prioridade
-                    </Label>
-                    <NativeSelect
-                      id="task-priority"
-                      name="priority"
-                      defaultValue={task?.priority ?? "normal"}
-                      className="bg-field"
-                    >
-                      {TASK_PRIORITIES.map((value) => (
-                        <NativeSelectOption key={value} value={value}>
-                          {taskPriorityLabels[value]}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                  <div>
-                    <Label htmlFor="task-assignees" className="mb-1.5">
-                      Responsáveis
-                    </Label>
-                    <PeopleField
-                      id="task-assignees"
-                      people={people}
-                      defaultValue={task?.assignees.map((person) => person.id) ?? []}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="task-due" className="mb-1.5">
-                      Prazo
-                    </Label>
-                    <DateField
-                      id="task-due"
-                      name="dueDate"
-                      defaultValue={task?.dueDate ?? ""}
-                      placeholder="Sem prazo"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="task-estimate" className="mb-1.5">
-                      Estimativa (horas)
-                    </Label>
-                    <Input
-                      id="task-estimate"
-                      name="estimate"
-                      inputMode="decimal"
-                      maxLength={10}
-                      defaultValue={
-                        task?.estimateMinutes != null ? minutesToHours(task.estimateMinutes) : ""
-                      }
-                      placeholder="Ex.: 1,5"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="task-labels" className="mb-1.5">
-                      Etiquetas
-                    </Label>
-                    <LabelField
-                      id="task-labels"
-                      defaultValue={task?.labels ?? []}
-                      suggestions={labelSuggestions}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="task-files" className="mb-1.5">
-                    Anexos
-                  </Label>
-                  {task && task.files.length > 0 && (
-                    <FileChips className="mb-3">
-                      {task.files.map((file) => (
-                        <li key={file.id}>
-                          <FileChip
-                            file={file}
-                            href={`/api/anexos/${file.id}`}
-                            onRemove={canRemoveFile(file) ? () => remove(file.id) : undefined}
-                          />
-                        </li>
-                      ))}
-                    </FileChips>
-                  )}
-                  <AttachmentField id="task-files" />
-                </div>
-              </div>
-            </div>
-            <SheetFooter className="flex-row items-center gap-2 border-t px-6 py-4 sm:justify-end">
-              {canDelete && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="mr-auto text-destructive hover:text-destructive"
-                  onClick={() => setDeleting(true)}
-                >
-                  <Trash2Icon />
-                  Excluir
-                </Button>
-              )}
-              <SheetClose asChild>
-                <Button type="button" variant="outline">
-                  Cancelar
-                </Button>
-              </SheetClose>
-              <SubmitButton pendingLabel="Salvando…">
-                {task ? "Salvar" : "Criar tarefa"}
-              </SubmitButton>
-            </SheetFooter>
-          </ServerForm>
-        </SheetContent>
-      </Sheet>
-      {removalForm}
+      <FormSheet
+        open={editor !== null}
+        onOpenChange={(open) => !open && onClose()}
+        size="xl"
+        title={task ? "Editar tarefa" : "Nova tarefa"}
+        description={
+          task
+            ? `${task.creator ? `Criada por ${task.creator} · ` : ""}atualizada ${relativeLabel(task.updatedAt, now)}`
+            : `Entra na coluna ${taskStatusLabels[status]}.`
+        }
+        action={task ? updateTask : createTask}
+        prepare={uploads}
+        onSuccess={onClose}
+        formKey={task?.id ?? `new-${status}`}
+        submitLabel={task ? "Salvar" : "Criar tarefa"}
+        pendingLabel={task ? "Salvando…" : "Criando…"}
+        onDelete={canDelete ? () => setDeleting(true) : undefined}
+      >
+        {task ? (
+          <input type="hidden" name="id" value={task.id} />
+        ) : (
+          <input type="hidden" name="engagementId" value={projectId} />
+        )}
+        <FormField label="Título" htmlFor="task-title">
+          <Input
+            id="task-title"
+            name="title"
+            required
+            maxLength={200}
+            autoFocus
+            defaultValue={task?.title ?? ""}
+            placeholder="O que precisa ser feito"
+          />
+        </FormField>
+        <FormField label="Descrição" htmlFor="task-description">
+          <Textarea
+            id="task-description"
+            name="description"
+            rows={5}
+            maxLength={5000}
+            defaultValue={task?.description ?? ""}
+            placeholder="Contexto, o que precisa estar pronto, links úteis."
+            className="min-h-28"
+          />
+        </FormField>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <FormField label="Coluna" htmlFor="task-status">
+            <NativeSelect id="task-status" name="status" defaultValue={status}>
+              {TASK_STATUSES.map((value) => (
+                <NativeSelectOption key={value} value={value}>
+                  {taskStatusLabels[value]}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </FormField>
+          <FormField label="Prioridade" htmlFor="task-priority">
+            <NativeSelect id="task-priority" name="priority" defaultValue={task?.priority ?? "normal"}>
+              {TASK_PRIORITIES.map((value) => (
+                <NativeSelectOption key={value} value={value}>
+                  {taskPriorityLabels[value]}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </FormField>
+          <FormField label="Responsáveis" htmlFor="task-assignees">
+            <PeopleField
+              id="task-assignees"
+              people={people}
+              defaultValue={task?.assignees.map((person) => person.id) ?? []}
+            />
+          </FormField>
+          <FormField label="Prazo" htmlFor="task-due">
+            <DateField
+              id="task-due"
+              name="dueDate"
+              defaultValue={task?.dueDate ?? ""}
+              placeholder="Sem prazo"
+            />
+          </FormField>
+          <FormField label="Estimativa (horas)" htmlFor="task-estimate">
+            <Input
+              id="task-estimate"
+              name="estimate"
+              inputMode="decimal"
+              maxLength={10}
+              defaultValue={
+                task?.estimateMinutes != null ? minutesToHours(task.estimateMinutes) : ""
+              }
+              placeholder="Ex.: 1,5"
+            />
+          </FormField>
+          <FormField label="Etiquetas" htmlFor="task-labels">
+            <LabelField
+              id="task-labels"
+              defaultValue={task?.labels ?? []}
+              suggestions={labelSuggestions}
+            />
+          </FormField>
+        </div>
+        <TaskFiles files={task?.files ?? []} canRemove={canRemoveFile} />
+      </FormSheet>
       {task && (
         <ConfirmDialog
           open={deleting}

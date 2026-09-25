@@ -5,20 +5,20 @@ import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { DateField } from "@/components/console/date-field";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { CompanyField, type CompanyOption } from "@/components/console/company-field";
+import { FormField } from "@/components/console/form-field";
+import { MoneyField } from "@/components/console/money-field";
 import {
   FormError,
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
 import { createInvoice } from "@/lib/actions";
-import { MoneyInput } from "./invoice-money";
 import { ChargeTermsFields } from "./charge-terms-fields";
 import { BankDueDateField } from "./bank-due-date-field";
 
@@ -42,7 +42,10 @@ const TYPES = [
   },
 ] as const;
 
-/** Fields to draft a charge. Names match createInvoice. */
+/**
+ * Fields to draft a charge. Names match createInvoice. Rendered as siblings
+ * so the sheet and the card space them with their own `gap-5`.
+ */
 export function InvoiceFields({
   companies,
   engagements,
@@ -54,41 +57,37 @@ export function InvoiceFields({
   companyId?: string;
   autoFocus?: boolean;
 }) {
-  const [company, setCompany] = useState(
-    companyId ?? (companies.length === 1 ? companies[0].id : ""),
-  );
+  // One company: nothing to choose, so it travels as a hidden value.
+  const only = companies.length === 1 ? companies[0].id : null;
+  const [company, setCompany] = useState(only ?? companyId ?? "");
   const [type, setType] = useState<"one_time" | "recurring">("one_time");
   const [dueDate, setDueDate] = useState("");
   const [bankDueDate, setBankDueDate] = useState("");
   const items = engagements.filter((e) => e.companyId === company);
   return (
-    <div className="grid gap-5">
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="invoice-company" className="mb-1.5">
-            Cliente
-          </Label>
-          <CompanyField
-            id="invoice-company"
-            name="companyId"
-            required
-            companies={companies}
-            value={company}
-            onChange={setCompany}
-            autoFocus={autoFocus}
-          />
-        </div>
-        <div>
-          <Label htmlFor="invoice-engagement" className="mb-1.5">
-            Produto ou projeto
-          </Label>
+    <>
+      {only && <input type="hidden" name="companyId" value={only} />}
+      <div className={cn("grid gap-5", !only && "sm:grid-cols-2")}>
+        {!only && (
+          <FormField label="Empresa" htmlFor="invoice-company">
+            <CompanyField
+              id="invoice-company"
+              name="companyId"
+              required
+              companies={companies}
+              value={company}
+              onChange={setCompany}
+              autoFocus={autoFocus}
+            />
+          </FormField>
+        )}
+        <FormField label="Produto ou projeto" htmlFor="invoice-engagement">
           <NativeSelect
             id="invoice-engagement"
             name="engagementId"
             key={company}
             defaultValue=""
             disabled={!company}
-            className="bg-field"
           >
             <NativeSelectOption value="">
               {company && !items.length ? "Nenhum cadastrado" : "Sem vínculo"}
@@ -99,23 +98,21 @@ export function InvoiceFields({
               </NativeSelectOption>
             ))}
           </NativeSelect>
-        </div>
+        </FormField>
       </div>
-      <div>
-        <Label htmlFor="invoice-description" className="mb-1.5">
-          Descrição
-        </Label>
+      <FormField label="Descrição" htmlFor="invoice-description">
         <Textarea
           id="invoice-description"
           name="description"
           required
           maxLength={1000}
           rows={2}
+          autoFocus={autoFocus && !!only}
           placeholder="Nome do produto ou serviço"
           className="min-h-16"
         />
-      </div>
-      <fieldset>
+      </FormField>
+      <fieldset className="min-w-0">
         <legend className="mb-1.5 text-sm font-medium text-foreground">
           Tipo de cobrança
         </legend>
@@ -143,33 +140,19 @@ export function InvoiceFields({
       </fieldset>
       <div className="grid gap-5 sm:grid-cols-2">
         {type === "recurring" && (
-          <div>
-            <Label htmlFor="invoice-interval" className="mb-1.5">
-              Frequência
-            </Label>
-            <NativeSelect
-              id="invoice-interval"
-              name="interval"
-              defaultValue="monthly"
-              className="bg-field"
-            >
+          <FormField label="Frequência" htmlFor="invoice-interval">
+            <NativeSelect id="invoice-interval" name="interval" defaultValue="monthly">
               <NativeSelectOption value="monthly">Mensal</NativeSelectOption>
               <NativeSelectOption value="yearly">Anual</NativeSelectOption>
             </NativeSelect>
-          </div>
+          </FormField>
         )}
-        <div>
-          <Label htmlFor="invoice-amount" className="mb-1.5">
-            Valor
-          </Label>
-          <MoneyInput id="invoice-amount" />
-        </div>
-        <div>
-          <Label htmlFor="invoice-due" className="mb-1.5">
-            {type === "recurring" ? "Primeiro vencimento" : "Vencimento"}
-          </Label>
+        <FormField label="Valor" htmlFor="invoice-amount">
+          <MoneyField id="invoice-amount" />
+        </FormField>
+        <FormField label={type === "recurring" ? "Primeiro vencimento" : "Vencimento"} htmlFor="invoice-due">
           <DateField id="invoice-due" name="dueDate" required value={dueDate} onChange={setDueDate} />
-        </div>
+        </FormField>
       </div>
       {type === "one_time" && (
         <BankDueDateField dueDate={dueDate} value={bankDueDate} onChange={setBankDueDate} idPrefix="invoice" />
@@ -181,9 +164,9 @@ export function InvoiceFields({
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        Salvar cria um rascunho. Nada é emitido nem enviado até você publicar.
+        Nasce como rascunho. Nada é emitido nem enviado até você publicar.
       </p>
-    </div>
+    </>
   );
 }
 
@@ -213,7 +196,7 @@ export function NewInvoiceForm({
           <Button type="button" variant="outline" asChild>
             <Link href="/financeiro">Cancelar</Link>
           </Button>
-          <SubmitButton pendingLabel="Salvando…">Salvar rascunho</SubmitButton>
+          <SubmitButton pendingLabel="Criando…">Criar rascunho</SubmitButton>
         </CardFooter>
       </ServerForm>
     </Card>

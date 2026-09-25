@@ -25,8 +25,27 @@ import { ContractTemplateSheet, type ContractTemplateValues } from "./contract-t
 
 export type ContractTemplateRow = ContractTemplateValues & { id: string; active: boolean; uses: number };
 
+/** Creates a contract template; the page header and the empty state show it. */
+export function NewContractTemplateButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <PlusIcon />
+        Novo modelo
+      </Button>
+      <ContractTemplateSheet open={open} onOpenChange={setOpen} template={null} />
+    </>
+  );
+}
+
+/** The model contracts as a compact list, with a sheet for editing. */
 export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }) {
-  const [editor, setEditor] = useState<{ item: ContractTemplateRow | null } | null>(null);
+  // The template stays set while the sheet slides out, so its fields don't blank.
+  const [editor, setEditor] = useState<{ open: boolean; item: ContractTemplateRow | null }>({
+    open: false,
+    item: null,
+  });
   const formRef = useRef<HTMLFormElement>(null);
   const [toggling, setToggling] = useState("");
   const toggle = (templateId: string) =>
@@ -36,12 +55,6 @@ export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }
     }, 0);
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <Button onClick={() => setEditor({ item: null })}>
-          <PlusIcon />
-          Novo modelo
-        </Button>
-      </div>
       {rows.length ? (
         <ul className="divide-y rounded-xl border bg-card shadow-card">
           {rows.map((row) => (
@@ -70,7 +83,7 @@ export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onSelect={() => setTimeout(() => setEditor({ item: row }), 0)}>
+                  <DropdownMenuItem onSelect={() => setTimeout(() => setEditor({ open: true, item: row }), 0)}>
                     <PencilIcon />
                     Editar
                   </DropdownMenuItem>
@@ -90,19 +103,14 @@ export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }
             icon={<FileSignatureIcon />}
             title="Nenhum modelo ainda"
             description="Cole o texto dos seus contratos uma vez, com os campos do cliente entre chaves, e gere cada contrato a partir daqui."
-            action={
-              <Button onClick={() => setEditor({ item: null })}>
-                <PlusIcon />
-                Novo modelo
-              </Button>
-            }
+            action={<NewContractTemplateButton />}
           />
         </section>
       )}
       <ContractTemplateSheet
-        open={editor !== null}
-        onOpenChange={(open) => !open && setEditor(null)}
-        template={editor?.item ?? null}
+        open={editor.open}
+        onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}
+        template={editor.item}
       />
       <ServerForm ref={formRef} action={toggleContractTemplate}>
         <input type="hidden" name="id" value={toggling} />

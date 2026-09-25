@@ -1,26 +1,17 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { CompanyField, type CompanyOption } from "@/components/console/company-field";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { DateField } from "@/components/console/date-field";
+import { FormField } from "@/components/console/form-field";
+import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import {
   FormError,
   ServerForm,
@@ -49,16 +40,22 @@ export type NewContractData = {
 
 const kindLabel: Record<string, string> = { product: "produto", service: "serviço", project: "projeto" };
 
-/** Company, template, the item it covers and the validity; the text is filled from the template. */
+/**
+ * Company, template, the item it covers and the validity; the text is filled
+ * from the template. Rendered as siblings so the sheet and the card space
+ * them with their own `gap-5`.
+ */
 export function NewContractFields({ companies, templates, engagements, companyId, engagementId, parent }: NewContractData) {
-  const [company, setCompany] = useState(parent?.companyId ?? companyId ?? companies[0]?.id ?? "");
+  // One company: nothing to choose, so it travels as a hidden value.
+  const only = companies.length === 1 ? companies[0].id : null;
+  const [company, setCompany] = useState(parent?.companyId ?? only ?? companyId ?? companies[0]?.id ?? "");
   const [templateId, setTemplateId] = useState(parent ? "" : (templates[0]?.id ?? ""));
   const [startsAt, setStartsAt] = useState("");
   const template = templates.find((t) => t.id === templateId);
   const items = engagements.filter((e) => e.companyId === company);
   const preselected = parent?.engagementId ?? engagementId;
   return (
-    <div className="grid gap-5">
+    <>
       {parent ? (
         <>
           <input type="hidden" name="parentId" value={parent.id} />
@@ -71,11 +68,10 @@ export function NewContractFields({ companies, templates, engagements, companyId
             </p>
           </div>
         </>
+      ) : only ? (
+        <input type="hidden" name="companyId" value={only} />
       ) : (
-        <div>
-          <Label htmlFor="contract-company" className="mb-1.5">
-            Empresa
-          </Label>
+        <FormField label="Empresa" htmlFor="contract-company">
           <CompanyField
             id="contract-company"
             name="companyId"
@@ -84,18 +80,25 @@ export function NewContractFields({ companies, templates, engagements, companyId
             value={company}
             onChange={setCompany}
           />
-        </div>
+        </FormField>
       )}
-      <div>
-        <Label htmlFor="contract-template" className="mb-1.5">
-          Modelo
-        </Label>
+      <FormField
+        label="Modelo"
+        htmlFor="contract-template"
+        hint={
+          template?.description ??
+          (parent
+            ? "Um texto curto que cita o contrato original; você escreve o que muda."
+            : templates.length
+              ? "Os campos do modelo são preenchidos com os dados da empresa."
+              : "Nenhum modelo ainda; cadastre em Configurações › Contratos.")
+        }
+      >
         <NativeSelect
           id="contract-template"
           name="templateId"
           value={templateId}
           onChange={(event) => setTemplateId(event.target.value)}
-          className="bg-field"
         >
           <NativeSelectOption value="">{parent ? "Aditivo simples (objeto e ratificação)" : "Em branco"}</NativeSelectOption>
           {templates.map((option) => (
@@ -104,25 +107,17 @@ export function NewContractFields({ companies, templates, engagements, companyId
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          {template?.description ??
-            (parent
-              ? "Um texto curto que cita o contrato original; você escreve o que muda."
-              : templates.length
-                ? "Os campos do modelo são preenchidos com os dados da empresa."
-                : "Nenhum modelo ainda; cadastre em Configurações › Contratos.")}
-        </p>
-      </div>
-      <div>
-        <Label htmlFor="contract-engagement" className="mb-1.5">
-          Vinculado a
-        </Label>
+      </FormField>
+      <FormField
+        label="Vinculado a"
+        htmlFor="contract-engagement"
+        hint="Preenche produto, valor e ciclo no texto, quando o modelo usa esses campos."
+      >
         <NativeSelect
           id="contract-engagement"
           name="engagementId"
           key={company}
           defaultValue={items.some((e) => e.id === preselected) ? preselected : ""}
-          className="bg-field"
         >
           <NativeSelectOption value="">Nenhum item</NativeSelectOption>
           {items.map((item) => (
@@ -131,24 +126,15 @@ export function NewContractFields({ companies, templates, engagements, companyId
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Preenche produto, valor e ciclo no texto, quando o modelo usa esses campos.
-        </p>
-      </div>
+      </FormField>
       <div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="contract-starts" className="mb-1.5">
-              {parent ? "Nova vigência: início" : "Início da vigência"}
-            </Label>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <FormField label={parent ? "Nova vigência: início" : "Início da vigência"} htmlFor="contract-starts">
             <DateField id="contract-starts" name="startsAt" value={startsAt} onChange={setStartsAt} placeholder="Sem data" />
-          </div>
-          <div>
-            <Label htmlFor="contract-ends" className="mb-1.5">
-              {parent ? "Nova vigência: fim" : "Fim da vigência"}
-            </Label>
+          </FormField>
+          <FormField label={parent ? "Nova vigência: fim" : "Fim da vigência"} htmlFor="contract-ends">
             <DateField id="contract-ends" name="endsAt" min={startsAt || undefined} placeholder="Sem data" />
-          </div>
+          </FormField>
         </div>
         <p className="mt-1.5 text-xs text-muted-foreground">
           {parent
@@ -156,10 +142,7 @@ export function NewContractFields({ companies, templates, engagements, companyId
             : "Preenche {{inicio}} e {{fim}} no modelo e dispara o alerta 30 dias antes do fim. Dá para ajustar depois."}
         </p>
       </div>
-      <div>
-        <Label htmlFor="contract-title" className="mb-1.5">
-          Título
-        </Label>
+      <FormField label="Título" htmlFor="contract-title">
         <Input
           id="contract-title"
           name="title"
@@ -172,46 +155,25 @@ export function NewContractFields({ companies, templates, engagements, companyId
                 : "Ex.: Contrato de prestação de serviços"
           }
         />
-      </div>
-    </div>
+      </FormField>
+    </>
   );
 }
 
 /** /contratos/novo reached by navigation. */
 export function NewContractSheet(data: NewContractData) {
-  const router = useRouter();
-  const [open, setOpen] = useState(true);
-  const amendment = !!data.parent;
+  const sheet = useRouteSheet();
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        if (next) return;
-        setOpen(false);
-        setTimeout(() => router.back(), 300);
-      }}
+    <FormSheet
+      {...sheet}
+      title={data.parent ? "Novo aditivo" : "Novo contrato"}
+      description="Nasce como rascunho; você revisa o texto antes de enviar."
+      action={createContract}
+      submitLabel="Criar rascunho"
+      pendingLabel="Criando…"
     >
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <ServerForm action={createContract} className="flex h-full min-h-0 flex-col">
-          <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>{amendment ? "Novo aditivo" : "Novo contrato"}</SheetTitle>
-            <SheetDescription>Nasce como rascunho; você revisa o texto antes de enviar.</SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <FormError className="mb-5" />
-            <NewContractFields {...data} />
-          </div>
-          <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-            <SheetClose asChild>
-              <Button type="button" variant="outline">
-                Cancelar
-              </Button>
-            </SheetClose>
-            <SubmitButton pendingLabel="Criando…">Criar rascunho</SubmitButton>
-          </SheetFooter>
-        </ServerForm>
-      </SheetContent>
-    </Sheet>
+      <NewContractFields {...data} />
+    </FormSheet>
   );
 }
 

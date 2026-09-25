@@ -1,25 +1,11 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { TriangleAlertIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/console/date-field";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  FormError,
-  ServerForm,
-  SubmitButton,
-} from "@/components/console/server-form";
+import { FormField } from "@/components/console/form-field";
+import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
+import { MoneyField } from "@/components/console/money-field";
 import { createInvoice, updateDraft } from "@/lib/actions";
 import { reissueInvoice } from "@/lib/billing-actions";
 import { updateSubscription } from "@/lib/billing-public-actions";
@@ -28,7 +14,6 @@ import {
   type InvoiceCompanyOption,
   type InvoiceEngagementOption,
 } from "./invoice-form";
-import { MoneyInput } from "./invoice-money";
 import { ChargeTermsFields } from "./charge-terms-fields";
 import { BankDueDateField } from "./bank-due-date-field";
 import { sameTerms, type ChargeTerms } from "@/lib/billing-terms";
@@ -55,12 +40,12 @@ const copy: Record<
   draft: {
     title: "Editar rascunho",
     description: "Nada foi emitido: valor e vencimento ainda podem mudar.",
-    submit: "Salvar alterações",
+    submit: "Salvar",
   },
   issued: {
     title: "Editar fatura",
     description: "Descrição, valor e vencimento desta cobrança.",
-    submit: "Salvar alterações",
+    submit: "Salvar",
   },
   subscription: {
     title: "Editar próximas cobranças",
@@ -75,14 +60,16 @@ const actions = {
   subscription: updateSubscription,
 };
 
-function EditForm({
+function EditSheet({
+  open,
+  onOpenChange,
   mode,
   invoice,
-  onDone,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   mode: InvoiceEditMode;
   invoice: InvoiceEditable;
-  onDone: () => void;
 }) {
   const text = copy[mode];
   const [cents, setCents] = useState(invoice.amountCents);
@@ -97,100 +84,78 @@ function EditForm({
       bankDueDate !== (invoice.bankDueDate ?? "") ||
       !sameTerms(terms, invoice.terms));
   return (
-    <ServerForm
+    <FormSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={text.title}
+      description={text.description}
       action={actions[mode]}
-      onSuccess={onDone}
-      className="flex h-full min-h-0 flex-col"
+      submitLabel={reissue ? "Salvar e reemitir" : text.submit}
+      pendingLabel={reissue ? "Reemitindo…" : "Salvando…"}
     >
       <input type="hidden" name="id" value={invoice.id} />
-      <SheetHeader className="border-b px-6 py-5">
-        <SheetTitle>{text.title}</SheetTitle>
-        <SheetDescription>{text.description}</SheetDescription>
-      </SheetHeader>
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
-        <FormError />
-        <div>
-          <Label htmlFor="edit-description" className="mb-1.5">
-            Descrição
-          </Label>
-          <Textarea
-            id="edit-description"
-            name="description"
-            required
-            maxLength={1000}
-            rows={2}
-            defaultValue={invoice.description}
-            autoFocus
-            className="min-h-16"
-          />
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="edit-amount" className="mb-1.5">
-              {mode === "subscription" ? "Valor por período" : "Valor"}
-            </Label>
-            <MoneyInput
-              id="edit-amount"
-              defaultCents={invoice.amountCents}
-              onCentsChange={setCents}
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-due" className="mb-1.5">
-              {mode === "subscription" ? "Próximo vencimento" : "Vencimento"}
-            </Label>
-            <DateField
-              id="edit-due"
-              name="dueDate"
-              required
-              value={dueDate}
-              onChange={setDueDate}
-            />
-          </div>
-        </div>
-        {mode !== "subscription" && !invoice.recurring && (
-          <BankDueDateField dueDate={dueDate} value={bankDueDate} onChange={setBankDueDate} idPrefix="edit" />
-        )}
-        <ChargeTermsFields
-          idPrefix="edit-terms"
-          defaultValue={invoice.terms}
-          onChange={setTerms}
-          scope={
-            mode !== "subscription" && invoice.recurring
-              ? { recurring: true, defaultValue: "this" }
-              : undefined
-          }
+      <FormField label="Descrição" htmlFor="edit-description">
+        <Textarea
+          id="edit-description"
+          name="description"
+          required
+          maxLength={1000}
+          rows={2}
+          defaultValue={invoice.description}
+          autoFocus
+          className="min-h-16"
         />
-        {mode === "issued" &&
-          (reissue ? (
-            <div
-              role="status"
-              className="flex items-start gap-3 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
-            >
-              <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
-              <span>
-                O boleto e o Pix atuais são cancelados no Inter e novos são
-                emitidos com estes dados e condições. O link de pagamento continua o mesmo.
-              </span>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Mudar o valor, o vencimento ou as condições cancela o boleto e o
-              Pix atuais no Inter e emite novos. O link de pagamento continua o mesmo.
-            </p>
-          ))}
+      </FormField>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <FormField label={mode === "subscription" ? "Valor por período" : "Valor"} htmlFor="edit-amount">
+          <MoneyField
+            id="edit-amount"
+            defaultCents={invoice.amountCents}
+            onCentsChange={setCents}
+          />
+        </FormField>
+        <FormField label={mode === "subscription" ? "Próximo vencimento" : "Vencimento"} htmlFor="edit-due">
+          <DateField
+            id="edit-due"
+            name="dueDate"
+            required
+            value={dueDate}
+            onChange={setDueDate}
+          />
+        </FormField>
       </div>
-      <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-        <SheetClose asChild>
-          <Button type="button" variant="outline">
-            Cancelar
-          </Button>
-        </SheetClose>
-        <SubmitButton pendingLabel={reissue ? "Reemitindo…" : "Salvando…"}>
-          {reissue ? "Salvar e reemitir" : text.submit}
-        </SubmitButton>
-      </SheetFooter>
-    </ServerForm>
+      {mode !== "subscription" && !invoice.recurring && (
+        <BankDueDateField dueDate={dueDate} value={bankDueDate} onChange={setBankDueDate} idPrefix="edit" />
+      )}
+      <ChargeTermsFields
+        idPrefix="edit-terms"
+        defaultValue={invoice.terms}
+        onChange={setTerms}
+        scope={
+          mode !== "subscription" && invoice.recurring
+            ? { recurring: true, defaultValue: "this" }
+            : undefined
+        }
+      />
+      {mode === "issued" &&
+        (reissue ? (
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
+          >
+            <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+            <span>
+              O boleto e o Pix atuais são cancelados no Inter e novos são
+              emitidos com estes dados e condições. O link de pagamento continua o mesmo.
+            </span>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Mudar o valor, o vencimento ou as condições cancela o boleto e o
+            Pix atuais no Inter e emite novos. O link de pagamento continua o mesmo.
+          </p>
+        ))}
+    </FormSheet>
   );
 }
 
@@ -205,19 +170,22 @@ export function InvoiceSheet({
   mode: InvoiceEditMode;
   invoice: InvoiceEditable | null;
 }) {
+  // Each opening edits a snapshot taken when it opens: fresh values every
+  // time, and the same title and fields while the sheet slides out (callers
+  // clear or switch `mode`/`invoice` as soon as it closes).
+  const [session, setSession] = useState({ open: false, count: 0, mode, invoice });
+  if (session.open !== open) {
+    setSession(open ? { open, count: session.count + 1, mode, invoice } : { ...session, open });
+  }
+  if (!session.invoice) return null;
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
-        {invoice && (
-          <EditForm
-            key={`${mode}-${invoice.id}-${open ? "open" : "closed"}`}
-            mode={mode}
-            invoice={invoice}
-            onDone={() => onOpenChange(false)}
-          />
-        )}
-      </SheetContent>
-    </Sheet>
+    <EditSheet
+      key={session.count}
+      open={open}
+      onOpenChange={onOpenChange}
+      mode={session.mode}
+      invoice={session.invoice}
+    />
   );
 }
 
@@ -234,48 +202,22 @@ export function NewInvoiceSheet({
   engagements: InvoiceEngagementOption[];
   companyId?: string;
 }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(true);
+  const sheet = useRouteSheet();
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        if (next) return;
-        setOpen(false);
-        // Let the sheet slide out before the route unmounts it.
-        setTimeout(() => router.back(), 300);
-      }}
+    <FormSheet
+      {...sheet}
+      title="Nova cobrança"
+      description="Quem paga, o que está sendo cobrado e as condições."
+      action={createInvoice}
+      submitLabel="Criar rascunho"
+      pendingLabel="Criando…"
     >
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <ServerForm
-          action={createInvoice}
-          className="flex h-full min-h-0 flex-col"
-        >
-          <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>Nova cobrança</SheetTitle>
-            <SheetDescription>
-              Quem paga, o que está sendo cobrado e as condições.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <FormError className="mb-5" />
-            <InvoiceFields
-              companies={companies}
-              engagements={engagements}
-              companyId={companyId}
-              autoFocus
-            />
-          </div>
-          <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-            <SheetClose asChild>
-              <Button type="button" variant="outline">
-                Cancelar
-              </Button>
-            </SheetClose>
-            <SubmitButton pendingLabel="Salvando…">Salvar rascunho</SubmitButton>
-          </SheetFooter>
-        </ServerForm>
-      </SheetContent>
-    </Sheet>
+      <InvoiceFields
+        companies={companies}
+        engagements={engagements}
+        companyId={companyId}
+        autoFocus
+      />
+    </FormSheet>
   );
 }

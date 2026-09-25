@@ -22,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
@@ -41,13 +40,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -61,6 +53,7 @@ import {
   EmptyState,
 } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { FormField } from "@/components/console/form-field";
 import {
   ConfirmAction,
   ConfirmDialog,
@@ -68,6 +61,7 @@ import {
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
+import { RoleSelect } from "@/components/settings/member-actions";
 import { CompanySheet } from "./company-sheet";
 import { companyInitials, StatusDot } from "./companies-table";
 import type { CompanyFormValues } from "./company-form";
@@ -179,11 +173,8 @@ function GrantAccessDialog({
             </DialogDescription>
           </DialogHeader>
           <FormError />
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="grant-email" className="mb-1.5">
-                E-mail
-              </Label>
+          <div className="grid gap-5">
+            <FormField label="E-mail" htmlFor="grant-email">
               <Input
                 id="grant-email"
                 name="email"
@@ -193,25 +184,10 @@ function GrantAccessDialog({
                 autoComplete="off"
                 placeholder="nome@empresa.com.br"
               />
-            </div>
-            <div>
-              <Label htmlFor="grant-role" className="mb-1.5">
-                Permissão
-              </Label>
-              <Select name="role" defaultValue="member">
-                <SelectTrigger id="grant-role" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">
-                    Membro — chamados, bookmarks e projetos
-                  </SelectItem>
-                  <SelectItem value="manager">
-                    Administrador — tudo, inclusive financeiro
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            </FormField>
+            <FormField label="Permissão" htmlFor="grant-role">
+              <RoleSelect id="grant-role" />
+            </FormField>
           </div>
           <DialogFooter>
             <DialogClose asChild>

@@ -1,22 +1,20 @@
 "use client";
-import Link from "next/link";
 import { useId, useState, type KeyboardEvent } from "react";
 import { ChevronDownIcon, ChevronUpIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionTitle } from "@/components/console/page-header";
-import { CompanyField, type CompanyOption } from "@/components/console/company-field";
 import { DateField } from "@/components/console/date-field";
 import { Fact } from "@/components/console/fact";
+import { FormField } from "@/components/console/form-field";
+import { MoneyField } from "@/components/console/money-field";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
-import { MoneyInput } from "@/components/financeiro/invoice-money";
-import { createQuote, saveQuote } from "@/lib/quote-actions";
+import { TokenChip } from "@/components/console/token-chip";
+import { saveQuote } from "@/lib/quote-actions";
 import { currency } from "@/lib/format";
 import {
-  emptyQuoteContent,
   hoursLabel,
   quoteTotals,
   taskCode,
@@ -25,14 +23,12 @@ import {
 } from "@/lib/quote-model";
 
 export type QuoteEditorData = {
-  /** Only when creating: who the proposal is for. */
-  companies: CompanyOption[];
-  companyId?: string;
-  quote?: { id: string; revision: number; title: string; validUntil: string | null; content: QuoteContent };
+  quote: { id: string; revision: number; title: string; validUntil: string | null; content: QuoteContent };
 };
 
 const emptyPhase = (): QuotePhase => ({ name: "", description: "", hoursMin: 0, hoursMax: 0, tasks: [] });
-const whole = (value: string) => Math.max(0, Math.floor(Number(value) || 0));
+/* Text inputs with a numeric keyboard; anything but digits is dropped. */
+const whole = (value: string) => Number(value.replace(/\D/g, "").slice(0, 9)) || 0;
 
 /** Technologies as chips; Enter or a comma adds one, Backspace on empty removes the last. */
 function StackField({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
@@ -53,23 +49,16 @@ function StackField({ value, onChange }: { value: string[]; onChange: (next: str
     } else if (event.key === "Backspace" && !draft && value.length) onChange(value.slice(0, -1));
   };
   return (
-    <div>
-      <Label htmlFor={uid} className="mb-1.5">
-        Stack
-      </Label>
+    <FormField label="Stack" htmlFor={uid} hint="Enter ou vírgula separa cada tecnologia.">
       <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-field px-2 py-1.5 shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
         {value.map((item) => (
-          <span key={item} className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-foreground">
+          <TokenChip
+            key={item}
+            removeLabel={`Remover ${item}`}
+            onRemove={() => onChange(value.filter((entry) => entry !== item))}
+          >
             {item}
-            <button
-              type="button"
-              aria-label={`Remover ${item}`}
-              onClick={() => onChange(value.filter((entry) => entry !== item))}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <XIcon className="size-3" />
-            </button>
-          </span>
+          </TokenChip>
         ))}
         <input
           id={uid}
@@ -81,8 +70,7 @@ function StackField({ value, onChange }: { value: string[]; onChange: (next: str
           className="min-w-[10rem] flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-none placeholder:text-muted-foreground focus:ring-0"
         />
       </div>
-      <p className="mt-1.5 text-xs text-muted-foreground">Enter ou vírgula separa cada tecnologia.</p>
-    </div>
+    </FormField>
   );
 }
 
@@ -110,10 +98,7 @@ function PhaseEditor({
         <span className="mt-2 w-6 shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">P{index + 1}</span>
         <div className="grid min-w-0 flex-1 gap-3">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px_96px]">
-            <div>
-              <Label htmlFor={`${uid}-name`} className="mb-1.5">
-                Fase
-              </Label>
+            <FormField label="Fase" htmlFor={`${uid}-name`}>
               <Input
                 id={`${uid}-name`}
                 value={phase.name}
@@ -121,44 +106,31 @@ function PhaseEditor({
                 placeholder="Ex.: Planejamento e fundação"
                 onChange={(event) => onChange({ ...phase, name: event.target.value })}
               />
-            </div>
-            <div>
-              <Label htmlFor={`${uid}-min`} className="mb-1.5">
-                Horas mín.
-              </Label>
+            </FormField>
+            <FormField label="Horas mín." htmlFor={`${uid}-min`}>
               <Input
                 id={`${uid}-min`}
-                type="number"
-                min={0}
-                step={1}
                 inputMode="numeric"
+                autoComplete="off"
                 placeholder="0"
                 value={phase.hoursMin || ""}
                 onChange={(event) => onChange({ ...phase, hoursMin: whole(event.target.value) })}
                 className="tabular-nums"
               />
-            </div>
-            <div>
-              <Label htmlFor={`${uid}-max`} className="mb-1.5">
-                Horas máx.
-              </Label>
+            </FormField>
+            <FormField label="Horas máx." htmlFor={`${uid}-max`}>
               <Input
                 id={`${uid}-max`}
-                type="number"
-                min={0}
-                step={1}
                 inputMode="numeric"
+                autoComplete="off"
                 placeholder="0"
                 value={phase.hoursMax || ""}
                 onChange={(event) => onChange({ ...phase, hoursMax: whole(event.target.value) })}
                 className="tabular-nums"
               />
-            </div>
+            </FormField>
           </div>
-          <div>
-            <Label htmlFor={`${uid}-description`} className="mb-1.5">
-              Descrição
-            </Label>
+          <FormField label="Descrição" htmlFor={`${uid}-description`}>
             <Textarea
               id={`${uid}-description`}
               rows={2}
@@ -167,7 +139,7 @@ function PhaseEditor({
               value={phase.description}
               onChange={(event) => onChange({ ...phase, description: event.target.value })}
             />
-          </div>
+          </FormField>
           {phase.tasks.length > 0 && (
             <ol className="m-0 flex list-none flex-col gap-2 p-0">
               {phase.tasks.map((task, position) => (
@@ -231,14 +203,14 @@ function PhaseEditor({
 }
 
 /**
- * Creating or editing a draft proposal. The whole structure lives in
- * state and is posted as one JSON field; the summary on the side shows
- * the numbers the proposal will print as they change.
+ * Editing a draft proposal on its own page (the draft is created in
+ * NewQuoteSheet). The whole structure lives in state and is posted as one
+ * JSON field; the summary on the side shows the numbers the proposal will
+ * print as they change.
  */
-export function QuoteEditor({ companies, companyId, quote }: QuoteEditorData) {
-  const editing = !!quote;
+export function QuoteEditor({ quote }: QuoteEditorData) {
   const uid = useId();
-  const [content, setContent] = useState<QuoteContent>(quote?.content ?? emptyQuoteContent());
+  const [content, setContent] = useState<QuoteContent>(quote.content);
   const patch = (next: Partial<QuoteContent>) => setContent((current) => ({ ...current, ...next }));
   const setPhase = (index: number, phase: QuotePhase) => patch({ phases: content.phases.map((entry, i) => (i === index ? phase : entry)) });
   const movePhase = (index: number, direction: -1 | 1) => {
@@ -250,12 +222,9 @@ export function QuoteEditor({ companies, companyId, quote }: QuoteEditorData) {
   };
   const totals = quoteTotals(content);
   return (
-    <ServerForm
-      action={editing ? saveQuote : createQuote}
-      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start"
-    >
-      {editing && <input type="hidden" name="id" value={quote.id} />}
-      {editing && <input type="hidden" name="revision" value={quote.revision} />}
+    <ServerForm action={saveQuote} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <input type="hidden" name="id" value={quote.id} />
+      <input type="hidden" name="revision" value={quote.revision} />
       <input type="hidden" name="content" value={JSON.stringify(content)} />
       <div className="flex min-w-0 flex-col gap-6">
         <Card>
@@ -267,35 +236,17 @@ export function QuoteEditor({ companies, companyId, quote }: QuoteEditorData) {
           </CardHeader>
           <CardContent className="grid gap-5">
             <FormError />
-            {!editing &&
-              (companies.length === 1 ? (
-                <input type="hidden" name="companyId" value={companies[0].id} />
-              ) : (
-                <div>
-                  <Label htmlFor={`${uid}-company`} className="mb-1.5">
-                    Empresa
-                  </Label>
-                  <CompanyField id={`${uid}-company`} name="companyId" required companies={companies} defaultValue={companyId} />
-                </div>
-              ))}
-            <div>
-              <Label htmlFor={`${uid}-title`} className="mb-1.5">
-                Título
-              </Label>
+            <FormField label="Título" htmlFor={`${uid}-title`}>
               <Input
                 id={`${uid}-title`}
                 name="title"
                 required
                 maxLength={160}
-                defaultValue={quote?.title ?? ""}
+                defaultValue={quote.title}
                 placeholder="Ex.: Sistema de controle de OS/OR"
-                autoFocus={!editing && companies.length === 1}
               />
-            </div>
-            <div>
-              <Label htmlFor={`${uid}-summary`} className="mb-1.5">
-                Resumo
-              </Label>
+            </FormField>
+            <FormField label="Resumo" htmlFor={`${uid}-summary`}>
               <Textarea
                 id={`${uid}-summary`}
                 rows={3}
@@ -304,48 +255,33 @@ export function QuoteEditor({ companies, companyId, quote }: QuoteEditorData) {
                 onChange={(event) => patch({ summary: event.target.value })}
                 placeholder="Uma ou duas frases sobre o que será construído."
               />
-            </div>
+            </FormField>
             <div className="grid gap-5 sm:grid-cols-3">
-              <div>
-                <Label htmlFor={`${uid}-rate`} className="mb-1.5">
-                  Taxa/hora
-                </Label>
-                <MoneyInput
+              <FormField label="Taxa/hora" htmlFor={`${uid}-rate`}>
+                <MoneyField
                   id={`${uid}-rate`}
                   name="rate"
                   required={false}
-                  defaultCents={quote?.content.hourlyRateCents || undefined}
+                  defaultCents={quote.content.hourlyRateCents || undefined}
                   onCentsChange={(cents) => patch({ hourlyRateCents: cents })}
                 />
-              </div>
-              <div>
-                <Label htmlFor={`${uid}-upfront`} className="mb-1.5">
-                  Entrada (%)
-                </Label>
+              </FormField>
+              <FormField label="Entrada (%)" htmlFor={`${uid}-upfront`}>
                 <Input
                   id={`${uid}-upfront`}
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
                   inputMode="numeric"
+                  autoComplete="off"
                   value={content.upfrontPercent}
                   onChange={(event) => patch({ upfrontPercent: Math.min(100, whole(event.target.value)) })}
                   className="tabular-nums"
                 />
-              </div>
-              <div>
-                <Label htmlFor={`${uid}-valid`} className="mb-1.5">
-                  Válido até
-                </Label>
-                <DateField id={`${uid}-valid`} name="validUntil" defaultValue={quote?.validUntil ?? ""} placeholder="Sem prazo" />
-              </div>
+              </FormField>
+              <FormField label="Validade" htmlFor={`${uid}-valid`}>
+                <DateField id={`${uid}-valid`} name="validUntil" defaultValue={quote.validUntil ?? ""} placeholder="Sem prazo" />
+              </FormField>
             </div>
             <StackField value={content.stack} onChange={(stack) => patch({ stack })} />
-            <div>
-              <Label htmlFor={`${uid}-notes`} className="mb-1.5">
-                Observações
-              </Label>
+            <FormField label="Observações" htmlFor={`${uid}-notes`} hint="Aparece no rodapé da proposta, abaixo do total.">
               <Textarea
                 id={`${uid}-notes`}
                 rows={2}
@@ -353,8 +289,7 @@ export function QuoteEditor({ companies, companyId, quote }: QuoteEditorData) {
                 value={content.notes}
                 onChange={(event) => patch({ notes: event.target.value })}
               />
-              <p className="mt-1.5 text-xs text-muted-foreground">Aparece no rodapé da proposta, abaixo do total.</p>
-            </div>
+            </FormField>
           </CardContent>
         </Card>
 
@@ -409,13 +344,10 @@ export function QuoteEditor({ companies, companyId, quote }: QuoteEditorData) {
               Valor total = horas máximas × taxa/hora. {totals.hoursMax}h × {currency(content.hourlyRateCents)}.
             </p>
           </CardContent>
-          <CardFooter className="flex-col items-stretch gap-2 border-t">
-            <SubmitButton pendingLabel={editing ? "Salvando…" : "Criando…"}>{editing ? "Salvar rascunho" : "Criar rascunho"}</SubmitButton>
-            {!editing && (
-              <Button type="button" variant="ghost" asChild>
-                <Link href="/orcamentos">Cancelar</Link>
-              </Button>
-            )}
+          <CardFooter className="border-t">
+            <SubmitButton pendingLabel="Salvando…" className="w-full">
+              Salvar rascunho
+            </SubmitButton>
           </CardFooter>
         </Card>
       </aside>

@@ -8,10 +8,12 @@ import { assistantDocuments, assistantSettings, auditEvents } from "@/db/schema"
 import type { ActionState } from "./action-state";
 import { DEFAULT_ASSISTANT_MODEL } from "./assistant";
 import { openRouterModels } from "./openrouter-models";
+import { KNOWLEDGE_DOCUMENT, limitLabel } from "./attachment-rules";
 
 const blocked = { error: "Você não tem permissão para realizar esta ação." };
 const MAX_DOCUMENTS = 30;
-const MAX_DOCUMENT_BYTES = 300 * 1024;
+const MAX_DOCUMENT_BYTES = KNOWLEDGE_DOCUMENT.maxBytes;
+const tooLarge = `Cada documento pode ter até ${limitLabel(MAX_DOCUMENT_BYTES)}. Divida em partes.`;
 const refresh = () => revalidatePath("/configuracoes/assistente");
 const failure = (e: unknown, fallback: string): ActionState => ({
   error: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error && e.message ? e.message : fallback,
@@ -58,14 +60,14 @@ export async function addAssistantDocument(_: ActionState, form: FormData): Prom
     let name = String(form.get("name") ?? "").trim();
     let content = pasted;
     if (file instanceof File && file.size > 0) {
-      if (file.size > MAX_DOCUMENT_BYTES) return { error: "Cada documento pode ter até 300 KB. Divida em partes." };
+      if (file.size > MAX_DOCUMENT_BYTES) return { error: tooLarge };
       if (!/\.(md|markdown|txt|csv)$/i.test(file.name)) return { error: "Envie um arquivo .md, .txt ou .csv. PDFs e documentos do Word não são lidos." };
       content = await file.text();
       name = name || file.name.replace(/\.[^.]+$/, "");
     }
     content = content.replace(/\r\n?/g, "\n").replace(/\u0000/g, "").trim();
     if (!content) return { error: "Envie um arquivo ou cole o texto do documento." };
-    if (Buffer.byteLength(content) > MAX_DOCUMENT_BYTES) return { error: "Cada documento pode ter até 300 KB. Divida em partes." };
+    if (Buffer.byteLength(content) > MAX_DOCUMENT_BYTES) return { error: tooLarge };
     name = z.string().trim().min(1, "Dê um nome ao documento.").max(120, "O nome pode ter até 120 caracteres.").parse(name);
     const [{ n }] = await db.select({ n: count() }).from(assistantDocuments);
     if (n >= MAX_DOCUMENTS) return { error: `A base comporta até ${MAX_DOCUMENTS} documentos. Remova ou junte alguns.` };

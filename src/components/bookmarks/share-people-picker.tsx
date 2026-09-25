@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import { CheckIcon, Loader2Icon, SearchIcon, XIcon } from "lucide-react";
+import { CheckIcon, Loader2Icon, SearchIcon } from "lucide-react";
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { PersonAvatar } from "@/components/console/person-avatar";
+import { TokenChip } from "@/components/console/token-chip";
 import type { PersonOption } from "@/components/console/people-field";
 import { searchPeople } from "@/lib/bookmark-actions";
 
@@ -13,10 +14,13 @@ import { searchPeople } from "@/lib/bookmark-actions";
  * company and the team. Each chosen person submits as one `userIds` value.
  */
 export function SharePeoplePicker({
+  id,
   folderId,
   name = "userIds",
   initial = [],
 }: {
+  /** For a visible label; without one the search box names itself. */
+  id?: string;
   folderId: string;
   name?: string;
   initial?: PersonOption[];
@@ -48,20 +52,15 @@ export function SharePeoplePicker({
       {selected.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
           {selected.map((person) => (
-            <li
-              key={person.id}
-              className="flex items-center gap-1.5 rounded-full border bg-card py-0.5 pr-1 pl-1 text-xs"
-            >
-              <PersonAvatar person={person} size={20} />
-              <span className="max-w-[12rem] truncate font-medium">{person.name}</span>
-              <button
-                type="button"
-                aria-label={`Remover ${person.name}`}
-                className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"
-                onClick={() => toggle(person)}
+            <li key={person.id}>
+              <TokenChip
+                removeLabel={`Remover ${person.name}`}
+                onRemove={() => toggle(person)}
+                className="pl-1"
               >
-                <XIcon className="size-3" />
-              </button>
+                <PersonAvatar person={person} size={16} />
+                <span className="max-w-[12rem] truncate">{person.name}</span>
+              </TokenChip>
             </li>
           ))}
         </ul>
@@ -73,13 +72,14 @@ export function SharePeoplePicker({
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         )}
         <Input
+          id={id}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
             if (!event.target.value.trim()) setResults([]);
           }}
           placeholder="Buscar pessoa pelo nome"
-          aria-label="Buscar pessoa pelo nome"
+          aria-label={id ? undefined : "Buscar pessoa pelo nome"}
           autoComplete="off"
           className="pl-9"
         />

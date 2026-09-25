@@ -1,9 +1,10 @@
 "use client";
 import { useId, useState, type KeyboardEvent } from "react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
-import { LabelChip } from "./project-badges";
+import { TokenChip } from "@/components/console/token-chip";
+import { labelTone } from "./project-badges";
 
 const MAX = 8;
 
@@ -72,16 +73,17 @@ export function LabelField({
         <ul className="flex flex-wrap gap-1.5">
           {labels.map((label) => (
             <li key={label}>
-              <LabelChip label={label} className="gap-1 pr-0.5">
-                <button
-                  type="button"
-                  aria-label={`Remover etiqueta ${label}`}
-                  className="rounded-sm p-0.5 opacity-70 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none"
-                  onClick={() => setLabels(labels.filter((l) => l !== label))}
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </LabelChip>
+              <TokenChip
+                removeLabel={`Remover etiqueta ${label}`}
+                onRemove={() => setLabels(labels.filter((l) => l !== label))}
+              >
+                {/* The label's colour, as on the board cards. */}
+                <span
+                  aria-hidden="true"
+                  className={cn("size-2 shrink-0 rounded-full", labelTone(label), "bg-current")}
+                />
+                <span className="truncate">{label}</span>
+              </TokenChip>
             </li>
           ))}
         </ul>

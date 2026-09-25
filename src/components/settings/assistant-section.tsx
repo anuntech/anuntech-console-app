@@ -1,5 +1,4 @@
 import "server-only";
-import { AttachmentField } from "@/components/console/attachment-field";
 import { desc } from "drizzle-orm";
 import { CheckCircle2Icon, FileTextIcon, TriangleAlertIcon } from "lucide-react";
 import { db } from "@/lib/db";
@@ -9,7 +8,9 @@ import { assistantConfig, DEFAULT_ASSISTANT_MODEL } from "@/lib/assistant";
 import { assistantTools } from "@/lib/assistant-tools";
 import { openRouterModels, SUGGESTED_MODEL_IDS } from "@/lib/openrouter-models";
 import { ModelField } from "./model-field";
-import { addAssistantDocument, removeAssistantDocument, saveAssistantSettings } from "@/lib/assistant-actions";
+import { NewKnowledgeDocument } from "./knowledge-document-sheet";
+import { removeAssistantDocument, saveAssistantSettings } from "@/lib/assistant-actions";
+import { KNOWLEDGE_DOCUMENT, limitLabel } from "@/lib/attachment-rules";
 import { dateTimeLabel, fileSizeLabel } from "@/lib/format";
 import { eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, SectionTitle } from "@/components/console/page-header";
 import { ConfirmAction, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
+import { FileRow } from "@/components/console/file-chip";
 
 export async function AssistantSection() {
   await requireAdmin();
@@ -100,39 +102,42 @@ export async function AssistantSection() {
         <CardHeader>
           <SectionTitle
             title="Base de conhecimento"
-            description="Textos que o assistente lê para responder sobre a Anuntech: quem somos, produtos, políticas, perguntas frequentes. Até 30 documentos de 300 KB, em .md, .txt ou .csv."
+            description={`Textos que o assistente lê para responder sobre a Anuntech: quem somos, produtos, políticas, perguntas frequentes. Até 30 documentos de ${limitLabel(KNOWLEDGE_DOCUMENT.maxBytes)}, em ${KNOWLEDGE_DOCUMENT.acceptLabel}.`}
+            action={<NewKnowledgeDocument />}
           />
         </CardHeader>
-        <CardContent className="flex flex-col gap-6">
+        <CardContent className="flex flex-col gap-3">
           {documents.length ? (
-            <ul className="m-0 flex list-none flex-col divide-y p-0">
-              {documents.map((doc) => (
-                <li key={doc.id} className="flex items-center gap-3 py-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
-                    <FileTextIcon className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="m-0 truncate text-sm font-medium text-foreground">{doc.name}</p>
-                    <p className="m-0 text-xs text-muted-foreground">
-                      {fileSizeLabel(doc.bytes)} · {dateTimeLabel(doc.updatedAt)}
-                      {doc.author && ` · ${doc.author}`}
-                    </p>
-                  </div>
-                  <ConfirmAction
-                    action={removeAssistantDocument}
-                    fields={{ id: doc.id }}
-                    title={`Remover "${doc.name}"?`}
-                    description="O assistente deixa de usar este texto na hora."
-                    confirmLabel="Remover"
-                    destructive
-                  >
-                    <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
-                      Remover
-                    </Button>
-                  </ConfirmAction>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {documents.map((doc) => (
+                  <li key={doc.id}>
+                    <FileRow
+                      file={{ name: doc.name, size: doc.bytes }}
+                      detail={`${dateTimeLabel(doc.updatedAt)}${doc.author ? ` · ${doc.author}` : ""}`}
+                      actions={
+                        <ConfirmAction
+                          action={removeAssistantDocument}
+                          fields={{ id: doc.id }}
+                          title={`Remover "${doc.name}"?`}
+                          description="O assistente deixa de usar este texto na hora."
+                          confirmLabel="Remover"
+                          destructive
+                        >
+                          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" aria-label={`Remover ${doc.name}`}>
+                            Remover
+                          </Button>
+                        </ConfirmAction>
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+              <p className="m-0 text-xs text-muted-foreground">
+                {documents.length} {documents.length === 1 ? "documento" : "documentos"} · {fileSizeLabel(totalBytes)}
+                {totalBytes > 24000 && " · acima de 24 KB o assistente busca trechos em vez de ler tudo"}
+              </p>
+            </>
           ) : (
             <EmptyState
               icon={<FileTextIcon />}
@@ -140,41 +145,6 @@ export async function AssistantSection() {
               description="Sem base, o assistente responde só com o que vê no Console e encaminha dúvidas sobre a Anuntech ao chat da equipe."
             />
           )}
-          <ServerForm action={addAssistantDocument} reset className="flex flex-col gap-4 rounded-lg border bg-field/40 p-4">
-            <p className="m-0 text-sm font-medium text-foreground">Adicionar documento</p>
-            <FormError />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="assistant-doc-name" className="mb-1.5">
-                  Nome
-                </Label>
-                <Input id="assistant-doc-name" name="name" maxLength={120} placeholder="Ex.: Perguntas frequentes sobre suporte" />
-              </div>
-              <div>
-                <Label htmlFor="assistant-doc-file" className="mb-1.5">
-                  Arquivo
-                </Label>
-                <AttachmentField
-                  id="assistant-doc-file"
-                  name="file"
-                  rules={{ accept: [".md", ".markdown", ".txt", ".csv", "text/plain", "text/markdown", "text/csv"], acceptLabel: ".md, .txt ou .csv", max: 1, maxBytes: 300 * 1024 }}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="assistant-doc-content" className="mb-1.5">
-                Ou cole o texto
-              </Label>
-              <Textarea id="assistant-doc-content" name="content" rows={5} placeholder="Markdown ou texto simples. Parágrafos separados por linha em branco ajudam a busca." />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">
-                {documents.length} {documents.length === 1 ? "documento" : "documentos"} · {fileSizeLabel(totalBytes)}
-                {totalBytes > 24000 && " · acima de 24 KB o assistente busca trechos em vez de ler tudo"}
-              </span>
-              <SubmitButton pendingLabel="Adicionando…">Adicionar</SubmitButton>
-            </div>
-          </ServerForm>
         </CardContent>
       </Card>
 

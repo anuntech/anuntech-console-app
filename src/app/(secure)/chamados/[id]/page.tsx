@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, or } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
+  accountEmails,
   attachments,
   companies,
+  consoleStaffMembers,
   engagements,
   messages,
   tickets,
   user,
 } from "@/db/schema";
 import { getActor, canAccess } from "@/lib/access";
+import { resolveAccountIdentity } from "@/lib/account-identity";
 import { hasConsoleStaffAccess } from "@/lib/console-members";
+import { normalizeEmail } from "@/lib/permissions";
 import {
   TicketDetail,
+  type TicketAssignee,
   type TicketEntry,
 } from "@/components/chamados/ticket-detail";
 export const metadata: Metadata = {
@@ -21,6 +26,57 @@ export const metadata: Metadata = {
   description:
     "Acompanhe a conversa, a situação e os arquivos de uma solicitação de atendimento.",
 };
+
+/**
+ * Who can take a ticket: the owner and active Console staff with an account.
+ * Same staff lookup as `projectPeople` in lib/tasks, without the company's
+ * members, since only the Anuntech team answers tickets. The value is the
+ * account's normalized e-mail because `updateTicket` stores an e-mail.
+ */
+async function ticketAssignees(): Promise<TicketAssignee[]> {
+  const columns = { id: user.id, name: user.name, email: user.email };
+  const staffColumns = { ...columns, staffEmail: consoleStaffMembers.email };
+  const owner = process.env.CONSOLE_ADMIN_EMAIL?.trim();
+  const [staff, ownerId] = await Promise.all([
+    db
+      .select(staffColumns)
+      .from(consoleStaffMembers)
+      .leftJoin(
+        accountEmails,
+        and(
+          eq(accountEmails.email, consoleStaffMembers.email),
+          isNotNull(accountEmails.verifiedAt),
+        ),
+      )
+      .innerJoin(
+        user,
+        or(
+          eq(user.email, consoleStaffMembers.email),
+          eq(user.id, accountEmails.userId),
+        ),
+      )
+      .where(eq(consoleStaffMembers.active, true)),
+    owner
+      ? resolveAccountIdentity(normalizeEmail(owner)).then((i) => i.userId)
+      : null,
+  ]);
+  // One option per person, keyed by account; staff rows reached through an
+  // alias e-mail add that alias so tickets assigned to it still match.
+  const people = new Map<string, { name: string; email: string; aliases: Set<string> }>();
+  for (const row of staff) {
+    const person = people.get(row.id) ?? { name: row.name, email: normalizeEmail(row.email), aliases: new Set<string>() };
+    const alias = normalizeEmail(row.staffEmail);
+    if (alias !== person.email) person.aliases.add(alias);
+    people.set(row.id, person);
+  }
+  if (ownerId && !people.has(ownerId)) {
+    const [row] = await db.select(columns).from(user).where(eq(user.id, ownerId));
+    if (row) people.set(row.id, { name: row.name, email: normalizeEmail(row.email), aliases: new Set() });
+  }
+  return [...people.values()]
+    .map((p) => ({ name: p.name, email: p.email, ...(p.aliases.size ? { aliases: [...p.aliases] } : {}) }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
 
 export default async function Ticket({
   params,
@@ -43,7 +99,7 @@ export default async function Ticket({
     .leftJoin(engagements, eq(engagements.id, tickets.engagementId))
     .where(eq(tickets.id, id));
   if (!row || !canAccess(actor, row.ticket.companyId, "support")) notFound();
-  const [thread, files] = await Promise.all([
+  const [thread, files, assignees] = await Promise.all([
     db
       .select({
         id: messages.id,
@@ -72,6 +128,7 @@ export default async function Ticket({
       .innerJoin(user, eq(user.id, attachments.authorId))
       .where(eq(attachments.ticketId, id))
       .orderBy(asc(attachments.createdAt)),
+    actor.admin ? ticketAssignees() : undefined,
   ]);
   // Who speaks for Anuntech in the thread.
   const staff = new Map(
@@ -141,6 +198,7 @@ export default async function Ticket({
           author: f.author,
         })),
         viewer: { admin: actor.admin },
+        assignees,
         now: new Date().toISOString(),
       }}
     />

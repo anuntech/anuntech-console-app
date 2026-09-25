@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,15 +22,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { FormField } from "@/components/console/form-field";
 import { PersonAvatar } from "@/components/console/person-avatar";
 import {
   FormError,
@@ -74,6 +68,9 @@ export type TicketEntry =
       staff: boolean;
     }
   | { kind: "file"; file: TicketFile; staff: boolean };
+/** `email` is what `updateTicket` stores in `assignedTo`. */
+/** `aliases` are other e-mails of the same person (a staff alias), so an older assignment still matches. */
+export type TicketAssignee = { name: string; email: string; aliases?: string[] };
 export type TicketDetailData = {
   ticket: {
     id: string;
@@ -92,6 +89,8 @@ export type TicketDetailData = {
   entries: TicketEntry[];
   files: TicketFile[];
   viewer: { admin: boolean };
+  /** Staff who can take the ticket; loaded only for admins. */
+  assignees?: TicketAssignee[];
   now: string;
 };
 
@@ -102,6 +101,25 @@ const STATUSES: TicketStatus[] = [
   "resolved",
   "closed",
 ];
+
+/**
+ * The assignee options and the one to preselect. An assignee who is no longer
+ * staff (or was typed by hand before this was a list) stays as an option;
+ * otherwise the select would fall back to "Sem responsável" and saving the
+ * status would silently unassign the ticket.
+ */
+function assigneeOptions(people: TicketAssignee[], current: string | null) {
+  if (!current) return { options: people, selected: "" };
+  const wanted = current.trim().toLowerCase();
+  const match = people.find(
+    (person) => person.email === wanted || person.aliases?.includes(wanted),
+  );
+  if (match) return { options: people, selected: match.email };
+  return {
+    options: [...people, { name: current, email: current }],
+    selected: current,
+  };
+}
 
 
 function When({ at, now }: { at: string; now: string }) {
@@ -210,6 +228,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
   const [closing, setClosing] = useState(false);
   const { move, form: moveForm } = useTicketMove(ticket.id);
   const messages = entries.filter((e) => e.kind === "message").length;
+  const assignee = assigneeOptions(data.assignees ?? [], ticket.assignedTo);
 
   return (
     <>
@@ -380,58 +399,55 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                 <ServerForm
                   key={`${ticket.status}-${ticket.priority}-${ticket.assignedTo ?? ""}`}
                   action={updateTicket}
-                  className="flex flex-col gap-4"
+                  className="flex flex-col gap-5"
                 >
                   <input type="hidden" name="ticketId" value={ticket.id} />
                   <FormError />
-                  <div>
-                    <Label htmlFor="ticket-status" className="mb-1.5">
-                      Situação
-                    </Label>
-                    <Select name="status" defaultValue={ticket.status}>
-                      <SelectTrigger id="ticket-status" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUSES.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {ticketLabels[status]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="ticket-priority" className="mb-1.5">
-                      Prioridade
-                    </Label>
-                    <Select name="priority" defaultValue={ticket.priority}>
-                      <SelectTrigger id="ticket-priority" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="normal">{priorityLabels.normal}</SelectItem>
-                        <SelectItem value="high">{priorityLabels.high}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="ticket-assignee" className="mb-1.5">
-                      Responsável
-                    </Label>
-                    <Input
+                  <FormField label="Situação" htmlFor="ticket-status">
+                    <NativeSelect
+                      id="ticket-status"
+                      name="status"
+                      defaultValue={ticket.status}
+                    >
+                      {STATUSES.map((status) => (
+                        <NativeSelectOption key={status} value={status}>
+                          {ticketLabels[status]}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </FormField>
+                  <FormField label="Prioridade" htmlFor="ticket-priority">
+                    <NativeSelect
+                      id="ticket-priority"
+                      name="priority"
+                      defaultValue={ticket.priority}
+                    >
+                      <NativeSelectOption value="normal">
+                        {priorityLabels.normal}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="high">
+                        {priorityLabels.high}
+                      </NativeSelectOption>
+                    </NativeSelect>
+                  </FormField>
+                  <FormField label="Responsável" htmlFor="ticket-assignee">
+                    <NativeSelect
                       id="ticket-assignee"
                       name="assignedTo"
-                      type="email"
-                      autoComplete="off"
-                      defaultValue={ticket.assignedTo ?? ""}
-                      placeholder="E-mail de quem atende"
-                    />
-                  </div>
+                      defaultValue={assignee.selected}
+                    >
+                      <NativeSelectOption value="">
+                        Sem responsável
+                      </NativeSelectOption>
+                      {assignee.options.map((person) => (
+                        <NativeSelectOption key={person.email} value={person.email}>
+                          {person.name}
+                        </NativeSelectOption>
+                      ))}
+                    </NativeSelect>
+                  </FormField>
                   <div className="flex justify-end">
-                    <SubmitButton size="sm" pendingLabel="Salvando…">
-                      Salvar
-                    </SubmitButton>
+                    <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
                   </div>
                 </ServerForm>
               ) : (

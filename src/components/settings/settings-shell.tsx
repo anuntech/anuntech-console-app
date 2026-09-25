@@ -22,18 +22,22 @@ import {
 
 /**
  * Every settings page shares this frame: a breadcrumb back to the account,
- * the section title, the rail of categories the viewer may open, and the
- * section's cards. Sections guard their own data access.
+ * the section title with the section's create action on the right, the
+ * rail of categories the viewer may open, and the section's cards. Sections
+ * guard their own data access.
  */
 export async function SettingsShell({
   section,
   title,
   description,
+  actions,
   children,
 }: {
   section: SettingsSection;
   title: string;
   description?: ReactNode;
+  /** The section's create button, beside the title like every list page. */
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const actor = await getActor();
@@ -124,6 +128,7 @@ export async function SettingsShell({
         crumbs={[{ label: "Configurações", href: "/conta" }, { label: title }]}
         title={title}
         description={description}
+        actions={actions}
       />
       <div className="grid gap-6 lg:grid-cols-[208px_minmax(0,1fr)] lg:items-start">
         <aside className="lg:sticky lg:top-6">

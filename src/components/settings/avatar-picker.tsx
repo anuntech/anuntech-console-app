@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CameraIcon, Loader2Icon, SmileIcon, Trash2Icon } from "lucide-react";
 import { cn } from "cn";
@@ -13,7 +13,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/notifications";
+import { ConfirmAction } from "@/components/console/server-form";
 import { optimizeImage } from "@/lib/client-image";
+import { AVATAR_IMAGE, attachmentHint, limitLabel } from "@/lib/attachment-rules";
+import type { ActionState } from "@/lib/action-state";
 import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/avatar-catalog";
 import { initials } from "@/lib/format";
 import { IllustratedAvatar, profileAvatarSource } from "./illustrated-avatar";
@@ -28,6 +31,7 @@ export function AvatarPicker({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const hintId = useId();
   const lock = useRef(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [change, setChange] = useState<{
@@ -42,16 +46,13 @@ export function AvatarPicker({
   const source = profileAvatarSource(current);
   const photo = !!source && !isCatalogAvatar(current) && source !== failedSource;
 
-  async function update(file: File | null, selected?: string) {
-    if (lock.current) return;
-    if (file && (!file.size || file.size > 20 * 1024 * 1024)) {
-      toast.error("A foto deve ter até 20 MB.");
-      return;
-    }
-    if (file && !["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      toast.error("Use uma imagem PNG, JPEG ou WebP.");
-      return;
-    }
+  /** Sends the change and reports it as an action result, so a confirm can run it too. */
+  async function send(file: File | null, selected?: string): Promise<ActionState> {
+    if (lock.current) return {};
+    if (file && (!file.size || file.size > AVATAR_IMAGE.maxBytes))
+      return { error: `A foto deve ter até ${limitLabel(AVATAR_IMAGE.maxBytes)}.` };
+    if (file && !AVATAR_IMAGE.accept?.includes(file.type))
+      return { error: `Use uma imagem ${AVATAR_IMAGE.acceptLabel}.` };
     lock.current = true;
     setPending(selected ? "select" : file ? "upload" : "remove");
     try {
@@ -70,30 +71,37 @@ export function AvatarPicker({
       if (
         !response.ok ||
         !(result?.image === null || typeof result?.image === "string")
-      ) {
-        toast.error(
-          typeof result?.error === "string"
-            ? result.error
-            : "Não foi possível alterar a foto. Tente novamente.",
-        );
-        return;
-      }
+      )
+        return {
+          error:
+            typeof result?.error === "string"
+              ? result.error
+              : "Não foi possível alterar a foto. Tente novamente.",
+        };
       setChange({ previous: image, image: result.image ?? null });
       setFailedSource(null);
       setGalleryOpen(false);
-      toast.success(
-        selected
+      return {
+        success: selected
           ? "Avatar atualizado."
           : file
             ? "Foto de perfil atualizada."
             : "Foto removida.",
-      );
-      router.refresh();
+      };
     } catch {
-      toast.error("Não foi possível alterar a foto. Tente novamente.");
+      return { error: "Não foi possível alterar a foto. Tente novamente." };
     } finally {
       lock.current = false;
       setPending(null);
+    }
+  }
+
+  async function update(file: File | null, selected?: string) {
+    const result = await send(file, selected);
+    if (result.error) toast.error(result.error);
+    if (result.success) {
+      toast.success(result.success);
+      router.refresh();
     }
   }
 
@@ -120,45 +128,60 @@ export function AvatarPicker({
           initials(name)
         )}
       </span>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!!pending}
-          onClick={() => inputRef.current?.click()}
-        >
-          {pending === "upload" ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
-          Enviar foto
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!!pending}
-          onClick={() => setGalleryOpen(true)}
-        >
-          <SmileIcon />
-          Escolher avatar
-        </Button>
-        {photo && (
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="text-muted-foreground"
             disabled={!!pending}
-            onClick={() => void update(null)}
+            aria-describedby={hintId}
+            onClick={() => inputRef.current?.click()}
           >
-            {pending === "remove" ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
-            Remover foto
+            {pending === "upload" ? <Loader2Icon className="animate-spin" /> : <CameraIcon />}
+            Enviar foto
           </Button>
-        )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!!pending}
+            onClick={() => setGalleryOpen(true)}
+          >
+            <SmileIcon />
+            Escolher avatar
+          </Button>
+          {/* Mounted even without a photo: the removal hides the button
+              before the confirm's form reports back. */}
+          <ConfirmAction
+            action={() => send(null)}
+            title="Remover foto?"
+            description="Seu perfil volta a mostrar as iniciais."
+            confirmLabel="Remover"
+            destructive
+          >
+            {photo && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                disabled={!!pending}
+              >
+                {pending === "remove" ? <Loader2Icon className="animate-spin" /> : <Trash2Icon />}
+                Remover foto
+              </Button>
+            )}
+          </ConfirmAction>
+        </div>
+        <p id={hintId} className="m-0 text-xs text-muted-foreground">
+          {attachmentHint(AVATAR_IMAGE)}
+        </p>
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp"
+        accept={AVATAR_IMAGE.accept?.join(",")}
         hidden
         aria-label="Escolher foto de perfil"
         onChange={(event) => {

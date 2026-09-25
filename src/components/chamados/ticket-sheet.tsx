@@ -1,21 +1,5 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  FormError,
-  ServerForm,
-  SubmitButton,
-} from "@/components/console/server-form";
+import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import { createTicket } from "@/lib/actions";
 import { TicketFields, type TicketCompanyOption } from "./ticket-form";
 import { useTicketUploads } from "./ticket-uploads";
@@ -34,37 +18,18 @@ export function TicketSheet({
 }) {
   const uploads = useTicketUploads();
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <ServerForm
-          key={open ? "open" : "closed"}
-          action={createTicket}
-          prepare={uploads}
-          className="flex h-full min-h-0 flex-col"
-        >
-          <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>Abrir chamado</SheetTitle>
-            <SheetDescription>Como podemos ajudar?</SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <FormError className="mb-5" />
-            <TicketFields
-              companies={companies}
-              companyId={companyId}
-              autoFocus
-            />
-          </div>
-          <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-            <SheetClose asChild>
-              <Button type="button" variant="outline">
-                Cancelar
-              </Button>
-            </SheetClose>
-            <SubmitButton pendingLabel="Abrindo…">Abrir chamado</SubmitButton>
-          </SheetFooter>
-        </ServerForm>
-      </SheetContent>
-    </Sheet>
+    <FormSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Novo chamado"
+      description="Como podemos ajudar?"
+      action={createTicket}
+      prepare={uploads}
+      submitLabel="Abrir chamado"
+      pendingLabel="Abrindo…"
+    >
+      <TicketFields companies={companies} companyId={companyId} autoFocus />
+    </FormSheet>
   );
 }
 
@@ -79,19 +44,6 @@ export function NewTicketSheet({
   companies: TicketCompanyOption[];
   companyId?: string;
 }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(true);
-  return (
-    <TicketSheet
-      companies={companies}
-      companyId={companyId}
-      open={open}
-      onOpenChange={(next) => {
-        if (next) return;
-        setOpen(false);
-        // Let the sheet slide out before the route unmounts it.
-        setTimeout(() => router.back(), 300);
-      }}
-    />
-  );
+  const sheet = useRouteSheet();
+  return <TicketSheet companies={companies} companyId={companyId} {...sheet} />;
 }

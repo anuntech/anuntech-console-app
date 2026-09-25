@@ -1039,7 +1039,7 @@ export default async function Preview({
         <CompanyDetail data={detail} />
       ) : tela.startsWith("chamado-") || tela === "chamado" ? (
         tela === "chamados-vazio" ? null : (
-          <TicketDetail data={ticket} />
+          <TicketDetail data={{ ...ticket, assignees: [{ name: "Kauan Ketner", email: "kauan@anuntech.com" }, { name: "Equipe Anuntech", email: "equipe@anuntech.com" }] }} />
         )
       ) : tela === "novo-chamado" ? (
         <>

@@ -131,7 +131,7 @@ export const auditLabels: Record<string, string> = {
   "task.deleted": "Tarefa excluída",
   "bookmark.created": "Bookmark adicionado",
   "bookmark.updated": "Bookmark alterado",
-  "bookmark.deleted": "Bookmark removido",
+  "bookmark.deleted": "Bookmark excluído",
   "bookmark_folder.created": "Pasta de bookmarks criada",
   "bookmark_folder.updated": "Pasta de bookmarks alterada",
   "bookmark_folder.shared": "Pasta de bookmarks compartilhada",

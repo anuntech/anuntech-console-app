@@ -7,7 +7,8 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
-import { MoneyInput } from "./invoice-money";
+import { FormField } from "@/components/console/form-field";
+import { MoneyField } from "@/components/console/money-field";
 
 export type ChargeTermsValues = {
   discountCents: number | null;
@@ -54,49 +55,47 @@ export function ChargeTermsFields({
   };
   return (
     <div className="grid gap-5">
-      <div>
-        <Label htmlFor={`${idPrefix}-discount`} className="mb-1.5">
-          Desconto até o vencimento
-        </Label>
-        <MoneyInput
+      <FormField
+        label="Desconto até o vencimento"
+        htmlFor={`${idPrefix}-discount`}
+        hint="Vale só até a data de vencimento. Depois, a fatura volta ao valor cheio."
+      >
+        <MoneyField
           id={`${idPrefix}-discount`}
           name="discount"
           required={false}
           defaultCents={defaultValue.discountCents ?? undefined}
           onCentsChange={(cents) => update({ discountCents: cents || null })}
         />
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Vale só até a data de vencimento. Depois, a fatura volta ao valor cheio.
-        </p>
-      </div>
-      <div className="rounded-lg border bg-field/60 px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <Label htmlFor={`${idPrefix}-late`} className="cursor-pointer">
-            Juros e multa após o vencimento
-          </Label>
-          <Switch
-            id={`${idPrefix}-late`}
-            name="lateFees"
-            checked={lateFees}
-            onCheckedChange={(checked) => {
-              setLateFees(checked);
-              update(
-                checked
-                  ? {
-                      fineBps: state.fineBps ?? 200,
-                      interestMonthlyBps: state.interestMonthlyBps ?? 100,
-                    }
-                  : { fineBps: null, interestMonthlyBps: null },
-              );
-            }}
-          />
-        </div>
+      </FormField>
+      <fieldset className="min-w-0">
+        {/* The switch is the group's title: fine and interest only exist while it is on. */}
+        <legend className="w-full">
+          <span className="flex items-center justify-between gap-4">
+            <Label htmlFor={`${idPrefix}-late`} className="cursor-pointer">
+              Juros e multa após o vencimento
+            </Label>
+            <Switch
+              id={`${idPrefix}-late`}
+              name="lateFees"
+              checked={lateFees}
+              onCheckedChange={(checked) => {
+                setLateFees(checked);
+                update(
+                  checked
+                    ? {
+                        fineBps: state.fineBps ?? 200,
+                        interestMonthlyBps: state.interestMonthlyBps ?? 100,
+                      }
+                    : { fineBps: null, interestMonthlyBps: null },
+                );
+              }}
+            />
+          </span>
+        </legend>
         {lateFees && (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor={`${idPrefix}-fine`} className="mb-1.5 text-xs">
-                Multa (%)
-              </Label>
+          <div className="mt-4 grid gap-5 sm:grid-cols-2">
+            <FormField label="Multa (%)" htmlFor={`${idPrefix}-fine`}>
               <Input
                 id={`${idPrefix}-fine`}
                 name="finePercent"
@@ -104,13 +103,9 @@ export function ChargeTermsFields({
                 maxLength={6}
                 defaultValue={bpsToText(defaultValue.fineBps ?? state.fineBps ?? 200)}
                 onChange={(event) => update({ fineBps: percent(event.target.value) })}
-                className="bg-card"
               />
-            </div>
-            <div>
-              <Label htmlFor={`${idPrefix}-interest`} className="mb-1.5 text-xs">
-                Juros ao mês (%)
-              </Label>
+            </FormField>
+            <FormField label="Juros ao mês (%)" htmlFor={`${idPrefix}-interest`}>
               <Input
                 id={`${idPrefix}-interest`}
                 name="interestPercent"
@@ -118,27 +113,22 @@ export function ChargeTermsFields({
                 maxLength={6}
                 defaultValue={bpsToText(defaultValue.interestMonthlyBps ?? state.interestMonthlyBps ?? 100)}
                 onChange={(event) => update({ interestMonthlyBps: percent(event.target.value) })}
-                className="bg-card"
               />
-            </div>
+            </FormField>
           </div>
         )}
-      </div>
+      </fieldset>
       {scope?.recurring && (
-        <div>
-          <Label htmlFor={`${idPrefix}-scope`} className="mb-1.5">
-            Aplicar estas condições em
-          </Label>
+        <FormField label="Aplicar estas condições em" htmlFor={`${idPrefix}-scope`}>
           <NativeSelect
             id={`${idPrefix}-scope`}
             name="termsScope"
             defaultValue={scope.defaultValue ?? "this"}
-            className="bg-field"
           >
             <NativeSelectOption value="this">Só nesta fatura</NativeSelectOption>
             <NativeSelectOption value="all">Nesta e em todas as próximas</NativeSelectOption>
           </NativeSelect>
-        </div>
+        </FormField>
       )}
     </div>
   );

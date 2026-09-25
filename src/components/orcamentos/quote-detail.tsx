@@ -31,7 +31,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
@@ -42,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { FormField } from "@/components/console/form-field";
 import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
 import { ConfirmDialog, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
@@ -114,12 +114,9 @@ function AnswerDialog({
             </DialogDescription>
           </DialogHeader>
           <FormError />
-          <div>
-            <Label htmlFor={`answer-note-${decision}`} className="mb-1.5">
-              Observação (opcional)
-            </Label>
+          <FormField label="Observação" htmlFor={`answer-note-${decision}`}>
             <Textarea id={`answer-note-${decision}`} name="note" rows={3} maxLength={1000} placeholder={accepting ? "Ex.: aceito por e-mail em 24/09." : "O que pesou na decisão."} />
-          </div>
+          </FormField>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -252,7 +249,6 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
       {editable ? (
         <QuoteEditor
           key={q.revision}
-          companies={[]}
           quote={{ id: q.id, revision: q.revision, title: q.title, validUntil: q.validUntil, content: q.content }}
         />
       ) : (

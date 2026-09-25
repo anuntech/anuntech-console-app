@@ -1,5 +1,5 @@
 "use server";
-import { and, asc, eq, isNull, max, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -17,6 +17,7 @@ import { db } from "./db";
 import { assigneeAllowed } from "./tasks";
 import { moneyToCents } from "./permissions";
 import { prepareTicketFiles, takeTicketUploads } from "./ticket-files";
+import { DOCUMENT_ATTACHMENTS } from "./attachment-rules";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -68,6 +69,13 @@ const taskInput = z.object({
 const MAX_LABELS = 8;
 const MAX_FILES_PER_TASK = 20;
 const MAX_ASSIGNEES = 10;
+const MAX_FILES_AT_ONCE = DOCUMENT_ATTACHMENTS.max;
+/** Who may remove a saved attachment: staff, whoever added it, or the task's creator. */
+const canRemoveFile = (
+  actor: { admin: boolean; user: { id: string } },
+  file: { authorId: string | null },
+  task: { createdBy: string | null },
+) => actor.admin || file.authorId === actor.user.id || task.createdBy === actor.user.id;
 
 /** People picked in the sheet; ids come from better-auth, so they are not UUIDs. */
 async function parseAssignees(values: FormDataEntryValue[], companyId: string) {
@@ -133,7 +141,8 @@ export async function createTask(
         return { error: message(error, "Anexos inválidos.") };
       }
       const files = [...direct, ...uploaded];
-      if (files.length > 5) return { error: "Selecione até 5 anexos por vez." };
+      if (files.length > MAX_FILES_AT_ONCE)
+        return { error: `Selecione até ${MAX_FILES_AT_ONCE} anexos por vez.` };
       const [{ last }] = await tx
         .select({ last: max(tasks.position) })
         .from(tasks)
@@ -192,6 +201,19 @@ export async function updateTask(
     if (!context) return blocked;
     const { actor, project } = context;
     const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project.companyId);
+    // Saved files the sheet marked for removal go only when the task saves.
+    const removeIds = [...new Set(form.getAll("removeFileId").map(String))];
+    if (removeIds.length > MAX_FILES_PER_TASK || removeIds.some((value) => !id.safeParse(value).success))
+      return blocked;
+    const removing = removeIds.length
+      ? await db
+          .select({ id: attachments.id, taskId: attachments.taskId, authorId: attachments.authorId, name: attachments.name })
+          .from(attachments)
+          .where(inArray(attachments.id, removeIds))
+      : [];
+    // A file already gone is fine; one from another task, or not theirs to remove, blocks the save.
+    if (removing.some((file) => file.taskId !== current.id || !canRemoveFile(actor, file, current)))
+      return blocked;
     let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
     try {
       direct = await prepareTicketFiles(form.getAll("files"));
@@ -206,13 +228,14 @@ export async function updateTask(
         return { error: message(error, "Anexos inválidos.") };
       }
       const files = [...direct, ...uploaded];
-      if (files.length > 5) return { error: "Selecione até 5 anexos por vez." };
+      if (files.length > MAX_FILES_AT_ONCE)
+        return { error: `Selecione até ${MAX_FILES_AT_ONCE} anexos por vez.` };
       if (files.length) {
         const [total] = await tx
           .select({ n: sql<number>`count(*)::int` })
           .from(attachments)
           .where(eq(attachments.taskId, input.id));
-        if (total.n + files.length > MAX_FILES_PER_TASK)
+        if (total.n - removing.length + files.length > MAX_FILES_PER_TASK)
           return { error: `Limite de ${MAX_FILES_PER_TASK} anexos por tarefa atingido.` };
         await tx.insert(attachments).values(
           files.map((file) => ({ ...file, taskId: input.id, authorId: actor.user.id })),
@@ -254,6 +277,23 @@ export async function updateTask(
         entityId: input.id,
         details: { engagementId: project.id, status: input.status },
       });
+      // Same removal and audit trail as removeTaskFile, one event per file.
+      if (removing.length) {
+        const removed = await tx
+          .delete(attachments)
+          .where(and(inArray(attachments.id, removing.map((file) => file.id)), eq(attachments.taskId, input.id)))
+          .returning({ name: attachments.name });
+        if (removed.length)
+          await tx.insert(auditEvents).values(
+            removed.map((file) => ({
+              actorId: actor.user.id,
+              companyId: project.companyId,
+              action: "task.updated",
+              entityId: input.id,
+              details: { engagementId: project.id, removedFile: file.name },
+            })),
+          );
+      }
       return { success: "Tarefa atualizada." };
     });
     if (result.success) refresh(project.id);
@@ -280,8 +320,7 @@ export async function removeTaskFile(
     const context = await projectFor(task.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
-    if (!actor.admin && file.authorId !== actor.user.id && task.createdBy !== actor.user.id)
-      return blocked;
+    if (!canRemoveFile(actor, file, task)) return blocked;
     await db.transaction(async (tx) => {
       await tx.delete(attachments).where(eq(attachments.id, fileId));
       await tx.update(tasks).set({ updatedAt: new Date() }).where(eq(tasks.id, task.id));

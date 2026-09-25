@@ -118,9 +118,10 @@ export function ServerForm({
 }
 
 /** The error block every form shows above its fields; also for forms that are not ServerForms. */
-export function FormAlert({ children, className }: { children: ReactNode; className?: string }) {
+export function FormAlert({ children, className, id }: { children: ReactNode; className?: string; id?: string }) {
   return (
     <p
+      id={id}
       role="alert"
       className={cn(
         "rounded-md border border-destructive-edge bg-destructive-soft px-3 py-2 text-sm text-destructive",
@@ -142,13 +143,15 @@ export function FormError({ className }: { className?: string }) {
 export function SubmitButton({
   children,
   pendingLabel,
+  disabled,
   ...props
 }: ComponentProps<typeof Button> & { pendingLabel?: string }) {
   const status = useFormStatus();
   const preparing = useContext(PreparingContext);
   const pending = status.pending || preparing;
+  // `disabled` can only add to pending, never re-enable a form that is sending.
   return (
-    <Button type="submit" disabled={pending || props.disabled} {...props}>
+    <Button type="submit" {...props} disabled={pending || disabled}>
       {pending && <Loader2Icon className="animate-spin" />}
       {pending && pendingLabel !== undefined ? pendingLabel : children}
     </Button>

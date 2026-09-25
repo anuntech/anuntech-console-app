@@ -4,16 +4,13 @@ import { NumberFormatBase } from "react-number-format";
 import { Loader2Icon } from "lucide-react";
 import { toast } from "@/components/notifications";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
+import { FormField, FormSection } from "@/components/console/form-field";
 import {
   formatDocument,
   formatPhone,
@@ -39,38 +36,6 @@ export type CompanyFormValues = {
 };
 
 const UF = payerAddress.shape.uf.options;
-
-function FieldGroup({
-  label,
-  htmlFor,
-  hint,
-  className,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  hint?: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={className}>
-      <Label htmlFor={htmlFor} className="mb-1.5">
-        {label}
-      </Label>
-      {children}
-      {hint && <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-      {children}
-    </p>
-  );
-}
 
 /**
  * The company form used to create and edit a client. Field names match the
@@ -186,214 +151,202 @@ export function CompanyFields({
     ) : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4">
-        <SectionLabel>Identificação</SectionLabel>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FieldGroup label="CNPJ" htmlFor={`${id}-document`}>
-            <div className="relative">
-              <NumberFormatBase
-                customInput={Input}
-                id={`${id}-document`}
-                name="document"
-                format={formatDocument}
-                removeFormatting={onlyDigits}
-                valueIsNumericString
-                value={values.document}
-                onValueChange={(v, info) => {
-                  if (info.source === "event") change("document", v.value);
-                }}
-                inputMode="numeric"
-                autoComplete="off"
-                required
-                readOnly={lockDocument}
-                maxLength={18}
-                className={looking === "cnpj" ? "pr-9" : undefined}
-              />
-              {spinner("cnpj")}
-            </div>
-          </FieldGroup>
-          <FieldGroup label="Razão social" htmlFor={`${id}-name`}>
-            <Input
-              id={`${id}-name`}
-              name="name"
-              value={values.name}
-              onChange={(e) => change("name", e.target.value)}
-              autoComplete="organization"
-              required
-              maxLength={160}
-            />
-          </FieldGroup>
-        </div>
-      </div>
-
-      <Separator />
-
-      <div className="flex flex-col gap-4">
-        <SectionLabel>Contato financeiro</SectionLabel>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FieldGroup label="E-mail" htmlFor={`${id}-billingEmail`}>
-            <Input
-              id={`${id}-billingEmail`}
-              name="billingEmail"
-              value={values.billingEmail}
-              onChange={(e) =>
-                change("billingEmail", e.target.value.trim().toLowerCase())
-              }
-              type="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              spellCheck={false}
-              required
-              maxLength={254}
-            />
-          </FieldGroup>
-          <FieldGroup label="Telefone" htmlFor={`${id}-phone`}>
+    <div className="flex flex-col gap-5">
+      <FormSection title="Identificação" className="sm:grid-cols-2">
+        <FormField label="CNPJ" htmlFor={`${id}-document`}>
+          <div className="relative">
             <NumberFormatBase
               customInput={Input}
-              id={`${id}-phone`}
-              name="phone"
-              type="tel"
-              format={formatPhone}
-              removeFormatting={phoneDigits}
+              id={`${id}-document`}
+              name="document"
+              format={formatDocument}
+              removeFormatting={onlyDigits}
               valueIsNumericString
-              value={values.phone}
+              value={values.document}
               onValueChange={(v, info) => {
-                if (info.source === "event") change("phone", v.value);
+                if (info.source === "event") change("document", v.value);
               }}
-              autoComplete="tel-national"
+              inputMode="numeric"
+              autoComplete="off"
               required
-              maxLength={30}
+              readOnly={lockDocument}
+              maxLength={18}
+              className={looking === "cnpj" ? "pr-9" : undefined}
             />
-          </FieldGroup>
-        </div>
-      </div>
+            {spinner("cnpj")}
+          </div>
+        </FormField>
+        <FormField label="Razão social" htmlFor={`${id}-name`}>
+          <Input
+            id={`${id}-name`}
+            name="name"
+            value={values.name}
+            onChange={(e) => change("name", e.target.value)}
+            autoComplete="organization"
+            required
+            maxLength={160}
+          />
+        </FormField>
+      </FormSection>
 
       <Separator />
 
-      <div className="flex flex-col gap-4">
-        <SectionLabel>Endereço de cobrança e nota fiscal</SectionLabel>
-        <div className="grid gap-4 sm:grid-cols-6">
-          <FieldGroup
-            label="CEP"
-            htmlFor={`${id}-cep`}
-            className="sm:col-span-2"
-          >
-            <div className="relative">
-              <Input
-                id={`${id}-cep`}
-                name="cep"
-                value={values.cep}
-                onChange={(e) => change("cep", e.target.value)}
-                inputMode="numeric"
-                maxLength={9}
-                autoComplete="postal-code"
-                className={looking === "cep" ? "pr-9" : undefined}
-              />
-              {spinner("cep")}
-            </div>
-          </FieldGroup>
-          <FieldGroup
-            label="Endereço"
-            htmlFor={`${id}-endereco`}
-            className="sm:col-span-4"
-          >
-            <Input
-              id={`${id}-endereco`}
-              name="endereco"
-              value={values.endereco}
-              onChange={(e) => change("endereco", e.target.value)}
-              maxLength={100}
-              autoComplete="address-line1"
-            />
-          </FieldGroup>
-          <FieldGroup
-            label="Número"
-            htmlFor={`${id}-numero`}
-            className="sm:col-span-2"
-          >
-            <Input
-              id={`${id}-numero`}
-              name="numero"
-              value={values.numero}
-              onChange={(e) => change("numero", e.target.value)}
-              maxLength={10}
-            />
-          </FieldGroup>
-          <FieldGroup
-            label="Complemento"
-            htmlFor={`${id}-complemento`}
-            className="sm:col-span-4"
-          >
-            <Input
-              id={`${id}-complemento`}
-              name="complemento"
-              value={values.complemento}
-              onChange={(e) => change("complemento", e.target.value)}
-              maxLength={30}
-              autoComplete="address-line2"
-              placeholder="Opcional"
-            />
-          </FieldGroup>
-          <FieldGroup
-            label="Bairro"
-            htmlFor={`${id}-bairro`}
-            className="sm:col-span-2"
-          >
-            <Input
-              id={`${id}-bairro`}
-              name="bairro"
-              value={values.bairro}
-              onChange={(e) => change("bairro", e.target.value)}
-              maxLength={60}
-              autoComplete="address-level3"
-            />
-          </FieldGroup>
-          <FieldGroup
-            label="Cidade"
-            htmlFor={`${id}-cidade`}
-            className="sm:col-span-3"
-          >
-            <Input
-              id={`${id}-cidade`}
-              name="cidade"
-              value={values.cidade}
-              onChange={(e) => change("cidade", e.target.value)}
-              maxLength={60}
-              autoComplete="address-level2"
-            />
-          </FieldGroup>
-          <FieldGroup label="UF" htmlFor={`${id}-uf`} className="sm:col-span-1">
-            <Select
-              name="uf"
-              value={values.uf || undefined}
-              onValueChange={(value) => change("uf", value)}
-            >
-              <SelectTrigger id={`${id}-uf`} className="w-full">
-                <SelectValue placeholder="UF" />
-              </SelectTrigger>
-              <SelectContent>
-                {UF.map((uf) => (
-                  <SelectItem key={uf} value={uf}>
-                    {uf}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FieldGroup>
-          <input
-            type="hidden"
-            name="codigoMunicipio"
-            value={values.codigoMunicipio}
+      <FormSection title="Contato financeiro" className="sm:grid-cols-2">
+        <FormField label="E-mail" htmlFor={`${id}-billingEmail`}>
+          <Input
+            id={`${id}-billingEmail`}
+            name="billingEmail"
+            value={values.billingEmail}
+            onChange={(e) =>
+              change("billingEmail", e.target.value.trim().toLowerCase())
+            }
+            type="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            maxLength={254}
           />
-        </div>
-      </div>
+        </FormField>
+        <FormField label="Telefone" htmlFor={`${id}-phone`}>
+          <NumberFormatBase
+            customInput={Input}
+            id={`${id}-phone`}
+            name="phone"
+            type="tel"
+            format={formatPhone}
+            removeFormatting={phoneDigits}
+            valueIsNumericString
+            value={values.phone}
+            onValueChange={(v, info) => {
+              if (info.source === "event") change("phone", v.value);
+            }}
+            autoComplete="tel-national"
+            required
+            maxLength={30}
+          />
+        </FormField>
+      </FormSection>
+
+      <Separator />
+
+      <FormSection
+        title="Endereço de cobrança e nota fiscal"
+        className="sm:grid-cols-6"
+      >
+        <FormField label="CEP" htmlFor={`${id}-cep`} className="sm:col-span-2">
+          <div className="relative">
+            <Input
+              id={`${id}-cep`}
+              name="cep"
+              value={values.cep}
+              onChange={(e) => change("cep", e.target.value)}
+              inputMode="numeric"
+              maxLength={9}
+              autoComplete="postal-code"
+              className={looking === "cep" ? "pr-9" : undefined}
+            />
+            {spinner("cep")}
+          </div>
+        </FormField>
+        <FormField
+          label="Endereço"
+          htmlFor={`${id}-endereco`}
+          className="sm:col-span-4"
+        >
+          <Input
+            id={`${id}-endereco`}
+            name="endereco"
+            value={values.endereco}
+            onChange={(e) => change("endereco", e.target.value)}
+            maxLength={100}
+            autoComplete="address-line1"
+          />
+        </FormField>
+        <FormField
+          label="Número"
+          htmlFor={`${id}-numero`}
+          className="sm:col-span-2"
+        >
+          <Input
+            id={`${id}-numero`}
+            name="numero"
+            value={values.numero}
+            onChange={(e) => change("numero", e.target.value)}
+            maxLength={10}
+          />
+        </FormField>
+        <FormField
+          label="Complemento"
+          htmlFor={`${id}-complemento`}
+          className="sm:col-span-4"
+        >
+          <Input
+            id={`${id}-complemento`}
+            name="complemento"
+            value={values.complemento}
+            onChange={(e) => change("complemento", e.target.value)}
+            maxLength={30}
+            autoComplete="address-line2"
+          />
+        </FormField>
+        <FormField
+          label="Bairro"
+          htmlFor={`${id}-bairro`}
+          className="sm:col-span-2"
+        >
+          <Input
+            id={`${id}-bairro`}
+            name="bairro"
+            value={values.bairro}
+            onChange={(e) => change("bairro", e.target.value)}
+            maxLength={60}
+            autoComplete="address-level3"
+          />
+        </FormField>
+        <FormField
+          label="Cidade"
+          htmlFor={`${id}-cidade`}
+          className="sm:col-span-3"
+        >
+          <Input
+            id={`${id}-cidade`}
+            name="cidade"
+            value={values.cidade}
+            onChange={(e) => change("cidade", e.target.value)}
+            maxLength={60}
+            autoComplete="address-level2"
+          />
+        </FormField>
+        <FormField label="UF" htmlFor={`${id}-uf`} className="sm:col-span-1">
+          {/* The empty option keeps "no address" possible: the server takes
+                the address all or nothing. */}
+          <NativeSelect
+            id={`${id}-uf`}
+            name="uf"
+            value={values.uf}
+            onChange={(e) => change("uf", e.target.value)}
+            autoComplete="address-level1"
+          >
+            <NativeSelectOption value="">—</NativeSelectOption>
+            {UF.map((uf) => (
+              <NativeSelectOption key={uf} value={uf}>
+                {uf}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </FormField>
+        <input
+          type="hidden"
+          name="codigoMunicipio"
+          value={values.codigoMunicipio}
+        />
+      </FormSection>
 
       {fiscalSettings && (
         <>
           <Separator />
-          <div className="flex flex-col gap-4">
-            <SectionLabel>Nota fiscal</SectionLabel>
+          <FormSection title="Nota fiscal">
             <label
               htmlFor={`${id}-nfse`}
               className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-field/60 p-3.5 text-sm"
@@ -414,7 +367,7 @@ export function CompanyFields({
                 </span>
               </span>
             </label>
-          </div>
+          </FormSection>
         </>
       )}
     </div>

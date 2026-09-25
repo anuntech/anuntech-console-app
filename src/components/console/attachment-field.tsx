@@ -4,30 +4,15 @@ import { PaperclipIcon, UploadCloudIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { FileChip, FileChips } from "@/components/console/file-chip";
-import { fileSizeLabel } from "@/lib/format";
+import {
+  DOCUMENT_ATTACHMENTS,
+  attachmentHint,
+  attachmentLimitError,
+  type AttachmentRules,
+} from "@/lib/attachment-rules";
 
-/** What a field accepts. Entries in `accept` are MIME types or extensions (".md"). */
-export type AttachmentRules = {
-  /** Omit to accept any kind of file. */
-  accept?: string[];
-  /** How the accepted kinds read to people, e.g. "PDF, PNG, JPEG ou WebP". */
-  acceptLabel?: string;
-  /** Files at once; 1 turns the field into a single-file picker that replaces on a new pick. */
-  max: number;
-  /** Total bytes across the files. */
-  maxBytes: number;
-};
-
-/** Tickets and tasks: documents and pictures, up to 5 files and 20 MB. */
-export const DOCUMENT_ATTACHMENTS: AttachmentRules = {
-  accept: ["application/pdf", "image/png", "image/jpeg", "image/webp"],
-  acceptLabel: "PDF, PNG, JPEG ou WebP",
-  max: 5,
-  maxBytes: 20 * 1024 * 1024,
-};
-
-/** Limits read as round numbers: "20 MB", not "20,0 MB". */
-const limitLabel = (bytes: number) => fileSizeLabel(bytes).replace(",0 MB", " MB");
+// The rules live in lib/ so server checks share them; existing importers keep this path.
+export { DOCUMENT_ATTACHMENTS, attachmentHint, type AttachmentRules };
 
 const extensionOf = (name: string) => {
   const dot = name.lastIndexOf(".");
@@ -35,13 +20,6 @@ const extensionOf = (name: string) => {
 };
 const accepted = (file: File, accept?: string[]) =>
   !accept?.length || accept.includes(file.type) || accept.includes(extensionOf(file.name));
-
-/** The hint under the field, from the rules. */
-export function attachmentHint({ acceptLabel, max, maxBytes }: AttachmentRules) {
-  const size = limitLabel(maxBytes);
-  const kinds = acceptLabel ? `${acceptLabel} · ` : "";
-  return max > 1 ? `${kinds}até ${max} arquivos, ${size} no total` : `${kinds}até ${size}`;
-}
 
 /**
  * The one file picker of the Console. The real <input type="file"> stays in
@@ -97,7 +75,7 @@ export function AttachmentField({
       return sync(files);
     }
     if (next.length > rules.max || next.reduce((sum, file) => sum + file.size, 0) > rules.maxBytes) {
-      setError(single ? `Escolha um arquivo de até ${limitLabel(rules.maxBytes)}.` : `Até ${rules.max} arquivos, com ${limitLabel(rules.maxBytes)} no total.`);
+      setError(attachmentLimitError(rules));
       return sync(files);
     }
     setError("");
@@ -156,15 +134,15 @@ export function AttachmentField({
       <div className={cn("flex min-w-0 flex-col gap-2", className)} data-dragging={dragging || undefined} {...dropProps}>
         {field}
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>
+          <Button type="button" variant="outline" size="sm" aria-describedby={hintId} onClick={() => input.current?.click()}>
             <PaperclipIcon />
             Anexar
           </Button>
-          <span id={hintId} className="sr-only">
-            {hint}
-          </span>
           {list}
         </div>
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
         {feedback}
       </div>
     );

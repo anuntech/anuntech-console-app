@@ -317,7 +317,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                     onSelect={() => later(() => setRemoving(item))}
                   >
                     <Trash2Icon />
-                    Remover
+                    Excluir
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -503,9 +503,9 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           onOpenChange={(open) => !open && setRemoving(null)}
           action={deleteBookmark}
           fields={{ id: removing.id }}
-          title="Remover bookmark?"
-          description={`"${removing.title}" sai da lista. Isso não pode ser desfeito.`}
-          confirmLabel="Remover"
+          title="Excluir bookmark?"
+          description={`"${removing.title}" sai da lista${removing.fileName ? ", com o arquivo" : ""}. Isso não pode ser desfeito.`}
+          confirmLabel="Excluir"
           destructive
           onSuccess={() => setRemoving(null)}
         />

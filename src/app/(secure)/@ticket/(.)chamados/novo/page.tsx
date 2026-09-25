@@ -3,7 +3,7 @@ import {
   newTicketContext,
   type NewTicketSearchParams,
 } from "@/components/chamados/new-ticket-context";
-export const metadata = { title: "Abrir chamado" };
+export const metadata = { title: "Novo chamado" };
 export default async function Page({
   searchParams,
 }: {

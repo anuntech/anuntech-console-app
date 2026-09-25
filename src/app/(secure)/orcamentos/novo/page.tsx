@@ -1,26 +1,20 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { accessibleCompanies, getActor } from "@/lib/access";
 import { PageHeader } from "@/components/console/page-header";
-import { QuoteEditor } from "@/components/orcamentos/quote-editor";
+import { NewQuoteForm } from "@/components/orcamentos/quote-sheet";
+import { newQuoteContext, type NewQuoteSearchParams } from "@/components/orcamentos/new-quote-context";
 export const metadata: Metadata = { title: "Novo orçamento" };
 
-export default async function NewQuote({ searchParams }: { searchParams: Promise<{ companyId?: string }> }) {
-  const actor = await getActor();
-  if (!actor.admin) notFound();
-  const { companyId } = await searchParams;
-  // Archived clients stay out of the picker unless asked for by id.
-  const companies = (await accessibleCompanies(actor))
-    .filter((c) => !c.archived || c.id === companyId)
-    .map((c) => ({ id: c.id, name: c.name, document: c.document }));
+/** Direct loads only; in-app navigation shows the sheet from @ticket instead. */
+export default async function NewQuote({ searchParams }: { searchParams: NewQuoteSearchParams }) {
+  const context = await newQuoteContext(searchParams);
   return (
     <>
       <PageHeader
         crumbs={[{ label: "Orçamentos", href: "/orcamentos" }, { label: "Novo" }]}
         title="Novo orçamento"
-        description="Nasce como rascunho; você revisa fases, horas e valores antes de enviar."
+        description="Nasce como rascunho; em seguida você monta fases, horas e valores."
       />
-      <QuoteEditor companies={companies} companyId={companies.some((c) => c.id === companyId) ? companyId : undefined} />
+      <NewQuoteForm {...context} />
     </>
   );
 }

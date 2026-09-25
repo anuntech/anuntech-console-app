@@ -29,9 +29,24 @@ export type CatalogRow = CatalogItemValues & { id: string; active: boolean };
 
 const intervalLabel = { monthly: "por mês", yearly: "por ano" } as const;
 
-/** The catalog as a compact list, with a sheet for creating and editing. */
+/** Creates a catalog item; the page header and the empty state show it. */
+export function NewCatalogItemButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>
+        <PlusIcon />
+        Novo item
+      </Button>
+      <CatalogSheet open={open} onOpenChange={setOpen} item={null} />
+    </>
+  );
+}
+
+/** The catalog as a compact list, with a sheet for editing. */
 export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
-  const [editor, setEditor] = useState<{ open: true; item: CatalogRow | null } | null>(null);
+  // The item stays set while the sheet slides out, so its fields don't blank.
+  const [editor, setEditor] = useState<{ open: boolean; item: CatalogRow | null }>({ open: false, item: null });
   const formRef = useRef<HTMLFormElement>(null);
   const [toggling, setToggling] = useState("");
   const toggle = (itemId: string) =>
@@ -42,12 +57,6 @@ export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
   const later = (fn: () => void) => setTimeout(fn, 0);
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <Button onClick={() => setEditor({ open: true, item: null })}>
-          <PlusIcon />
-          Novo item
-        </Button>
-      </div>
       {rows.length ? (
         <ul className="divide-y rounded-xl border bg-card shadow-card">
           {rows.map((row) => (
@@ -106,19 +115,14 @@ export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
             icon={<PackageIcon />}
             title="Catálogo vazio"
             description="Cadastre produtos e serviços uma vez; depois é só vincular a cada cliente com o preço dele."
-            action={
-              <Button onClick={() => setEditor({ open: true, item: null })}>
-                <PlusIcon />
-                Novo item
-              </Button>
-            }
+            action={<NewCatalogItemButton />}
           />
         </section>
       )}
       <CatalogSheet
-        open={editor !== null}
-        onOpenChange={(open) => !open && setEditor(null)}
-        item={editor?.item ?? null}
+        open={editor.open}
+        onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}
+        item={editor.item}
       />
       <ServerForm ref={formRef} action={toggleCatalogItem}>
         <input type="hidden" name="id" value={toggling} />

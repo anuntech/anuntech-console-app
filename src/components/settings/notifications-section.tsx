@@ -92,14 +92,14 @@ async function TopicCard({
       <ServerForm action={saveNotificationPreferences} className="contents">
         <input type="hidden" name="companyId" value={companyId || ""} />
         <input type="hidden" name="topic" value={topic} />
-        <CardContent className="flex flex-col gap-6">
+        <CardContent className="flex flex-col gap-5">
           <FormError />
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2">
             <ContactsField kind="email" values={noticeEmails(preferences)} />
             <ContactsField kind="phone" values={noticePhones(preferences)} />
           </div>
           <fieldset className="flex flex-wrap gap-6">
-            <legend className="mb-2 text-sm font-medium text-foreground">Receber por</legend>
+            <legend className="mb-1.5 text-sm font-medium text-foreground">Receber por</legend>
             <label className="flex items-center gap-2 text-sm text-foreground">
               <Checkbox name="emailEnabled" value="yes" defaultChecked={preferences.emailEnabled} />
               E-mail
@@ -116,9 +116,7 @@ async function TopicCard({
         </CardContent>
         <CardFooter className="justify-between gap-3 border-t">
           <span className="text-xs text-muted-foreground">Vale para os próximos envios.</span>
-          <SubmitButton size="sm" pendingLabel="Salvando…">
-            Salvar
-          </SubmitButton>
+          <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
         </CardFooter>
       </ServerForm>
     </Card>

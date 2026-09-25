@@ -1,22 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CompanyField, type CompanyOption } from "@/components/console/company-field";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { FormField } from "@/components/console/form-field";
+import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import {
   FormError,
   ServerForm,
@@ -32,7 +22,10 @@ export type ProjectFormValues = {
   description: string | null;
 };
 
-/** Fields shared by creating and editing. Names match the actions. */
+/**
+ * Fields shared by creating and editing. Names match the actions. Rendered
+ * as siblings so the sheet and the card space them with their own `gap-5`.
+ */
 export function ProjectFields({
   companies,
   companyId,
@@ -46,16 +39,13 @@ export function ProjectFields({
   autoFocus?: boolean;
 }) {
   return (
-    <div className="grid gap-5">
+    <>
       <input type="hidden" name="kind" value="project" />
       {companies &&
         (companies.length === 1 ? (
           <input type="hidden" name="companyId" value={companies[0].id} />
         ) : (
-          <div>
-            <Label htmlFor="project-company" className="mb-1.5">
-              Empresa
-            </Label>
+          <FormField label="Empresa" htmlFor="project-company">
             <CompanyField
               id="project-company"
               name="companyId"
@@ -63,12 +53,9 @@ export function ProjectFields({
               companies={companies}
               defaultValue={companyId}
             />
-          </div>
+          </FormField>
         ))}
-      <div>
-        <Label htmlFor="project-name" className="mb-1.5">
-          Nome
-        </Label>
+      <FormField label="Nome" htmlFor="project-name">
         <Input
           id="project-name"
           name="name"
@@ -78,11 +65,8 @@ export function ProjectFields({
           defaultValue={values?.name ?? ""}
           placeholder="Ex.: Site institucional"
         />
-      </div>
-      <div>
-        <Label htmlFor="project-description" className="mb-1.5">
-          Descrição
-        </Label>
+      </FormField>
+      <FormField label="Descrição" htmlFor="project-description">
         <Textarea
           id="project-description"
           name="description"
@@ -92,8 +76,8 @@ export function ProjectFields({
           placeholder="O que é, para quem e o que se espera."
           className="min-h-24"
         />
-      </div>
-    </div>
+      </FormField>
+    </>
   );
 }
 
@@ -113,45 +97,28 @@ export function ProjectSheet({
 }) {
   const editing = !!values?.id;
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
-        <ServerForm
-          key={open ? "open" : "closed"}
-          action={editing ? updateProject : createEngagement}
-          onSuccess={() => editing && onOpenChange(false)}
-          className="flex h-full min-h-0 flex-col"
-        >
-          {editing && <input type="hidden" name="id" value={values!.id} />}
-          <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>{editing ? "Editar projeto" : "Novo projeto"}</SheetTitle>
-            <SheetDescription>
-              {editing
-                ? "Nome e descrição."
-                : "O projeto fica vinculado à empresa e ganha um quadro de tarefas."}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <FormError className="mb-5" />
-            <ProjectFields
-              companies={editing ? undefined : companies}
-              companyId={companyId}
-              values={values}
-              autoFocus
-            />
-          </div>
-          <SheetFooter className="flex-row justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-            <SheetClose asChild>
-              <Button type="button" variant="outline">
-                Cancelar
-              </Button>
-            </SheetClose>
-            <SubmitButton pendingLabel={editing ? "Salvando…" : "Criando…"}>
-              {editing ? "Salvar alterações" : "Criar"}
-            </SubmitButton>
-          </SheetFooter>
-        </ServerForm>
-      </SheetContent>
-    </Sheet>
+    <FormSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? "Editar projeto" : "Novo projeto"}
+      description={
+        editing
+          ? "Nome e descrição."
+          : "O projeto fica vinculado à empresa e ganha um quadro de tarefas."
+      }
+      action={editing ? updateProject : createEngagement}
+      formKey={values?.id ?? "new"}
+      submitLabel={editing ? "Salvar" : "Criar projeto"}
+      pendingLabel={editing ? "Salvando…" : "Criando…"}
+    >
+      {editing && <input type="hidden" name="id" value={values!.id} />}
+      <ProjectFields
+        companies={editing ? undefined : companies}
+        companyId={companyId}
+        values={values}
+        autoFocus
+      />
+    </FormSheet>
   );
 }
 
@@ -163,20 +130,8 @@ export function NewProjectSheet({
   companies: ProjectCompanyOption[];
   companyId?: string;
 }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(true);
-  return (
-    <ProjectSheet
-      open={open}
-      onOpenChange={(next) => {
-        if (next) return;
-        setOpen(false);
-        setTimeout(() => router.back(), 300);
-      }}
-      companies={companies}
-      companyId={companyId}
-    />
-  );
+  const sheet = useRouteSheet();
+  return <ProjectSheet {...sheet} companies={companies} companyId={companyId} />;
 }
 
 /** /projetos/novo on a direct load. */
@@ -198,7 +153,7 @@ export function NewProjectForm({
           <Button type="button" variant="outline" asChild>
             <Link href="/projetos">Cancelar</Link>
           </Button>
-          <SubmitButton pendingLabel="Criando…">Criar</SubmitButton>
+          <SubmitButton pendingLabel="Criando…">Criar projeto</SubmitButton>
         </CardFooter>
       </ServerForm>
     </Card>
