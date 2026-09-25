@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getActor } from "@/lib/access";
 import { allowRequest, AssistantError, converse, type ChatTurn } from "@/lib/assistant";
 import { pageSnapshotSchema } from "@/lib/page-snapshot";
+import { appendExchange } from "@/lib/assistant-history";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
@@ -11,6 +12,7 @@ const body = z.object({
     .min(1)
     .max(60),
   page: pageSnapshotSchema.optional(),
+  conversationId: z.string().uuid().optional(),
 });
 
 /** One conversational turn; the caller's own session scopes every tool. */
@@ -24,7 +26,11 @@ export async function POST(request: Request) {
   if (history[history.length - 1].role !== "user") return Response.json({ error: "A última mensagem precisa ser sua." }, { status: 400 });
   try {
     const reply = await converse(actor, history, parsed.data.page);
-    return Response.json(reply, { headers: { "Cache-Control": "no-store" } });
+    const conversationId = await appendExchange(actor.user.id, parsed.data.conversationId ?? null, history[history.length - 1].content, reply).catch((error) => {
+      console.warn("[assistant] history not saved", error instanceof Error ? error.message : error);
+      return parsed.data.conversationId ?? null;
+    });
+    return Response.json({ ...reply, conversationId }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof AssistantError) return Response.json({ error: error.message }, { status: 503 });
     console.error("[assistant] turn failed", error);

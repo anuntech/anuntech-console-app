@@ -389,6 +389,35 @@ export const assistantDocuments = pgTable("console_assistant_documents", {
   createdAt: created(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+/** One person's conversations with the assistant, so they can be reopened. */
+export const assistantConversations = pgTable(
+  "console_assistant_conversations",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    title: text("title").notNull(),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("console_assistant_conversation_user_idx").on(t.userId, t.updatedAt)],
+);
+export const assistantMessages = pgTable(
+  "console_assistant_messages",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    conversationId: text("conversation_id")
+      .notNull()
+      .references(() => assistantConversations.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["user", "assistant"] }).notNull(),
+    content: text("content").notNull(),
+    /** What the assistant did to answer ("Consultei as faturas"), for the chips. */
+    steps: jsonb("steps").$type<string[]>(),
+    createdAt: created(),
+  },
+  (t) => [index("console_assistant_message_conversation_idx").on(t.conversationId, t.createdAt)],
+);
 /** What Anuntech offers, defined once; companies get linked to items. */
 export const catalogItems = pgTable("console_catalog_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

@@ -218,6 +218,13 @@
       "when": 1790292088186,
       "tag": "0030_assistant",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790303852025,
+      "tag": "0031_assistant_history",
+      "breakpoints": true
     }
   ]
 }
