@@ -5,11 +5,13 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
   type ReactNode,
+  type RefObject,
 } from "react";
 import {
   DndContext,
@@ -57,6 +59,7 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { useAppearance } from "@/components/appearance-provider";
 import { Input } from "@/components/ui/input";
 import { MultiSelect } from "@/components/console/multi-select";
 import {
@@ -335,7 +338,7 @@ function Column({
       ref={setNodeRef}
       aria-labelledby={`column-${status}`}
       className={cn(
-        "flex min-w-[248px] flex-1 basis-[248px] snap-start flex-col rounded-xl bg-secondary/70 transition-colors",
+        "flex min-h-0 min-w-[248px] flex-1 basis-[248px] snap-start flex-col rounded-xl bg-secondary/70 transition-colors",
         isOver && "bg-accent",
       )}
     >
@@ -370,7 +373,7 @@ function Column({
         </Button>
       </header>
       <SortableContext id={status} items={ids} strategy={verticalListSortingStrategy}>
-        <ol className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-2">
+        <ol className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-2 pb-2 [scrollbar-width:thin]">
           {ids.map((id) => {
             const task = tasks.get(id);
             return task ? (
@@ -388,8 +391,44 @@ function Column({
   );
 }
 
+/**
+ * The board fills what is left of the viewport below the heading and the
+ * filters, so the page never grows with the tasks: each column scrolls on
+ * its own instead. Measured on the client, so it follows the dock position,
+ * the safe area and whatever wraps above it.
+ */
+const BOARD_MIN_HEIGHT = 360;
+function useBoardHeight(ref: RefObject<HTMLDivElement | null>) {
+  const { position } = useAppearance();
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      // What the shell keeps below the content: the page's bottom padding and the dock's strip.
+      const reserved = [el.closest(".workspace"), el.closest(".page-content")].reduce(
+        (sum, node) => sum + (node ? parseFloat(getComputedStyle(node).paddingBottom) || 0 : 0),
+        0,
+      );
+      setHeight(Math.max(BOARD_MIN_HEIGHT, Math.floor(window.innerHeight - top - reserved)));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    const observer = new ResizeObserver(measure);
+    if (el.parentElement) observer.observe(el.parentElement);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer.disconnect();
+    };
+  }, [ref, position]);
+  return height;
+}
+
 export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   const { project, tasks, people, viewer, today, now } = data;
+  const boardRef = useRef<HTMLDivElement>(null);
+  const boardHeight = useBoardHeight(boardRef);
   const router = useRouter();
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
   const [columns, setColumnsState] = useState<Columns>(() => group(tasks));
@@ -731,8 +770,10 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
         }}
       >
         <div
+          ref={boardRef}
           aria-busy={saving || undefined}
-          className="-mx-1 flex min-h-[calc(100vh-340px)] snap-x gap-3 overflow-x-auto px-1 pb-4"
+          className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2"
+          style={{ height: boardHeight ?? `max(${BOARD_MIN_HEIGHT}px, calc(100dvh - 340px))` }}
         >
           {TASK_STATUSES.map((status) => (
             <Column
