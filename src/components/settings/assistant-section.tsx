@@ -185,7 +185,8 @@ export async function AssistantSection() {
             <li>Leva a pessoa à tela certa (nova cobrança, novo orçamento…).</li>
             <li>Abre o chat com a equipe quando pedem para falar com alguém.</li>
             <li>Para a equipe: monta projetos inteiros com tarefas a partir de uma descrição.</li>
-            <li>Nunca cria cobranças, orçamentos ou contratos por conta própria.</li>
+            <li>Para a equipe: cria orçamentos em rascunho com fases, horas e taxa; o envio continua na tela.</li>
+            <li>Nunca cria cobranças ou contratos, nem envia orçamentos por conta própria.</li>
           </ul>
         </CardContent>
       </Card>

@@ -22,7 +22,8 @@ import { formatDocument } from "./company-input";
 import { contractStatusLabels } from "./contract-table";
 import { currency, engagementLabels, priorityLabels, ticketLabels } from "./format";
 import { hasPermission, type Area } from "./permissions";
-import { quoteNumberLabel, quoteStatusLabels, quoteTotals } from "./quote-model";
+import { createQuote } from "./quote-actions";
+import { DEFAULT_QUOTE_NOTES, hoursLabel, quoteNumberLabel, quoteStatusLabels, quoteTotals, type QuoteContent } from "./quote-model";
 import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "./task-model";
 import { OPEN_TICKET_STATUSES } from "./ticket-status";
 
@@ -597,6 +598,64 @@ const listQuotes = tool({
   },
 });
 
+const createQuoteTool = tool({
+  name: "criar_orcamento",
+  description:
+    "Cria um orçamento em rascunho (só a equipe da Anuntech) a partir de título, resumo, taxa/hora, entrada, validade, stack e fases com faixa de horas e tarefas, no formato da proposta da Anuntech. O rascunho abre para revisão e o envio ao cliente é feito na tela. Se a taxa/hora não foi dita, pergunte antes de criar. Use listar_projetos_e_produtos ou o texto da pessoa para montar as fases.",
+  input: z.object({
+    companyId: id,
+    titulo: z.string().trim().min(1).max(160),
+    resumo: z.string().trim().max(4000).default(""),
+    taxaHoraReais: z.number().min(0).max(100000).default(0),
+    entradaPercentual: z.number().int().min(0).max(100).default(50),
+    validoAte: z.union([z.iso.date(), z.literal("")]).default(""),
+    stack: z.array(z.string().trim().min(1).max(160)).max(40).default([]),
+    fases: z
+      .array(
+        z.object({
+          nome: z.string().trim().min(1).max(160),
+          descricao: z.string().trim().max(4000).default(""),
+          horasMin: z.number().min(0).max(100000),
+          horasMax: z.number().min(0).max(100000),
+          tarefas: z.array(z.object({ titulo: z.string().trim().min(1).max(160), descricao: z.string().trim().max(4000).default("") })).max(200).default([]),
+        }),
+      )
+      .min(1)
+      .max(60),
+    observacoes: z.string().trim().max(4000).optional(),
+  }),
+  staffOnly: true,
+  write: true,
+  run: async (_ctx, input) => {
+    const content: QuoteContent = {
+      summary: input.resumo,
+      stack: input.stack,
+      phases: input.fases.map((f) => {
+        const min = Math.round(f.horasMin);
+        return { name: f.nome, description: f.descricao, hoursMin: min, hoursMax: Math.max(min, Math.round(f.horasMax)), tasks: f.tarefas.map((t) => ({ title: t.titulo, description: t.descricao })) };
+      }),
+      hourlyRateCents: Math.round(input.taxaHoraReais * 100),
+      upfrontPercent: input.entradaPercentual,
+      notes: input.observacoes ?? DEFAULT_QUOTE_NOTES,
+    };
+    const state = await submit(createQuote, { companyId: input.companyId, title: input.titulo, validUntil: input.validoAte, content: JSON.stringify(content) });
+    const totals = quoteTotals(content);
+    return {
+      result: {
+        criado: true,
+        rascunho: true,
+        link: state.href ?? "/orcamentos",
+        esforco: hoursLabel(totals.hoursMin, totals.hoursMax),
+        valorTotal: currency(totals.totalCents),
+        entrada: currency(totals.upfrontCents),
+        saldo: currency(totals.balanceCents),
+        proximoPasso: "Revisar na tela e clicar em Enviar ao cliente.",
+      },
+      summary: `Criei o rascunho do orçamento "${input.titulo}"`,
+    };
+  },
+});
+
 const openSupport = tool({
   name: "abrir_chat_suporte",
   description: "Abre o chat com a equipe da Anuntech (pessoas de verdade) para a pessoa conversar. Use quando ela quiser falar com alguém ou quando você não conseguir resolver.",
@@ -677,6 +736,7 @@ export const assistantTools: AnyTool[] = [
   addProject,
   listContracts,
   listQuotes,
+  createQuoteTool,
   openSupport,
   openScreen,
   searchKnowledge,

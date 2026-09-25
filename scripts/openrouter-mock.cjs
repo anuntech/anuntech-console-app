@@ -33,21 +33,25 @@ function decide(messages) {
         if (row.engagementId) return `- [${row.nome}](${row.link}) · ${row.tipo} · ${row.situacao}`;
         if (row.nome && row.cnpj) return `- ${row.nome} (${row.cnpj})`;
         if (row.erro) return `- Erro: ${row.erro}`;
+        if (row.rascunho && row.link) return `- Orçamento em rascunho: [abrir](${row.link}) · ${row.esforco} · ${row.valorTotal}`;
         if (row.aberto && row.link) return `- Chamado aberto: [${row.assunto ?? "ver"}](${row.link})`;
         return `- ${JSON.stringify(row).slice(0, 200)}`;
       })
       .join("\n");
   // Second round onwards: chain or finish.
-  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela"))
+  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento"))
     return reply(`Feito.\n\n${summarize()}`);
   if (calls.includes("listar_empresas") && tools.length) {
     const first = tools.flat()[0];
     if (user.includes("chamado")) return reply(null, [call("abrir_chamado", { companyId: first.companyId, assunto: "Teste do assistente", descricao: "Chamado aberto pelo assistente durante o QA." })]);
     if (user.includes("resumo")) return reply(null, [call("resumo_da_empresa", { companyId: first.companyId })]);
+    if (user.includes("orcamento") || user.includes("orçamento"))
+      return reply(null, [call("criar_orcamento", { companyId: first.companyId, titulo: "Portal do cliente", resumo: "Área logada para acompanhar pedidos.", taxaHoraReais: 120, entradaPercentual: 40, validoAte: "2026-10-31", stack: ["Next.js", "PostgreSQL"], fases: [{ nome: "Descoberta", descricao: "Levantamento e protótipo.", horasMin: 6, horasMax: 8, tarefas: [{ titulo: "Entrevistas", descricao: "Duas sessões com o cliente." }] }, { nome: "Construção", horasMin: 20, horasMax: 26, tarefas: [{ titulo: "Login e cadastro" }, { titulo: "Lista de pedidos" }] }] })]);
   }
   if (tools.length) return reply(`Aqui está o que encontrei:\n\n${summarize()}`);
   // First round: pick a tool from the wording.
   if (user.includes("maior cliente") || user.includes("faturamos")) return reply(null, [call("resumo_financeiro", { periodo: "tudo" })]);
+  if (user.includes("orcamento") || user.includes("orçamento")) return reply(null, [call("listar_empresas", { limite: 5 })]);
   if (user.includes("boleto") || user.includes("fatura")) return reply(null, [call("listar_faturas", { situacao: "todas", limite: 3 })]);
   if (user.includes("falar")) return reply(null, [call("abrir_chat_suporte", {})]);
   if (user.includes("chamado") || user.includes("resumo")) return reply(null, [call("listar_empresas", { limite: 5 })]);
