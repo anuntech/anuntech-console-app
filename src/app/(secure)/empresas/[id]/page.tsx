@@ -14,6 +14,7 @@ import {
   user,
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
+import { companyLinks } from "@/lib/record-links";
 import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
 import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
@@ -43,6 +44,7 @@ export default async function Company({
     [contractRow],
     [quoteRow],
     [engagementRow],
+    links,
   ] = await Promise.all([
     db
       .select({
@@ -104,6 +106,8 @@ export default async function Company({
       .select({ n: count() })
       .from(engagements)
       .where(eq(engagements.companyId, id)),
+    // "Excluir" shows only without invoices, recurrences, contracts or proposals.
+    companyLinks([id]),
   ]);
   // One row per person even when an older verified e-mail also matched.
   const seen = new Set<string>();
@@ -156,6 +160,7 @@ export default async function Company({
           quotes: `/orcamentos?company=${id}`,
           engagements: `/projetos?company=${id}`,
         },
+        deleteLinks: links.get(id),
       }}
     />
   );

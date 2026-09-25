@@ -10,6 +10,7 @@ import { NewCompanyButton } from "@/components/empresas/company-sheet";
 import { companyQuery } from "@/lib/company-table";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
+import { companyLinks } from "@/lib/record-links";
 export const metadata: Metadata = {
   title: "Empresas",
   description:
@@ -60,7 +61,7 @@ export default async function Companies({
     .limit(query.pageSize)
     .offset(offsetOf({ ...query, page }));
   const ids = list.map((c) => c.id);
-  const [people, open] = ids.length
+  const [people, open, links] = ids.length
     ? await Promise.all([
         db
           .select({ companyId: memberships.companyId, n: count() })
@@ -82,14 +83,17 @@ export default async function Companies({
             ),
           )
           .groupBy(tickets.companyId),
+        // "Excluir" shows only for companies without invoices, contracts or proposals.
+        companyLinks(ids),
       ])
-    : [[], []];
+    : [[], [], null];
   const peopleBy = new Map(people.map((r) => [r.companyId, r.n]));
   const openBy = new Map(open.map((r) => [r.companyId, r.n]));
   const rows = list.map((c) => ({
     ...c,
     people: peopleBy.get(c.id) ?? 0,
     openTickets: openBy.get(c.id) ?? 0,
+    links: links?.get(c.id),
   }));
   return (
     <>

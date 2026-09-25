@@ -8,6 +8,7 @@ import { getActor } from "@/lib/access";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { companyShortcuts, projectListQuery } from "@/lib/project-table";
 import { taskSummary } from "@/lib/tasks";
+import { engagementLinks } from "@/lib/record-links";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { ProjectsList } from "@/components/projetos/projects-list";
@@ -80,7 +81,7 @@ export default async function Projects({
   ]);
   // Tasks are counted only for the projects on this page.
   const pageIds = rows.map((row) => row.id);
-  const [summary, activity] = await Promise.all([
+  const [summary, activity, links] = await Promise.all([
     taskSummary(pageIds),
     pageIds.length
       ? db
@@ -90,6 +91,8 @@ export default async function Projects({
           .groupBy(tasks.engagementId)
           .then((found) => new Map(found.map((row) => [row.engagementId, row.at])))
       : new Map<string, Date | null>(),
+    // Staff see "Excluir" only where nothing billed or signed points at the project.
+    actor.admin ? engagementLinks(pageIds) : null,
   ]);
   return (
     <>
@@ -118,6 +121,7 @@ export default async function Projects({
           tasks: summary.get(row.id) ?? { total: 0, done: 0 },
           // The project moves with its board: the last task change, or its creation.
           updatedAt: (activity.get(row.id) ?? createdAt).toISOString(),
+          links: links?.get(row.id),
         }))}
         query={paging}
         total={total}

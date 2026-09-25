@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useId, useState, type FocusEvent, type ReactNode } from "react";
 import {
+  BanIcon,
   Building2Icon,
   CircleCheckIcon,
   CircleSlashIcon,
@@ -68,7 +69,7 @@ import {
 } from "./invoice-badges";
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
 import { hasTerms, lateFeesLabel, type ChargeTerms } from "@/lib/billing-terms";
-import { billingTypeLabel } from "./invoices-table";
+import { billingTypeLabel, DeleteInvoiceDialog } from "./invoices-table";
 
 export type InvoiceDetailData = {
   invoice: {
@@ -95,6 +96,8 @@ export type InvoiceDetailData = {
     publicEnabled: boolean;
     fiscalStatus: string;
     editable: "draft" | "issued" | null;
+    /** Staff only: a draft (or cancelled draft) that never reached the Inter. */
+    deletable?: boolean;
     terms: ChargeTerms;
   };
   company: {
@@ -250,13 +253,14 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
     null,
   );
   const [confirm, setConfirm] = useState<
-    null | "link" | "subscription" | "cancel"
+    null | "link" | "subscription" | "cancel" | "delete"
   >(null);
   const [send, setSend] = useState<null | "email" | "whatsapp">(null);
   const [resend, setResend] = useState<string | null>(null);
   const [allEvents, setAllEvents] = useState(false);
-  const ask = (which: "link" | "subscription" | "cancel") =>
+  const ask = (which: "link" | "subscription" | "cancel" | "delete") =>
     setTimeout(() => setConfirm(which), 0);
+  const deletable = admin && !!invoice.deletable;
 
   const paid = invoice.status === "paid";
   const issued = invoice.status === "issued";
@@ -361,17 +365,26 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       : "Retomar recorrência"}
                   </DropdownMenuItem>
                 )}
+                {(invoice.editable === "draft" || deletable) && (
+                  <DropdownMenuSeparator />
+                )}
                 {invoice.editable === "draft" && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => ask("cancel")}
-                    >
-                      <Trash2Icon />
-                      Cancelar rascunho
-                    </DropdownMenuItem>
-                  </>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => ask("cancel")}
+                  >
+                    <BanIcon />
+                    Cancelar rascunho
+                  </DropdownMenuItem>
+                )}
+                {deletable && (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => ask("delete")}
+                  >
+                    <Trash2Icon />
+                    Excluir
+                  </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1093,6 +1106,15 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             confirmLabel="Cancelar rascunho"
             destructive
           />
+          {deletable && (
+            <DeleteInvoiceDialog
+              invoice={invoice}
+              company={company.name}
+              recurring={!!sub}
+              open={confirm === "delete"}
+              onOpenChange={(open) => !open && setConfirm(null)}
+            />
+          )}
           <ConfirmDialog
             open={send !== null}
             onOpenChange={(open) => !open && setSend(null)}

@@ -1,6 +1,6 @@
 "use server";
 import { createHash } from "node:crypto";
-import { and, eq, isNotNull, max, or } from "drizzle-orm";
+import { and, eq, isNotNull, max, or, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -98,6 +98,22 @@ function partyFor(actor: Actor, companyId: string): "anuntech" | "client" | null
 /* ---------- drafting (staff) ---------- */
 
 /** A new proposal, numbered in order within the year, saved as a draft. */
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * The highest quote number used this year, counting deleted quotes too (their
+ * number lives on in the audit log), so a number is never handed out twice.
+ */
+async function lastQuoteSeq(tx: Tx, year: number) {
+  const [{ last }] = await tx.select({ last: max(quotes.seq) }).from(quotes).where(eq(quotes.year, year));
+  const [{ gone }] = await tx
+    .select({ gone: sql<number | null>`max((${auditEvents.details}->>'seq')::int)` })
+    .from(auditEvents)
+    .where(and(eq(auditEvents.action, "quote.deleted"), sql`${auditEvents.details}->>'year' = ${String(year)}`));
+  return Math.max(Number(last ?? 0), Number(gone ?? 0));
+}
+
 export async function createQuote(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   if (!actor.admin) return blocked;
@@ -108,10 +124,10 @@ export async function createQuote(_: ActionState, form: FormData): Promise<Actio
     if (!company) return { error: "Escolha a empresa." };
     const created = await db.transaction(async (tx) => {
       const year = Number(saoPauloDate().slice(0, 4));
-      const [{ last }] = await tx.select({ last: max(quotes.seq) }).from(quotes).where(eq(quotes.year, year));
+      const last = await lastQuoteSeq(tx, year);
       const [row] = await tx
         .insert(quotes)
-        .values({ ...fields, companyId, year, seq: Number(last ?? 0) + 1, authorId: actor.user.id })
+        .values({ ...fields, companyId, year, seq: last + 1, authorId: actor.user.id })
         .returning({ id: quotes.id, year: quotes.year, seq: quotes.seq });
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
@@ -179,13 +195,13 @@ export async function duplicateQuote(_: ActionState, form: FormData): Promise<Ac
     };
     const created = await db.transaction(async (tx) => {
       const year = Number(saoPauloDate().slice(0, 4));
-      const [{ last }] = await tx.select({ last: max(quotes.seq) }).from(quotes).where(eq(quotes.year, year));
+      const last = await lastQuoteSeq(tx, year);
       const [row] = await tx
         .insert(quotes)
         .values({
           companyId: q.companyId,
           year,
-          seq: Number(last ?? 0) + 1,
+          seq: last + 1,
           title: `${q.title} (cópia)`.slice(0, 160),
           content,
           validUntil: null,

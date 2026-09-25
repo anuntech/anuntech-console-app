@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  BanIcon,
   Building2Icon,
   CopyIcon,
   ExternalLinkIcon,
@@ -48,6 +49,7 @@ import {
 } from "@/components/console/list-view";
 import { toast } from "@/components/notifications";
 import { cancelDraft } from "@/lib/actions";
+import { deleteDraftInvoice } from "@/lib/invoice-deletion";
 import { daysOverdue } from "@/lib/billing-notice-rules";
 import { currency, dateLabel } from "@/lib/format";
 import { DateField } from "@/components/console/date-field";
@@ -84,6 +86,8 @@ export type InvoiceRow = {
   /** Which sheet "Editar" opens; null when nothing can change any more. */
   editable: "draft" | "issued" | null;
   cancellable: boolean;
+  /** Staff only: a draft (or cancelled draft) that never reached the Inter. */
+  deletable?: boolean;
   terms: ChargeTerms;
 };
 
@@ -94,6 +98,47 @@ export const billingTypeLabel = (
   recurring
     ? `Recorrente · ${interval === "yearly" ? "Anual" : "Mensal"}`
     : "Cobrança única";
+
+/**
+ * Deleting a draft that never reached the bank, for good. Nothing is sent to
+ * the Inter or to anyone. From the list it stays on the list (filters and
+ * page); from the invoice it goes back to the list.
+ */
+export function DeleteInvoiceDialog({
+  invoice,
+  company,
+  recurring,
+  open,
+  onOpenChange,
+  fromList = false,
+}: {
+  invoice: { id: string; amountCents: number; dueDate: string };
+  company: string;
+  recurring: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  fromList?: boolean;
+}) {
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      action={deleteDraftInvoice}
+      fields={fromList ? { id: invoice.id, from: "list" } : { id: invoice.id }}
+      title="Excluir rascunho de fatura?"
+      description={[
+        `O rascunho de ${currency(invoice.amountCents)} para ${company}, com vencimento em ${dateLabel(invoice.dueDate)}, será apagado. Nada foi enviado ao Inter.`,
+        recurring &&
+          "Se a recorrência ainda não foi ativada, ela sai junto; se já rodou, a exclusão é recusada (pause ou cancele a recorrência).",
+        "Isso não pode ser desfeito.",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      confirmLabel="Excluir"
+      destructive
+    />
+  );
+}
 
 async function copyLink(url: string) {
   try {
@@ -114,22 +159,37 @@ function InvoiceActions({
   onEdit: (invoice: InvoiceRow) => void;
 }) {
   const [cancelling, setCancelling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deletable = admin && !!invoice.deletable;
   return (
     <RowActions
       label={invoice.description}
       extra={
-        admin &&
-        invoice.cancellable && (
-          <ConfirmDialog
-            open={cancelling}
-            onOpenChange={setCancelling}
-            action={cancelDraft}
-            fields={{ id: invoice.id }}
-            title="Cancelar este rascunho?"
-            description={`A cobrança de ${currency(invoice.amountCents)} para ${invoice.company} não será emitida.`}
-            confirmLabel="Cancelar rascunho"
-            destructive
-          />
+        admin && (
+          <>
+            {invoice.cancellable && (
+              <ConfirmDialog
+                open={cancelling}
+                onOpenChange={setCancelling}
+                action={cancelDraft}
+                fields={{ id: invoice.id }}
+                title="Cancelar este rascunho?"
+                description={`A cobrança de ${currency(invoice.amountCents)} para ${invoice.company} não será emitida.`}
+                confirmLabel="Cancelar rascunho"
+                destructive
+              />
+            )}
+            {deletable && (
+              <DeleteInvoiceDialog
+                invoice={invoice}
+                company={invoice.company}
+                recurring={invoice.recurring}
+                open={deleting}
+                onOpenChange={setDeleting}
+                fromList
+              />
+            )}
+          </>
         )
       }
     >
@@ -167,17 +227,24 @@ function InvoiceActions({
           </Link>
         </DropdownMenuItem>
       )}
+      {admin && (invoice.cancellable || deletable) && <DropdownMenuSeparator />}
       {admin && invoice.cancellable && (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => setTimeout(() => setCancelling(true), 0)}
-          >
-            <Trash2Icon />
-            Cancelar rascunho
-          </DropdownMenuItem>
-        </>
+        <DropdownMenuItem
+          variant="destructive"
+          onSelect={() => setTimeout(() => setCancelling(true), 0)}
+        >
+          <BanIcon />
+          Cancelar rascunho
+        </DropdownMenuItem>
+      )}
+      {deletable && (
+        <DropdownMenuItem
+          variant="destructive"
+          onSelect={() => setTimeout(() => setDeleting(true), 0)}
+        >
+          <Trash2Icon />
+          Excluir
+        </DropdownMenuItem>
       )}
     </RowActions>
   );

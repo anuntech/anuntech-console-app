@@ -16,6 +16,7 @@ import { getActor, allowedIds } from "@/lib/access";
 import { saoPauloDate } from "@/lib/dates";
 import { paymentUrl } from "@/lib/payment-link";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
+import { canDeleteDraftInvoice } from "@/lib/deletion-rules";
 import {
   invoiceListHref,
   invoicePeriodRange,
@@ -128,6 +129,17 @@ export default async function Finance({
         subscriptionStatus: subscriptions.status,
         interval: subscriptions.interval,
         bankRequested: sql<boolean>`(${invoices.bankRequest} is not null)`,
+        // What proves the invoice never reached the Inter, for "Excluir".
+        providerId: invoices.providerId,
+        bankBase: invoices.bankBase,
+        bankStatus: invoices.bankStatus,
+        bankCheckedAt: invoices.bankCheckedAt,
+        boletoLine: sql<boolean>`(${invoices.boletoLine} is not null)`,
+        pixCopyPaste: sql<boolean>`(${invoices.pixCopyPaste} is not null)`,
+        boletoUrl: invoices.boletoUrl,
+        boletoPdf: sql<boolean>`(${invoices.boletoPdf} is not null)`,
+        fiscalStatus: invoices.fiscalStatus,
+        fiscalUrl: invoices.fiscalUrl,
       })
       .from(invoices)
       .innerJoin(companies, eq(companies.id, invoices.companyId))
@@ -253,6 +265,11 @@ export default async function Finance({
                 ? "issued"
                 : null,
           cancellable: row.status === "draft" && !row.bankRequested,
+          // A recurrence that already ran would bill the period again; the action refuses it too.
+          deletable:
+            actor.admin &&
+            (!row.subscriptionId || row.subscriptionStatus === "draft") &&
+            canDeleteDraftInvoice({ ...row, bankRequest: row.bankRequested }),
         }))}
         query={{ ...query, page }}
         total={total}

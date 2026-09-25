@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Building2Icon, CalculatorIcon, CopyPlusIcon, PlusIcon } from "lucide-react";
+import { Building2Icon, CalculatorIcon, CopyPlusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -22,6 +22,8 @@ import {
   RowActions,
 } from "@/components/console/list-view";
 import { duplicateQuote } from "@/lib/quote-actions";
+import { deleteQuote } from "@/lib/quote-deletion";
+import { canDeleteQuote, quoteDecisionNotice } from "@/lib/deletion-rules";
 import { currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
 import { hoursLabel, quoteExpired, quoteFilterLabels, quoteListHref, type QuoteStatusFilter } from "@/lib/quote-model";
 import { QUOTE_NOUN, quoteFiltersFor, type QuoteTableQuery } from "@/lib/quote-table";
@@ -30,24 +32,43 @@ import type { QuoteRow } from "./quote-row";
 
 const hidePhone = "hidden md:table-cell";
 
-function QuoteRowActions({ row, admin, waiting }: { row: QuoteRow; admin: boolean; waiting: boolean }) {
+function QuoteRowActions({ row, admin, waiting, today }: { row: QuoteRow; admin: boolean; waiting: boolean; today: string }) {
   const [duplicating, setDuplicating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // The PDF route serves drafts to staff only and never serves cancelled proposals.
   const hasPdf = row.status !== "cancelled" && (admin || row.status !== "draft");
+  const deletable = admin && canDeleteQuote(row.status, { validUntil: row.validUntil, today });
+  const decision = quoteDecisionNotice(row.status);
   return (
     <RowActions
       label={row.title}
       extra={
         admin && (
-          <ConfirmDialog
-            open={duplicating}
-            onOpenChange={setDuplicating}
-            action={duplicateQuote}
-            fields={{ id: row.id }}
-            title="Duplicar como novo rascunho?"
-            description="Um novo orçamento, com número próprio, nasce com as mesmas fases, tarefas e valores para você ajustar."
-            confirmLabel="Duplicar"
-          />
+          <>
+            <ConfirmDialog
+              open={duplicating}
+              onOpenChange={setDuplicating}
+              action={duplicateQuote}
+              fields={{ id: row.id }}
+              title="Duplicar como novo rascunho?"
+              description="Um novo orçamento, com número próprio, nasce com as mesmas fases, tarefas e valores para você ajustar."
+              confirmLabel="Duplicar"
+            />
+            {deletable && (
+              <ConfirmDialog
+                open={deleting}
+                onOpenChange={setDeleting}
+                action={deleteQuote}
+                fields={{ id: row.id, from: "list" }}
+                title="Excluir orçamento?"
+                description={`O orçamento nº ${row.number} sai do Console junto com as versões enviadas, se houver.${
+                  decision ? ` ${decision}` : ""
+                } Isso não pode ser desfeito.`}
+                confirmLabel="Excluir"
+                destructive
+              />
+            )}
+          </>
         )
       }
     >
@@ -75,6 +96,15 @@ function QuoteRowActions({ row, admin, waiting }: { row: QuoteRow; admin: boolea
           <CopyPlusIcon />
           Duplicar como novo rascunho
         </DropdownMenuItem>
+      )}
+      {deletable && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setDeleting(true), 0)}>
+            <Trash2Icon />
+            Excluir
+          </DropdownMenuItem>
+        </>
       )}
     </RowActions>
   );
@@ -213,7 +243,7 @@ export function QuotesTable({
                       {relativeLabel(row.updatedAt, now)}
                     </time>
                   </TableCell>
-                  <QuoteRowActions row={row} admin={admin} waiting={row.status === "sent" && !expired} />
+                  <QuoteRowActions row={row} admin={admin} waiting={row.status === "sent" && !expired} today={today} />
                 </LinkRow>
               );
             })}

@@ -12,6 +12,7 @@ import {
   PencilIcon,
   PlayIcon,
   PlusIcon,
+  Trash2Icon,
   WrenchIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,9 @@ import {
 } from "@/lib/project-table";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
 import { currency, dateLabel } from "@/lib/format";
-import { useEngagementStatus } from "@/components/projetos/engagement-status";
+import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
+import { useEngagementStatus, type EngagementStatus } from "@/components/projetos/engagement-status";
+import { DeleteEngagementDialog } from "@/components/projetos/delete-engagement-dialog";
 import { ProductSheet, type ProductFormValues } from "./product-form";
 
 export type ProductRow = {
@@ -69,6 +72,8 @@ export type ProductRow = {
   subscriptionId?: string | null;
   companyId: string;
   company: string;
+  /** Staff only: what points at it, so "Excluir" shows only when it can go. */
+  links?: EngagementLinks;
 };
 const intervalLabel = { monthly: "/mês", yearly: "/ano" } as const;
 
@@ -88,6 +93,120 @@ function webUrl(url: string | null) {
   } catch {
     return null;
   }
+}
+
+function ProductRowActions({
+  row,
+  admin,
+  servicePage,
+  link,
+  onEdit,
+  onStatus,
+}: {
+  row: ProductRow;
+  admin: boolean;
+  servicePage: string | null;
+  link: string | null;
+  onEdit: (values: ProductFormValues) => void;
+  onStatus: (id: string, status: EngagementStatus) => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const deletable = admin && canDeleteEngagement(row.links);
+  return (
+    <RowActions
+      label={row.name}
+      extra={
+        deletable && (
+          <DeleteEngagementDialog
+            engagement={{ id: row.id, name: row.name, kind: row.kind }}
+            fromList
+            open={deleting}
+            onOpenChange={setDeleting}
+          />
+        )
+      }
+    >
+      {servicePage ? (
+        <DropdownMenuItem asChild>
+          <Link href={servicePage}>
+            <WrenchIcon />
+            Abrir serviço
+          </Link>
+        </DropdownMenuItem>
+      ) : link ? (
+        <DropdownMenuItem asChild>
+          <a href={link} target="_blank" rel="noopener noreferrer">
+            <ExternalLinkIcon />
+            Abrir produto
+          </a>
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuItem disabled>
+          <ExternalLinkIcon />
+          Sem link cadastrado
+        </DropdownMenuItem>
+      )}
+      {admin && (
+        <>
+          <DropdownMenuItem
+            onSelect={() =>
+              // Let the menu close before the sheet takes focus.
+              setTimeout(
+                () =>
+                  onEdit({
+                    id: row.id,
+                    name: row.name,
+                    description: row.description,
+                    url: row.url,
+                    amountCents: row.amountCents,
+                    subscriptionId: row.subscriptionId ?? null,
+                  }),
+                0,
+              )
+            }
+          >
+            <PencilIcon />
+            Editar
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`/empresas/${row.companyId}`}>
+              <Building2Icon />
+              Ver empresa
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {row.status !== "active" && (
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "active")}>
+              <PlayIcon />
+              {row.status === "paused" ? "Reativar" : "Reabrir"}
+            </DropdownMenuItem>
+          )}
+          {row.status === "active" && (
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "paused")}>
+              <PauseIcon />
+              Pausar
+            </DropdownMenuItem>
+          )}
+          {row.status !== "completed" && (
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "completed")}>
+              <CircleCheckIcon />
+              Encerrar
+            </DropdownMenuItem>
+          )}
+        </>
+      )}
+      {deletable && (
+        <>
+          <DropdownMenuSeparator />
+          {/* Opened after the menu closes, so the dialog takes focus from a settled page. */}
+          <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setDeleting(true), 0)}>
+            <Trash2Icon />
+            Excluir
+          </DropdownMenuItem>
+        </>
+      )}
+    </RowActions>
+  );
 }
 
 /** The products and services companies have with Anuntech; each row opens the service page or the product's link. */
@@ -234,77 +353,14 @@ export function ProductsList({
                   <TableCell className="hidden whitespace-nowrap text-muted-foreground tabular-nums md:table-cell">
                     {row.nextDueDate ? dateLabel(row.nextDueDate) : "—"}
                   </TableCell>
-                  <RowActions label={row.name}>
-                    {servicePage ? (
-                      <DropdownMenuItem asChild>
-                        <Link href={servicePage}>
-                          <WrenchIcon />
-                          Abrir serviço
-                        </Link>
-                      </DropdownMenuItem>
-                    ) : link ? (
-                      <DropdownMenuItem asChild>
-                        <a href={link} target="_blank" rel="noopener noreferrer">
-                          <ExternalLinkIcon />
-                          Abrir produto
-                        </a>
-                      </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem disabled>
-                        <ExternalLinkIcon />
-                        Sem link cadastrado
-                      </DropdownMenuItem>
-                    )}
-                    {admin && (
-                      <>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            // Let the menu close before the sheet takes focus.
-                            setTimeout(
-                              () =>
-                                setEditing({
-                                  id: row.id,
-                                  name: row.name,
-                                  description: row.description,
-                                  url: row.url,
-                                  amountCents: row.amountCents,
-                                  subscriptionId: row.subscriptionId ?? null,
-                                }),
-                              0,
-                            )
-                          }
-                        >
-                          <PencilIcon />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/empresas/${row.companyId}`}>
-                            <Building2Icon />
-                            Ver empresa
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {row.status !== "active" && (
-                          <DropdownMenuItem onSelect={() => change(row.id, "active")}>
-                            <PlayIcon />
-                            {row.status === "paused" ? "Reativar" : "Reabrir"}
-                          </DropdownMenuItem>
-                        )}
-                        {row.status === "active" && (
-                          <DropdownMenuItem onSelect={() => change(row.id, "paused")}>
-                            <PauseIcon />
-                            Pausar
-                          </DropdownMenuItem>
-                        )}
-                        {row.status !== "completed" && (
-                          <DropdownMenuItem onSelect={() => change(row.id, "completed")}>
-                            <CircleCheckIcon />
-                            Encerrar
-                          </DropdownMenuItem>
-                        )}
-                      </>
-                    )}
-                  </RowActions>
+                  <ProductRowActions
+                    row={row}
+                    admin={admin}
+                    servicePage={servicePage}
+                    link={link}
+                    onEdit={setEditing}
+                    onStatus={change}
+                  />
                 </>
               );
               return (

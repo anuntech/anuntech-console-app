@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, ne } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
@@ -40,7 +40,7 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
   const c = row.contract;
   if (!actor.admin && (c.status === "draft" || c.status === "cancelled")) notFound();
   const visible = actor.admin ? undefined : inArray(contracts.status, ["sent", "signed"]);
-  const [signatures, versions, amendments, parent, events] = await Promise.all([
+  const [signatures, versions, amendments, parent, events, amendmentCount] = await Promise.all([
     db
       .select()
       .from(contractSignatures)
@@ -81,6 +81,14 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           .orderBy(desc(auditEvents.createdAt))
           .limit(12)
       : [],
+    // Staff only: every amendment, cancelled ones included, keeps a contract from being deleted.
+    actor.admin
+      ? db
+          .select({ n: count() })
+          .from(contracts)
+          .where(eq(contracts.parentId, id))
+          .then((r) => r[0]?.n ?? 0)
+      : 0,
   ]);
   const grant = actor.grants.find((g) => g.company.id === c.companyId);
   const party = actor.admin ? "anuntech" : grant && hasPermission(grant.role, "finance") ? "client" : null;
@@ -128,6 +136,8 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
         })),
         viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email },
         events: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString() })),
+        // Every signature on any version, not only the current one, counts against deleting.
+        deletion: actor.admin ? { signatures: signatures.length, amendments: amendmentCount } : undefined,
         now: new Date().toISOString(),
         today: saoPauloDate(),
       }}

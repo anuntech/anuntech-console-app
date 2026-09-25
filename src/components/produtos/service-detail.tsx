@@ -1,17 +1,28 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import {
   Building2Icon,
   HeadsetIcon,
+  MoreHorizontalIcon,
   ReceiptTextIcon,
+  Trash2Icon,
   WrenchIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
+import { DeleteEngagementDialog } from "@/components/projetos/delete-engagement-dialog";
 import { currency, dateLabel } from "@/lib/format";
+import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
 
 export type ServiceDetailData = {
   service: {
@@ -25,6 +36,8 @@ export type ServiceDetailData = {
     interval: "monthly" | "yearly" | null;
     nextDueDate: string | null;
     subscriptionId: string | null;
+    /** Staff only: what points at it, so "Excluir" shows only when it can go. */
+    links?: EngagementLinks;
   };
   sections: {
     whatWeDo: string | null;
@@ -47,6 +60,8 @@ const intervalLabel = { monthly: "por mês", yearly: "por ano" } as const;
 export function ServiceDetail({ data }: { data: ServiceDetailData }) {
   const { service, sections, viewer } = data;
   const filled = SECTIONS.filter(([key]) => sections[key]);
+  const [deleting, setDeleting] = useState(false);
+  const deletable = viewer.admin && canDeleteEngagement(service.links);
   return (
     <>
       <PageHeader
@@ -77,12 +92,32 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
         }
         actions={
           viewer.admin ? (
-            <Button variant="outline" asChild>
-              <Link href={`/empresas/${service.companyId}`}>
-                <Building2Icon />
-                Ver empresa
-              </Link>
-            </Button>
+            <>
+              <Button variant="outline" asChild>
+                <Link href={`/empresas/${service.companyId}`}>
+                  <Building2Icon />
+                  Ver empresa
+                </Link>
+              </Button>
+              {deletable && (
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" aria-label="Mais ações">
+                      <MoreHorizontalIcon />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setTimeout(() => setDeleting(true), 0)}
+                    >
+                      <Trash2Icon />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </>
           ) : (
             <Button variant="outline" asChild>
               <Link href={`/chamados/novo?companyId=${service.companyId}`}>
@@ -149,6 +184,13 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
           </Card>
         </aside>
       </div>
+      {deletable && (
+        <DeleteEngagementDialog
+          engagement={{ id: service.id, name: service.name, kind: "service" }}
+          open={deleting}
+          onOpenChange={setDeleting}
+        />
+      )}
     </>
   );
 }

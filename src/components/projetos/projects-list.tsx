@@ -12,6 +12,7 @@ import {
   PencilIcon,
   PlayIcon,
   PlusIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,9 +52,11 @@ import {
   type ProjectListQuery,
   type ProjectStatusFilter,
 } from "@/lib/project-table";
+import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
 import { EngagementStatusBadge } from "./project-badges";
-import { useEngagementStatus } from "./engagement-status";
+import { useEngagementStatus, type EngagementStatus } from "./engagement-status";
 import { ProjectSheet, type ProjectFormValues } from "./project-form";
+import { DeleteEngagementDialog } from "./delete-engagement-dialog";
 
 export type ProjectRow = {
   id: string;
@@ -66,6 +69,8 @@ export type ProjectRow = {
   tasks: { total: number; done: number };
   /** ISO instant of the last change on the board (or the project's creation). */
   updatedAt: string;
+  /** Staff only: what points at it, so "Excluir" shows only when it can go. */
+  links?: EngagementLinks;
 };
 
 const firstLine = (text: string | null) => text?.trim().split("\n")[0].trim() || "";
@@ -91,6 +96,87 @@ function TaskProgress({ done, total }: { done: number; total: number }) {
         {done}/{total}
       </span>
     </div>
+  );
+}
+
+function ProjectRowActions({
+  row,
+  admin,
+  onEdit,
+  onStatus,
+}: {
+  row: ProjectRow;
+  admin: boolean;
+  onEdit: (row: ProjectRow) => void;
+  onStatus: (id: string, status: EngagementStatus) => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const deletable = admin && canDeleteEngagement(row.links);
+  return (
+    <RowActions
+      label={row.name}
+      extra={
+        deletable && (
+          <DeleteEngagementDialog
+            engagement={{ id: row.id, name: row.name, kind: "project" }}
+            tasks={row.tasks.total}
+            fromList
+            open={deleting}
+            onOpenChange={setDeleting}
+          />
+        )
+      }
+    >
+      <DropdownMenuItem asChild>
+        <Link href={`/projetos/${row.id}`}>
+          <KanbanIcon />
+          Abrir quadro
+        </Link>
+      </DropdownMenuItem>
+      {admin && (
+        <>
+          <DropdownMenuItem onSelect={() => onEdit(row)}>
+            <PencilIcon />
+            Editar projeto
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`/empresas/${row.companyId}`}>
+              <Building2Icon />
+              Ver empresa
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {row.status !== "active" && (
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "active")}>
+              <PlayIcon />
+              {row.status === "paused" ? "Retomar" : "Reabrir"}
+            </DropdownMenuItem>
+          )}
+          {row.status === "active" && (
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "paused")}>
+              <PauseIcon />
+              Pausar
+            </DropdownMenuItem>
+          )}
+          {row.status !== "completed" && (
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "completed")}>
+              <CircleCheckIcon />
+              Marcar como concluído
+            </DropdownMenuItem>
+          )}
+        </>
+      )}
+      {deletable && (
+        <>
+          <DropdownMenuSeparator />
+          {/* Opened after the menu closes, so the dialog takes focus from a settled page. */}
+          <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setDeleting(true), 0)}>
+            <Trash2Icon />
+            Excluir
+          </DropdownMenuItem>
+        </>
+      )}
+    </RowActions>
   );
 }
 
@@ -232,47 +318,7 @@ export function ProjectsList({
                     {relativeLabel(row.updatedAt, now)}
                   </time>
                 </TableCell>
-                <RowActions label={row.name}>
-                  <DropdownMenuItem asChild>
-                    <Link href={`/projetos/${row.id}`}>
-                      <KanbanIcon />
-                      Abrir quadro
-                    </Link>
-                  </DropdownMenuItem>
-                  {admin && (
-                    <>
-                      <DropdownMenuItem onSelect={() => edit(row)}>
-                        <PencilIcon />
-                        Editar projeto
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`/empresas/${row.companyId}`}>
-                          <Building2Icon />
-                          Ver empresa
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {row.status !== "active" && (
-                        <DropdownMenuItem onSelect={() => change(row.id, "active")}>
-                          <PlayIcon />
-                          {row.status === "paused" ? "Retomar" : "Reabrir"}
-                        </DropdownMenuItem>
-                      )}
-                      {row.status === "active" && (
-                        <DropdownMenuItem onSelect={() => change(row.id, "paused")}>
-                          <PauseIcon />
-                          Pausar
-                        </DropdownMenuItem>
-                      )}
-                      {row.status !== "completed" && (
-                        <DropdownMenuItem onSelect={() => change(row.id, "completed")}>
-                          <CircleCheckIcon />
-                          Marcar como concluído
-                        </DropdownMenuItem>
-                      )}
-                    </>
-                  )}
-                </RowActions>
+                <ProjectRowActions row={row} admin={admin} onEdit={edit} onStatus={change} />
               </LinkRow>
             ))}
           </TableBody>

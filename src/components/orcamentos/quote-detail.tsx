@@ -15,6 +15,7 @@ import {
   SendIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
+  Trash2Icon,
   Undo2Icon,
   XCircleIcon,
 } from "lucide-react";
@@ -46,6 +47,8 @@ import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
 import { ConfirmDialog, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { answerQuote, cancelQuote, duplicateQuote, revertQuote, sendQuote } from "@/lib/quote-actions";
+import { deleteQuote } from "@/lib/quote-deletion";
+import { canDeleteQuote, quoteDecisionNotice } from "@/lib/deletion-rules";
 import { auditLabels, currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
 import { quoteExpired, quoteTotals, type QuoteContent, type QuoteStatus } from "@/lib/quote-model";
 import { QuoteStatusBadge, validityText } from "./quote-badges";
@@ -139,12 +142,15 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
   const [reverting, setReverting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [declining, setDeclining] = useState(false);
   const [recording, setRecording] = useState<"accept" | "decline" | null>(null);
   const [consent, setConsent] = useState(false);
   const expired = quoteExpired(q.status, q.validUntil, today);
   const waiting = q.status === "sent" && !expired;
   const editable = viewer.admin && q.status === "draft";
+  const deletable = viewer.admin && canDeleteQuote(q.status, { validUntil: q.validUntil, today });
+  const decisionNotice = quoteDecisionNotice(q.status);
   const canAnswer = waiting && viewer.party === "client";
   const totals = quoteTotals(q.content);
   const validity = validityText(q.status, q.validUntil, today);
@@ -230,14 +236,18 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                       </DropdownMenuItem>
                     </>
                   )}
+                  {(q.status === "draft" || q.status === "sent" || deletable) && <DropdownMenuSeparator />}
                   {(q.status === "draft" || q.status === "sent") && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onSelect={menu(() => setCancelling(true))}>
-                        <XCircleIcon />
-                        Cancelar orçamento
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem variant="destructive" onSelect={menu(() => setCancelling(true))}>
+                      <XCircleIcon />
+                      Cancelar orçamento
+                    </DropdownMenuItem>
+                  )}
+                  {deletable && (
+                    <DropdownMenuItem variant="destructive" onSelect={menu(() => setDeleting(true))}>
+                      <Trash2Icon />
+                      Excluir
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -517,6 +527,20 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         description="Um novo orçamento, com número próprio, nasce com as mesmas fases, tarefas e valores para você ajustar."
         confirmLabel="Duplicar"
       />
+      {deletable && (
+        <ConfirmDialog
+          open={deleting}
+          onOpenChange={setDeleting}
+          action={deleteQuote}
+          fields={{ id: q.id }}
+          title="Excluir orçamento?"
+          description={`O orçamento nº ${q.number} sai do Console${
+            versions.length ? `, com ${versions.length === 1 ? "a versão enviada" : `as ${versions.length} versões enviadas`}` : ""
+          }.${decisionNotice ? ` ${decisionNotice}` : ""} Isso não pode ser desfeito.`}
+          confirmLabel="Excluir"
+          destructive
+        />
+      )}
       <AnswerDialog open={declining} onOpenChange={setDeclining} quoteId={q.id} decision="decline" byStaff={false} />
       <AnswerDialog
         open={recording !== null}

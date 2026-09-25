@@ -7,6 +7,7 @@ import { companies, engagements, subscriptions } from "@/db/schema";
 import { getActor } from "@/lib/access";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { companyShortcuts, projectListQuery } from "@/lib/project-table";
+import { engagementLinks } from "@/lib/record-links";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { ProductsList } from "@/components/produtos/products-list";
@@ -83,6 +84,8 @@ export default async function Products({
           .then((found) => companyShortcuts(found, query.search))
       : [],
   ]);
+  // Staff see "Excluir" only where nothing billed or signed points at the item.
+  const links = actor.admin ? await engagementLinks(rows.map((row) => row.id)) : null;
   return (
     <>
       <PageHeader
@@ -108,6 +111,7 @@ export default async function Products({
         rows={rows.map((row) => ({
           ...row,
           kind: row.kind === "service" ? "service" : "product",
+          links: links?.get(row.id),
         }))}
         query={paging}
         total={total}

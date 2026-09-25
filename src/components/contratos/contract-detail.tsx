@@ -11,6 +11,7 @@ import {
   FileSignatureIcon,
   MoreHorizontalIcon,
   SendIcon,
+  Trash2Icon,
   TriangleAlertIcon,
   Undo2Icon,
   XCircleIcon,
@@ -57,6 +58,8 @@ import {
   setContractTerm,
   signContract,
 } from "@/lib/contract-actions";
+import { deleteContract } from "@/lib/contract-deletion";
+import { canDeleteContract } from "@/lib/deletion-rules";
 import { auditLabels, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
 import { formatDocument } from "@/lib/company-input";
 import {
@@ -106,6 +109,11 @@ export type ContractDetailData = {
   }[];
   viewer: { admin: boolean; party: "anuntech" | "client" | null; name: string };
   events: { id: string; action: string; createdAt: string }[];
+  /**
+   * Staff only: every signature on any version and every amendment, cancelled
+   * ones included, which decide whether it can be deleted. Absent, it cannot.
+   */
+  deletion?: { signatures: number; amendments: number };
   now: string;
   today: string;
 };
@@ -178,9 +186,10 @@ function TermFields({
 }
 
 export function ContractDetail({ data }: { data: ContractDetailData }) {
-  const { contract: c, parent, amendments, versions, signatures, viewer, events, now, today } = data;
+  const { contract: c, parent, amendments, versions, signatures, viewer, events, deletion, now, today } = data;
   const [sending, setSending] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [reverting, setReverting] = useState(false);
   const [editingTerm, setEditingTerm] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -193,6 +202,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
   const term = c.status === "signed" ? contractTerm({ startsAt: c.startsAt, endsAt: c.endsAt }, today) : null;
   const termLabel = term ? contractTermLabel(term) : null;
   const canAmend = viewer.admin && !amendment && c.status === "signed";
+  const deletable = viewer.admin && !!deletion && canDeleteContract({ status: c.status, kind: c.kind, ...deletion });
   return (
     <>
       <PageHeader
@@ -246,7 +256,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                 Enviar para assinatura
               </Button>
             )}
-            {viewer.admin && c.status !== "cancelled" && (
+            {viewer.admin && (c.status !== "cancelled" || deletable) && (
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" aria-label="Mais ações">
@@ -272,14 +282,18 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                       Voltar para rascunho
                     </DropdownMenuItem>
                   )}
+                  {(c.status === "draft" || c.status === "sent" || deletable) && <DropdownMenuSeparator />}
                   {(c.status === "draft" || c.status === "sent") && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setCancelling(true), 0)}>
-                        <XCircleIcon />
-                        {amendment ? "Cancelar aditivo" : "Cancelar contrato"}
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setCancelling(true), 0)}>
+                      <XCircleIcon />
+                      {amendment ? "Cancelar aditivo" : "Cancelar contrato"}
+                    </DropdownMenuItem>
+                  )}
+                  {deletable && (
+                    <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setDeleting(true), 0)}>
+                      <Trash2Icon />
+                      Excluir
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -656,6 +670,20 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
         confirmLabel={amendment ? "Cancelar aditivo" : "Cancelar contrato"}
         destructive
       />
+      {deletable && (
+        <ConfirmDialog
+          open={deleting}
+          onOpenChange={setDeleting}
+          action={deleteContract}
+          fields={{ id: c.id }}
+          title={amendment ? "Excluir aditivo?" : "Excluir contrato?"}
+          description={`O ${noun} sai do Console${
+            versions.length ? `, com ${versions.length === 1 ? "a versão enviada" : `as ${versions.length} versões enviadas`}` : ""
+          }. Isso não pode ser desfeito.`}
+          confirmLabel="Excluir"
+          destructive
+        />
+      )}
       <Dialog open={editingTerm} onOpenChange={setEditingTerm}>
         <DialogContent className="sm:max-w-md">
           <ServerForm key={editingTerm ? "open" : "closed"} action={setContractTerm} onSuccess={() => setEditingTerm(false)} className="flex flex-col gap-5">

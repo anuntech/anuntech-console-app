@@ -11,6 +11,7 @@ import {
   MessagesSquareIcon,
   PlusIcon,
   RotateCcwIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,7 +54,12 @@ import {
   type TicketStatus,
   type TicketStatusFilter,
 } from "@/lib/ticket-table";
-import { CloseTicketDialog, useTicketMove } from "./ticket-actions";
+import { canDeleteTicket } from "@/lib/deletion-rules";
+import {
+  CloseTicketDialog,
+  DeleteTicketDialog,
+  useTicketMove,
+} from "./ticket-actions";
 import { TicketPriorityMark, TicketStatusBadge } from "./ticket-badges";
 
 export type TicketRow = {
@@ -78,7 +84,9 @@ const isActive = (status: TicketStatus) =>
 
 function TicketActions({ ticket, admin }: { ticket: TicketRow; admin: boolean }) {
   const [closing, setClosing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { move, form } = useTicketMove(ticket.id);
+  const deletable = admin && canDeleteTicket(ticket.status);
   return (
     <RowActions
       label={ticket.subject}
@@ -91,6 +99,15 @@ function TicketActions({ ticket, admin }: { ticket: TicketRow; admin: boolean })
               open={closing}
               onOpenChange={setClosing}
             />
+            {deletable && (
+              <DeleteTicketDialog
+                ticketId={ticket.id}
+                subject={ticket.subject}
+                open={deleting}
+                onOpenChange={setDeleting}
+                fromList
+              />
+            )}
           </>
         )
       }
@@ -130,6 +147,18 @@ function TicketActions({ ticket, admin }: { ticket: TicketRow; admin: boolean })
               <LockIcon />
               Encerrar chamado
             </DropdownMenuItem>
+          )}
+          {deletable && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setTimeout(() => setDeleting(true), 0)}
+              >
+                <Trash2Icon />
+                Excluir
+              </DropdownMenuItem>
+            </>
           )}
         </>
       )}

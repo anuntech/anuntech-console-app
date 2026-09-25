@@ -54,6 +54,7 @@ import {
   PlayIcon,
   PlusIcon,
   SearchIcon,
+  Trash2Icon,
   UserRoundIcon,
   XIcon,
 } from "lucide-react";
@@ -73,6 +74,7 @@ import { PageHeader } from "@/components/console/page-header";
 import { toast } from "@/components/notifications";
 import { moveTask } from "@/lib/task-actions";
 import { shortDateLabel } from "@/lib/format";
+import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
 import { AvatarStack, PersonAvatar } from "@/components/console/person-avatar";
 import {
   TASK_PRIORITIES,
@@ -91,6 +93,7 @@ import {
 } from "./project-badges";
 import { useEngagementStatus } from "./engagement-status";
 import { ProjectSheet } from "./project-form";
+import { DeleteEngagementDialog } from "./delete-engagement-dialog";
 import { TaskSheet, type BoardPerson, type BoardTask, type TaskEditor } from "./task-sheet";
 
 export type ProjectBoardData = {
@@ -102,6 +105,8 @@ export type ProjectBoardData = {
     description: string | null;
     companyId: string;
     company: string;
+    /** Staff only: what points at it, so "Excluir" shows only when it can go. */
+    links?: EngagementLinks;
   };
   tasks: BoardTask[];
   people: BoardPerson[];
@@ -447,6 +452,8 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   const [saving, startSaving] = useTransition();
   const [editor, setEditor] = useState<TaskEditor | null>(null);
   const [editingProject, setEditingProject] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
+  const deletable = viewer.admin && canDeleteEngagement(project.links);
   const [filters, setFilters] = useState<Filters>(noFilters);
   const filtering =
     filters.search.trim() !== "" ||
@@ -665,6 +672,18 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
                       Marcar como concluído
                     </DropdownMenuItem>
                   )}
+                  {deletable && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => setTimeout(() => setDeletingProject(true), 0)}
+                      >
+                        <Trash2Icon />
+                        Excluir
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -820,6 +839,15 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
           open={editingProject}
           onOpenChange={setEditingProject}
           values={{ id: project.id, name: project.name, description: project.description }}
+          onDelete={deletable ? () => setDeletingProject(true) : undefined}
+        />
+      )}
+      {deletable && (
+        <DeleteEngagementDialog
+          engagement={{ id: project.id, name: project.name, kind: "project" }}
+          tasks={tasks.length}
+          open={deletingProject}
+          onOpenChange={setDeletingProject}
         />
       )}
       {viewer.admin && statusForm}

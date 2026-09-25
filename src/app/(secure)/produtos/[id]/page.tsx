@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { catalogItems, companies, engagements, subscriptions } from "@/db/schema";
 import { getActor, canAccess } from "@/lib/access";
+import { engagementLinks } from "@/lib/record-links";
 import { ServiceDetail } from "@/components/produtos/service-detail";
 export const metadata: Metadata = { title: "Serviço" };
 
@@ -29,6 +30,8 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
   if (row.engagement.kind === "project") redirect(`/projetos/${id}`);
   if (row.engagement.kind === "product") redirect("/produtos");
   if (!canAccess(actor, row.engagement.companyId, "overview")) notFound();
+  // Staff see "Excluir" only when nothing billed or signed points at it.
+  const links = actor.admin ? (await engagementLinks([id])).get(id) : undefined;
   return (
     <ServiceDetail
       data={{
@@ -43,6 +46,7 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
           interval: row.subscriptionInterval ?? row.item?.interval ?? null,
           nextDueDate: row.nextDueDate,
           subscriptionId: row.engagement.subscriptionId,
+          links,
         },
         sections: {
           whatWeDo: row.item?.whatWeDo ?? null,

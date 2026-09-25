@@ -6,6 +6,7 @@ import { companies, engagements } from "@/db/schema";
 import { getActor, canAccess } from "@/lib/access";
 import { saoPauloDate } from "@/lib/dates";
 import { boardTasks, projectPeople } from "@/lib/tasks";
+import { engagementLinks } from "@/lib/record-links";
 import { ProjectBoard } from "@/components/projetos/project-board";
 export const metadata: Metadata = {
   title: "Projeto",
@@ -26,9 +27,11 @@ export default async function Project({
     .where(eq(engagements.id, id));
   if (!row || !canAccess(actor, row.project.companyId, "overview")) notFound();
   if (row.project.kind !== "project") redirect("/produtos");
-  const [tasks, people] = await Promise.all([
+  const [tasks, people, links] = await Promise.all([
     boardTasks(id),
     projectPeople(row.project.companyId),
+    // Staff see "Excluir" only when nothing billed or signed points at it.
+    actor.admin ? engagementLinks([id]) : null,
   ]);
   const now = new Date();
   return (
@@ -42,6 +45,7 @@ export default async function Project({
           description: row.project.description,
           companyId: row.project.companyId,
           company: row.company,
+          links: links?.get(id),
         },
         tasks: tasks.map((task) => ({
           ...task,

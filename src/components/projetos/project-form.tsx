@@ -88,12 +88,15 @@ export function ProjectSheet({
   companies,
   companyId,
   values,
+  onDelete,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   companies?: ProjectCompanyOption[];
   companyId?: string;
   values?: ProjectFormValues | null;
+  /** Editing only: shows "Excluir" in the footer; the caller opens its confirmation. */
+  onDelete?: () => void;
 }) {
   const editing = !!values?.id;
   return (
@@ -110,6 +113,7 @@ export function ProjectSheet({
       formKey={values?.id ?? "new"}
       submitLabel={editing ? "Salvar" : "Criar projeto"}
       pendingLabel={editing ? "Salvando…" : "Criando…"}
+      onDelete={editing ? onDelete : undefined}
     >
       {editing && <input type="hidden" name="id" value={values!.id} />}
       <ProjectFields

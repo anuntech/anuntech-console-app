@@ -9,6 +9,7 @@ import {
   PaperclipIcon,
   RotateCcwIcon,
   SendIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -44,7 +45,12 @@ import {
 import type { TicketPriority, TicketStatus } from "@/lib/ticket-table";
 import { AttachmentField } from "@/components/console/attachment-field";
 import { FileChip, FileRow } from "@/components/console/file-chip";
-import { CloseTicketDialog, useTicketMove } from "./ticket-actions";
+import { canDeleteTicket } from "@/lib/deletion-rules";
+import {
+  CloseTicketDialog,
+  DeleteTicketDialog,
+  useTicketMove,
+} from "./ticket-actions";
 import { TicketPriorityMark, TicketStatusBadge } from "./ticket-badges";
 import { useTicketUploads } from "./ticket-uploads";
 
@@ -226,8 +232,10 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
   const { ticket, entries, files, viewer, now } = data;
   const admin = viewer.admin;
   const [closing, setClosing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { move, form: moveForm } = useTicketMove(ticket.id);
   const messages = entries.filter((e) => e.kind === "message").length;
+  const deletable = admin && canDeleteTicket(ticket.status);
   const assignee = assigneeOptions(data.assignees ?? [], ticket.assignedTo);
 
   return (
@@ -295,6 +303,18 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                     <LockIcon />
                     Encerrar chamado
                   </DropdownMenuItem>
+                )}
+                {deletable && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setTimeout(() => setDeleting(true), 0)}
+                    >
+                      <Trash2Icon />
+                      Excluir
+                    </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -536,6 +556,15 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
           ticketId={ticket.id}
           open={closing}
           onOpenChange={setClosing}
+        />
+      )}
+      {deletable && (
+        <DeleteTicketDialog
+          ticketId={ticket.id}
+          subject={ticket.subject}
+          open={deleting}
+          onOpenChange={setDeleting}
+          counts={{ messages, files: files.length }}
         />
       )}
     </>

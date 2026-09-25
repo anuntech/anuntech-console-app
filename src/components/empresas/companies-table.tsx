@@ -12,6 +12,7 @@ import {
   LogInIcon,
   PencilIcon,
   PlusIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,9 @@ import {
 } from "@/lib/company-table";
 import { formatDocument, formatPhone } from "@/lib/company-input";
 import type { CompanyAddress } from "@/lib/company-billing";
+import { canDeleteCompany, type CompanyLinks } from "@/lib/deletion-rules";
 import { CompanySheet } from "./company-sheet";
+import { DeleteCompanyDialog } from "./delete-company-dialog";
 
 export type CompanyRow = {
   id: string;
@@ -67,6 +70,8 @@ export type CompanyRow = {
   archived: boolean;
   people: number;
   openTickets: number;
+  /** What points at it, so "Excluir" shows only when it can go. */
+  links?: CompanyLinks;
 };
 
 export { companyInitials };
@@ -93,10 +98,12 @@ function CompanyActions({
   company: CompanyRow;
   onEdit: (company: CompanyRow) => void;
 }) {
-  const [confirm, setConfirm] = useState<null | "assist" | "archive">(null);
-  const ask = (which: "assist" | "archive") =>
+  const [confirm, setConfirm] = useState<null | "assist" | "archive" | "delete">(null);
+  const ask = (which: "assist" | "archive" | "delete") =>
     // The menu closes on select; open the dialog after it has let go.
     setTimeout(() => setConfirm(which), 0);
+  // The list is staff-only; the rule decides whether the company can go.
+  const deletable = canDeleteCompany(company.links);
   return (
     <RowActions
       label={company.name}
@@ -125,6 +132,14 @@ function CompanyActions({
             confirmLabel={company.archived ? "Restaurar" : "Arquivar"}
             destructive={!company.archived}
           />
+          {deletable && (
+            <DeleteCompanyDialog
+              company={company}
+              fromList
+              open={confirm === "delete"}
+              onOpenChange={(open) => !open && setConfirm(null)}
+            />
+          )}
         </>
       }
     >
@@ -159,6 +174,15 @@ function CompanyActions({
         {company.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
         {company.archived ? "Restaurar cliente" : "Arquivar cliente"}
       </DropdownMenuItem>
+      {deletable && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => ask("delete")}>
+            <Trash2Icon />
+            Excluir
+          </DropdownMenuItem>
+        </>
+      )}
     </RowActions>
   );
 }

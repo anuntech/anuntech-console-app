@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   Building2Icon,
   CalendarClockIcon,
@@ -8,6 +9,7 @@ import {
   FileTextIcon,
   PenLineIcon,
   PlusIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,9 @@ import {
 } from "@/components/console/list-view";
 import { EmptyState } from "@/components/console/page-header";
 import { SearchField } from "@/components/console/search-field";
+import { ConfirmDialog } from "@/components/console/server-form";
+import { deleteContract } from "@/lib/contract-deletion";
+import { canDeleteContract } from "@/lib/deletion-rules";
 import { dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
 import {
   clientContractFilters,
@@ -43,6 +48,12 @@ import type { ContractRow } from "./contract-row";
 export type { ContractRow } from "./contract-row";
 
 type Party = ContractRow["signedBy"][number];
+/**
+ * A row as the staff list gets it: every signature on any version and the
+ * amendments pointing at it decide whether it can be deleted. Rows without
+ * the counts never offer deletion.
+ */
+type ListedContract = ContractRow & { signatures?: number; amendments?: number };
 
 /** "Aditivo de …" for amendments, otherwise the company (clients with several) and the project. */
 function subtitle(row: ContractRow, companyInSubtitle: boolean) {
@@ -89,15 +100,37 @@ function Signatures({ row }: { row: ContractRow }) {
   );
 }
 
-function Actions({ row, admin, party }: { row: ContractRow; admin: boolean; party: Party }) {
+function Actions({ row, admin, party }: { row: ListedContract; admin: boolean; party: Party }) {
+  const [deleting, setDeleting] = useState(false);
   const href = `/contratos/${row.id}`;
   const noun = row.kind === "amendment" ? "aditivo" : "contrato";
+  const deletable =
+    admin &&
+    row.signatures !== undefined &&
+    row.amendments !== undefined &&
+    canDeleteContract({ status: row.status, signatures: row.signatures, amendments: row.amendments, kind: row.kind });
   // The same rule and link as the contract page: drafts only for staff, never cancellations.
   const pdf = row.status !== "cancelled" && (admin || row.status !== "draft");
   // Signing happens on the contract page (reading, consent); this only takes the person there.
   const canSign = row.status === "sent" && !row.signedBy.includes(party);
   return (
-    <RowActions label={row.title}>
+    <RowActions
+      label={row.title}
+      extra={
+        deletable && (
+          <ConfirmDialog
+            open={deleting}
+            onOpenChange={setDeleting}
+            action={deleteContract}
+            fields={{ id: row.id, from: "list" }}
+            title={row.kind === "amendment" ? "Excluir aditivo?" : "Excluir contrato?"}
+            description={`“${row.title}” sai do Console junto com as versões enviadas, se houver. Isso não pode ser desfeito.`}
+            confirmLabel="Excluir"
+            destructive
+          />
+        )
+      }
+    >
       <DropdownMenuItem asChild>
         <Link href={href}>
           <FileTextIcon />
@@ -128,6 +161,16 @@ function Actions({ row, admin, party }: { row: ContractRow; admin: boolean; part
           </DownloadMenuItem>
         </>
       )}
+      {deletable && (
+        <>
+          <DropdownMenuSeparator />
+          {/* Opened after the menu closes, so the dialog takes focus from a settled page. */}
+          <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setDeleting(true), 0)}>
+            <Trash2Icon />
+            Excluir
+          </DropdownMenuItem>
+        </>
+      )}
     </RowActions>
   );
 }
@@ -150,7 +193,7 @@ export function ContractsTable({
   now,
   today,
 }: {
-  rows: ContractRow[];
+  rows: ListedContract[];
   query: ContractQuery;
   total: number;
   pageCount: number;

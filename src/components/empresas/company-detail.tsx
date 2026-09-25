@@ -17,6 +17,7 @@ import {
   PlusIcon,
   ReceiptTextIcon,
   ShieldCheckIcon,
+  Trash2Icon,
   UserRoundIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ import {
 import { RoleSelect } from "@/components/settings/member-actions";
 import { CompanySheet } from "./company-sheet";
 import { companyInitials, StatusDot } from "./companies-table";
+import { DeleteCompanyDialog } from "./delete-company-dialog";
 import type { CompanyFormValues } from "./company-form";
 import { formatDocument, formatPhone } from "@/lib/company-input";
 import { addressLabel } from "@/lib/company-billing";
@@ -75,6 +77,7 @@ import {
 } from "@/lib/actions";
 import { sendAccessNotice } from "@/lib/email-actions";
 import { startAssistedSession } from "@/lib/assisted-actions";
+import { canDeleteCompany, type CompanyLinks } from "@/lib/deletion-rules";
 
 export type CompanyDetailData = {
   company: CompanyFormValues & {
@@ -105,6 +108,8 @@ export type CompanyDetailData = {
     quotes: string;
     engagements: string;
   };
+  /** What points at the company, so "Excluir" shows only when it can go. */
+  deleteLinks?: CompanyLinks;
 };
 
 function RelationRow({
@@ -272,19 +277,21 @@ export function CompanyDetail({
   data: CompanyDetailData;
   editorOpen?: boolean;
 }) {
-  const { company, members, events, relations, links } = data;
+  const { company, members, events, relations, links, deleteLinks } = data;
   const router = useRouter();
   const pathname = usePathname();
   // `?editar=1` deep-links into the sheet; the page remounts per company, so
   // the initial value is all that matters.
   const [editing, setEditing] = useState(editorOpen);
-  const [confirm, setConfirm] = useState<null | "assist" | "archive">(null);
+  const [confirm, setConfirm] = useState<null | "assist" | "archive" | "delete">(null);
   const closeEditor = (open: boolean) => {
     setEditing(open);
     if (!open && editorOpen) router.replace(pathname, { scroll: false });
   };
-  const ask = (which: "assist" | "archive") =>
+  const ask = (which: "assist" | "archive" | "delete") =>
     setTimeout(() => setConfirm(which), 0);
+  // The page is staff-only; the rule decides whether the company can go.
+  const deletable = canDeleteCompany(deleteLinks);
 
   return (
     <>
@@ -357,6 +364,15 @@ export function CompanyDetail({
                   {company.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
                   {company.archived ? "Restaurar cliente" : "Arquivar cliente"}
                 </DropdownMenuItem>
+                {deletable && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onSelect={() => ask("delete")}>
+                      <Trash2Icon />
+                      Excluir
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </>
@@ -645,6 +661,13 @@ export function CompanyDetail({
         confirmLabel={company.archived ? "Restaurar" : "Arquivar"}
         destructive={!company.archived}
       />
+      {deletable && (
+        <DeleteCompanyDialog
+          company={company}
+          open={confirm === "delete"}
+          onOpenChange={(open) => !open && setConfirm(null)}
+        />
+      )}
     </>
   );
 }

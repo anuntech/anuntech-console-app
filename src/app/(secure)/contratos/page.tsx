@@ -99,20 +99,34 @@ export default async function Contracts({
     .orderBy(desc(contracts.updatedAt), desc(contracts.id))
     .limit(page.pageSize)
     .offset(offsetOf(page));
-  const signatures = rows.length
-    ? await db
-        .select({
-          contractId: contractSignatures.contractId,
-          party: contractSignatures.party,
-          hash: contractSignatures.documentHash,
-        })
-        .from(contractSignatures)
-        .where(inArray(contractSignatures.contractId, rows.map((row) => row.id)))
-    : [];
+  const rowIds = rows.map((row) => row.id);
+  const [signatures, amendments] = rows.length
+    ? await Promise.all([
+        db
+          .select({
+            contractId: contractSignatures.contractId,
+            party: contractSignatures.party,
+            hash: contractSignatures.documentHash,
+          })
+          .from(contractSignatures)
+          .where(inArray(contractSignatures.contractId, rowIds)),
+        // Staff only: what keeps a contract from being deleted (cancelled amendments count too).
+        actor.admin
+          ? db
+              .select({ parentId: contracts.parentId, n: count() })
+              .from(contracts)
+              .where(inArray(contracts.parentId, rowIds))
+              .groupBy(contracts.parentId)
+          : [],
+      ])
+    : [[], []];
   const list = rows.map(({ documentHash, ...row }) => ({
     ...row,
     updatedAt: row.updatedAt.toISOString(),
     signedBy: signatures.filter((s) => s.contractId === row.id && s.hash === documentHash).map((s) => s.party),
+    // Every signature on any version, not only the current one, for the delete guard.
+    signatures: signatures.filter((s) => s.contractId === row.id).length,
+    amendments: amendments.find((a) => a.parentId === row.id)?.n ?? 0,
   }));
   return (
     <>
