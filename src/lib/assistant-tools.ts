@@ -602,18 +602,94 @@ const listQuotes = tool({
   },
 });
 
+const readQuote = tool({
+  name: "ler_orcamento",
+  description:
+    "O conteúdo completo de um orçamento: resumo, stack, fases com horas e tarefas, taxa/hora, entrada, validade, observações, totais e situação. Use para responder sobre um orçamento ou para copiar um existente em outro cliente (passe o id em copiarDeOrcamentoId de criar_orcamento).",
+  input: z.object({ orcamentoId: id }),
+  run: async ({ actor }, { orcamentoId }) => {
+    const [row] = await db
+      .select({ quote: quotes, company: companies.name })
+      .from(quotes)
+      .innerJoin(companies, eq(companies.id, quotes.companyId))
+      .where(eq(quotes.id, orcamentoId));
+    if (!row || !canAccess(actor, row.quote.companyId, "finance")) throw new ToolError("Orçamento não encontrado.");
+    const q = row.quote;
+    if (!actor.admin && (q.status === "draft" || q.status === "cancelled")) throw new ToolError("Orçamento não encontrado.");
+    const content = q.status !== "draft" && q.publication ? q.publication : q.content;
+    const totals = quoteTotals(content);
+    return {
+      result: {
+        orcamentoId: q.id,
+        numero: quoteNumberLabel(q.year, q.seq),
+        titulo: q.title,
+        empresa: row.company,
+        companyId: q.companyId,
+        situacao: quoteStatusLabels[q.status],
+        validoAte: q.validUntil,
+        resumo: content.summary,
+        stack: content.stack,
+        taxaHora: currency(content.hourlyRateCents),
+        taxaHoraReais: content.hourlyRateCents / 100,
+        entradaPercentual: content.upfrontPercent,
+        observacoes: content.notes,
+        fases: content.phases.map((f) => ({ nome: f.name, descricao: f.description, horasMin: f.hoursMin, horasMax: f.hoursMax, tarefas: f.tasks.map((t) => ({ titulo: t.title, descricao: t.description })) })),
+        esforco: hoursLabel(totals.hoursMin, totals.hoursMax),
+        valorTotal: currency(totals.totalCents),
+        entrada: currency(totals.upfrontCents),
+        saldo: currency(totals.balanceCents),
+        link: `/orcamentos/${q.id}`,
+      },
+      summary: `Li o orçamento "${q.title}"`,
+    };
+  },
+});
+
+const readContract = tool({
+  name: "ler_contrato",
+  description: "O texto de um contrato (a versão enviada ou assinada), com situação, vigência e assinaturas. Use para responder o que o contrato diz.",
+  input: z.object({ contratoId: id }),
+  run: async ({ actor }, { contratoId }) => {
+    const [row] = await db
+      .select({ contract: contracts, company: companies.name })
+      .from(contracts)
+      .innerJoin(companies, eq(companies.id, contracts.companyId))
+      .where(eq(contracts.id, contratoId));
+    if (!row || !canAccess(actor, row.contract.companyId, "finance")) throw new ToolError("Contrato não encontrado.");
+    const c = row.contract;
+    if (!actor.admin && (c.status === "draft" || c.status === "cancelled")) throw new ToolError("Contrato não encontrado.");
+    const text = c.status !== "draft" && c.publication ? c.publication : { title: c.title, body: c.body };
+    return {
+      result: {
+        contratoId: c.id,
+        titulo: text.title,
+        empresa: row.company,
+        situacao: contractStatusLabels[c.status],
+        tipo: c.kind === "amendment" ? "aditivo" : "contrato",
+        inicio: c.startsAt,
+        fim: c.endsAt,
+        assinadoEm: c.signedAt?.toISOString() ?? null,
+        texto: text.body.slice(0, 20000),
+        link: `/contratos/${c.id}`,
+      },
+      summary: `Li o contrato "${text.title}"`,
+    };
+  },
+});
+
 const createQuoteTool = tool({
   name: "criar_orcamento",
   description:
-    "Cria um orçamento em rascunho (só a equipe da Anuntech) a partir de título, resumo, taxa/hora, entrada, validade, stack e fases com faixa de horas e tarefas, no formato da proposta da Anuntech. O rascunho abre para revisão e o envio ao cliente é feito na tela. Se a taxa/hora não foi dita, pergunte antes de criar. Use listar_projetos_e_produtos ou o texto da pessoa para montar as fases.",
+    "Cria um orçamento em rascunho (só a equipe da Anuntech) a partir de título, resumo, taxa/hora, entrada, validade, stack e fases com faixa de horas e tarefas, no formato da proposta da Anuntech. Para fazer 'igual ao orçamento X' para outro cliente, passe copiarDeOrcamentoId (ache o id com listar_orcamentos): tudo é copiado e só o que você informar é trocado. O rascunho abre para revisão e o envio ao cliente é feito na tela. Sem copiarDe, se a taxa/hora não foi dita, pergunte antes de criar.",
   input: z.object({
     companyId: id,
-    titulo: z.string().trim().min(1).max(160),
+    copiarDeOrcamentoId: id.optional(),
+    titulo: z.string().trim().min(1).max(160).optional(),
     resumo: z.string().trim().max(4000).default(""),
-    taxaHoraReais: z.number().min(0).max(100000).default(0),
-    entradaPercentual: z.number().int().min(0).max(100).default(50),
-    validoAte: z.union([z.iso.date(), z.literal("")]).default(""),
-    stack: z.array(z.string().trim().min(1).max(160)).max(40).default([]),
+    taxaHoraReais: z.number().min(0).max(100000).optional(),
+    entradaPercentual: z.number().int().min(0).max(100).optional(),
+    validoAte: z.union([z.iso.date(), z.literal("")]).optional(),
+    stack: z.array(z.string().trim().min(1).max(160)).max(40).optional(),
     fases: z
       .array(
         z.object({
@@ -624,25 +700,38 @@ const createQuoteTool = tool({
           tarefas: z.array(z.object({ titulo: z.string().trim().min(1).max(160), descricao: z.string().trim().max(4000).default("") })).max(200).default([]),
         }),
       )
-      .min(1)
-      .max(60),
+      .max(60)
+      .optional(),
     observacoes: z.string().trim().max(4000).optional(),
   }),
   staffOnly: true,
   write: true,
-  run: async (_ctx, input) => {
+  run: async ({ actor }, input) => {
+    let base: (QuoteContent & { title: string; validUntil: string | null }) | null = null;
+    if (input.copiarDeOrcamentoId) {
+      const [source] = await db.select().from(quotes).where(eq(quotes.id, input.copiarDeOrcamentoId));
+      if (!source || !canAccess(actor, source.companyId, "finance")) throw new ToolError("Orçamento de origem não encontrado.");
+      const from = source.status !== "draft" && source.publication ? source.publication : source.content;
+      base = { ...from, title: source.title, validUntil: null };
+    }
+    const fases = input.fases?.length ? input.fases : null;
+    if (!base && !fases) throw new ToolError("Informe as fases do orçamento, ou copiarDeOrcamentoId para partir de um existente.");
+    const titulo = input.titulo ?? base?.title;
+    if (!titulo) throw new ToolError("Informe o título do orçamento.");
     const content: QuoteContent = {
-      summary: input.resumo,
-      stack: input.stack,
-      phases: input.fases.map((f) => {
-        const min = Math.round(f.horasMin);
-        return { name: f.nome, description: f.descricao, hoursMin: min, hoursMax: Math.max(min, Math.round(f.horasMax)), tasks: f.tarefas.map((t) => ({ title: t.titulo, description: t.descricao })) };
-      }),
-      hourlyRateCents: Math.round(input.taxaHoraReais * 100),
-      upfrontPercent: input.entradaPercentual,
-      notes: input.observacoes ?? DEFAULT_QUOTE_NOTES,
+      summary: input.resumo || base?.summary || "",
+      stack: input.stack ?? base?.stack ?? [],
+      phases: fases
+        ? fases.map((f) => {
+            const min = Math.round(f.horasMin);
+            return { name: f.nome, description: f.descricao, hoursMin: min, hoursMax: Math.max(min, Math.round(f.horasMax)), tasks: f.tarefas.map((t) => ({ title: t.titulo, description: t.descricao })) };
+          })
+        : base!.phases,
+      hourlyRateCents: input.taxaHoraReais !== undefined ? Math.round(input.taxaHoraReais * 100) : (base?.hourlyRateCents ?? 0),
+      upfrontPercent: input.entradaPercentual ?? base?.upfrontPercent ?? 50,
+      notes: input.observacoes ?? base?.notes ?? DEFAULT_QUOTE_NOTES,
     };
-    const state = await submit(createQuote, { companyId: input.companyId, title: input.titulo, validUntil: input.validoAte, content: JSON.stringify(content) });
+    const state = await submit(createQuote, { companyId: input.companyId, title: titulo, validUntil: input.validoAte ?? "", content: JSON.stringify(content) });
     const totals = quoteTotals(content);
     return {
       result: {
@@ -655,7 +744,7 @@ const createQuoteTool = tool({
         saldo: currency(totals.balanceCents),
         proximoPasso: "Revisar na tela e clicar em Enviar ao cliente.",
       },
-      summary: `Criei o rascunho do orçamento "${input.titulo}"`,
+      summary: `Criei o rascunho do orçamento "${titulo}"`,
     };
   },
 });
@@ -770,6 +859,8 @@ export const assistantTools: AnyTool[] = [
   addProject,
   listContracts,
   listQuotes,
+  readQuote,
+  readContract,
   createQuoteTool,
   fillScreen,
   clickScreen,

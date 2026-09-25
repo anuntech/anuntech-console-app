@@ -41,6 +41,20 @@ function decide(messages) {
   // Second round onwards: chain or finish.
   if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela"))
     return reply(`Feito.\n\n${summarize()}`);
+  if (user.includes("igual") && calls.includes("listar_empresas") && !calls.includes("listar_orcamentos")) return reply(null, [call("listar_orcamentos", {})]);
+  if (user.includes("igual") && calls.includes("listar_orcamentos") && !calls.includes("criar_orcamento")) {
+    const company = tools.flat().find((r) => r.companyId && r.cnpj);
+    const source = tools.flat().find((r) => r.orcamentoId);
+    return reply(null, [call("criar_orcamento", { companyId: company.companyId, copiarDeOrcamentoId: source.orcamentoId, titulo: `Cópia — ${source.titulo}` })]);
+  }
+  if (calls.includes("listar_orcamentos") && !calls.includes("ler_orcamento") && tools.length) {
+    const first = tools.flat().find((r) => r.orcamentoId);
+    if (first) return reply(null, [call("ler_orcamento", { orcamentoId: first.orcamentoId })]);
+  }
+  if (calls.includes("ler_orcamento") && tools.length) {
+    const q = tools.flat().find((r) => r.fases);
+    return reply(`Li o orçamento **${q?.titulo}**: ${q?.fases?.length} fases, ${q?.esforco}, ${q?.valorTotal} (taxa ${q?.taxaHora}). [Abrir](${q?.link})`);
+  }
   if (calls.includes("listar_empresas") && tools.length) {
     const first = tools.flat()[0];
     if (user.includes("chamado")) return reply(null, [call("abrir_chamado", { companyId: first.companyId, assunto: "Teste do assistente", descricao: "Chamado aberto pelo assistente durante o QA." })]);
@@ -55,6 +69,8 @@ function decide(messages) {
   if (user.includes("preench"))
     return reply(null, [call("preencher_tela", { campos: [{ campo: "companyId", valor: "GS Comunicação" }, { campo: "subject", valor: "Preenchido pelo assistente" }, { campo: "body", valor: "Teste de preenchimento da tela pelo assistente." }], enviar: false })]);
   if (user.includes("maior cliente") || user.includes("faturamos")) return reply(null, [call("resumo_financeiro", { periodo: "tudo" })]);
+  if (user.includes("igual")) return reply(null, [call("listar_empresas", { limite: 5 })]);
+  if (user.includes("detalhes do or")) return reply(null, [call("listar_orcamentos", {})]);
   if (user.includes("orcamento") || user.includes("orçamento")) return reply(null, [call("listar_empresas", { limite: 5 })]);
   if (user.includes("boleto") || user.includes("fatura")) return reply(null, [call("listar_faturas", { situacao: "todas", limite: 3 })]);
   if (user.includes("falar")) return reply(null, [call("abrir_chat_suporte", {})]);
