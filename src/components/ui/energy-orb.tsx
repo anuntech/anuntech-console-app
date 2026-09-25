@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type CSSProperties, type DetailedHTMLProps, type HTMLAttributes, type Ref } from "react";
+import { useEffect, useRef, type CSSProperties, type DetailedHTMLProps, type HTMLAttributes, type Ref } from "react";
 
 /**
  * EnergyOrb: the supplied <energy-orb> Web Component (WebGL, no dependencies)
@@ -33,6 +33,17 @@ const load = () => (loading ??= import("./energy-orb-element.js"));
 // The component's own fallback look, shown before the script runs.
 const placeholder = "radial-gradient(circle at 40% 35%, #cfe9ff 0%, #5d9cf0 25%, #2553b5 60%, #86c2ff 100%)";
 
+/** The orb standing still: its fallback gradient, no WebGL. For places that repeat it. */
+export function StaticOrb({ size, className }: { size: number; className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={className}
+      style={{ display: "inline-block", flexShrink: 0, width: size, height: size, borderRadius: "50%", background: placeholder }}
+    />
+  );
+}
+
 export function EnergyOrb({
   size,
   energy = 1,
@@ -59,12 +70,27 @@ export function EnergyOrb({
   /** The element itself, for pulse(). */
   ref?: Ref<EnergyOrbElement>;
 }) {
+  const own = useRef<HTMLElement>(null);
   useEffect(() => {
     void load();
+    const element = own.current;
+    // Browsers keep only ~16 WebGL contexts and drop the oldest: an orb that
+    // leaves the page gives its context back. Checked a moment later, so a
+    // remount that keeps the element (React's dev double run) keeps it too.
+    return () => {
+      setTimeout(() => {
+        if (element && !element.isConnected)
+          (element.shadowRoot?.querySelector("canvas")?.getContext("webgl")?.getExtension("WEBGL_lose_context"))?.loseContext();
+      }, 0);
+    };
   }, []);
   return (
     <energy-orb
-      ref={ref as Ref<HTMLElement>}
+      ref={(node: HTMLElement | null) => {
+        own.current = node;
+        if (typeof ref === "function") ref(node as EnergyOrbElement | null);
+        else if (ref) (ref as { current: EnergyOrbElement | null }).current = node as EnergyOrbElement | null;
+      }}
       aria-hidden="true"
       role="presentation"
       energy={energy}

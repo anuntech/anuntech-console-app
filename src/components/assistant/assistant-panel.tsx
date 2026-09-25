@@ -9,7 +9,6 @@ import {
   Maximize2Icon,
   PanelRightIcon,
   RotateCcwIcon,
-  SparklesIcon,
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -22,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MetalPromptBar } from "@/components/ui/metal-prompt-bar";
+import { EnergyOrb, StaticOrb } from "@/components/ui/energy-orb";
 import { openSupportWidget } from "@/components/support-trigger";
 import { toast } from "@/components/notifications";
 import { relativeLabel } from "@/lib/format";
@@ -599,20 +599,14 @@ export function AssistantPanel({
                     </li>
                   ) : (
                     <li key={turn.id} className="flex gap-3">
-                      <span
-                        className={cn(
-                          "mt-1 flex size-7 shrink-0 items-center justify-center rounded-full",
-                          turn.failed
-                            ? "bg-destructive/10 text-destructive"
-                            : "bg-accent text-primary",
-                        )}
-                      >
-                        {turn.failed ? (
+                      {/* Answers wear the orb standing still; only the live one animates. */}
+                      {turn.failed ? (
+                        <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                           <TriangleAlertIcon className="size-3.5" />
-                        ) : (
-                          <SparklesIcon className="size-3.5" />
-                        )}
-                      </span>
+                        </span>
+                      ) : (
+                        <StaticOrb size={28} className="mt-1" />
+                      )}
                       <div className="min-w-0 flex-1">
                         {turn.steps && turn.steps.length > 0 && (
                           <ul className="m-0 mb-2 flex list-none flex-wrap gap-1.5 p-0">
@@ -643,9 +637,14 @@ export function AssistantPanel({
                 )}
                 {busy && (
                   <li className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent text-primary">
-                      <SparklesIcon className="size-3.5" />
-                    </span>
+                    <EnergyOrb
+                      size={28}
+                      energy={1.4}
+                      speed={2.5}
+                      glow={false}
+                      interactive={false}
+                      className="shrink-0"
+                    />
                     <span
                       className="inline-flex items-center gap-1"
                       aria-live="polite"
