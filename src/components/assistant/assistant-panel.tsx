@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckIcon, RotateCcwIcon, SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { MetalPromptBar } from "@/components/ui/metal-prompt-bar";
 import { openSupportWidget } from "@/components/support-trigger";
 import { MessageMarkdown } from "./message-markdown";
@@ -114,25 +114,18 @@ export function AssistantPanel({
         className="top-auto bottom-0 left-0 flex h-[min(720px,88svh)] w-full max-w-none sm:h-[min(720px,calc(100svh-128px))] translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-2xl rounded-b-none p-0 sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DialogHeader className="flex-row items-center gap-3 border-b px-5 py-4 text-left">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
-            <SparklesIcon className="size-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <DialogTitle className="text-base">Assistente Anuntech</DialogTitle>
-            <DialogDescription className="text-xs">
-              Consulta e faz por você: faturas, chamados, projetos, contratos e orçamentos.
-            </DialogDescription>
-          </div>
+        <DialogTitle className="sr-only">Assistente</DialogTitle>
+        <DialogDescription className="sr-only">Consulta e faz por você: faturas, chamados, projetos, contratos e orçamentos.</DialogDescription>
+        <div className="flex h-12 shrink-0 items-center justify-end pr-12 pl-4">
           {turns.length > 0 && (
-            <Button type="button" variant="ghost" size="sm" className="mr-6 text-muted-foreground" onClick={() => setTurns([])} disabled={busy}>
+            <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setTurns([])} disabled={busy}>
               <RotateCcwIcon />
               Nova conversa
             </Button>
           )}
-        </DialogHeader>
+        </div>
 
-        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-5">
           {turns.length === 0 ? (
             <div className="flex h-full flex-col justify-end gap-5">
               <div>
@@ -227,7 +220,7 @@ export function AssistantPanel({
           )}
         </div>
 
-        <div className="border-t bg-background px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+        <div className="border-t bg-background px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
           <MetalPromptBar
             autoFocus
             busy={busy}
@@ -238,9 +231,6 @@ export function AssistantPanel({
             }}
             onSubmit={send}
           />
-          <p className="m-0 mt-2 text-center text-[11px] text-muted-foreground">
-            Age com o seu acesso. Confira o que ele propõe antes de confirmar uma ação.
-          </p>
         </div>
       </DialogContent>
     </Dialog>
