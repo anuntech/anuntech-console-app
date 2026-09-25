@@ -144,11 +144,7 @@ void main(){
   col += vec3(0.55, 0.8, 1.0) * fres * 0.55;
   col += vec3(0.8, 0.93, 1.0) * smoothstep(0.955, 0.995, r) * 0.55;
 
-  // reflexo de janela
-  vec2 q = uv - vec2(0.56, 0.02);
-  vec2 bq = abs(q) - vec2(0.085, 0.012);
-  float box = length(max(bq, 0.0)) + min(max(bq.x, bq.y), 0.0) - 0.012;
-  col += vec3(1.0) * (smoothstep(0.006, -0.004, box) * 0.95 + exp(-max(box,0.0)*40.0) * 0.25) * (0.85 + 0.15*sin(t*2.1));
+  // (sem o reflexo de janela: o traço branco à direita foi retirado a pedido)
 
   col = 1.0 - exp(-col * 1.1);
   gl_FragColor = vec4(col * alpha, alpha);
