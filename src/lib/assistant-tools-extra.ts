@@ -53,6 +53,7 @@ const managerOf = (actor: Actor, companyId: string) => actor.admin || actor.gran
 
 const readCompany = tool({
   name: "ler_empresa",
+  area: "empresas",
   description: "Os dados de uma empresa: razão social, CNPJ, e-mail de cobrança, telefone, endereço, situação e as pessoas com acesso (para gestores e equipe).",
   input: z.object({ companyId: id }),
   run: async ({ actor }, { companyId }) => {
@@ -91,6 +92,7 @@ const readCompany = tool({
 
 const readProject = tool({
   name: "ler_projeto",
+  area: "projetos",
   description: "Um projeto, produto ou serviço em detalhe: descrição, situação, link e, para projetos, quantas tarefas há em cada coluna do quadro.",
   input: z.object({ engagementId: id }),
   run: async ({ actor }, { engagementId }) => {
@@ -125,6 +127,7 @@ async function taskWithAccess(actor: Actor, taskId: string) {
 
 const readTask = tool({
   name: "ler_tarefa",
+  area: "projetos",
   description: "Uma tarefa em detalhe: descrição, situação, prioridade, prazo, estimativa, etiquetas, responsáveis e anexos.",
   input: z.object({ tarefaId: id }),
   run: async ({ actor }, { tarefaId }) => {
@@ -155,6 +158,7 @@ const readTask = tool({
 
 const readInvoice = tool({
   name: "ler_fatura",
+  area: "financeiro",
   description: "Uma fatura em detalhe: valor, vencimento e 'pagar até', situação, descontos e juros, link de pagamento, boleto, Pix, nota fiscal e os avisos enviados.",
   input: z.object({ faturaId: id }),
   run: async ({ actor, today }, { faturaId }) => {
@@ -198,6 +202,7 @@ const readInvoice = tool({
 
 const listSubscriptions = tool({
   name: "listar_recorrencias",
+  area: "financeiro",
   description: "As cobranças recorrentes (assinaturas) de uma empresa: valor, intervalo, próximo vencimento, situação e o erro da última emissão, se houver.",
   input: z.object({ companyId: id.optional() }),
   run: async ({ actor }, { companyId }) => {
@@ -228,6 +233,7 @@ const listSubscriptions = tool({
 
 const listBookmarks = tool({
   name: "listar_bookmarks",
+  area: "bookmarks",
   description: "Os bookmarks (links e arquivos guardados) que a pessoa vê, com pasta e empresa; aceita uma busca por título.",
   input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), limite: limit(20) }),
   run: async ({ actor }, { companyId, busca, limite }) => {
@@ -262,6 +268,7 @@ const listBookmarks = tool({
 
 const listCatalog = tool({
   name: "listar_catalogo",
+  area: "produtos",
   description: "O catálogo da Anuntech (produtos e serviços que podem ser vinculados a uma empresa), com preço padrão e intervalo. Só equipe.",
   input: z.object({}),
   staffOnly: true,
@@ -285,6 +292,7 @@ const listCatalog = tool({
 
 const listContractTemplates = tool({
   name: "listar_modelos_de_contrato",
+  area: "contratos",
   description: "Os modelos de contrato disponíveis para criar um contrato. Só equipe.",
   input: z.object({}),
   staffOnly: true,
@@ -296,6 +304,7 @@ const listContractTemplates = tool({
 
 const listBillingNotices = tool({
   name: "listar_envios_de_cobranca",
+  area: "financeiro",
   description: "Os avisos de cobrança enviados por e-mail e WhatsApp (emissão, lembretes, atraso), com destinatário e situação da entrega. Só equipe.",
   input: z.object({ companyId: id.optional(), faturaId: id.optional(), limite: limit(20) }),
   staffOnly: true,
@@ -335,6 +344,7 @@ const myAccount = tool({
 
 const editTask = tool({
   name: "atualizar_tarefa",
+  area: "projetos",
   description: "Altera uma tarefa: título, descrição, situação, prioridade, prazo ou estimativa em horas. Só o que for informado muda.",
   input: z.object({
     tarefaId: id,
@@ -368,6 +378,7 @@ const editTask = tool({
 
 const removeTask = tool({
   name: "excluir_tarefa",
+  area: "projetos",
   description: "Exclui uma tarefa do quadro (equipe, ou quem a criou). Confirme antes: não tem volta.",
   input: z.object({ tarefaId: id }),
   write: true,
@@ -380,6 +391,7 @@ const removeTask = tool({
 
 const editProject = tool({
   name: "atualizar_projeto",
+  area: "projetos",
   description: "Altera um projeto, produto ou serviço: nome, descrição ou situação (active, paused, completed). Só equipe.",
   input: z.object({
     engagementId: id,
@@ -401,6 +413,7 @@ const editProject = tool({
 
 const editTicket = tool({
   name: "atualizar_chamado",
+  area: "chamados",
   description: "Muda a situação (open, in_progress, waiting_customer, resolved, closed), a prioridade (normal, high) ou o responsável (e-mail da equipe) de um chamado. Só equipe.",
   input: z.object({
     chamadoId: id,
@@ -421,6 +434,7 @@ const editTicket = tool({
 
 const draftInvoice = tool({
   name: "criar_cobranca_rascunho",
+  area: "financeiro",
   description:
     "Cria uma cobrança avulsa em rascunho para uma empresa (só equipe): descrição, valor em reais, vencimento e, se for diferente, a data limite do boleto. O rascunho NÃO é emitido nem enviado: publicar no banco é feito na tela da fatura. Recorrências continuam sendo criadas na tela.",
   input: z.object({
@@ -449,6 +463,7 @@ const draftInvoice = tool({
 
 const editDraftInvoice = tool({
   name: "atualizar_cobranca_rascunho",
+  area: "financeiro",
   description: "Altera uma cobrança ainda em rascunho: descrição, valor, vencimento ou 'pagar até'. Só equipe; faturas emitidas não passam por aqui.",
   input: z.object({ faturaId: id, descricao: z.string().trim().min(1).max(1000).optional(), valorReais: z.number().positive().max(9999999.99).optional(), vencimento: z.iso.date().optional(), pagarAte: civilDate.optional() }),
   staffOnly: true,
@@ -464,6 +479,7 @@ const editDraftInvoice = tool({
 
 const dropDraftInvoice = tool({
   name: "cancelar_cobranca_rascunho",
+  area: "financeiro",
   description: "Cancela uma cobrança em rascunho (só equipe). Faturas emitidas não são canceladas por aqui.",
   input: z.object({ faturaId: id }),
   staffOnly: true,
@@ -479,6 +495,7 @@ const dropDraftInvoice = tool({
 
 const addCompany = tool({
   name: "cadastrar_empresa",
+  area: "empresas",
   description: "Cadastra uma empresa cliente (só equipe): razão social, CNPJ ou CPF, e-mail de cobrança e telefone. Confirme os dados antes.",
   input: z.object({ nome: z.string().trim().min(1).max(160), documento: z.string().trim().min(11).max(20), emailCobranca: z.string().trim().email(), telefone: z.string().trim().max(20).default("") }),
   staffOnly: true,
@@ -491,6 +508,7 @@ const addCompany = tool({
 
 const editCompany = tool({
   name: "atualizar_empresa",
+  area: "empresas",
   description: "Altera nome, CNPJ/CPF, e-mail de cobrança ou telefone de uma empresa (só equipe). Só o que for informado muda.",
   input: z.object({ companyId: id, nome: z.string().trim().min(1).max(160).optional(), documento: z.string().trim().min(11).max(20).optional(), emailCobranca: z.string().trim().email().optional(), telefone: z.string().trim().max(20).optional() }),
   staffOnly: true,
@@ -505,6 +523,7 @@ const editCompany = tool({
 
 const addBookmark = tool({
   name: "criar_bookmark",
+  area: "bookmarks",
   description: "Guarda um link como bookmark, opcionalmente numa pasta e numa empresa (sem empresa, vai para o espaço da Anuntech, só equipe).",
   input: z.object({ titulo: z.string().trim().min(1).max(160), url: z.string().trim().url().max(2048), companyId: id.optional(), pastaId: id.optional() }),
   write: true,
@@ -516,6 +535,7 @@ const addBookmark = tool({
 
 const addBookmarkFolder = tool({
   name: "criar_pasta_de_bookmarks",
+  area: "bookmarks",
   description: "Cria uma pasta de bookmarks numa empresa (ou no espaço da Anuntech, só equipe).",
   input: z.object({ nome: z.string().trim().min(1).max(80), companyId: id.optional() }),
   write: true,
@@ -527,6 +547,7 @@ const addBookmarkFolder = tool({
 
 const addCatalogItem = tool({
   name: "criar_item_do_catalogo",
+  area: "produtos",
   description: "Cadastra um produto ou serviço no catálogo da Anuntech (só equipe), com preço padrão e intervalo opcionais.",
   input: z.object({
     tipo: z.enum(["product", "service"]),
@@ -546,6 +567,7 @@ const addCatalogItem = tool({
 
 const linkCatalogItem = tool({
   name: "vincular_item_do_catalogo",
+  area: "produtos",
   description:
     "Vincula um produto ou serviço do catálogo a uma empresa com o preço dela (só equipe). cobranca 'none' só vincula; 'draft' também cria a recorrência em rascunho (nada é emitido). Ache o catalogItemId com listar_catalogo.",
   input: z.object({ companyId: id, catalogItemId: id, valorReais: z.number().positive().max(9999999.99), intervalo: z.enum(["monthly", "yearly"]).default("monthly"), cobranca: z.enum(["none", "draft"]).default("none"), vencimento: z.iso.date().optional() }),
@@ -559,6 +581,7 @@ const linkCatalogItem = tool({
 
 const draftContract = tool({
   name: "criar_contrato_rascunho",
+  area: "contratos",
   description: "Cria um contrato em rascunho para uma empresa a partir de um modelo (só equipe; ache o templateId com listar_modelos_de_contrato). O texto é revisado e enviado para assinatura na tela.",
   input: z.object({ companyId: id, templateId: id.optional(), engagementId: id.optional(), titulo: z.string().trim().max(160).optional() }),
   staffOnly: true,
@@ -571,6 +594,7 @@ const draftContract = tool({
 
 const contractTerm = tool({
   name: "definir_vigencia_contrato",
+  area: "contratos",
   description: "Define ou ajusta início e fim da vigência de um contrato (só equipe); o alerta de vencimento segue essas datas.",
   input: z.object({ contratoId: id, inicio: civilDate.optional(), fim: civilDate.optional() }),
   staffOnly: true,
@@ -585,6 +609,7 @@ const contractTerm = tool({
 
 const editQuote = tool({
   name: "atualizar_orcamento",
+  area: "orcamentos",
   description: "Altera um orçamento em rascunho (só equipe): título, resumo, taxa/hora, entrada, validade, stack, observações ou as fases inteiras. Só o que for informado muda.",
   input: z.object({
     orcamentoId: id,
@@ -624,6 +649,7 @@ const editQuote = tool({
 
 const cloneQuote = tool({
   name: "duplicar_orcamento",
+  area: "orcamentos",
   description: "Duplica um orçamento como novo rascunho para a mesma empresa (só equipe). Para outra empresa, use criar_orcamento com copiarDeOrcamentoId.",
   input: z.object({ orcamentoId: id }),
   staffOnly: true,
@@ -636,6 +662,7 @@ const cloneQuote = tool({
 
 const inviteMember = tool({
   name: "convidar_membro",
+  area: "empresas",
   description: "Dá acesso a uma pessoa numa empresa, como gestor (tudo, inclusive financeiro) ou membro (visão geral e chamados). Para gestores da empresa e equipe. Confirme e-mail e papel antes.",
   input: z.object({ companyId: id, email: z.string().trim().email(), papel: z.enum(["manager", "member"]) }),
   write: true,

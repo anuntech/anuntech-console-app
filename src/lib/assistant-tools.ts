@@ -28,9 +28,10 @@ import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } 
 import { OPEN_TICKET_STATUSES } from "./ticket-status";
 
 /* ---------- plumbing (shared with assistant-tools-extra) ---------- */
-import { fold, id, limit, scopeOf, submit, tool, ToolError, within, type AnyTool, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
+import { fold, id, limit, scopeOf, submit, tool, ToolError, within, type AnyTool, type ToolArea, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
 export { ToolError } from "./assistant-tools-kit";
-export type { AnyTool, ClientAction, ToolContext, ToolOutcome } from "./assistant-tools-kit";
+export type { AnyTool, ClientAction, ToolArea, ToolContext, ToolOutcome } from "./assistant-tools-kit";
+export { toolAreas } from "./assistant-tools-kit";
 import type { Actor } from "./access";
 import { extraTools } from "./assistant-tools-extra";
 
@@ -73,6 +74,7 @@ const listCompanies = tool({
 
 const companyOverview = tool({
   name: "resumo_da_empresa",
+  area: "empresas",
   description: "Um retrato da empresa: chamados abertos, faturas em aberto e vencidas, projetos, produtos, contratos e orçamentos.",
   input: z.object({ companyId: id }),
   run: async ({ actor, today }, { companyId }) => {
@@ -189,6 +191,7 @@ const monthsBefore = (iso: string, months: number) => {
 
 const financeSummary = tool({
   name: "resumo_financeiro",
+  area: "financeiro",
   description:
     "Totais por cliente (empresa) em um período: faturado, pago, em aberto, vencido, quantidade de faturas e recorrência mensal ativa. É a ferramenta certa para 'maior cliente', 'quanto faturamos', 'quem deve mais', rankings e comparações. Nunca some listas de faturas para chegar a totais. Conta só faturas emitidas ou pagas (rascunhos e canceladas ficam de fora), pela data de vencimento.",
   input: z.object({
@@ -295,6 +298,7 @@ const listTickets = tool({
 
 const readTicket = tool({
   name: "ler_chamado",
+  area: "chamados",
   description: "As últimas mensagens de um chamado, para saber onde ele parou.",
   input: z.object({ chamadoId: id }),
   run: async ({ actor }, { chamadoId }) => {
@@ -323,6 +327,7 @@ const readTicket = tool({
 
 const openTicket = tool({
   name: "abrir_chamado",
+  area: "chamados",
   description:
     "Abre um chamado de suporte para a empresa com assunto e descrição. Confirme o assunto e a descrição com a pessoa antes de chamar, a não ser que o pedido já esteja completo e claro.",
   input: z.object({
@@ -356,6 +361,7 @@ const openTicket = tool({
 
 const answerTicket = tool({
   name: "responder_chamado",
+  area: "chamados",
   description: "Envia uma mensagem em um chamado existente, em nome da pessoa. Confirme o texto antes de enviar.",
   input: z.object({ chamadoId: id, mensagem: z.string().trim().min(1).max(10000) }),
   write: true,
@@ -403,6 +409,7 @@ async function projectAccess(actor: Actor, engagementId: string) {
 
 const listTasks = tool({
   name: "listar_tarefas",
+  area: "projetos",
   description: "As tarefas do quadro de um projeto, com situação, prioridade e prazo.",
   input: z.object({ engagementId: id, situacao: z.enum([...TASK_STATUSES, "all"]).default("all") }),
   run: async ({ actor }, { engagementId, situacao }) => {
@@ -433,6 +440,7 @@ const listTasks = tool({
 
 const addTask = tool({
   name: "criar_tarefa",
+  area: "projetos",
   description:
     "Cria uma tarefa no quadro de um projeto. Para montar um projeto inteiro, chame uma vez por tarefa, na ordem em que devem acontecer. Confirme a lista com a pessoa antes de criar muitas.",
   input: z.object({
@@ -462,6 +470,7 @@ const addTask = tool({
 
 const moveTaskTool = tool({
   name: "mover_tarefa",
+  area: "projetos",
   description: "Muda a situação de uma tarefa (backlog, todo, in_progress, review, done).",
   input: z.object({ tarefaId: id, situacao: z.enum(TASK_STATUSES) }),
   write: true,
@@ -474,6 +483,7 @@ const moveTaskTool = tool({
 
 const addProject = tool({
   name: "criar_projeto",
+  area: "projetos",
   description: "Cria um projeto para uma empresa (só a equipe da Anuntech). Depois, use criar_tarefa para montar o quadro.",
   input: z.object({ companyId: id, nome: z.string().trim().min(1).max(160), descricao: z.string().trim().max(3000).default("") }),
   staffOnly: true,
@@ -546,6 +556,7 @@ const listQuotes = tool({
 
 const readQuote = tool({
   name: "ler_orcamento",
+  area: "orcamentos",
   description:
     "O conteúdo completo de um orçamento: resumo, stack, fases com horas e tarefas, taxa/hora, entrada, validade, observações, totais e situação. Use para responder sobre um orçamento ou para copiar um existente em outro cliente (passe o id em copiarDeOrcamentoId de criar_orcamento).",
   input: z.object({ orcamentoId: id }),
@@ -589,6 +600,7 @@ const readQuote = tool({
 
 const readContract = tool({
   name: "ler_contrato",
+  area: "contratos",
   description: "O texto de um contrato (a versão enviada ou assinada), com situação, vigência e assinaturas. Use para responder o que o contrato diz.",
   input: z.object({ contratoId: id }),
   run: async ({ actor }, { contratoId }) => {
@@ -621,6 +633,7 @@ const readContract = tool({
 
 const createQuoteTool = tool({
   name: "criar_orcamento",
+  area: "orcamentos",
   description:
     "Cria um orçamento em rascunho (só a equipe da Anuntech) a partir de título, resumo, taxa/hora, entrada, validade, stack e fases com faixa de horas e tarefas, no formato da proposta da Anuntech. Para fazer 'igual ao orçamento X' para outro cliente, passe copiarDeOrcamentoId (ache o id com listar_orcamentos): tudo é copiado e só o que você informar é trocado. O rascunho abre para revisão e o envio ao cliente é feito na tela. Sem copiarDe, se a taxa/hora não foi dita, pergunte antes de criar.",
   input: z.object({
@@ -693,6 +706,7 @@ const createQuoteTool = tool({
 
 const fillScreen = tool({
   name: "preencher_tela",
+  area: "tela",
   description:
     "Preenche campos do formulário que está na tela da pessoa (veja 'Tela atual' nas instruções): use o nome exato de cada campo. Datas em AAAA-MM-DD, dinheiro como 1234,56, empresa pelo companyId ou pelo nome, selects pelo valor da opção, caixas com 'sim' ou 'não'. Só marque enviar=true se a pessoa pediu para salvar ou enviar; senão preencha e peça que confira. O painel fecha para ela ver a tela.",
   input: z.object({
@@ -709,6 +723,7 @@ const fillScreen = tool({
 
 const clickScreen = tool({
   name: "clicar_na_tela",
+  area: "tela",
   description: "Clica em um botão ou link visível na tela da pessoa, pelo texto dele (por exemplo 'Salvar rascunho', 'Enviar ao cliente', 'Nova cobrança'). Use depois de preencher, ou para acionar algo que ela pediu.",
   input: z.object({ texto: z.string().trim().min(1).max(60) }),
   write: true,
@@ -812,10 +827,16 @@ export const assistantTools: AnyTool[] = [
   ...extraTools,
 ];
 
-/** The tool list as OpenRouter/OpenAI expect it, filtered by who is asking. */
-export function toolCatalog(actor: Pick<Actor, "admin">) {
+/**
+ * The tool list as OpenRouter/OpenAI expect it, filtered by who is asking
+ * and, when Jev has read the message, by the areas it touches: core tools
+ * (listings, navigation, support, knowledge) always go; the rest only when
+ * their area is selected. `null` sends everything.
+ */
+export function toolCatalog(actor: Pick<Actor, "admin">, areas: ReadonlySet<ToolArea> | null = null) {
   return assistantTools
     .filter((t) => !t.staffOnly || actor.admin)
+    .filter((t) => !areas || !t.area || areas.has(t.area))
     .map((t) => {
       const schema = z.toJSONSchema(t.input) as Record<string, unknown>;
       delete schema.$schema;

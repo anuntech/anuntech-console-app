@@ -211,7 +211,7 @@ async function complete(
  */
 export async function converse(actor: Actor, history: ChatTurn[], page?: PageSnapshot): Promise<AssistantReply> {
   const config = await assistantConfig();
-  const tools = toolCatalog(actor);
+  let tools = toolCatalog(actor);
   const [prompt, reasoning] = await Promise.all([systemPrompt(actor, config.prompt, page), modelSupportsReasoning(config.model)]);
   const turns = trimHistory(history);
   const messages: Message[] = [{ role: "system", content: prompt }, ...turns];
@@ -242,6 +242,16 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
         }
       }
       messages[0].content += `\n\nLeitura rápida da intenção (Jev, ${Math.round(route.confidence * 100)}%): ${route.intent} — ${intents[route.intent]}.`;
+      // Only the tools of the areas this message touches travel to the model; listings and navigation always do.
+      // When Jev sees a request for data or an action but no clear area, the model keeps the whole catalog.
+      const areas = new Set(route.areas);
+      if (page?.forms.length && (route.intent === "tela" || route.intent === "criar")) areas.add("tela");
+      const unsure = !areas.size && (route.intent === "consultar" || route.intent === "criar" || route.intent === "tela");
+      if (!unsure) {
+        const subset = toolCatalog(actor, areas);
+        console.info("[assistant] tools", { sent: subset.length, of: tools.length, areas: [...areas] });
+        tools = subset;
+      }
     }
   }
   for (let round = 0; round < MAX_ROUNDS; round++) {

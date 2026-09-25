@@ -17,10 +17,25 @@ export type ToolContext = { actor: Actor; today: string };
 /** A message the model should relay; anything else is a bug and stays generic. */
 export class ToolError extends Error {}
 
+/** Which part of the Console a tool serves; Jev picks the areas a message needs. Core tools have none. */
+export const toolAreas = {
+  empresas: "Empresas e clientes: dados cadastrais, pessoas com acesso, cadastrar ou alterar empresa, dar acesso",
+  financeiro: "Financeiro: faturas, boletos, Pix, cobranças em rascunho, recorrências, totais, avisos de cobrança, quem deve",
+  chamados: "Chamados de suporte: ler a conversa, abrir, responder, mudar situação ou responsável",
+  projetos: "Projetos e tarefas: quadro, criar, alterar, mover ou excluir tarefas, criar ou alterar projeto",
+  produtos: "Produtos, serviços e catálogo: o que a empresa contratou, vincular item do catálogo, cadastrar item",
+  contratos: "Contratos: texto, vigência, modelos, criar rascunho",
+  orcamentos: "Orçamentos e propostas: ler, criar, copiar, alterar, duplicar",
+  bookmarks: "Bookmarks e pastas de links",
+  tela: "Preencher, completar ou acionar o formulário aberto na tela agora",
+} as const;
+export type ToolArea = keyof typeof toolAreas;
+
 export type AnyTool = {
   name: string;
   description: string;
   input: z.ZodType;
+  area?: ToolArea;
   /** Hidden from clients; the executor refuses it too. */
   staffOnly?: boolean;
   /** Changes data; the consent gate runs before it. */
@@ -31,6 +46,7 @@ export function tool<S extends z.ZodType>(def: {
   name: string;
   description: string;
   input: S;
+  area?: ToolArea;
   staffOnly?: boolean;
   write?: boolean;
   run: (ctx: ToolContext, input: z.output<S>) => Promise<ToolOutcome>;

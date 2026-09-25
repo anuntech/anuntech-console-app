@@ -177,7 +177,7 @@ export async function AssistantSection() {
         <CardHeader>
           <SectionTitle
             title={`Ferramentas (${assistantTools.length})`}
-            description="Cada uma é uma ação do Console que o assistente pode chamar, sempre com as permissões da pessoa logada; o que altera dados passa pela checagem de confirmação e fica no histórico como se ela mesma tivesse feito. Emitir cobranças, enviar orçamentos e contratos e remover acessos continuam só na tela."
+            description="Cada uma é uma ação do Console que o assistente pode chamar, sempre com as permissões da pessoa logada; o que altera dados passa pela checagem de confirmação e fica no histórico como se ela mesma tivesse feito. A cada mensagem, o Jev lê que áreas ela toca e o modelo recebe só as ferramentas dessas áreas, além das listagens e da navegação. Emitir cobranças, enviar orçamentos e contratos e remover acessos continuam só na tela."
           />
         </CardHeader>
         <CardContent className="grid gap-6 sm:grid-cols-2">

@@ -115,6 +115,8 @@ globalThis.fetch = async function (input, init) {
       answers.intent = { type: "choice", choice: intent, probabilities: { [intent]: 1 }, confidence: 1 };
       answers.destino = { type: "choice", choice: destino, probabilities: { [destino]: 1 }, confidence: 1 };
     }
+    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul/ };
+    for (const [key, pattern] of Object.entries(areaWords)) if (req.questions[`area_${key}`]) answers[`area_${key}`] = { type: "noul", noul: pattern.test(message) ? 0.9 : 0.1 };
     if (req.questions.aprovado) {
       const recent = req.state?.conversa_recente ?? [];
       const person = [...recent].reverse().find((m) => m.de === "pessoa")?.texto?.toLowerCase() ?? "";

@@ -1,4 +1,5 @@
 import "server-only";
+import { toolAreas, type ToolArea } from "./assistant-tools-kit";
 
 /**
  * Jev, TypeSafe's decision model, reached through OpenRouter with the same
@@ -62,6 +63,8 @@ export type Intent = keyof typeof intents;
 export type Route = {
   intent: Intent;
   confidence: number;
+  /** The parts of the Console this message touches; the model gets their tools. */
+  areas: ToolArea[];
   /** Which screen, when the intent is to navigate. */
   destination: string | null;
   destinationConfidence: number;
@@ -88,14 +91,25 @@ export async function routeIntent(input: {
         instructions: "Se a pessoa quer ir para uma tela, qual? Escolha 'nenhuma' quando ela não pede para abrir uma tela.",
         criteria: { nenhuma: "A mensagem não pede para abrir uma tela específica", ...input.destinations },
       },
+      ...Object.fromEntries(
+        (Object.entries(toolAreas) as [ToolArea, string][]).map(([key, description]) => [
+          `area_${key}`,
+          { type: "noul", instructions: `Para atender a mensagem (considerando a resposta anterior), o assistente precisa mexer nesta área do Console: ${description}.` },
+        ]),
+      ),
     },
   );
   const intent = answers?.intent;
   const destination = answers?.destino;
   if (!intent || intent.type !== "choice" || !(intent.choice in intents)) return null;
+  const areas = (Object.keys(toolAreas) as ToolArea[]).filter((key) => {
+    const answer = answers?.[`area_${key}`];
+    return answer?.type === "noul" && answer.noul >= 0.3;
+  });
   return {
     intent: intent.choice as Intent,
     confidence: intent.confidence,
+    areas,
     destination: destination?.type === "choice" && destination.choice !== "nenhuma" ? destination.choice : null,
     destinationConfidence: destination?.type === "choice" ? destination.confidence : 0,
   };
