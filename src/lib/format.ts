@@ -26,7 +26,7 @@ export const shortDateLabel = (date: string) =>
     .replace(" de ", " ")
     .replace(".", "");
 export const ticketLabels: Record<string, string> = {
-  open: "Aberto",
+  open: "Aguardando atendimento",
   in_progress: "Em atendimento",
   waiting_customer: "Aguardando cliente",
   resolved: "Resolvido",

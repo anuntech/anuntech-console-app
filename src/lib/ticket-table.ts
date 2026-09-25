@@ -27,7 +27,7 @@ export const ticketFilters: TicketStatusFilter[] = [
 ];
 export const ticketFilterLabels: Record<TicketStatusFilter, string> = {
   active: "Em aberto",
-  open: "Abertos",
+  open: "Aguardando atendimento",
   in_progress: "Em atendimento",
   waiting_customer: "Aguardando cliente",
   resolved: "Resolvidos",
