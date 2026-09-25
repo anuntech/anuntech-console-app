@@ -8,7 +8,7 @@ import { longDateLabel } from "./format";
 import { hasPermission } from "./permissions";
 import { runTool, toolCatalog, type ClientAction } from "./assistant-tools";
 
-export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-4.5";
+export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
 const MAX_HISTORY = 20;
 const MAX_MESSAGE_CHARS = 6000;

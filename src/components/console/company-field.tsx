@@ -125,7 +125,7 @@ export function CompanyField({
             filter={(_, search, keywords) => (matches((keywords ?? []).join(" "), search) ? 1 : 0)}
           >
             {searchable && <CommandInput placeholder="Buscar por nome ou CNPJ" />}
-            <CommandList className="max-h-[min(320px,55svh)]">
+            <CommandList className="max-h-[min(320px,calc(var(--radix-popover-content-available-height)-3rem))]">
               <CommandEmpty>Nenhuma empresa com esse nome.</CommandEmpty>
               <CommandGroup>
                 {allOption && (

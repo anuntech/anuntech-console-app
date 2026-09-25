@@ -57,7 +57,13 @@ function decide(messages) {
 
 globalThis.fetch = async function (input, init) {
   const url = typeof input === "string" ? input : input.url;
-  if (!url.includes("openrouter.ai")) return originalFetch.apply(this, arguments);
+  // The model catalog comes from a saved copy, so the settings page works offline too.
+  if (url.includes("openrouter.ai/api/v1/models")) {
+    const file = process.env.CONSOLE_TEST_MODELS_FILE;
+    if (!file || !fs.existsSync(file)) return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(fs.readFileSync(file), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+  if (!url.includes("openrouter.ai/api/v1/chat/completions")) return originalFetch.apply(this, arguments);
   const body = JSON.parse(init.body);
   if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length }) + "\n");
   const payload = decide(body.messages);

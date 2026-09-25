@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { assistantDocuments, user } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
 import { assistantConfig, DEFAULT_ASSISTANT_MODEL } from "@/lib/assistant";
+import { openRouterModels, SUGGESTED_MODEL_IDS } from "@/lib/openrouter-models";
+import { ModelField } from "./model-field";
 import { addAssistantDocument, removeAssistantDocument, saveAssistantSettings } from "@/lib/assistant-actions";
 import { dateTimeLabel, fileSizeLabel } from "@/lib/format";
 import { eq } from "drizzle-orm";
@@ -18,13 +20,14 @@ import { ConfirmAction, FormError, ServerForm, SubmitButton } from "@/components
 
 export async function AssistantSection() {
   await requireAdmin();
-  const [config, documents] = await Promise.all([
+  const [config, documents, models] = await Promise.all([
     assistantConfig(),
     db
       .select({ id: assistantDocuments.id, name: assistantDocuments.name, bytes: assistantDocuments.bytes, updatedAt: assistantDocuments.updatedAt, author: user.name })
       .from(assistantDocuments)
       .leftJoin(user, eq(user.id, assistantDocuments.authorId))
       .orderBy(desc(assistantDocuments.updatedAt)),
+    openRouterModels(),
   ]);
   const totalBytes = documents.reduce((sum, d) => sum + d.bytes, 0);
   return (
@@ -58,9 +61,15 @@ export async function AssistantSection() {
               <Label htmlFor="assistant-model" className="mb-1.5">
                 Modelo
               </Label>
-              <Input id="assistant-model" name="model" defaultValue={config.model} placeholder={DEFAULT_ASSISTANT_MODEL} maxLength={120} className="font-mono text-[13px]" />
+              {models.length ? (
+                <ModelField id="assistant-model" models={models} suggested={SUGGESTED_MODEL_IDS} defaultValue={config.model} />
+              ) : (
+                <Input id="assistant-model" name="model" defaultValue={config.model} placeholder={DEFAULT_ASSISTANT_MODEL} maxLength={120} className="font-mono text-[13px]" />
+              )}
               <p className="mt-1.5 text-xs text-muted-foreground">
-                O id como aparece em openrouter.ai/models. Precisa aceitar ferramentas (function calling). Em branco, usa {DEFAULT_ASSISTANT_MODEL}.
+                {models.length
+                  ? `Lista ao vivo do OpenRouter, só modelos que aceitam ferramentas, com o preço por milhão de tokens (entrada / saída). Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`
+                  : `Não deu para carregar a lista do OpenRouter agora. Digite o id como aparece em openrouter.ai/models; precisa aceitar ferramentas. Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`}
               </p>
             </div>
             <div>
