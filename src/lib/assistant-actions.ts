@@ -7,6 +7,7 @@ import { getActor } from "./access";
 import { assistantDocuments, assistantSettings, auditEvents } from "@/db/schema";
 import type { ActionState } from "./action-state";
 import { DEFAULT_ASSISTANT_MODEL } from "./assistant";
+import { openRouterModels } from "./openrouter-models";
 
 const blocked = { error: "Você não tem permissão para realizar esta ação." };
 const MAX_DOCUMENTS = 30;
@@ -23,12 +24,7 @@ export async function saveAssistantSettings(_: ActionState, form: FormData): Pro
   try {
     const input = z
       .object({
-        model: z
-          .string()
-          .trim()
-          .max(120, "O id do modelo é longo demais.")
-          .regex(/^[\w.\-]+\/[\w.\-:]+$/u, "Use o id como aparece no OpenRouter, por exemplo anthropic/claude-sonnet-4.5.")
-          .or(z.literal("")),
+        model: z.string().trim().max(120, "O id do modelo é longo demais."),
         prompt: z
           .string()
           .transform((v) => v.replace(/\r\n?/g, "\n"))
@@ -36,6 +32,10 @@ export async function saveAssistantSettings(_: ActionState, form: FormData): Pro
       })
       .parse({ model: form.get("model") ?? "", prompt: form.get("prompt") ?? "" });
     const model = input.model || DEFAULT_ASSISTANT_MODEL;
+    // Anything the live catalog lists is fine (aliases start with "~"); otherwise the id must look like provider/model.
+    const known = (await openRouterModels()).some((m) => m.id === model);
+    if (!known && !/^~?[\w.\-]+\/[\w.\-:]+$/u.test(model))
+      return { error: "Use o id como aparece no OpenRouter, por exemplo anthropic/claude-sonnet-5 ou ~deepseek/deepseek-flash-latest." };
     await db
       .insert(assistantSettings)
       .values({ id: "default", model, prompt: input.prompt, updatedBy: actor.user.id, updatedAt: new Date() })
