@@ -9,10 +9,8 @@ import {
   HeadsetIcon,
   LockIcon,
   MessagesSquareIcon,
-  MoreHorizontalIcon,
   PlusIcon,
   RotateCcwIcon,
-  XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,14 +29,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/console/page-header";
-import { TablePagination } from "@/components/console/table-pagination";
+import {
+  CompanyCell,
+  FilterChip,
+  LinkRow,
+  ListCard,
+  ListPagination,
+  PrimaryCell,
+  RowActions,
+} from "@/components/console/list-view";
 import { dateTimeLabel, relativeLabel } from "@/lib/format";
 import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
 import {
@@ -62,7 +65,10 @@ export type TicketRow = {
   company: string;
   engagement: string | null;
   author: string;
+  /** The responsible person's e-mail, as `updateTicket` stores it. */
   assignedTo: string | null;
+  /** Their name, when a Console user has that e-mail. */
+  assignee?: string | null;
   /** ISO instant. */
   updatedAt: string;
 };
@@ -70,71 +76,64 @@ export type TicketRow = {
 const isActive = (status: TicketStatus) =>
   (OPEN_TICKET_STATUSES as readonly string[]).includes(status);
 
-function RowMenu({ ticket, admin }: { ticket: TicketRow; admin: boolean }) {
+function TicketActions({ ticket, admin }: { ticket: TicketRow; admin: boolean }) {
   const [closing, setClosing] = useState(false);
   const { move, form } = useTicketMove(ticket.id);
   return (
-    <>
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Ações de ${ticket.subject}`}
-          >
-            <MoreHorizontalIcon />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+    <RowActions
+      label={ticket.subject}
+      extra={
+        admin && (
+          <>
+            {form}
+            <CloseTicketDialog
+              ticketId={ticket.id}
+              open={closing}
+              onOpenChange={setClosing}
+            />
+          </>
+        )
+      }
+    >
+      <DropdownMenuItem asChild>
+        <Link href={`/chamados/${ticket.id}`}>
+          <MessagesSquareIcon />
+          Abrir conversa
+        </Link>
+      </DropdownMenuItem>
+      {admin && (
+        <>
           <DropdownMenuItem asChild>
-            <Link href={`/chamados/${ticket.id}`}>
-              <MessagesSquareIcon />
-              Abrir conversa
+            <Link href={`/empresas/${ticket.companyId}`}>
+              <Building2Icon />
+              Ver empresa
             </Link>
           </DropdownMenuItem>
-          {admin && (
-            <>
-              <DropdownMenuItem asChild>
-                <Link href={`/empresas/${ticket.companyId}`}>
-                  <Building2Icon />
-                  Ver empresa
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {isActive(ticket.status) && (
-                <DropdownMenuItem onSelect={() => move("resolved")}>
-                  <CheckIcon />
-                  Marcar como resolvido
-                </DropdownMenuItem>
-              )}
-              {!isActive(ticket.status) && (
-                <DropdownMenuItem onSelect={() => move("open")}>
-                  <RotateCcwIcon />
-                  Reabrir chamado
-                </DropdownMenuItem>
-              )}
-              {ticket.status !== "closed" && (
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => setTimeout(() => setClosing(true), 0)}
-                >
-                  <LockIcon />
-                  Encerrar chamado
-                </DropdownMenuItem>
-              )}
-            </>
+          <DropdownMenuSeparator />
+          {isActive(ticket.status) && (
+            <DropdownMenuItem onSelect={() => move("resolved")}>
+              <CheckIcon />
+              Marcar como resolvido
+            </DropdownMenuItem>
           )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {admin && form}
-      {admin && (
-        <CloseTicketDialog
-          ticketId={ticket.id}
-          open={closing}
-          onOpenChange={setClosing}
-        />
+          {!isActive(ticket.status) && (
+            <DropdownMenuItem onSelect={() => move("open")}>
+              <RotateCcwIcon />
+              Reabrir chamado
+            </DropdownMenuItem>
+          )}
+          {ticket.status !== "closed" && (
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => setTimeout(() => setClosing(true), 0)}
+            >
+              <LockIcon />
+              Encerrar chamado
+            </DropdownMenuItem>
+          )}
+        </>
       )}
-    </>
+    </RowActions>
   );
 }
 
@@ -166,60 +165,82 @@ export function TicketsTable({
     ticketListHref({ ...query, ...patch });
   const go = (patch: Partial<TicketQuery>) =>
     router.push(href(patch), { scroll: false });
-  const filtered = !!query.search || !!query.company;
+  const filtered =
+    !!query.search || !!query.company || query.status !== "active";
+  // The company matters only while the list spans several: staff get it as its
+  // own column, a client with several companies keeps it in the subtitle
+  // (the "Empresa" column is a staff view). A company filter makes it moot.
+  const spansCompanies = showCompany && !query.company;
+  const companyColumn = admin && spansCompanies;
+  const subtitle = (ticket: TicketRow) =>
+    [
+      !admin && spansCompanies ? ticket.company : `Aberto por ${ticket.author}`,
+      ticket.engagement,
+    ]
+      .filter(Boolean)
+      .join(" · ");
 
   return (
-    <section
-      aria-label="Lista de chamados"
-      className="overflow-hidden rounded-xl border bg-card shadow-card"
-    >
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <SearchField
-          value={query.search}
-          onChange={(search) => go({ search, page: 1 })}
-          placeholder={showCompany ? "Buscar por assunto ou empresa" : "Buscar por assunto"}
+    <ListCard
+      label="Lista de chamados"
+      toolbar={
+        <>
+          <SearchField
+            value={query.search}
+            onChange={(search) => go({ search, page: 1 })}
+            placeholder={showCompany ? "Buscar por assunto ou empresa" : "Buscar por assunto"}
+          />
+          {companyFilter && (
+            <FilterChip
+              icon={<Building2Icon />}
+              label={companyFilter.name}
+              removeHref={href({ company: "", page: 1 })}
+            />
+          )}
+          <Select
+            value={query.status}
+            onValueChange={(status) =>
+              go({ status: status as TicketStatusFilter, page: 1 })
+            }
+          >
+            <SelectTrigger aria-label="Filtrar por situação" className="w-[188px]">
+              <SelectValue>{ticketFilterLabels[query.status]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {ticketFilters.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {ticketFilterLabels[status]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
+      }
+      footer={
+        <ListPagination
+          page={query.page}
+          pageSize={query.pageSize}
+          total={total}
+          pageCount={pageCount}
+          noun={["chamado", "chamados"]}
+          hrefFor={href}
         />
-        {companyFilter && (
-          <span className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background pr-1 pl-2.5 text-xs font-medium text-foreground">
-            <Building2Icon className="size-3.5 text-muted-foreground" />
-            <span className="max-w-[14rem] truncate">{companyFilter.name}</span>
-            <Link
-              href={href({ company: "", page: 1 })}
-              aria-label={`Remover filtro ${companyFilter.name}`}
-              className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <XIcon className="size-3.5" />
-            </Link>
-          </span>
-        )}
-        <Select
-          value={query.status}
-          onValueChange={(status) =>
-            go({ status: status as TicketStatusFilter, page: 1 })
-          }
-        >
-          <SelectTrigger aria-label="Filtrar por situação" className="w-[188px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {ticketFilters.map((status) => (
-              <SelectItem key={status} value={status}>
-                {ticketFilterLabels[status]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
+      }
+    >
       {rows.length ? (
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Chamado</TableHead>
+              {companyColumn && (
+                <TableHead className="hidden md:table-cell">Empresa</TableHead>
+              )}
               <TableHead>Situação</TableHead>
-              <TableHead>Prioridade</TableHead>
-              {admin && <TableHead>Responsável</TableHead>}
-              <TableHead>Atualizado</TableHead>
+              <TableHead className="hidden md:table-cell">Prioridade</TableHead>
+              {admin && (
+                <TableHead className="hidden md:table-cell">Responsável</TableHead>
+              )}
+              <TableHead className="hidden md:table-cell">Atualizado</TableHead>
               <TableHead className="w-12 pr-3">
                 <span className="sr-only">Ações</span>
               </TableHead>
@@ -227,33 +248,30 @@ export function TicketsTable({
           </TableHeader>
           <TableBody>
             {rows.map((ticket) => (
-              <TableRow key={ticket.id}>
-                <TableCell className="max-w-[28rem] py-3 pl-4">
-                  <Link
-                    href={`/chamados/${ticket.id}`}
-                    className="group block min-w-0"
-                  >
-                    <span className="block truncate font-medium text-foreground group-hover:text-primary">
-                      {ticket.subject}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {showCompany ? ticket.company : `Aberto por ${ticket.author}`}
-                      {ticket.engagement ? ` · ${ticket.engagement}` : ""}
-                    </span>
-                  </Link>
-                </TableCell>
+              <LinkRow key={ticket.id} href={`/chamados/${ticket.id}`}>
+                <PrimaryCell
+                  href={`/chamados/${ticket.id}`}
+                  title={ticket.subject}
+                  subtitle={subtitle(ticket)}
+                />
+                {companyColumn && (
+                  <CompanyCell>{ticket.company}</CompanyCell>
+                )}
                 <TableCell>
                   <TicketStatusBadge status={ticket.status} />
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <TicketPriorityMark priority={ticket.priority} />
                 </TableCell>
                 {admin && (
-                  <TableCell className="max-w-[12rem] truncate text-muted-foreground">
-                    {ticket.assignedTo || "—"}
+                  <TableCell
+                    className="hidden max-w-[12rem] truncate text-muted-foreground md:table-cell"
+                    title={ticket.assignee && ticket.assignedTo ? ticket.assignedTo : undefined}
+                  >
+                    {ticket.assignee || ticket.assignedTo || "—"}
                   </TableCell>
                 )}
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
                   <time
                     dateTime={ticket.updatedAt}
                     title={dateTimeLabel(ticket.updatedAt)}
@@ -261,10 +279,8 @@ export function TicketsTable({
                     {relativeLabel(ticket.updatedAt, now)}
                   </time>
                 </TableCell>
-                <TableCell className="pr-3 text-right">
-                  <RowMenu ticket={ticket} admin={admin} />
-                </TableCell>
-              </TableRow>
+                <TicketActions ticket={ticket} admin={admin} />
+              </LinkRow>
             ))}
           </TableBody>
         </Table>
@@ -274,27 +290,34 @@ export function TicketsTable({
           title={
             filtered
               ? "Nenhum chamado encontrado"
-              : query.status === "active"
-                ? admin
-                  ? "Nenhum chamado em aberto"
-                  : "Nenhum chamado em andamento"
-                : "Nenhum chamado nesta situação"
+              : admin
+                ? "Nenhum chamado em aberto"
+                : "Nenhum chamado em andamento"
           }
           description={
             filtered
-              ? "Tente outro termo ou mude o filtro de situação."
-              : query.status === "active"
-                ? admin
-                  ? "Tudo em dia. Novos chamados dos clientes aparecem aqui."
-                  : "Quando precisar de ajuda, abra um chamado e acompanhe a conversa por aqui."
-                : "Mude o filtro para ver os demais chamados."
+              ? "Tente outro termo ou mude os filtros."
+              : admin
+                ? "Tudo em dia. Novos chamados dos clientes aparecem aqui."
+                : "Quando precisar de ajuda, abra um chamado e acompanhe a conversa por aqui."
           }
           action={
-            query.search ? (
+            filtered ? (
               <Button variant="outline" asChild>
-                <Link href={href({ search: "", page: 1 })}>Limpar busca</Link>
+                <Link
+                  href={ticketListHref({
+                    status: "active",
+                    search: "",
+                    company: "",
+                    page: 1,
+                    pageSize: query.pageSize,
+                  })}
+                  scroll={false}
+                >
+                  Limpar filtros
+                </Link>
               </Button>
-            ) : canCreate && !filtered && query.status === "active" && !admin ? (
+            ) : canCreate && !admin ? (
               <Button asChild>
                 <Link href="/chamados/novo">
                   <PlusIcon />
@@ -305,16 +328,6 @@ export function TicketsTable({
           }
         />
       )}
-
-      <TablePagination
-        page={query.page}
-        pageCount={pageCount}
-        pageSize={query.pageSize}
-        total={total}
-        noun={["chamado", "chamados"]}
-        onPageChange={(page) => go({ page })}
-        onPageSizeChange={(pageSize) => go({ pageSize, page: 1 })}
-      />
-    </section>
+    </ListCard>
   );
 }

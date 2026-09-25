@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { accessibleCompanies, getActor } from "@/lib/access";
 import { bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks";
+import { pageCountOf, pageQuery } from "@/lib/list-query";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 export const metadata: Metadata = {
   title: "Bookmarks",
@@ -14,7 +15,9 @@ export default async function Bookmarks({
 }) {
   const actor = await getActor();
   const scope = scopeOf(actor);
-  const query = bookmarkQuery(await searchParams, scope);
+  const params = await searchParams;
+  const query = bookmarkQuery(params, scope);
+  const paging = pageQuery(params);
   const folders = await foldersFor(scope, query.company);
   if (
     query.folder !== "all" &&
@@ -22,11 +25,12 @@ export default async function Bookmarks({
     !folders.some((folder) => folder.id === query.folder)
   )
     query.folder = "all";
-  const [{ items, rootCount, total }, companies] = await Promise.all([
+  const [{ items, rootCount, total, matching, page }, companies] = await Promise.all([
     bookmarksFor(
       scope,
       folders.map((folder) => folder.id),
       query,
+      paging,
     ),
     actor.admin
       ? accessibleCompanies(actor).then((rows) => [
@@ -42,6 +46,13 @@ export default async function Bookmarks({
         items,
         query,
         counts: { root: rootCount, total },
+        paging: {
+          page,
+          pageSize: paging.pageSize,
+          total: matching,
+          pageCount: pageCountOf(matching, paging.pageSize),
+        },
+        now: new Date().toISOString(),
         companies,
         viewer: { id: actor.user.id, admin: actor.admin },
       }}

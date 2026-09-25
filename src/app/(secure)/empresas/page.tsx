@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/console/page-header";
 import { CompaniesTable } from "@/components/empresas/companies-table";
 import { NewCompanyButton } from "@/components/empresas/company-sheet";
 import { companyQuery } from "@/lib/company-table";
+import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
 export const metadata: Metadata = {
   title: "Empresas",
@@ -39,8 +40,8 @@ export default async function Companies({
     .select({ total: count() })
     .from(companies)
     .where(scope ?? sql`true`);
-  const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
-  const page = Math.min(query.page, pageCount);
+  const pageCount = pageCountOf(total, query.pageSize);
+  const { page } = clampPage(query, total);
   const list = await db
     .select({
       id: companies.id,
@@ -54,9 +55,10 @@ export default async function Companies({
     })
     .from(companies)
     .where(scope ?? sql`true`)
-    .orderBy(asc(companies.name))
+    // The id breaks ties between equal names, so pages never overlap.
+    .orderBy(asc(companies.name), asc(companies.id))
     .limit(query.pageSize)
-    .offset((page - 1) * query.pageSize);
+    .offset(offsetOf({ ...query, page }));
   const ids = list.map((c) => c.id);
   const [people, open] = ids.length
     ? await Promise.all([

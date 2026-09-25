@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
-import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, engagements, subscriptions } from "@/db/schema";
 import { getActor } from "@/lib/access";
-import { projectQuery } from "@/lib/project-table";
+import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
+import { companyShortcuts, projectListQuery } from "@/lib/project-table";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { ProductsList } from "@/components/produtos/products-list";
@@ -21,8 +22,9 @@ export default async function Products({
 }) {
   const actor = await getActor();
   const ids = actor.grants.map((g) => g.company.id);
-  const query = projectQuery(await searchParams);
+  const query = projectListQuery(await searchParams);
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
+  const showCompany = actor.admin || ids.length > 1;
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const where = and(
     inArray(engagements.kind, ["product", "service"]),
@@ -33,7 +35,13 @@ export default async function Products({
       ? or(ilike(engagements.name, `%${search}%`), ilike(companies.name, `%${search}%`))
       : undefined,
   );
-  const [rows, companyFilter] = await Promise.all([
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(engagements)
+    .innerJoin(companies, eq(companies.id, engagements.companyId))
+    .where(where);
+  const paging = { ...query, ...clampPage(query, total) };
+  const [rows, companyFilter, shortcuts] = await Promise.all([
     db
       .select({
         id: engagements.id,
@@ -53,7 +61,10 @@ export default async function Products({
       .innerJoin(companies, eq(companies.id, engagements.companyId))
       .leftJoin(subscriptions, eq(subscriptions.id, engagements.subscriptionId))
       .where(where)
-      .orderBy(asc(engagements.name)),
+      // The id breaks ties between equal names, so pages never overlap.
+      .orderBy(asc(engagements.name), asc(engagements.id))
+      .limit(paging.pageSize)
+      .offset(offsetOf(paging)),
     query.company
       ? db
           .select({ id: companies.id, name: companies.name })
@@ -61,12 +72,22 @@ export default async function Products({
           .where(eq(companies.id, query.company))
           .then((found) => found[0] ?? null)
       : null,
+    // The companies behind every match (not only this page), for the "Só desta empresa" shortcuts.
+    query.search && !query.company && showCompany
+      ? db
+          .selectDistinct({ id: companies.id, name: companies.name })
+          .from(engagements)
+          .innerJoin(companies, eq(companies.id, engagements.companyId))
+          .where(where)
+          .orderBy(asc(companies.name))
+          .then((found) => companyShortcuts(found, query.search))
+      : [],
   ]);
   return (
     <>
       <PageHeader
         title="Produtos e serviços"
-        count={rows.length}
+        count={total}
         description={
           actor.admin
             ? "O que cada cliente contratou. Produtos abrem pelo link; serviços têm uma página de detalhes."
@@ -88,10 +109,13 @@ export default async function Products({
           ...row,
           kind: row.kind === "service" ? "service" : "product",
         }))}
-        query={query}
+        query={paging}
+        total={total}
+        pageCount={pageCountOf(total, paging.pageSize)}
         admin={actor.admin}
-        showCompany={actor.admin || ids.length > 1}
+        showCompany={showCompany}
         companyFilter={companyFilter}
+        companyShortcuts={shortcuts}
       />
     </>
   );

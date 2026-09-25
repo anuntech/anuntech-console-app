@@ -41,7 +41,6 @@ import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 import { ProductsList } from "@/components/produtos/products-list";
 import { ServiceDetail } from "@/components/produtos/service-detail";
 import { ContractsTable } from "@/components/contratos/contracts-table";
-import { ContractCards } from "@/components/contratos/contract-cards";
 import { NewContractForm } from "@/components/contratos/contract-sheet";
 import { ContractDetail } from "@/components/contratos/contract-detail";
 import { AuthShell } from "@/components/auth/auth-shell";
@@ -658,6 +657,7 @@ export default async function Preview({
       companyId: "a1",
       company: "Maxipark Estacionamentos",
       tasks: { total: 8, done: 3 },
+      updatedAt: now.toISOString(),
     },
     {
       id: "p3",
@@ -667,6 +667,7 @@ export default async function Preview({
       companyId: "a1",
       company: "Maxipark Estacionamentos",
       tasks: { total: 0, done: 0 },
+      updatedAt: now.toISOString(),
     },
     {
       id: "p4",
@@ -676,6 +677,7 @@ export default async function Preview({
       companyId: "a3",
       company: "Instituto Vida Plena",
       tasks: { total: 21, done: 21 },
+      updatedAt: now.toISOString(),
     },
   ];
   const person = (id: string, name: string) => ({ id, name, image: null as string | null });
@@ -1115,7 +1117,11 @@ export default async function Preview({
           />
           <ContractsTable
             rows={contractRows}
-            query={{ status: "all", search: "", company: "" }}
+            query={{ status: "all", search: "", company: "", page: 1, pageSize: 25 }}
+            total={contractRows.length}
+            pageCount={1}
+            admin
+            showCompany
             alerts={{ expiring: 1, expired: 1 }}
             now={now.toISOString()}
             today={day(0)}
@@ -1128,10 +1134,14 @@ export default async function Preview({
             count={2}
             description="Leia, assine e baixe os contratos da sua empresa com a Anuntech."
           />
-          <ContractCards
+          <ContractsTable
             rows={contractRows.filter((row) => row.companyId === "a2" || row.id === "c1")}
-            query={{ status: "all", search: "", company: "" }}
+            query={{ status: "all", search: "", company: "", page: 1, pageSize: 25 }}
+            total={2}
+            pageCount={1}
+            admin={false}
             showCompany={false}
+            now={now.toISOString()}
             today={day(0)}
           />
         </>
@@ -1211,7 +1221,9 @@ export default async function Preview({
                 ? productRows.filter((row) => /maxipark/i.test(row.company))
                 : productRows
             }
-            query={{ status: "active", search: tela === "produtos-busca" ? "maxi" : "", company: "" }}
+            query={{ status: "active", search: tela === "produtos-busca" ? "maxi" : "", company: "", page: 1, pageSize: 25 }}
+            total={productRows.length}
+            pageCount={1}
             admin
             showCompany
           />
@@ -1233,7 +1245,10 @@ export default async function Preview({
           />
           <ProjectsList
             rows={tela === "projetos-vazio" ? [] : projectRows}
-            query={{ status: "active", search: "", company: "" }}
+            query={{ status: "active", search: "", company: "", page: 1, pageSize: 25 }}
+            total={tela === "projetos-vazio" ? 0 : projectRows.length}
+            pageCount={1}
+            now={now.toISOString()}
             admin
             showCompany
           />

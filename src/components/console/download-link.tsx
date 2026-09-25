@@ -29,25 +29,7 @@ export function DownloadLink({
         if (pending) return;
         setPending(true);
         try {
-          const res = await fetch(href, { signal: AbortSignal.timeout(30000) });
-          if (!res.ok || res.headers.get("content-type")?.includes("text/html")) {
-            toast.error(
-              res.status === 401
-                ? "Entre novamente no Console para baixar este arquivo."
-                : "Não foi possível baixar o arquivo. Confira seu acesso e tente novamente.",
-            );
-            return;
-          }
-          const url = URL.createObjectURL(await res.blob());
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = filename.replace(/[\\/]/g, "_");
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
-        } catch {
-          toast.error("Não foi possível baixar o arquivo. Tente novamente.");
+          await downloadFile(href, filename);
         } finally {
           setPending(false);
         }
@@ -56,4 +38,32 @@ export function DownloadLink({
       {children}
     </a>
   );
+}
+
+/**
+ * Fetches a private file with the session cookie and saves it; failures become
+ * a toast instead of a broken tab. Shared by DownloadLink and menu items.
+ */
+export async function downloadFile(href: string, filename: string) {
+  try {
+    const res = await fetch(href, { signal: AbortSignal.timeout(30000) });
+    if (!res.ok || res.headers.get("content-type")?.includes("text/html")) {
+      toast.error(
+        res.status === 401
+          ? "Entre novamente no Console para baixar este arquivo."
+          : "Não foi possível baixar o arquivo. Confira seu acesso e tente novamente.",
+      );
+      return;
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename.replace(/[\\/]/g, "_");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    toast.error("Não foi possível baixar o arquivo. Tente novamente.");
+  }
 }

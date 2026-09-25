@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
-import { and, asc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, max, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { companies, engagements } from "@/db/schema";
+import { companies, engagements, tasks } from "@/db/schema";
 import { getActor } from "@/lib/access";
-import { projectQuery } from "@/lib/project-table";
+import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
+import { companyShortcuts, projectListQuery } from "@/lib/project-table";
 import { taskSummary } from "@/lib/tasks";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
@@ -22,8 +23,9 @@ export default async function Projects({
 }) {
   const actor = await getActor();
   const ids = actor.grants.map((g) => g.company.id);
-  const query = projectQuery(await searchParams);
+  const query = projectListQuery(await searchParams);
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
+  const showCompany = actor.admin || ids.length > 1;
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const where = and(
     eq(engagements.kind, "project"),
@@ -34,7 +36,13 @@ export default async function Projects({
       ? or(ilike(engagements.name, `%${search}%`), ilike(companies.name, `%${search}%`))
       : undefined,
   );
-  const [rows, companyFilter] = await Promise.all([
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(engagements)
+    .innerJoin(companies, eq(companies.id, engagements.companyId))
+    .where(where);
+  const paging = { ...query, ...clampPage(query, total) };
+  const [rows, companyFilter, shortcuts] = await Promise.all([
     db
       .select({
         id: engagements.id,
@@ -43,11 +51,15 @@ export default async function Projects({
         description: engagements.description,
         companyId: engagements.companyId,
         company: companies.name,
+        createdAt: engagements.createdAt,
       })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
       .where(where)
-      .orderBy(asc(engagements.name)),
+      // The id breaks ties between equal names, so pages never overlap.
+      .orderBy(asc(engagements.name), asc(engagements.id))
+      .limit(paging.pageSize)
+      .offset(offsetOf(paging)),
     query.company
       ? db
           .select({ id: companies.id, name: companies.name })
@@ -55,13 +67,35 @@ export default async function Projects({
           .where(eq(companies.id, query.company))
           .then((found) => found[0] ?? null)
       : null,
+    // The companies behind every match (not only this page), for the "Só desta empresa" shortcuts.
+    query.search && !query.company && showCompany
+      ? db
+          .selectDistinct({ id: companies.id, name: companies.name })
+          .from(engagements)
+          .innerJoin(companies, eq(companies.id, engagements.companyId))
+          .where(where)
+          .orderBy(asc(companies.name))
+          .then((found) => companyShortcuts(found, query.search))
+      : [],
   ]);
-  const summary = await taskSummary(rows.map((row) => row.id));
+  // Tasks are counted only for the projects on this page.
+  const pageIds = rows.map((row) => row.id);
+  const [summary, activity] = await Promise.all([
+    taskSummary(pageIds),
+    pageIds.length
+      ? db
+          .select({ engagementId: tasks.engagementId, at: max(tasks.updatedAt) })
+          .from(tasks)
+          .where(inArray(tasks.engagementId, pageIds))
+          .groupBy(tasks.engagementId)
+          .then((found) => new Map(found.map((row) => [row.engagementId, row.at])))
+      : new Map<string, Date | null>(),
+  ]);
   return (
     <>
       <PageHeader
         title="Projetos"
-        count={rows.length}
+        count={total}
         description={
           actor.admin
             ? "O que está em andamento com cada cliente, com o quadro de tarefas de cada projeto."
@@ -79,14 +113,20 @@ export default async function Projects({
         }
       />
       <ProjectsList
-        rows={rows.map((row) => ({
+        rows={rows.map(({ createdAt, ...row }) => ({
           ...row,
           tasks: summary.get(row.id) ?? { total: 0, done: 0 },
+          // The project moves with its board: the last task change, or its creation.
+          updatedAt: (activity.get(row.id) ?? createdAt).toISOString(),
         }))}
-        query={query}
+        query={paging}
+        total={total}
+        pageCount={pageCountOf(total, paging.pageSize)}
+        now={new Date().toISOString()}
         admin={actor.admin}
-        showCompany={actor.admin || ids.length > 1}
+        showCompany={showCompany}
         companyFilter={companyFilter}
+        companyShortcuts={shortcuts}
       />
     </>
   );

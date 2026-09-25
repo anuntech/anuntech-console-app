@@ -2,18 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { companies, engagements, tickets, user } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { TicketsTable } from "@/components/chamados/tickets-table";
+import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { ticketFilterStatuses, ticketQuery } from "@/lib/ticket-table";
 export const metadata: Metadata = {
   title: "Chamados",
   description:
     "Consulte as solicitações de atendimento e acompanhe as conversas com a equipe.",
 };
+
+// `assignedTo` holds an e-mail; the list shows the name of the user who has it.
+const assignee = alias(user, "assignee");
 
 export default async function Tickets({
   searchParams,
@@ -49,8 +54,8 @@ export default async function Tickets({
     .from(tickets)
     .innerJoin(companies, eq(companies.id, tickets.companyId))
     .where(where);
-  const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
-  const page = Math.min(query.page, pageCount);
+  const pageCount = pageCountOf(total, query.pageSize);
+  const { page } = clampPage(query, total);
   const [list, companyFilter] = await Promise.all([
     db
       .select({
@@ -61,18 +66,23 @@ export default async function Tickets({
         companyId: tickets.companyId,
         company: companies.name,
         engagement: engagements.name,
-        author: user.name,
+        // Accounts created by e-mail code may have no name yet; the e-mail still says who wrote it.
+        author: sql<string>`coalesce(nullif(${user.name}, ''), ${user.email})`,
         assignedTo: tickets.assignedTo,
+        assignee: assignee.name,
         updatedAt: tickets.updatedAt,
       })
       .from(tickets)
       .innerJoin(companies, eq(companies.id, tickets.companyId))
       .innerJoin(user, eq(user.id, tickets.authorId))
       .leftJoin(engagements, eq(engagements.id, tickets.engagementId))
+      // e-mail is unique, so this adds at most one row per ticket.
+      .leftJoin(assignee, eq(assignee.email, tickets.assignedTo))
       .where(where)
-      .orderBy(desc(tickets.updatedAt))
+      // The id breaks ties, so a row never shows on two pages or on none.
+      .orderBy(desc(tickets.updatedAt), desc(tickets.id))
       .limit(query.pageSize)
-      .offset((page - 1) * query.pageSize),
+      .offset(offsetOf({ ...query, page })),
     query.company
       ? db
           .select({ id: companies.id, name: companies.name })
@@ -104,8 +114,10 @@ export default async function Tickets({
         }
       />
       <TicketsTable
-        rows={list.map((row) => ({
+        rows={list.map(({ assignee, ...row }) => ({
           ...row,
+          // Only staff see the "Responsável" column.
+          assignee: actor.admin ? assignee : null,
           updatedAt: row.updatedAt.toISOString(),
         }))}
         query={{ ...query, page }}

@@ -6,6 +6,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   BookmarkIcon,
+  ExternalLinkIcon,
   FileIcon,
   FolderIcon,
   FolderInputIcon,
@@ -19,6 +20,14 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   NativeSelect,
   NativeSelectOptGroup,
@@ -36,11 +45,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
-import { DownloadLink } from "@/components/console/download-link";
+import { downloadFile } from "@/components/console/download-link";
+import {
+  CompanyCell,
+  DownloadMenuItem,
+  LinkRow,
+  ListCard,
+  ListPagination,
+  PrimaryCell,
+  RowActions,
+} from "@/components/console/list-view";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
 import { moveBookmark, deleteBookmark } from "@/lib/bookmark-actions";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks";
+import { dateTimeLabel, fileSizeLabel, relativeLabel } from "@/lib/format";
+import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
 import { BookmarkSheet, type BookmarkEditor } from "./bookmark-sheet";
 import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
 
@@ -49,6 +69,13 @@ export type BookmarksViewData = {
   items: BookmarkView[];
   query: BookmarkQuery;
   counts: { root: number; total: number };
+  /**
+   * The page shown; `total` is what the folder and the search leave. Optional
+   * so fixtures without it still type: they show `items` as a single page.
+   */
+  paging?: { page: number; pageSize: number; total: number; pageCount: number };
+  /** ISO instant the page was rendered at, so relative times hydrate equal. */
+  now?: string;
   /** Companies the viewer can file under; id "" is Anuntech's own space (staff). */
   companies: CompanyOption[];
   viewer: { id: string; admin: boolean };
@@ -92,13 +119,17 @@ function Tile({ item }: { item: BookmarkView }) {
   );
 }
 
-function href(query: BookmarkQuery, patch: Partial<BookmarkQuery>) {
-  const next = { ...query, ...patch };
+type ListState = BookmarkQuery & PageQuery;
+
+/** Changing the folder, the company or the search starts over at page 1; the page size stays. */
+function href(state: ListState, patch: Partial<ListState>) {
+  const next = { ...state, page: 1, ...patch };
   const params = new URLSearchParams();
   if (next.company !== "all") params.set("empresa", next.company);
   if (next.folder !== "all") params.set("pasta", next.folder);
   if (next.search) params.set("q", next.search);
-  return `/bookmarks${params.size ? `?${params}` : ""}`;
+  setPageParams(params, next);
+  return listHref("/bookmarks", params);
 }
 
 /** Moves through one hidden form so the row menu stays a menu. */
@@ -168,8 +199,11 @@ function NavItem({
 }
 
 export function BookmarksView({ data }: { data: BookmarksViewData }) {
-  const { folders, items, query, counts, companies, viewer } = data;
+  const { folders, items, query, counts, now, companies, viewer } = data;
+  const paging = data.paging ?? { page: 1, pageSize: DEFAULT_PAGE_SIZE, total: items.length, pageCount: 1 };
   const router = useRouter();
+  const state: ListState = { ...query, page: paging.page, pageSize: paging.pageSize };
+  const go = (patch: Partial<ListState>) => router.push(href(state, patch), { scroll: false });
   const [editor, setEditor] = useState<BookmarkEditor | null>(null);
   const [folderEditor, setFolderEditor] = useState<FolderEditor | null>(null);
   const [removing, setRemoving] = useState<BookmarkView | null>(null);
@@ -179,6 +213,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   const current = folderById.get(query.folder);
   const manyCompanies = companies.length > 1;
   const showCompany = manyCompanies && query.company === "all";
+  // Staff get the company as its own column while the list spans companies; a
+  // member of several companies keeps it in the subtitle.
+  const companyColumn = viewer.admin && showCompany;
+  const folderColumn = query.folder === "all";
   const manages = (folder: FolderView) => viewer.admin || folder.ownerId === viewer.id;
   const canEdit = (item: BookmarkView) =>
     viewer.admin ||
@@ -200,7 +238,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       companies={companies.map((company) => ({ ...company, id: company.id || "internal" }))}
       allOption={{ id: "all", label: "Todas as empresas" }}
       value={query.company}
-      onChange={(company) => router.push(href(query, { company, folder: "all" }), { scroll: false })}
+      onChange={(company) => go({ company, folder: "all" })}
       className="bg-card"
     />
   );
@@ -233,106 +271,123 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     </DropdownMenu>
   );
 
-  const list = (
-    <ul className="divide-y rounded-xl border bg-card shadow-card">
-      {items.map((item) => {
-        const folder = item.folderId ? folderById.get(item.folderId) : undefined;
-        const meta = [
-          item.url ? hostOf(item.url) : item.fileName,
-          query.folder === "all" && folder ? folder.name : null,
-          showCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        return (
-          <li key={item.id} className="flex items-center gap-3 px-3 py-2">
-            <Tile item={item} />
-            <div className="min-w-0 flex-1">
-              {item.url ? (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block truncate text-sm font-medium text-foreground hover:text-primary"
-                >
-                  {item.title}
-                </a>
-              ) : (
-                <DownloadLink
-                  href={`/api/bookmarks/${item.id}`}
-                  filename={item.fileName ?? item.title}
-                  className="block truncate text-sm font-medium text-foreground hover:text-primary"
-                >
-                  {item.title}
-                </DownloadLink>
+  const table = (
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="pl-4">Bookmark</TableHead>
+          {folderColumn && <TableHead className="hidden md:table-cell">Pasta</TableHead>}
+          {companyColumn && <TableHead className="hidden md:table-cell">Empresa</TableHead>}
+          <TableHead className="hidden md:table-cell">Adicionado</TableHead>
+          <TableHead className="w-12 pr-3">
+            <span className="sr-only">Ações</span>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {items.map((item) => {
+          const folder = item.folderId ? folderById.get(item.folderId) : undefined;
+          const company = companyName.get(item.companyId ?? "") ?? null;
+          const subtitle = [
+            item.url ? hostOf(item.url) : item.fileName,
+            !item.url && item.fileSize ? fileSizeLabel(item.fileSize) : null,
+            showCompany && !companyColumn ? company : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          return (
+            <LinkRow
+              key={item.id}
+              href={item.url}
+              external
+              onOpen={item.url ? undefined : () => void downloadFile(`/api/bookmarks/${item.id}`, item.fileName ?? item.title)}
+            >
+              <PrimaryCell
+                href={item.url}
+                external
+                onOpen={item.url ? undefined : () => void downloadFile(`/api/bookmarks/${item.id}`, item.fileName ?? item.title)}
+                leading={<Tile item={item} />}
+                title={item.title}
+                subtitle={subtitle || undefined}
+              />
+              {folderColumn && (
+                <TableCell className="hidden max-w-[14rem] md:table-cell">
+                  <span className={cn("block truncate", folder ? "text-foreground" : "text-muted-foreground")}>
+                    {folder ? folder.name : "Sem pasta"}
+                  </span>
+                </TableCell>
               )}
-              <p className="truncate text-xs text-muted-foreground">{meta}</p>
-            </div>
-            {canEdit(item) && (
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground"
-                    aria-label={`Ações de ${item.title}`}
-                  >
-                    <MoreHorizontalIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem onSelect={() => later(() => setEditor({ mode: "edit", item }))}>
-                    <PencilIcon />
-                    Editar
+              {companyColumn && (
+                <CompanyCell>{company ?? "—"}</CompanyCell>
+              )}
+              <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+                <time dateTime={item.createdAt} title={dateTimeLabel(item.createdAt)}>
+                  {relativeLabel(item.createdAt, now)}
+                </time>
+              </TableCell>
+              <RowActions label={item.title}>
+                {item.url ? (
+                  <DropdownMenuItem asChild>
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      <ExternalLinkIcon />
+                      Abrir link
+                    </a>
                   </DropdownMenuItem>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <FolderInputIcon />
-                      Mover para
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-52">
-                      <DropdownMenuItem
-                        disabled={!item.folderId}
-                        onSelect={() => move(item.id, "")}
-                      >
-                        Sem pasta
-                      </DropdownMenuItem>
-                      {folders
-                        .filter((folder) => (folder.companyId ?? "") === (item.companyId ?? ""))
-                        .map((folder) => (
-                        <DropdownMenuItem
-                          key={folder.id}
-                          disabled={folder.id === item.folderId}
-                          onSelect={() => move(item.id, folder.id)}
-                        >
-                          <FolderIcon />
-                          <span className="truncate">{folder.name}</span>
+                ) : (
+                  <DownloadMenuItem href={`/api/bookmarks/${item.id}`} filename={item.fileName ?? item.title}>
+                    Baixar arquivo
+                  </DownloadMenuItem>
+                )}
+                {canEdit(item) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => later(() => setEditor({ mode: "edit", item }))}>
+                      <PencilIcon />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <FolderInputIcon />
+                        Mover para
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-52">
+                        <DropdownMenuItem disabled={!item.folderId} onSelect={() => move(item.id, "")}>
+                          Sem pasta
                         </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() => later(() => setRemoving(item))}
-                  >
-                    <Trash2Icon />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                        {folders
+                          .filter((folder) => (folder.companyId ?? "") === (item.companyId ?? ""))
+                          .map((folder) => (
+                            <DropdownMenuItem
+                              key={folder.id}
+                              disabled={folder.id === item.folderId}
+                              onSelect={() => move(item.id, folder.id)}
+                            >
+                              <FolderIcon />
+                              <span className="truncate">{folder.name}</span>
+                            </DropdownMenuItem>
+                          ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onSelect={() => later(() => setRemoving(item))}>
+                      <Trash2Icon />
+                      Excluir
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </RowActions>
+            </LinkRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 
   return (
     <>
       <PageHeader
         title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Bookmarks"}
-        count={items.length}
+        count={paging.total}
         description={
           current ? (
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -378,9 +433,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             <NativeSelect
               aria-label="Pasta"
               value={query.folder}
-              onChange={(event) =>
-                router.push(href(query, { folder: event.target.value }), { scroll: false })
-              }
+              onChange={(event) => go({ folder: event.target.value })}
               className="bg-card"
             >
               <NativeSelectOption value="all">Todos os bookmarks</NativeSelectOption>
@@ -401,14 +454,14 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             <ul className="flex flex-col gap-0.5">
               <NavItem
                 active={query.folder === "all"}
-                href={href(query, { folder: "all" })}
+                href={href(state, { folder: "all" })}
                 icon={<BookmarkIcon />}
                 label="Todos"
                 count={counts.total}
               />
               <NavItem
                 active={query.folder === "root"}
-                href={href(query, { folder: "root" })}
+                href={href(state, { folder: "root" })}
                 icon={<FolderIcon className="opacity-60" />}
                 label="Sem pasta"
                 count={counts.root}
@@ -422,7 +475,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 <NavItem
                   key={folder.id}
                   active={query.folder === folder.id}
-                  href={href(query, { folder: folder.id })}
+                  href={href(state, { folder: folder.id })}
                   icon={folder.visibility === "people" ? <UsersIcon /> : <FolderIcon />}
                   label={folder.name}
                   hint={showCompany ? companyName.get(folder.companyId ?? "") : undefined}
@@ -444,45 +497,61 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           </nav>
         </aside>
 
-        <div className="min-w-0">
-          <SearchField
-            value={query.search}
-            onChange={(search) => router.push(href(query, { search }), { scroll: false })}
-            placeholder="Buscar por título ou link"
-            className="mb-4"
-          />
+        <ListCard
+          label="Lista de bookmarks"
+          className="min-w-0"
+          toolbar={
+            <SearchField
+              value={query.search}
+              onChange={(search) => go({ search })}
+              placeholder="Buscar por título ou link"
+            />
+          }
+          footer={
+            <ListPagination
+              page={paging.page}
+              pageSize={paging.pageSize}
+              total={paging.total}
+              pageCount={paging.pageCount}
+              noun={["bookmark", "bookmarks"]}
+              hrefFor={(patch) => href(state, patch)}
+            />
+          }
+        >
           {items.length ? (
-            list
+            table
           ) : (
-            <section className="rounded-xl border bg-card shadow-card">
-              <EmptyState
-                icon={<BookmarkIcon />}
-                title={query.search ? "Nada encontrado" : "Nenhum bookmark aqui"}
-                description={
-                  query.search
-                    ? "Tente outro termo."
-                    : "Guarde links e arquivos pequenos da empresa e organize em pastas."
-                }
-                action={
-                  query.search ? (
-                    <Button variant="outline" asChild>
-                      <Link href={href(query, { search: "" })}>Limpar busca</Link>
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() =>
-                        setEditor({ mode: "create", companyId: createCompany, folderId: createIn })
-                      }
-                    >
-                      <PlusIcon />
-                      Adicionar
-                    </Button>
-                  )
-                }
-              />
-            </section>
+            <EmptyState
+              icon={<BookmarkIcon />}
+              title={query.search ? "Nenhum bookmark encontrado" : "Nenhum bookmark aqui"}
+              description={
+                query.search
+                  ? "Tente outro termo ou mude os filtros."
+                  : "Guarde links e arquivos pequenos da empresa e organize em pastas."
+              }
+              action={
+                query.search ? (
+                  // The folder and the company are where the person is (the rail
+                  // shows it); only the search is a filter here.
+                  <Button variant="outline" asChild>
+                    <Link href={href(state, { search: "" })} scroll={false}>
+                      Limpar filtros
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() =>
+                      setEditor({ mode: "create", companyId: createCompany, folderId: createIn })
+                    }
+                  >
+                    <PlusIcon />
+                    Adicionar
+                  </Button>
+                )
+              }
+            />
           )}
-        </div>
+        </ListCard>
       </div>
 
       <BookmarkSheet

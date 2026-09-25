@@ -1,4 +1,11 @@
 import { OPEN_TICKET_STATUSES } from "./ticket-status";
+import {
+  listHref,
+  pageQuery,
+  scalarParam,
+  setPageParams,
+  type SearchParams,
+} from "./list-query";
 
 export type TicketStatus =
   | "open"
@@ -36,13 +43,8 @@ export function ticketFilterStatuses(
   return [filter];
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function ticketQuery(
-  params: Record<string, string | string[] | undefined>,
-) {
-  const scalar = (key: string) =>
-    typeof params[key] === "string" ? (params[key] as string) : "";
-  const page = Number(scalar("page"));
-  const size = Number(scalar("size"));
+export function ticketQuery(params: SearchParams) {
+  const scalar = (key: string) => scalarParam(params, key);
   const company = scalar("company");
   return {
     status: (ticketFilters.includes(scalar("status") as TicketStatusFilter)
@@ -50,8 +52,7 @@ export function ticketQuery(
       : "active") as TicketStatusFilter,
     search: scalar("q").trim().slice(0, 160),
     company: UUID.test(company) ? company.toLowerCase() : "",
-    page: Number.isSafeInteger(page) && page > 0 ? page : 1,
-    pageSize: [10, 25, 50, 100].includes(size) ? size : 25,
+    ...pageQuery(params),
   };
 }
 export type TicketQuery = ReturnType<typeof ticketQuery>;
@@ -66,7 +67,5 @@ export function ticketListHref({
   if (status !== "active") params.set("status", status);
   if (company) params.set("company", company);
   if (search) params.set("q", search);
-  if (page > 1) params.set("page", String(page));
-  if (pageSize !== 25) params.set("size", String(pageSize));
-  return `/chamados${params.size ? `?${params}` : ""}`;
+  return listHref("/chamados", setPageParams(params, { page, pageSize }));
 }

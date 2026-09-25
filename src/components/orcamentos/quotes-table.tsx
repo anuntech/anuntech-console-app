@@ -1,141 +1,220 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Building2Icon, CalculatorIcon, PlusIcon, XIcon } from "lucide-react";
+import { useState } from "react";
+import { Building2Icon, CalculatorIcon, CopyPlusIcon, PlusIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/console/page-header";
 import { SearchField } from "@/components/console/search-field";
-import { currency, dateLabel, relativeLabel } from "@/lib/format";
+import { ConfirmDialog } from "@/components/console/server-form";
 import {
-  hoursLabel,
-  quoteExpired,
-  quoteFilterLabels,
-  quoteFilters,
-  quoteListHref,
-  type QuoteQuery,
-  type QuoteStatusFilter,
-} from "@/lib/quote-model";
+  CompanyCell,
+  DownloadMenuItem,
+  FilterChip,
+  LinkRow,
+  ListCard,
+  ListPagination,
+  PrimaryCell,
+  RowActions,
+} from "@/components/console/list-view";
+import { duplicateQuote } from "@/lib/quote-actions";
+import { currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
+import { hoursLabel, quoteExpired, quoteFilterLabels, quoteListHref, type QuoteStatusFilter } from "@/lib/quote-model";
+import { QUOTE_NOUN, quoteFiltersFor, type QuoteTableQuery } from "@/lib/quote-table";
 import { QuoteStatusBadge, validityText } from "./quote-badges";
 import type { QuoteRow } from "./quote-row";
 
-/** Anuntech's view: every client's proposals in one table, with filters. */
+const hidePhone = "hidden md:table-cell";
+
+function QuoteRowActions({ row, admin, waiting }: { row: QuoteRow; admin: boolean; waiting: boolean }) {
+  const [duplicating, setDuplicating] = useState(false);
+  // The PDF route serves drafts to staff only and never serves cancelled proposals.
+  const hasPdf = row.status !== "cancelled" && (admin || row.status !== "draft");
+  return (
+    <RowActions
+      label={row.title}
+      extra={
+        admin && (
+          <ConfirmDialog
+            open={duplicating}
+            onOpenChange={setDuplicating}
+            action={duplicateQuote}
+            fields={{ id: row.id }}
+            title="Duplicar como novo rascunho?"
+            description="Um novo orçamento, com número próprio, nasce com as mesmas fases, tarefas e valores para você ajustar."
+            confirmLabel="Duplicar"
+          />
+        )
+      }
+    >
+      <DropdownMenuItem asChild>
+        <Link href={`/orcamentos/${row.id}`}>
+          <CalculatorIcon />
+          {waiting && !admin ? "Abrir e responder" : "Abrir orçamento"}
+        </Link>
+      </DropdownMenuItem>
+      {admin && (
+        <DropdownMenuItem asChild>
+          <Link href={`/empresas/${row.companyId}`}>
+            <Building2Icon />
+            Ver empresa
+          </Link>
+        </DropdownMenuItem>
+      )}
+      {(hasPdf || admin) && <DropdownMenuSeparator />}
+      {hasPdf && (
+        <DownloadMenuItem href={`/api/orcamentos/${row.id}/pdf`} filename={`Orçamento ${row.number} — ${row.title}.pdf`} />
+      )}
+      {admin && (
+        // Opened after the menu closes, so the dialog takes focus from a settled page.
+        <DropdownMenuItem onSelect={() => setTimeout(() => setDuplicating(true), 0)}>
+          <CopyPlusIcon />
+          Duplicar como novo rascunho
+        </DropdownMenuItem>
+      )}
+    </RowActions>
+  );
+}
+
+/** Every proposal the viewer can see: staff across all clients, a client within their companies. */
 export function QuotesTable({
   rows,
   query,
+  total,
+  pageCount,
+  admin,
+  multiCompany,
   companyFilter = null,
   now,
   today,
 }: {
   rows: QuoteRow[];
-  query: QuoteQuery;
+  query: QuoteTableQuery;
+  total: number;
+  pageCount: number;
+  /** Staff: every company, drafts and cancelled proposals, and the staff actions. */
+  admin: boolean;
+  /** A client of more than one company, who needs the company named on each row. */
+  multiCompany: boolean;
   companyFilter?: { id: string; name: string } | null;
+  /** ISO instant the page was rendered at, so relative times hydrate equal. */
   now: string;
+  /** São Paulo civil date, for validity. */
   today: string;
 }) {
   const router = useRouter();
-  const href = (patch: Partial<QuoteQuery>) => quoteListHref({ ...query, ...patch });
-  const go = (patch: Partial<QuoteQuery>) => router.push(href(patch), { scroll: false });
+  const href = (patch: Partial<QuoteTableQuery>) => quoteListHref({ ...query, ...patch });
+  const go = (patch: Partial<QuoteTableQuery>) => router.push(href(patch), { scroll: false });
   const filtered = !!query.search || !!query.company || query.status !== "all";
+  // A list narrowed to one company names it in the chip, not on every row.
+  const companyColumn = admin && !query.company;
+  const companyInSubtitle = !admin && multiCompany && !query.company;
+  const filters = quoteFiltersFor(admin);
+
   return (
-    <section className="overflow-hidden rounded-xl border bg-card shadow-card">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <SearchField
-          value={query.search}
-          onChange={(search) => go({ search })}
-          placeholder="Buscar por número, título ou cliente"
-          className="sm:flex-1"
+    <ListCard
+      label="Lista de orçamentos"
+      toolbar={
+        <>
+          <SearchField
+            value={query.search}
+            onChange={(search) => go({ search, page: 1 })}
+            placeholder={admin || multiCompany ? "Buscar por número, título ou empresa" : "Buscar por número ou título"}
+          />
+          {companyFilter && (
+            <FilterChip
+              icon={<Building2Icon />}
+              label={companyFilter.name}
+              removeHref={href({ company: "", page: 1 })}
+            />
+          )}
+          <Select value={query.status} onValueChange={(status) => go({ status: status as QuoteStatusFilter, page: 1 })}>
+            <SelectTrigger aria-label="Filtrar por situação" className="w-[212px]">
+              <SelectValue>{quoteFilterLabels[query.status]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {filters.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {quoteFilterLabels[status]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </>
+      }
+      footer={
+        <ListPagination
+          page={query.page}
+          pageSize={query.pageSize}
+          total={total}
+          pageCount={pageCount}
+          noun={QUOTE_NOUN}
+          hrefFor={href}
         />
-        {companyFilter && (
-          <span className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-background pr-1 pl-2.5 text-xs font-medium text-foreground">
-            <Building2Icon className="size-3.5 text-muted-foreground" />
-            <span className="max-w-[14rem] truncate">{companyFilter.name}</span>
-            <Link
-              href={href({ company: "" })}
-              aria-label={`Remover filtro ${companyFilter.name}`}
-              className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <XIcon className="size-3.5" />
-            </Link>
-          </span>
-        )}
-        <Select value={query.status} onValueChange={(status) => go({ status: status as QuoteStatusFilter })}>
-          <SelectTrigger aria-label="Filtrar por situação" className="w-[212px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {quoteFilters.map((status) => (
-              <SelectItem key={status} value={status}>
-                {quoteFilterLabels[status]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      }
+    >
       {rows.length ? (
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Orçamento</TableHead>
-              <TableHead>Cliente</TableHead>
+              {companyColumn && <TableHead className={hidePhone}>Empresa</TableHead>}
               <TableHead>Situação</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead>Validade</TableHead>
-              <TableHead className="pr-4 text-right">Atualizado</TableHead>
+              <TableHead className={cn(hidePhone, "text-right")}>Valor</TableHead>
+              <TableHead className={hidePhone}>Validade</TableHead>
+              <TableHead className={hidePhone}>Atualizado</TableHead>
+              <TableHead className="w-12 pr-3">
+                <span className="sr-only">Ações</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((row) => {
+              const open = `/orcamentos/${row.id}`;
               const expired = quoteExpired(row.status, row.validUntil, today);
               const validity = validityText(row.status, row.validUntil, today);
               return (
-                <TableRow key={row.id} className="cursor-pointer" onClick={() => router.push(`/orcamentos/${row.id}`)}>
-                  <TableCell className="pl-4">
-                    <Link
-                      href={`/orcamentos/${row.id}`}
-                      className="font-medium text-foreground hover:text-primary"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      {row.title}
-                    </Link>
-                    <span className="block text-xs text-muted-foreground tabular-nums">
-                      nº {row.number} · {hoursLabel(row.hoursMin, row.hoursMax)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{row.company}</TableCell>
+                <LinkRow key={row.id} href={open}>
+                  <PrimaryCell
+                    href={open}
+                    title={row.title}
+                    subtitle={
+                      <span className="tabular-nums">
+                        nº {row.number} · {hoursLabel(row.hoursMin, row.hoursMax)}
+                        {companyInSubtitle && ` · ${row.company}`}
+                      </span>
+                    }
+                  />
+                  {companyColumn && (
+                    <CompanyCell>{row.company}</CompanyCell>
+                  )}
                   <TableCell>
                     <QuoteStatusBadge status={row.status} validUntil={row.validUntil} today={today} />
                   </TableCell>
-                  <TableCell className="text-right font-medium text-foreground tabular-nums">{currency(row.totalCents)}</TableCell>
-                  <TableCell className="text-xs tabular-nums">
+                  <TableCell className={cn(hidePhone, "text-right font-medium text-foreground tabular-nums")}>
+                    {currency(row.totalCents)}
+                  </TableCell>
+                  <TableCell className={cn(hidePhone, "tabular-nums")}>
                     {row.validUntil ? (
                       <>
-                        <span className={cn(expired ? "text-destructive" : "text-foreground")}>{dateLabel(row.validUntil)}</span>
-                        {validity && <span className="block font-medium text-warning">{validity}</span>}
+                        <span className={expired ? "text-destructive" : "text-foreground"}>{dateLabel(row.validUntil)}</span>
+                        {validity && <span className="block text-xs font-medium text-warning">{validity}</span>}
                       </>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="pr-4 text-right text-xs text-muted-foreground tabular-nums">
-                    {relativeLabel(row.updatedAt, now)}
+                  <TableCell className={cn(hidePhone, "text-muted-foreground tabular-nums")}>
+                    <time dateTime={row.updatedAt} title={dateTimeLabel(row.updatedAt)}>
+                      {relativeLabel(row.updatedAt, now)}
+                    </time>
                   </TableCell>
-                </TableRow>
+                  <QuoteRowActions row={row} admin={admin} waiting={row.status === "sent" && !expired} />
+                </LinkRow>
               );
             })}
           </TableBody>
@@ -143,28 +222,32 @@ export function QuotesTable({
       ) : (
         <EmptyState
           icon={<CalculatorIcon />}
-          title={filtered ? "Nada encontrado" : "Nenhum orçamento ainda"}
+          title={filtered ? "Nenhum orçamento encontrado" : "Nenhum orçamento ainda"}
           description={
             filtered
               ? "Tente outro termo ou mude os filtros."
-              : "Monte a proposta por fases e horas, envie ao cliente e receba o aceite pelo Console."
+              : admin
+                ? "Monte a proposta por fases e horas, envie ao cliente e receba o aceite pelo Console."
+                : "As propostas da Anuntech para a sua empresa aparecem aqui, para leitura e resposta."
           }
           action={
             filtered ? (
               <Button variant="outline" asChild>
-                <Link href="/orcamentos">Limpar filtros</Link>
+                <Link href={quoteListHref({ status: "all", search: "", company: "", pageSize: query.pageSize })}>
+                  Limpar filtros
+                </Link>
               </Button>
-            ) : (
+            ) : admin ? (
               <Button asChild>
                 <Link href="/orcamentos/novo">
                   <PlusIcon />
                   Novo orçamento
                 </Link>
               </Button>
-            )
+            ) : undefined
           }
         />
       )}
-    </section>
+    </ListCard>
   );
 }

@@ -34,7 +34,7 @@ export function setPageParams(params: URLSearchParams, { page, pageSize }: PageQ
 export const pageCountOf = (total: number, pageSize: number) => Math.max(1, Math.ceil(total / pageSize));
 
 /** The page actually shown: a page past the end (after filtering) falls back to the last one. */
-export const clampPage = (query: PageQuery, total: number): PageQuery => ({
+export const clampPage = <T extends PageQuery>(query: T, total: number): T => ({
   ...query,
   page: Math.min(query.page, pageCountOf(total, query.pageSize)),
 });

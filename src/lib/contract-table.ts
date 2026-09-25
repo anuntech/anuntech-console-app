@@ -1,3 +1,13 @@
+import {
+  DEFAULT_PAGE_SIZE,
+  listHref,
+  pageQuery,
+  scalarParam,
+  setPageParams,
+  type PageQuery,
+  type SearchParams,
+} from "./list-query";
+
 export type ContractStatus = "draft" | "sent" | "signed" | "cancelled";
 export type ContractKind = "contract" | "amendment";
 /** The situation filters; "expiring" and "expired" derive from the end date. */
@@ -85,22 +95,31 @@ export function addDays(iso: string, days: number) {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function contractQuery(params: Record<string, string | string[] | undefined>) {
-  const scalar = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
-  const company = scalar("company");
+export function contractQuery(params: SearchParams) {
+  const company = scalarParam(params, "company");
+  const status = scalarParam(params, "status");
   return {
-    status: (contractFilters.includes(scalar("status") as ContractStatusFilter)
-      ? scalar("status")
-      : "all") as ContractStatusFilter,
-    search: scalar("q").trim().slice(0, 160),
+    status: (contractFilters.includes(status as ContractStatusFilter) ? status : "all") as ContractStatusFilter,
+    search: scalarParam(params, "q").trim().slice(0, 160),
     company: UUID.test(company) ? company.toLowerCase() : "",
+    ...pageQuery(params),
   };
 }
 export type ContractQuery = ReturnType<typeof contractQuery>;
-export function contractListHref({ status, search, company }: ContractQuery) {
+/**
+ * The list URL for a query. Paging is optional so links from elsewhere (the
+ * company page, the dock) can pass only the filters and land on page 1.
+ */
+export function contractListHref({
+  status,
+  search,
+  company,
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE,
+}: Omit<ContractQuery, keyof PageQuery> & Partial<PageQuery>) {
   const params = new URLSearchParams();
   if (status !== "all") params.set("status", status);
   if (company) params.set("company", company);
   if (search) params.set("q", search);
-  return `/contratos${params.size ? `?${params}` : ""}`;
+  return listHref("/contratos", setPageParams(params, { page, pageSize }));
 }

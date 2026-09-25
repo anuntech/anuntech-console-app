@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "./list-query";
 
 /* ---------- shape ---------- */
 
@@ -198,10 +199,11 @@ export function quoteQuery(params: Record<string, string | string[] | undefined>
   };
 }
 export type QuoteQuery = ReturnType<typeof quoteQuery>;
-export function quoteListHref({ status, search, company }: QuoteQuery) {
+/** The list's URL; `page`/`size` are kept when given (the list's own links), left out otherwise. */
+export function quoteListHref({ status, search, company, page = 1, pageSize = DEFAULT_PAGE_SIZE }: QuoteQuery & Partial<PageQuery>) {
   const params = new URLSearchParams();
   if (status !== "all") params.set("status", status);
   if (company) params.set("company", company);
   if (search) params.set("q", search);
-  return `/orcamentos${params.size ? `?${params}` : ""}`;
+  return listHref("/orcamentos", setPageParams(params, { page, pageSize }));
 }

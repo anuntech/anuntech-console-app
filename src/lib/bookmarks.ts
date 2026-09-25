@@ -25,6 +25,7 @@ import type { Actor } from "./access";
 import { getAccountEmails } from "./account-identity";
 import { hasConsoleStaffAccess } from "./console-members";
 import { db } from "./db";
+import { clampPage, DEFAULT_PAGE_SIZE, offsetOf, type PageQuery } from "./list-query";
 
 /** What the viewer may see: staff sees every company; a member, their own. */
 export type Scope = { admin: boolean; userId: string; companyIds: string[] };
@@ -165,12 +166,18 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
   }));
 }
 
-/** Bookmarks the viewer may see: loose ones of their companies, plus visible folders. */
+/**
+ * One page of the bookmarks the viewer may see: loose ones of their companies,
+ * plus visible folders. `total` and `rootCount` feed the folder rail (the whole
+ * company, before the folder and the search); `matching` is what the folder and
+ * the search leave, for the header and the footer.
+ */
 export async function bookmarksFor(
   scope: Scope,
   folderIds: string[],
   query: BookmarkQuery,
-): Promise<{ items: BookmarkView[]; rootCount: number; total: number }> {
+  paging: PageQuery = { page: 1, pageSize: DEFAULT_PAGE_SIZE },
+): Promise<{ items: BookmarkView[]; rootCount: number; total: number; matching: number; page: number }> {
   const visible = and(
     companyCondition(bookmarks.companyId, scope, query.company),
     or(isNull(bookmarks.folderId), folderIds.length ? inArray(bookmarks.folderId, folderIds) : sql`false`),
@@ -184,43 +191,53 @@ export async function bookmarksFor(
           : sql`false`
         : visible;
   const search = query.search.replace(/[\\%_]/g, "\\$&");
-  const [items, [counts]] = await Promise.all([
-    db
-      .select({
-        id: bookmarks.id,
-        title: bookmarks.title,
-        url: bookmarks.url,
-        fileName: bookmarks.fileName,
-        // octet_length reads the stored size without loading the bytes.
-        fileSize: sql<number | null>`octet_length(${bookmarks.content})`,
-        folderId: bookmarks.folderId,
-        companyId: bookmarks.companyId,
-        ownerId: bookmarks.ownerId,
-        createdAt: bookmarks.createdAt,
-      })
-      .from(bookmarks)
-      .where(
-        and(
-          narrowed,
-          search
-            ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`))
-            : undefined,
-        ),
-      )
-      .orderBy(desc(bookmarks.createdAt))
-      .limit(500),
-    db
-      .select({
-        root: sql<number>`count(*) filter (where ${bookmarks.folderId} is null)::int`,
-        total: sql<number>`count(*)::int`,
-      })
-      .from(bookmarks)
-      .where(visible),
-  ]);
+  const matchingWhere =
+    and(
+      narrowed,
+      search
+        ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`))
+        : undefined,
+    ) ?? sql`true`;
+  // Counted first, so a page past the end (after a delete or a narrower search)
+  // falls back to the last one instead of showing an empty list.
+  const [counts] = await db
+    .select({
+      root: sql<number>`count(*) filter (where ${bookmarks.folderId} is null)::int`,
+      total: sql<number>`count(*)::int`,
+      matching: sql<number>`count(*) filter (where ${matchingWhere})::int`,
+    })
+    .from(bookmarks)
+    .where(visible);
+  const matching = counts?.matching ?? 0;
+  const shown = clampPage(paging, matching);
+  const items = matching
+    ? await db
+        .select({
+          id: bookmarks.id,
+          title: bookmarks.title,
+          url: bookmarks.url,
+          fileName: bookmarks.fileName,
+          // octet_length reads the stored size without loading the bytes.
+          fileSize: sql<number | null>`octet_length(${bookmarks.content})`,
+          folderId: bookmarks.folderId,
+          companyId: bookmarks.companyId,
+          ownerId: bookmarks.ownerId,
+          createdAt: bookmarks.createdAt,
+        })
+        .from(bookmarks)
+        .where(matchingWhere)
+        // The id breaks ties between bookmarks saved in the same instant, so no
+        // row repeats or goes missing across pages.
+        .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+        .limit(shown.pageSize)
+        .offset(offsetOf(shown))
+    : [];
   return {
     items: items.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() })),
     rootCount: counts?.root ?? 0,
     total: counts?.total ?? 0,
+    matching,
+    page: shown.page,
   };
 }
 

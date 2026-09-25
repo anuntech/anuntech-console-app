@@ -9,7 +9,7 @@ import {
 } from "../src/lib/contract-table";
 
 test("contract list accepts the derived situations and rejects the rest", () => {
-  assert.deepEqual(contractQuery({}), { status: "all", search: "", company: "" });
+  assert.deepEqual(contractQuery({}), { status: "all", search: "", company: "", page: 1, pageSize: 25 });
   assert.equal(contractQuery({ status: "expiring" }).status, "expiring");
   assert.equal(contractQuery({ status: "expired" }).status, "expired");
   assert.equal(contractQuery({ status: "vencido" }).status, "all");

@@ -1,3 +1,11 @@
+import {
+  listHref,
+  pageQuery,
+  scalarParam,
+  setPageParams,
+  type SearchParams,
+} from "./list-query";
+
 export type CompanyStatusFilter = "all" | "active" | "archived";
 export const companyFilters: CompanyStatusFilter[] = [
   "all",
@@ -9,37 +17,20 @@ export const companyStatusLabels: Record<CompanyStatusFilter, string> = {
   active: "Ativos",
   archived: "Arquivados",
 };
-export function companyQuery(
-  params: Record<string, string | string[] | undefined>,
-) {
-  const scalar = (key: string) =>
-    typeof params[key] === "string" ? (params[key] as string) : "";
-  const page = Number(scalar("page"));
-  const size = Number(scalar("size"));
+export function companyQuery(params: SearchParams) {
+  const scalar = (key: string) => scalarParam(params, key);
   return {
     status: (companyFilters.includes(scalar("status") as CompanyStatusFilter)
       ? scalar("status")
       : "active") as CompanyStatusFilter,
     search: scalar("q").trim().slice(0, 160),
-    page: Number.isSafeInteger(page) && page > 0 ? page : 1,
-    pageSize: [10, 25, 50, 100].includes(size) ? size : 10,
+    ...pageQuery(params),
   };
 }
-export function companyListHref({
-  status,
-  search,
-  page,
-  pageSize,
-}: {
-  status: CompanyStatusFilter;
-  search: string;
-  page: number;
-  pageSize: number;
-}) {
+export type CompanyQuery = ReturnType<typeof companyQuery>;
+export function companyListHref({ status, search, page, pageSize }: CompanyQuery) {
   const params = new URLSearchParams();
   if (status !== "active") params.set("status", status);
   if (search) params.set("q", search);
-  if (page > 1) params.set("page", String(page));
-  if (pageSize !== 10) params.set("size", String(pageSize));
-  return `/empresas${params.size ? `?${params}` : ""}`;
+  return listHref("/empresas", setPageParams(params, { page, pageSize }));
 }

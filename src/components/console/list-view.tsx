@@ -1,11 +1,12 @@
 "use client";
-import type { MouseEvent, ReactNode } from "react";
+import { useRef, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MoreHorizontalIcon, XIcon } from "lucide-react";
+import { DownloadIcon, ExternalLinkIcon, MoreHorizontalIcon, XIcon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { downloadFile } from "@/components/console/download-link";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { TablePagination } from "@/components/console/table-pagination";
 
@@ -78,20 +79,46 @@ const interactive = "a, button, input, select, textarea, label, [role='menuitem'
  * on buttons, menus and links inside the row keep their own behaviour, and
  * selecting text does not navigate.
  */
-export function LinkRow({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+export function LinkRow({
+  href = null,
+  external = false,
+  onOpen,
+  className,
+  children,
+}: {
+  /** Without a destination (and no `onOpen`) the row is a plain row. */
+  href?: string | null;
+  /** Opens the record in place instead (a sheet, a download). */
+  onOpen?: () => void;
+  /** Opens outside the Console, in a new tab (a product's own site). */
+  external?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   const router = useRouter();
+  // Row menus are non-modal, so the click that dismisses an open menu reaches the row
+  // underneath; a click that started while any menu was open only closes it.
+  const menuWasOpen = useRef(false);
+  const noteMenu = () => {
+    menuWasOpen.current = !!document.querySelector('[role="menu"][data-state="open"]');
+  };
   const open = (event: MouseEvent<HTMLTableRowElement>) => {
+    if (menuWasOpen.current) return void (menuWasOpen.current = false);
     if (event.defaultPrevented || event.button !== 0) return;
     // Menus and dialogs opened from the row are portaled elsewhere in the DOM, but
     // React still bubbles their clicks here; only clicks really inside the row count.
     const target = event.target as HTMLElement;
     if (!event.currentTarget.contains(target) || target.closest(interactive)) return;
     if (window.getSelection()?.toString()) return;
+    if (onOpen) return onOpen();
+    if (!href) return;
+    if (external) return void window.open(href, "_blank", "noopener,noreferrer");
     if (event.metaKey || event.ctrlKey) return void window.open(href, "_blank");
     router.push(href);
   };
+  if (!href && !onOpen) return <TableRow className={className}>{children}</TableRow>;
   return (
-    <TableRow className={cn("cursor-pointer", className)} onClick={open}>
+    <TableRow className={cn("cursor-pointer", className)} onPointerDownCapture={noteMenu} onClick={open}>
       {children}
     </TableRow>
   );
@@ -99,28 +126,68 @@ export function LinkRow({ href, className, children }: { href: string; className
 
 /** The first cell of a row: the record's name as a link, with a muted line under it. */
 export function PrimaryCell({
-  href,
+  href = null,
+  external = false,
+  onOpen,
   title,
   subtitle,
   leading,
   className,
 }: {
-  href: string;
+  /** Without a destination (and no `onOpen`) the name is plain text. */
+  href?: string | null;
+  /** Opens the record in place (a sheet, a download): the name becomes a button. */
+  onOpen?: () => void;
+  /** Opens outside the Console, in a new tab, with an external-link mark. */
+  external?: boolean;
   title: ReactNode;
   subtitle?: ReactNode;
   /** An icon or avatar before the text. */
   leading?: ReactNode;
   className?: string;
 }) {
-  return (
-    <TableCell className={cn("max-w-[28rem] py-3 pl-4", className)}>
-      <Link href={href} className="group flex min-w-0 items-center gap-3">
-        {leading}
-        <span className="min-w-0">
-          <span className="block truncate font-medium text-foreground group-hover:text-primary">{title}</span>
-          {subtitle ? <span className="block truncate text-xs text-muted-foreground">{subtitle}</span> : null}
+  const content = (
+    <>
+      {leading}
+      <span className="min-w-0">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate font-medium text-foreground group-hover:text-primary">{title}</span>
+          {external && href && <ExternalLinkIcon aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />}
         </span>
-      </Link>
+        {subtitle ? <span className="block truncate text-xs text-muted-foreground">{subtitle}</span> : null}
+      </span>
+    </>
+  );
+  return (
+    // w-full + max-w-0: the name column takes the room the other columns leave and
+    // truncates, instead of stretching the table past the card; min-w keeps it readable.
+    <TableCell className={cn("w-full max-w-0 min-w-48 py-3 pl-4", className)}>
+      {onOpen ? (
+        <button type="button" onClick={onOpen} className="group flex w-full min-w-0 items-center gap-3 text-left">
+          {content}
+        </button>
+      ) : !href ? (
+        <span className="flex min-w-0 items-center gap-3">{content}</span>
+      ) : external ? (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="group flex min-w-0 items-center gap-3">
+          {content}
+          <span className="sr-only">(abre em nova aba)</span>
+        </a>
+      ) : (
+        // No prefetch: a list shows 25+ rows, and opening one already shows the loading state at once.
+        <Link href={href} prefetch={false} className="group flex min-w-0 items-center gap-3">
+          {content}
+        </Link>
+      )}
+    </TableCell>
+  );
+}
+
+/** The "Empresa" column of staff lists: truncated, hidden on phones (the head needs `hidden md:table-cell` too). */
+export function CompanyCell({ children }: { children: ReactNode }) {
+  return (
+    <TableCell className="hidden max-w-[14rem] md:table-cell">
+      <span className="block truncate text-foreground">{children}</span>
     </TableCell>
   );
 }
@@ -141,6 +208,16 @@ export function RowActions({ label, children, extra }: { label: string; children
       </DropdownMenu>
       {extra}
     </TableCell>
+  );
+}
+
+/** A row-menu item that downloads a private file (PDF, attachment) through the session-aware fetch. */
+export function DownloadMenuItem({ href, filename, children = "Baixar PDF" }: { href: string; filename: string; children?: ReactNode }) {
+  return (
+    <DropdownMenuItem onSelect={() => void downloadFile(href, filename)}>
+      <DownloadIcon />
+      {children}
+    </DropdownMenuItem>
   );
 }
 

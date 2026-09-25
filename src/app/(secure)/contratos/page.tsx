@@ -7,10 +7,10 @@ import { db } from "@/lib/db";
 import { companies, contractSignatures, contracts, engagements } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { saoPauloDate } from "@/lib/dates";
-import { addDays, contractQuery, EXPIRY_WARNING_DAYS } from "@/lib/contract-table";
+import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
+import { addDays, clientContractFilters, contractQuery, EXPIRY_WARNING_DAYS } from "@/lib/contract-table";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
-import { ContractCards } from "@/components/contratos/contract-cards";
 import { ContractsTable } from "@/components/contratos/contracts-table";
 export const metadata: Metadata = {
   title: "Contratos",
@@ -25,54 +25,40 @@ export default async function Contracts({
   const actor = await getActor();
   const ids = allowedIds(actor, "finance");
   const query = contractQuery(await searchParams);
+  // Clients can only narrow within their own companies, and only by the
+  // situations they can see (drafts and cancellations never reach them).
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
-  if (!actor.admin) query.status = "all";
+  if (!actor.admin && !clientContractFilters.includes(query.status)) query.status = "all";
   const today = saoPauloDate();
   const horizon = addDays(today, EXPIRY_WARNING_DAYS);
   const expiring = and(eq(contracts.status, "signed"), gte(contracts.endsAt, today), lte(contracts.endsAt, horizon));
   const expired = and(eq(contracts.status, "signed"), lt(contracts.endsAt, today));
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const parents = alias(contracts, "parents");
-  const where = and(
-    actor.admin
-      ? undefined
-      : ids.length
-        ? and(inArray(contracts.companyId, ids), inArray(contracts.status, ["sent", "signed"]))
-        : sql`false`,
-    query.status === "all"
-      ? undefined
-      : query.status === "expiring"
-        ? expiring
-        : query.status === "expired"
-          ? expired
-          : eq(contracts.status, query.status),
-    query.company ? eq(contracts.companyId, query.company) : undefined,
-    search ? or(ilike(contracts.title, `%${search}%`), ilike(companies.name, `%${search}%`)) : undefined,
-  );
-  const [rows, companyFilter, alerts] = await Promise.all([
+  const where =
+    and(
+      actor.admin
+        ? undefined
+        : ids.length
+          ? and(inArray(contracts.companyId, ids), inArray(contracts.status, ["sent", "signed"]))
+          : sql`false`,
+      query.status === "all"
+        ? undefined
+        : query.status === "expiring"
+          ? expiring
+          : query.status === "expired"
+            ? expired
+            : eq(contracts.status, query.status),
+      query.company ? eq(contracts.companyId, query.company) : undefined,
+      search ? or(ilike(contracts.title, `%${search}%`), ilike(companies.name, `%${search}%`)) : undefined,
+    ) ?? sql`true`;
+  const [[{ total }], companyFilter, alerts] = await Promise.all([
+    // Joined with companies because the search also matches the company name.
     db
-      .select({
-        id: contracts.id,
-        title: contracts.title,
-        kind: contracts.kind,
-        parentId: contracts.parentId,
-        parentTitle: parents.title,
-        companyId: contracts.companyId,
-        company: companies.name,
-        engagement: engagements.name,
-        status: contracts.status,
-        startsAt: contracts.startsAt,
-        endsAt: contracts.endsAt,
-        documentHash: contracts.documentHash,
-        updatedAt: contracts.updatedAt,
-      })
+      .select({ total: count() })
       .from(contracts)
       .innerJoin(companies, eq(companies.id, contracts.companyId))
-      .leftJoin(engagements, eq(engagements.id, contracts.engagementId))
-      .leftJoin(parents, eq(parents.id, contracts.parentId))
-      .where(where)
-      .orderBy(desc(contracts.updatedAt))
-      .limit(300),
+      .where(where),
     query.company
       ? db
           .select({ id: companies.id, name: companies.name })
@@ -87,6 +73,32 @@ export default async function Contracts({
         ]).then(([a, b]) => ({ expiring: a[0].n, expired: b[0].n }))
       : { expiring: 0, expired: 0 },
   ]);
+  const page = clampPage(query, total);
+  const rows = await db
+    .select({
+      id: contracts.id,
+      title: contracts.title,
+      kind: contracts.kind,
+      parentId: contracts.parentId,
+      parentTitle: parents.title,
+      companyId: contracts.companyId,
+      company: companies.name,
+      engagement: engagements.name,
+      status: contracts.status,
+      startsAt: contracts.startsAt,
+      endsAt: contracts.endsAt,
+      documentHash: contracts.documentHash,
+      updatedAt: contracts.updatedAt,
+    })
+    .from(contracts)
+    .innerJoin(companies, eq(companies.id, contracts.companyId))
+    .leftJoin(engagements, eq(engagements.id, contracts.engagementId))
+    .leftJoin(parents, eq(parents.id, contracts.parentId))
+    .where(where)
+    // The id breaks ties so offset paging never repeats or skips a row.
+    .orderBy(desc(contracts.updatedAt), desc(contracts.id))
+    .limit(page.pageSize)
+    .offset(offsetOf(page));
   const signatures = rows.length
     ? await db
         .select({
@@ -106,7 +118,7 @@ export default async function Contracts({
     <>
       <PageHeader
         title="Contratos"
-        count={rows.length}
+        count={total}
         description={
           actor.admin
             ? "Do modelo à assinatura das duas partes, com aditivos, versões e alerta de vencimento."
@@ -123,18 +135,18 @@ export default async function Contracts({
           )
         }
       />
-      {actor.admin ? (
-        <ContractsTable
-          rows={list}
-          query={query}
-          alerts={alerts}
-          companyFilter={companyFilter}
-          now={new Date().toISOString()}
-          today={today}
-        />
-      ) : (
-        <ContractCards rows={list} query={query} showCompany={ids.length > 1} today={today} />
-      )}
+      <ContractsTable
+        rows={list}
+        query={{ ...query, page: page.page }}
+        total={total}
+        pageCount={pageCountOf(total, page.pageSize)}
+        admin={actor.admin}
+        showCompany={actor.admin || ids.length > 1}
+        alerts={alerts}
+        companyFilter={companyFilter}
+        now={new Date().toISOString()}
+        today={today}
+      />
     </>
   );
 }

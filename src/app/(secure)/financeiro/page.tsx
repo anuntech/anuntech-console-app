@@ -15,9 +15,11 @@ import { companies, invoices, subscriptions } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { saoPauloDate } from "@/lib/dates";
 import { paymentUrl } from "@/lib/payment-link";
+import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import {
   invoiceListHref,
   invoicePeriodRange,
+  clientInvoiceFilters,
   invoiceQuery,
   type InvoiceDisplayStatus,
   type InvoiceStatusFilter,
@@ -46,6 +48,8 @@ export default async function Finance({
   const ids = allowedIds(actor, "finance");
   if (!actor.admin && query.company && !ids.includes(query.company))
     query.company = "";
+  // Clients never see drafts; a shared staff link with ?status=draft shows everything instead of nothing.
+  if (!actor.admin && !clientInvoiceFilters.includes(query.status)) query.status = "all";
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const range = invoicePeriodRange(query, today);
   const scope =
@@ -98,9 +102,11 @@ export default async function Finance({
     totals.all.count += row.count;
     totals.all.cents += Number(row.cents);
   }
+  // Records under every filter, the status included: the header, the footer
+  // and the rows agree. The cards keep showing each status's own total.
   const total = totals[query.status].count;
-  const pageCount = Math.max(1, Math.ceil(total / query.pageSize));
-  const page = Math.min(query.page, pageCount);
+  const pageCount = pageCountOf(total, query.pageSize);
+  const { page } = clampPage(query, total);
   const [list, companyFilter] = await Promise.all([
     db
       .select({
@@ -136,7 +142,7 @@ export default async function Finance({
       )
       .orderBy(desc(invoices.createdAt), desc(invoices.id))
       .limit(query.pageSize)
-      .offset((page - 1) * query.pageSize),
+      .offset(offsetOf({ ...query, page })),
     query.company
       ? db
           .select({ id: companies.id, name: companies.name })
@@ -184,7 +190,7 @@ export default async function Finance({
     <>
       <PageHeader
         title="Faturas"
-        count={totals.all.count}
+        count={total}
         description={
           actor.admin
             ? "Cobranças de cada cliente: emissão no Inter, avisos e pagamento."

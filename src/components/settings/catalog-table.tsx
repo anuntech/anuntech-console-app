@@ -4,7 +4,6 @@ import { flushSync } from "react-dom";
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
-  MoreHorizontalIcon,
   PackageIcon,
   PencilIcon,
   PlusIcon,
@@ -12,14 +11,17 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/console/page-header";
+import { LinkRow, ListCard, PrimaryCell, RowActions } from "@/components/console/list-view";
 import { ServerForm } from "@/components/console/server-form";
 import { toggleCatalogItem } from "@/lib/catalog-actions";
 import { currency } from "@/lib/format";
@@ -28,6 +30,18 @@ import { CatalogSheet, type CatalogItemValues } from "./catalog-sheet";
 export type CatalogRow = CatalogItemValues & { id: string; active: boolean };
 
 const intervalLabel = { monthly: "por mês", yearly: "por ano" } as const;
+
+const pill = "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap";
+
+/** Situation of a record that can be switched off (catalog items, contract templates). */
+export function ActiveStatus({ active }: { active: boolean }) {
+  return (
+    <span className={cn(pill, active ? "bg-success-soft text-success" : "bg-secondary text-muted-foreground")}>
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full", active ? "bg-success" : "bg-muted-foreground/50")} />
+      {active ? "Ativo" : "Desativado"}
+    </span>
+  );
+}
 
 /** Creates a catalog item; the page header and the empty state show it. */
 export function NewCatalogItemButton() {
@@ -43,7 +57,7 @@ export function NewCatalogItemButton() {
   );
 }
 
-/** The catalog as a compact list, with a sheet for editing. */
+/** The catalog as the standard list table, with a sheet for editing. */
 export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
   // The item stays set while the sheet slides out, so its fields don't blank.
   const [editor, setEditor] = useState<{ open: boolean; item: CatalogRow | null }>({ open: false, item: null });
@@ -55,70 +69,79 @@ export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
       formRef.current?.requestSubmit();
     }, 0);
   const later = (fn: () => void) => setTimeout(fn, 0);
+  const edit = (item: CatalogRow) => setEditor({ open: true, item });
   return (
     <>
-      {rows.length ? (
-        <ul className="divide-y rounded-xl border bg-card shadow-card">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className={cn("flex items-center gap-3 px-3 py-2.5", !row.active && "opacity-60")}
-            >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
-                {row.kind === "product" ? <PackageIcon /> : <WrenchIcon />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {row.name}
-                  {!row.active && (
-                    <span className="ml-2 rounded-full bg-secondary px-1.5 py-px text-[11px] font-medium text-muted-foreground">
-                      Desativado
-                    </span>
-                  )}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {row.kind === "product" ? "Produto" : "Serviço"}
-                  {row.defaultAmountCents != null &&
-                    ` · ${currency(row.defaultAmountCents)}${row.interval ? ` ${intervalLabel[row.interval]}` : ""}`}
-                  {row.kind === "product" && row.url && ` · ${row.url.replace(/^https?:\/\//, "")}`}
-                </p>
-              </div>
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground"
-                    aria-label={`Ações de ${row.name}`}
-                  >
-                    <MoreHorizontalIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onSelect={() => later(() => setEditor({ open: true, item: row }))}>
-                    <PencilIcon />
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => toggle(row.id)}>
-                    {row.active ? <ArchiveIcon /> : <ArchiveRestoreIcon />}
-                    {row.active ? "Desativar" : "Reativar"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <section className="rounded-xl border bg-card shadow-card">
+      <ListCard label="Itens do catálogo">
+        {rows.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4">Item</TableHead>
+                <TableHead>Situação</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Valor</TableHead>
+                <TableHead className="w-12 pr-3">
+                  <span className="sr-only">Ações</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <LinkRow key={row.id} onOpen={() => edit(row)}>
+                  <PrimaryCell
+                    onOpen={() => edit(row)}
+                    title={row.name}
+                    subtitle={[
+                      row.kind === "product" ? "Produto" : "Serviço",
+                      row.kind === "product" && row.url ? row.url.replace(/^https?:\/\//, "") : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    leading={
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
+                        {row.kind === "product" ? <PackageIcon /> : <WrenchIcon />}
+                      </span>
+                    }
+                  />
+                  <TableCell>
+                    <ActiveStatus active={row.active} />
+                  </TableCell>
+                  <TableCell className="hidden text-right whitespace-nowrap tabular-nums md:table-cell">
+                    {row.defaultAmountCents != null ? (
+                      <>
+                        <span className="text-foreground">{currency(row.defaultAmountCents)}</span>
+                        {row.interval && (
+                          <span className="text-muted-foreground"> {intervalLabel[row.interval]}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <RowActions label={row.name}>
+                    <DropdownMenuItem onSelect={() => later(() => edit(row))}>
+                      <PencilIcon />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => toggle(row.id)}>
+                      {row.active ? <ArchiveIcon /> : <ArchiveRestoreIcon />}
+                      {row.active ? "Desativar" : "Reativar"}
+                    </DropdownMenuItem>
+                  </RowActions>
+                </LinkRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
           <EmptyState
             icon={<PackageIcon />}
             title="Catálogo vazio"
             description="Cadastre produtos e serviços uma vez; depois é só vincular a cada cliente com o preço dele."
             action={<NewCatalogItemButton />}
           />
-        </section>
-      )}
+        )}
+      </ListCard>
       <CatalogSheet
         open={editor.open}
         onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}

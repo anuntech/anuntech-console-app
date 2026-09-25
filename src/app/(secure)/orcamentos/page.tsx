@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
-import { and, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, quotes } from "@/db/schema";
 import { getActor, allowedIds } from "@/lib/access";
 import { saoPauloDate } from "@/lib/dates";
-import { quoteNumberLabel, quoteQuery, quoteTotals } from "@/lib/quote-model";
+import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
+import { quoteNumberLabel, quoteTotals } from "@/lib/quote-model";
+import { quoteFiltersFor, quoteTableQuery } from "@/lib/quote-table";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
-import { QuoteCards } from "@/components/orcamentos/quote-cards";
 import { QuotesTable } from "@/components/orcamentos/quotes-table";
 import type { QuoteRow } from "@/components/orcamentos/quote-row";
 export const metadata: Metadata = {
@@ -24,30 +25,39 @@ export default async function Quotes({
 }) {
   const actor = await getActor();
   const ids = allowedIds(actor, "finance");
-  const query = quoteQuery(await searchParams);
+  const query = quoteTableQuery(await searchParams);
+  // Clients can only narrow within their own companies, and only by the situations they can see.
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
-  if (!actor.admin) query.status = "all";
+  if (!quoteFiltersFor(actor.admin).includes(query.status)) query.status = "all";
   const today = saoPauloDate();
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const number = query.search.match(/^(\d{4})-(\d{1,3})$/);
-  const where = and(
-    actor.admin
-      ? undefined
-      : ids.length
-        ? and(inArray(quotes.companyId, ids), inArray(quotes.status, ["sent", "accepted", "declined"]))
-        : sql`false`,
-    query.status === "all"
-      ? undefined
-      : query.status === "expired"
-        ? and(eq(quotes.status, "sent"), lt(quotes.validUntil, today))
-        : eq(quotes.status, query.status),
-    query.company ? eq(quotes.companyId, query.company) : undefined,
-    search
-      ? number
-        ? and(eq(quotes.year, Number(number[1])), eq(quotes.seq, Number(number[2])))
-        : or(ilike(quotes.title, `%${search}%`), ilike(companies.name, `%${search}%`))
-      : undefined,
-  );
+  const where =
+    and(
+      actor.admin
+        ? undefined
+        : ids.length
+          ? and(inArray(quotes.companyId, ids), inArray(quotes.status, ["sent", "accepted", "declined"]))
+          : sql`false`,
+      query.status === "all"
+        ? undefined
+        : query.status === "expired"
+          ? and(eq(quotes.status, "sent"), lt(quotes.validUntil, today))
+          : eq(quotes.status, query.status),
+      query.company ? eq(quotes.companyId, query.company) : undefined,
+      search
+        ? number
+          ? and(eq(quotes.year, Number(number[1])), eq(quotes.seq, Number(number[2])))
+          : or(ilike(quotes.title, `%${search}%`), ilike(companies.name, `%${search}%`))
+        : undefined,
+    ) ?? sql`true`;
+  // The count joins companies like the page does, since the search matches company names.
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(quotes)
+    .innerJoin(companies, eq(companies.id, quotes.companyId))
+    .where(where);
+  const paged = { ...query, ...clampPage(query, total) };
   const [rows, companyFilter] = await Promise.all([
     db
       .select({
@@ -66,8 +76,10 @@ export default async function Quotes({
       .from(quotes)
       .innerJoin(companies, eq(companies.id, quotes.companyId))
       .where(where)
-      .orderBy(desc(quotes.updatedAt))
-      .limit(300),
+      // The id breaks ties, so a row never shows on two pages or on none.
+      .orderBy(desc(quotes.updatedAt), desc(quotes.id))
+      .limit(paged.pageSize)
+      .offset(offsetOf(paged)),
     query.company
       ? db
           .select({ id: companies.id, name: companies.name })
@@ -77,6 +89,7 @@ export default async function Quotes({
       : null,
   ]);
   const list: QuoteRow[] = rows.map((row) => {
+    // The figures the client was sent; a draft shows what it would send.
     const source = row.status === "draft" || !row.publication ? row.content : row.publication;
     const totals = quoteTotals(source);
     return {
@@ -97,7 +110,7 @@ export default async function Quotes({
     <>
       <PageHeader
         title="Orçamentos"
-        count={rows.length}
+        count={total}
         description={
           actor.admin
             ? "Propostas por fases e horas, com taxa, entrada e saldo. O cliente aceita pelo Console."
@@ -114,11 +127,17 @@ export default async function Quotes({
           )
         }
       />
-      {actor.admin ? (
-        <QuotesTable rows={list} query={query} companyFilter={companyFilter} now={new Date().toISOString()} today={today} />
-      ) : (
-        <QuoteCards rows={list} query={query} showCompany={ids.length > 1} today={today} />
-      )}
+      <QuotesTable
+        rows={list}
+        query={paged}
+        total={total}
+        pageCount={pageCountOf(total, paged.pageSize)}
+        admin={actor.admin}
+        multiCompany={ids.length > 1}
+        companyFilter={companyFilter}
+        now={new Date().toISOString()}
+        today={today}
+      />
     </>
   );
 }

@@ -53,7 +53,7 @@ test("pagination rejects malformed query parameters and limits page size", () =>
       company: "not-a-uuid",
     });
     assert.equal(query.page, 1);
-    assert.equal(query.pageSize, 10);
+    assert.equal(query.pageSize, 25);
     assert.equal(query.status, "all");
     assert.equal(query.search, "Parcela 1");
     assert.equal(query.company, "");
@@ -86,7 +86,7 @@ test("pagination links preserve search, status and company without injecting URL
       from: "",
       to: "",
       page: 1,
-      pageSize: 10,
+      pageSize: 25,
     }),
     "/financeiro",
   );

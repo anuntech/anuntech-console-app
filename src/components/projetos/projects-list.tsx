@@ -2,14 +2,22 @@
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   Building2Icon,
+  CircleCheckIcon,
   FolderKanbanIcon,
+  KanbanIcon,
+  PauseIcon,
+  PencilIcon,
+  PlayIcon,
   PlusIcon,
-  XIcon,
 } from "lucide-react";
-import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -17,196 +25,296 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/console/page-header";
+import {
+  CompanyCell,
+  FilterChip,
+  LinkRow,
+  ListCard,
+  ListPagination,
+  PrimaryCell,
+  RowActions,
+} from "@/components/console/list-view";
+import { dateTimeLabel, relativeLabel } from "@/lib/format";
 import {
   projectFilterLabels,
   projectFilters,
   projectListHref,
-  type ProjectQuery,
+  type ProjectListQuery,
   type ProjectStatusFilter,
 } from "@/lib/project-table";
 import { EngagementStatusBadge } from "./project-badges";
+import { useEngagementStatus } from "./engagement-status";
+import { ProjectSheet, type ProjectFormValues } from "./project-form";
 
 export type ProjectRow = {
   id: string;
   name: string;
   status: string;
+  /** Whole text: the edit sheet opens with it. */
   description: string | null;
   companyId: string;
   company: string;
   tasks: { total: number; done: number };
+  /** ISO instant of the last change on the board (or the project's creation). */
+  updatedAt: string;
 };
 
-const fold = (value: string) =>
-  value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt-BR");
+const firstLine = (text: string | null) => text?.trim().split("\n")[0].trim() || "";
+
+/** Done over total, as a thin bar and "5/12"; projects without tasks say so. */
+function TaskProgress({ done, total }: { done: number; total: number }) {
+  if (!total) return <span className="text-xs text-muted-foreground">Sem tarefas</span>;
+  const percent = Math.round((done / total) * 100);
+  return (
+    <div className="flex items-center gap-2.5">
+      <div
+        className="h-1.5 w-20 overflow-hidden rounded-full bg-secondary"
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={`${done} de ${total} ${total === 1 ? "tarefa concluída" : "tarefas concluídas"}`}
+        aria-label="Tarefas concluídas"
+      >
+        <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+      </div>
+      <span className="text-xs text-muted-foreground tabular-nums" aria-hidden="true">
+        {done}/{total}
+      </span>
+    </div>
+  );
+}
 
 export function ProjectsList({
   rows,
   query,
+  total,
+  pageCount,
+  now,
   admin,
   showCompany,
   companyFilter = null,
+  companyShortcuts = [],
 }: {
   rows: ProjectRow[];
-  query: ProjectQuery;
+  query: ProjectListQuery;
+  total: number;
+  pageCount: number;
+  /** ISO instant the page was rendered at, so relative times hydrate equal. */
+  now: string;
   admin: boolean;
+  /** False when everything belongs to the viewer's single company. */
   showCompany: boolean;
   companyFilter?: { id: string; name: string } | null;
+  /** Companies whose name matches the search, offered as a one-click filter. */
+  companyShortcuts?: { id: string; name: string }[];
 }) {
   const router = useRouter();
-  const href = (patch: Partial<ProjectQuery>) => projectListHref({ ...query, ...patch });
-  const go = (patch: Partial<ProjectQuery>) => router.push(href(patch), { scroll: false });
-  const filtered = !!query.search || !!query.company;
-  // Typing a company's name offers a one-click narrowing to that company.
-  const companyMatches = query.search
-    ? [...new Map(rows.map((row) => [row.companyId, { id: row.companyId, name: row.company }])).values()]
-        .filter((company) => fold(company.name).includes(fold(query.search.trim())))
-        .slice(0, 4)
-    : [];
-  return (
-    <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <SearchField
-          value={query.search}
-          onChange={(search) => go({ search })}
-          placeholder={showCompany ? "Buscar por nome ou empresa" : "Buscar por nome"}
-        />
-        {companyFilter && (
-          <span className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card pr-1 pl-2.5 text-xs font-medium text-foreground">
-            <Building2Icon className="size-3.5 text-muted-foreground" />
-            <span className="max-w-[14rem] truncate">{companyFilter.name}</span>
-            <Link
-              href={href({ company: "" })}
-              aria-label={`Remover filtro ${companyFilter.name}`}
-              className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <XIcon className="size-3.5" />
-            </Link>
-          </span>
-        )}
-        <Select
-          value={query.status}
-          onValueChange={(status) => go({ status: status as ProjectStatusFilter })}
-        >
-          <SelectTrigger aria-label="Filtrar por situação" className="w-[188px] bg-card">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {projectFilters.map((status) => (
-              <SelectItem key={status} value={status}>
-                {projectFilterLabels[status]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+  const [editing, setEditing] = useState<ProjectFormValues | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const { change, form: statusForm } = useEngagementStatus();
+  const href = (patch: Partial<ProjectListQuery>) => projectListHref({ ...query, ...patch });
+  const go = (patch: Partial<ProjectListQuery>) => router.push(href(patch), { scroll: false });
+  const filtered = !!query.search || !!query.company || query.status !== "active";
+  // Staff get the company as its own column while the list spans companies; a
+  // client with several companies keeps it in the subtitle.
+  const companyColumn = admin && showCompany && !query.company;
+  const subtitle = (row: ProjectRow) =>
+    [!admin && showCompany && !query.company ? row.company : "", firstLine(row.description) || "Sem descrição"]
+      .filter(Boolean)
+      .join(" · ");
+  const edit = (row: ProjectRow) =>
+    // Let the menu close before the sheet takes focus.
+    setTimeout(() => {
+      setEditing({ id: row.id, name: row.name, description: row.description });
+      setEditOpen(true);
+    }, 0);
 
-      {query.search && !query.company && showCompany && companyMatches.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>Só desta empresa:</span>
-          {companyMatches.map((company) => (
-            <Link
-              key={company.id}
-              href={href({ company: company.id, search: "" })}
-              className="inline-flex h-7 items-center gap-1.5 rounded-full border bg-card px-2.5 font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-accent"
-            >
-              <Building2Icon className="size-3.5 text-muted-foreground" />
-              {company.name}
-            </Link>
-          ))}
-        </div>
-      )}
-      {rows.length ? (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((row) => {
-            const progress = row.tasks.total
-              ? Math.round((row.tasks.done / row.tasks.total) * 100)
-              : 0;
-            return (
-              <li key={row.id}>
-                <Link
-                  href={`/projetos/${row.id}`}
-                  className="group flex h-full flex-col gap-4 rounded-xl border bg-card p-5 shadow-card transition-colors hover:border-primary/40"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-5">
-                      <FolderKanbanIcon />
-                    </span>
-                    <EngagementStatusBadge status={row.status} />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="truncate text-base font-semibold text-foreground group-hover:text-primary">
-                      {row.name}
-                    </h2>
-                    {showCompany && (
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{row.company}</p>
-                    )}
-                    <p
-                      className={cn(
-                        "mt-3 line-clamp-2 text-sm",
-                        row.description ? "text-foreground/80" : "text-muted-foreground",
-                      )}
-                    >
-                      {row.description || "Sem descrição."}
-                    </p>
-                  </div>
-                  <div className="mt-auto">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {row.tasks.total
-                          ? `${row.tasks.done} de ${row.tasks.total} ${row.tasks.total === 1 ? "tarefa" : "tarefas"}`
-                          : "Nenhuma tarefa ainda"}
-                      </span>
-                      {row.tasks.total > 0 && <span className="tabular-nums">{progress}%</span>}
-                    </div>
-                    <div
-                      className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary"
-                      role="progressbar"
-                      aria-valuenow={progress}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label="Tarefas concluídas"
-                    >
-                      <div
-                        className="h-full rounded-full bg-primary transition-[width]"
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <section className="rounded-xl border bg-card shadow-card">
-          <EmptyState
-            icon={<FolderKanbanIcon />}
-            title={filtered ? "Nada encontrado" : "Nenhum projeto ainda"}
-            description={
-              filtered
-                ? "Tente outro termo ou mude o filtro de situação."
-                : admin
-                  ? "Crie o primeiro projeto de um cliente e organize as tarefas no quadro."
-                  : "Os projetos da sua empresa com a Anuntech aparecem aqui."
-            }
-            action={
-              query.search ? (
-                <Button variant="outline" asChild>
-                  <Link href={href({ search: "" })}>Limpar busca</Link>
-                </Button>
-              ) : admin && !filtered ? (
-                <Button asChild>
-                  <Link href="/projetos/novo">
-                    <PlusIcon />
-                    Novo projeto
-                  </Link>
-                </Button>
-              ) : undefined
-            }
+  return (
+    <ListCard
+      label="Lista de projetos"
+      toolbar={
+        <>
+          <SearchField
+            value={query.search}
+            onChange={(search) => go({ search, page: 1 })}
+            placeholder={showCompany ? "Buscar por nome ou empresa" : "Buscar por nome"}
           />
-        </section>
+          {companyFilter && (
+            <FilterChip
+              icon={<Building2Icon />}
+              label={companyFilter.name}
+              removeHref={href({ company: "", page: 1 })}
+            />
+          )}
+          <Select
+            value={query.status}
+            onValueChange={(status) => go({ status: status as ProjectStatusFilter, page: 1 })}
+          >
+            <SelectTrigger aria-label="Filtrar por situação" className="w-[188px]">
+              <SelectValue>{projectFilterLabels[query.status]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              {projectFilters.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {projectFilterLabels[status]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {companyShortcuts.length > 0 && (
+            <div className="flex basis-full flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>Só desta empresa:</span>
+              {companyShortcuts.map((company) => (
+                <Link
+                  key={company.id}
+                  href={href({ company: company.id, search: "", page: 1 })}
+                  scroll={false}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-full border bg-background px-2.5 font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-accent"
+                >
+                  <Building2Icon className="size-3.5 text-muted-foreground" />
+                  {company.name}
+                </Link>
+              ))}
+            </div>
+          )}
+        </>
+      }
+      footer={
+        <ListPagination
+          page={query.page}
+          pageSize={query.pageSize}
+          total={total}
+          pageCount={pageCount}
+          noun={["projeto", "projetos"]}
+          hrefFor={href}
+        />
+      }
+    >
+      {rows.length ? (
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="pl-4">Projeto</TableHead>
+              {companyColumn && <TableHead className="hidden md:table-cell">Empresa</TableHead>}
+              <TableHead>Situação</TableHead>
+              <TableHead className="hidden md:table-cell">Progresso</TableHead>
+              <TableHead className="hidden md:table-cell">Atualizado</TableHead>
+              <TableHead className="w-12 pr-3">
+                <span className="sr-only">Ações</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <LinkRow key={row.id} href={`/projetos/${row.id}`}>
+                <PrimaryCell href={`/projetos/${row.id}`} title={row.name} subtitle={subtitle(row)} />
+                {companyColumn && (
+                  <CompanyCell>{row.company}</CompanyCell>
+                )}
+                <TableCell>
+                  <EngagementStatusBadge status={row.status} />
+                </TableCell>
+                <TableCell className="hidden md:table-cell">
+                  <TaskProgress {...row.tasks} />
+                </TableCell>
+                <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+                  <time dateTime={row.updatedAt} title={dateTimeLabel(row.updatedAt)}>
+                    {relativeLabel(row.updatedAt, now)}
+                  </time>
+                </TableCell>
+                <RowActions label={row.name}>
+                  <DropdownMenuItem asChild>
+                    <Link href={`/projetos/${row.id}`}>
+                      <KanbanIcon />
+                      Abrir quadro
+                    </Link>
+                  </DropdownMenuItem>
+                  {admin && (
+                    <>
+                      <DropdownMenuItem onSelect={() => edit(row)}>
+                        <PencilIcon />
+                        Editar projeto
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`/empresas/${row.companyId}`}>
+                          <Building2Icon />
+                          Ver empresa
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {row.status !== "active" && (
+                        <DropdownMenuItem onSelect={() => change(row.id, "active")}>
+                          <PlayIcon />
+                          {row.status === "paused" ? "Retomar" : "Reabrir"}
+                        </DropdownMenuItem>
+                      )}
+                      {row.status === "active" && (
+                        <DropdownMenuItem onSelect={() => change(row.id, "paused")}>
+                          <PauseIcon />
+                          Pausar
+                        </DropdownMenuItem>
+                      )}
+                      {row.status !== "completed" && (
+                        <DropdownMenuItem onSelect={() => change(row.id, "completed")}>
+                          <CircleCheckIcon />
+                          Marcar como concluído
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  )}
+                </RowActions>
+              </LinkRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <EmptyState
+          icon={<FolderKanbanIcon />}
+          title={filtered ? "Nenhum projeto encontrado" : "Nenhum projeto ativo"}
+          description={
+            filtered
+              ? "Tente outro termo ou mude os filtros."
+              : admin
+                ? "Crie um projeto para um cliente e organize as tarefas no quadro."
+                : "Os projetos da sua empresa com a Anuntech aparecem aqui."
+          }
+          action={
+            filtered ? (
+              <Button variant="outline" asChild>
+                <Link
+                  href={projectListHref({ status: "active", search: "", company: "", pageSize: query.pageSize })}
+                  scroll={false}
+                >
+                  Limpar filtros
+                </Link>
+              </Button>
+            ) : admin ? (
+              <Button asChild>
+                <Link href="/projetos/novo">
+                  <PlusIcon />
+                  Novo projeto
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
       )}
-    </>
+      {admin && (
+        <>
+          {editing && <ProjectSheet open={editOpen} onOpenChange={setEditOpen} values={editing} />}
+          {statusForm}
+        </>
+      )}
+    </ListCard>
   );
 }

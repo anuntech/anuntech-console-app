@@ -1,3 +1,11 @@
+import {
+  listHref,
+  pageQuery,
+  scalarParam,
+  setPageParams,
+  type SearchParams,
+} from "./list-query";
+
 export type InvoiceTableStatus = "draft" | "issued" | "paid" | "cancelled";
 export type InvoiceDisplayStatus = InvoiceTableStatus | "overdue" | "scheduled";
 
@@ -72,13 +80,8 @@ export const invoicePeriodLabels: Record<InvoicePeriod, string> = {
 };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function invoiceQuery(
-  params: Record<string, string | string[] | undefined>,
-) {
-  const scalar = (key: string) =>
-    typeof params[key] === "string" ? (params[key] as string) : "";
-  const page = Number(scalar("page"));
-  const size = Number(scalar("size"));
+export function invoiceQuery(params: SearchParams) {
+  const scalar = (key: string) => scalarParam(params, key);
   const company = scalar("company");
   const from = ISO_DATE.test(scalar("de")) ? scalar("de") : "";
   const to = ISO_DATE.test(scalar("ate")) ? scalar("ate") : "";
@@ -96,8 +99,7 @@ export function invoiceQuery(
     period,
     from: period === "custom" ? from : "",
     to: period === "custom" ? to : "",
-    page: Number.isSafeInteger(page) && page > 0 ? page : 1,
-    pageSize: [10, 25, 50, 100].includes(size) ? size : 10,
+    ...pageQuery(params),
   };
 }
 export type InvoiceQuery = ReturnType<typeof invoiceQuery>;
@@ -118,9 +120,7 @@ export function invoiceListHref({
   if (period !== "all") params.set("periodo", period);
   if (period === "custom" && from) params.set("de", from);
   if (period === "custom" && to) params.set("ate", to);
-  if (page > 1) params.set("page", String(page));
-  if (pageSize !== 10) params.set("size", String(pageSize));
-  return `/financeiro${params.size ? `?${params}` : ""}`;
+  return listHref("/financeiro", setPageParams(params, { page, pageSize }));
 }
 
 const iso = (date: Date) => date.toISOString().slice(0, 10);

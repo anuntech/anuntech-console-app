@@ -5,22 +5,24 @@ import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   FileSignatureIcon,
-  MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
 } from "lucide-react";
-import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/console/page-header";
+import { LinkRow, ListCard, PrimaryCell, RowActions } from "@/components/console/list-view";
 import { ServerForm } from "@/components/console/server-form";
 import { toggleContractTemplate } from "@/lib/contract-actions";
+import { ActiveStatus } from "./catalog-table";
 import { ContractTemplateSheet, type ContractTemplateValues } from "./contract-template-sheet";
 
 export type ContractTemplateRow = ContractTemplateValues & { id: string; active: boolean; uses: number };
@@ -39,7 +41,7 @@ export function NewContractTemplateButton() {
   );
 }
 
-/** The model contracts as a compact list, with a sheet for editing. */
+/** The model contracts as the standard list table, with a sheet for editing. */
 export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }) {
   // The template stays set while the sheet slides out, so its fields don't blank.
   const [editor, setEditor] = useState<{ open: boolean; item: ContractTemplateRow | null }>({
@@ -53,60 +55,63 @@ export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }
       flushSync(() => setToggling(templateId));
       formRef.current?.requestSubmit();
     }, 0);
+  const edit = (item: ContractTemplateRow) => setEditor({ open: true, item });
   return (
     <>
-      {rows.length ? (
-        <ul className="divide-y rounded-xl border bg-card shadow-card">
-          {rows.map((row) => (
-            <li key={row.id} className={cn("flex items-center gap-3 px-3 py-2.5", !row.active && "opacity-60")}>
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
-                <FileSignatureIcon />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
-                  {row.name}
-                  {!row.active && (
-                    <span className="ml-2 rounded-full bg-secondary px-1.5 py-px text-[11px] font-medium text-muted-foreground">
-                      Desativado
-                    </span>
-                  )}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {row.description || "Sem descrição"}
-                  {` · ${row.uses} ${row.uses === 1 ? "contrato" : "contratos"}`}
-                </p>
-              </div>
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`Ações de ${row.name}`}>
-                    <MoreHorizontalIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onSelect={() => setTimeout(() => setEditor({ open: true, item: row }), 0)}>
-                    <PencilIcon />
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => toggle(row.id)}>
-                    {row.active ? <ArchiveIcon /> : <ArchiveRestoreIcon />}
-                    {row.active ? "Desativar" : "Reativar"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <section className="rounded-xl border bg-card shadow-card">
+      <ListCard label="Modelos de contrato">
+        {rows.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4">Modelo</TableHead>
+                <TableHead>Situação</TableHead>
+                <TableHead className="hidden text-right md:table-cell">Contratos</TableHead>
+                <TableHead className="w-12 pr-3">
+                  <span className="sr-only">Ações</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <LinkRow key={row.id} onOpen={() => edit(row)}>
+                  <PrimaryCell
+                    onOpen={() => edit(row)}
+                    title={row.name}
+                    subtitle={row.description || "Sem descrição"}
+                    leading={
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
+                        <FileSignatureIcon />
+                      </span>
+                    }
+                  />
+                  <TableCell>
+                    <ActiveStatus active={row.active} />
+                  </TableCell>
+                  <TableCell className="hidden text-right tabular-nums md:table-cell">{row.uses}</TableCell>
+                  <RowActions label={row.name}>
+                    <DropdownMenuItem onSelect={() => setTimeout(() => edit(row), 0)}>
+                      <PencilIcon />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => toggle(row.id)}>
+                      {row.active ? <ArchiveIcon /> : <ArchiveRestoreIcon />}
+                      {row.active ? "Desativar" : "Reativar"}
+                    </DropdownMenuItem>
+                  </RowActions>
+                </LinkRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
           <EmptyState
             icon={<FileSignatureIcon />}
             title="Nenhum modelo ainda"
             description="Cole o texto dos seus contratos uma vez, com os campos do cliente entre chaves, e gere cada contrato a partir daqui."
             action={<NewContractTemplateButton />}
           />
-        </section>
-      )}
+        )}
+      </ListCard>
       <ContractTemplateSheet
         open={editor.open}
         onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}
