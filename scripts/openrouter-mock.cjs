@@ -64,6 +64,11 @@ globalThis.fetch = async function (input, init) {
     return new Response(fs.readFileSync(file), { status: 200, headers: { "Content-Type": "application/json" } });
   }
   if (!url.includes("openrouter.ai/api/v1/chat/completions")) return originalFetch.apply(this, arguments);
+  // Live mode: let the real OpenRouter answer, bypassing the OTP harness's outbound block.
+  if (process.env.CONSOLE_TEST_OPENROUTER_LIVE === "1" && globalThis.__nativeFetch) {
+    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), live: true, model: JSON.parse(init.body).model }) + "\n");
+    return globalThis.__nativeFetch.apply(this, arguments);
+  }
   const body = JSON.parse(init.body);
   if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length }) + "\n");
   const payload = decide(body.messages);

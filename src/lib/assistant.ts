@@ -97,13 +97,14 @@ export async function systemPrompt(actor: Actor, custom: string) {
     "- Use as ferramentas para consultar e agir; nunca invente dados, valores, situações de pagamento ou links. Se uma ferramenta devolver erro, explique em uma frase e sugira o caminho.",
     "- Links: use caminhos relativos do Console em Markdown, como [ver fatura](/financeiro/abc). O painel transforma em links reais. Para PDF de boleto use o link boletoPdf; para pagar use linkPagamento.",
     "- Quando a pessoa tem uma única empresa, não pergunte qual; use o companyId dela. Com várias, pergunte ou use listar_empresas.",
+    "- As ferramentas de listagem aceitam companyId opcional: sem ele, trazem todas as empresas que a pessoa vê em uma única chamada. Prefira isso a chamar uma vez por empresa.",
     "- Antes de ações que criam ou alteram algo (abrir_chamado, responder_chamado, criar_tarefa, mover_tarefa, criar_projeto), confirme o conteúdo com a pessoa, a não ser que o pedido já esteja completo e inequívoco. Depois de executar, diga o que foi feito com o link.",
     "- Cobranças, orçamentos, contratos e cadastros de empresa não são criados por você: leve a pessoa à tela com abrir_tela. Nunca diga que uma fatura foi paga se a situação não disser isso.",
     "- Se a pessoa quiser falar com alguém, ou se você não conseguir ajudar, use abrir_chat_suporte e diga que a equipe responde por ali.",
     "- Dúvidas sobre a Anuntech: responda com a base de conhecimento abaixo (ou buscar_conhecimento). Se não estiver lá, diga que não sabe e ofereça o chat com a equipe.",
     "- Valores em reais no formato R$ 1.234,56 e datas como 24/09/2026.",
     actor.admin
-      ? "- Para a equipe da Anuntech você também organiza trabalho: pode montar um projeto inteiro (criar_projeto e depois uma criar_tarefa por tarefa, com prioridade, prazo e estimativa) a partir de uma descrição, e responder chamados em nome da equipe. Apresente o plano de tarefas antes de criar e execute quando a pessoa aprovar."
+      ? "- Para a equipe da Anuntech, consultas sem empresa definida valem para todas as empresas: chame a ferramenta sem companyId em vez de perguntar qual. Você também organiza trabalho: pode montar um projeto inteiro (criar_projeto e depois uma criar_tarefa por tarefa, com prioridade, prazo e estimativa) a partir de uma descrição, e responder chamados em nome da equipe. Apresente o plano de tarefas antes de criar e execute quando a pessoa aprovar."
       : "",
     "",
     "Base de conhecimento da Anuntech:",
@@ -166,13 +167,13 @@ export async function converse(actor: Actor, history: ChatTurn[]): Promise<Assis
   const config = await assistantConfig();
   const tools = toolCatalog(actor);
   const messages: Message[] = [{ role: "system", content: await systemPrompt(actor, config.prompt) }, ...trimHistory(history)];
-  const steps: string[] = [];
+  const noted = new Map<string, number>();
   const actions: ClientAction[] = [];
   const ctx = { actor, today: saoPauloDate() };
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const message = await complete(config.model, messages, tools);
     const calls = message.tool_calls ?? [];
-    if (!calls.length) return { reply: (message.content ?? "").trim() || "Não consegui formular uma resposta. Pode repetir de outro jeito?", steps, actions };
+    if (!calls.length) return { reply: (message.content ?? "").trim() || "Não consegui formular uma resposta. Pode repetir de outro jeito?", steps: collapse(noted), actions };
     messages.push({ role: "assistant", content: message.content ?? "", tool_calls: calls });
     for (const call of calls) {
       const outcome = await runTool(ctx, call.function.name, call.function.arguments);
@@ -180,10 +181,13 @@ export async function converse(actor: Actor, history: ChatTurn[]): Promise<Assis
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ erro: outcome.error }) });
         continue;
       }
-      steps.push(outcome.summary);
+      noted.set(outcome.summary, (noted.get(outcome.summary) ?? 0) + 1);
       if (outcome.actions) actions.push(...outcome.actions);
       messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(outcome.result).slice(0, 20000) });
     }
   }
-  return { reply: "Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?", steps, actions };
+  return { reply: "Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?", steps: collapse(noted), actions };
 }
+
+/** "Consultei as faturas ×7" instead of seven identical chips. */
+const collapse = (noted: Map<string, number>) => [...noted].map(([summary, n]) => (n > 1 ? `${summary} ×${n}` : summary));

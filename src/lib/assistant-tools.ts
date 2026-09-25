@@ -172,7 +172,7 @@ const companyOverview = tool({
 const listInvoices = tool({
   name: "listar_faturas",
   description:
-    "Faturas (cobranças) de uma empresa, com valor, vencimento, situação, link de pagamento e PDF do boleto quando existe. Para 'o último boleto' use situacao 'abertas' e limite 1; se não houver, use 'todas'. As cobranças são criadas pela Anuntech; você não cria nem altera faturas.",
+    "Faturas (cobranças), com valor, vencimento, situação, link de pagamento e PDF do boleto quando existe. Sem companyId, traz de todas as empresas que a pessoa vê em uma só chamada. Para 'o último boleto' use situacao 'abertas' e limite 1; se não houver, use 'todas'. As cobranças são criadas pela Anuntech; você não cria nem altera faturas.",
   input: z.object({
     companyId: id.optional(),
     situacao: z.enum(["abertas", "vencidas", "pagas", "todas"]).default("abertas"),
@@ -230,7 +230,7 @@ const listInvoices = tool({
 
 const listTickets = tool({
   name: "listar_chamados",
-  description: "Chamados (tickets de suporte) de uma empresa, com situação, prioridade e link.",
+  description: "Chamados (tickets de suporte), com situação, prioridade e link. Sem companyId, traz de todas as empresas que a pessoa vê.",
   input: z.object({ companyId: id.optional(), situacao: z.enum(["abertos", "todos"]).default("abertos"), limite: limit(10) }),
   run: async ({ actor }, { companyId, situacao, limite }) => {
     const ids = scopeOf(actor, "support", companyId);
