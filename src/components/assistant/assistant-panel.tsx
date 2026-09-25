@@ -55,6 +55,7 @@ type Reply = {
         submit: boolean;
       }
     | { type: "click"; text: string }
+    | { type: "refresh" }
   )[];
 };
 
@@ -294,6 +295,7 @@ export function AssistantPanel({
           close();
           setTimeout(openSupportWidget, 300);
         } else if (action.type === "navigate") go(action.href);
+        else if (action.type === "refresh") router.refresh();
         else if (action.type === "fill") {
           close();
           delay += 300;

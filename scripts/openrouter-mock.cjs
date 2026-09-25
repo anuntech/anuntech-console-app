@@ -35,12 +35,13 @@ function decide(messages) {
         if (row.erro) return `- Erro: ${row.erro}`;
         if (row.rascunho && row.link) return `- Orçamento em rascunho: [abrir](${row.link}) · ${row.esforco} · ${row.valorTotal}`;
         if (row.aberto && row.link) return `- Chamado aberto: [${row.assunto ?? "ver"}](${row.link})`;
+        if (row.atualizado && row.valorTotal) return `- Orçamento atualizado: ${row.valorTotal} · [abrir](${row.link})`;
         if (row.atualizadas) return `- ${row.atualizadas} tarefas atualizadas · [quadro](${row.link})`;
         return `- ${JSON.stringify(row).slice(0, 200)}`;
       })
       .join("\n");
   // Second round onwards: chain or finish.
-  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela") || calls.includes("atualizar_tarefa"))
+  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela") || calls.includes("atualizar_tarefa") || calls.includes("atualizar_orcamento"))
     return reply(`Feito.\n\n${summarize()}`);
   // "vincule todos os cards do projeto X a mim": projects → tasks → one bulk update.
   if (user.includes("vincul") && calls.includes("listar_projetos_e_produtos") && !calls.includes("listar_tarefas")) {
@@ -85,6 +86,11 @@ function decide(messages) {
       return reply(null, [call("criar_orcamento", { companyId: first.companyId, titulo: "Portal do cliente", resumo: "Área logada para acompanhar pedidos.", taxaHoraReais: 120, entradaPercentual: 40, validoAte: "2026-10-31", stack: ["Next.js", "PostgreSQL"], fases: [{ nome: "Descoberta", descricao: "Levantamento e protótipo.", horasMin: 6, horasMax: 8, tarefas: [{ titulo: "Entrevistas", descricao: "Duas sessões com o cliente." }] }, { nome: "Construção", horasMin: 20, horasMax: 26, tarefas: [{ titulo: "Login e cadastro" }, { titulo: "Lista de pedidos" }] }] })]);
   }
   if (tools.length) return reply(`Aqui está o que encontrei:\n\n${summarize()}`);
+  // On a quote draft, "preencha as tarefas" updates the quote itself (not the screen).
+  const system = messages.find((m) => m.role === "system")?.content ?? "";
+  const openQuote = /Registro aberto nesta tela: orçamento ([0-9a-f-]{36})/.exec(system)?.[1];
+  if (openQuote && /tarefa|fase/.test(user) && !calls.includes("atualizar_orcamento"))
+    return reply(null, [call("atualizar_orcamento", { orcamentoId: openQuote, entradaPercentual: 0, validoAte: "", fases: [{ nome: "Correções e Melhorias", descricao: "Product Requests II", horasMin: 54, horasMax: 54, tarefas: [{ titulo: "PR 16 — Ajuste no cadastro" }, { titulo: "PR 17 — Filtro de relatórios" }, { titulo: "PR 18 — Exportação CSV" }] }] })]);
   // First round: pick a tool from the wording.
   if (user.includes("preench") && user.includes("cobran"))
     return reply(null, [call("preencher_tela", { campos: [{ campo: "companyId", valor: "Cliente QA" }, { campo: "description", valor: "Manutenção mensal — preenchido pelo assistente" }, { campo: "amount", valor: "1.500,00" }, { campo: "dueDate", valor: "15/10/2026" }], enviar: false })]);

@@ -10,7 +10,9 @@ export type ClientAction =
   | { type: "navigate"; href: string }
   | { type: "open_support" }
   | { type: "fill"; fields: { campo: string; valor: string }[]; submit: boolean }
-  | { type: "click"; text: string };
+  | { type: "click"; text: string }
+  /** Data behind the open screen changed (a tool wrote it); the page reloads its data. */
+  | { type: "refresh" };
 export type ToolOutcome = { result: unknown; summary: string; actions?: ClientAction[] };
 export type ToolContext = { actor: Actor; today: string };
 

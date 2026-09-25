@@ -6,10 +6,10 @@ import { assistantDocuments, assistantSettings } from "@/db/schema";
 import { saoPauloDate } from "./dates";
 import { longDateLabel } from "./format";
 import { hasPermission } from "./permissions";
-import { destinations, runTool, screenFor, toolCatalog, writeToolNames, type ClientAction, type Destination } from "./assistant-tools";
+import { destinations, runTool, screenFor, toolCatalog, writeToolNames, type ClientAction, type Destination, type ToolArea } from "./assistant-tools";
 import { approveAction, intents, jevEnabled, routeIntent } from "./jev";
 import { modelSupportsReasoning } from "./openrouter-models";
-import { describePage, type PageSnapshot } from "./page-snapshot";
+import { describePage, type PageSnapshot, areaOfPath } from "./page-snapshot";
 
 export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
@@ -99,6 +99,7 @@ export async function systemPrompt(actor: Actor, custom: string, page?: PageSnap
     "- Responda em português do Brasil, de forma direta e curta. Sem enrolação, sem repetir a pergunta.",
     "- Use as ferramentas para consultar e agir; nunca invente dados, valores, situações de pagamento ou links.",
     "- Se uma ferramenta devolver 'Dados inválidos', corrija os campos indicados e chame de novo (até duas tentativas) antes de desistir; não repasse o erro técnico à pessoa. Se ainda assim não der, explique em uma frase o que faltou.",
+    "- Quando a 'Tela atual' indicar um 'Registro aberto', ele é o assunto: leia e altere com as ferramentas usando esse id, sem perguntar qual é. O que não for campo de formulário (fases, tarefas, horas e entrada de um orçamento) se altera pela ferramenta, nunca com preencher_tela; depois diga o que mudou, a tela se atualiza sozinha.",
     "- Nunca peça à pessoa para preencher na tela o que você mesmo pode criar com uma ferramenta, e nunca cite campos que não aparecem em 'Tela atual'. Um orçamento completo (fases, horas, taxa, entrada) se cria com criar_orcamento; a tela de novo orçamento só tem empresa, título e validade.",
     "- Investigue antes de perguntar. Quando a pessoa cita um cliente, orçamento, projeto, chamado ou contrato pelo nome, procure você mesmo (listar_empresas com busca, listar_orcamentos e ler_orcamento, listar_projetos_e_produtos e listar_tarefas, listar_chamados e ler_chamado, listar_contratos e ler_contrato) e só pergunte o que não conseguiu descobrir. Consultas são livres: encadeie quantas precisar, sem pedir permissão.",
     "- 'Igual ao X' significa ler X com a ferramenta de leitura e reproduzir; para orçamentos, criar_orcamento aceita copiarDeOrcamentoId. Nunca diga que não tem como ver algo sem antes ter tentado a ferramenta correspondente; se realmente não existir ferramenta, diga o que consegue fazer em vez disso.",
@@ -227,6 +228,13 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
   const actions: ClientAction[] = [];
   const ctx = { actor, today: saoPauloDate() };
   let retried = false;
+  // A write changes what the open screen shows; the panel reloads the page's data after the reply.
+  let wrote = false;
+  const done = (reply: string) => ({
+    reply,
+    steps: collapse(noted),
+    actions: wrote && !actions.some((a) => a.type === "navigate") ? [...actions, { type: "refresh" as const }] : actions,
+  });
 
   // Jev reads the intent first: the obvious cases end here, the rest reaches the model with a hint.
   if (jevEnabled() && turns.length) {
@@ -254,6 +262,9 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
       // When Jev sees a request for data or an action but no clear area, the model keeps the whole catalog.
       const areas = new Set(route.areas);
       if (page?.forms.length && (route.intent === "tela" || route.intent === "criar")) areas.add("tela");
+      // The section on screen is always in play: "preencha as tarefas" on a quote draft is about the quote.
+      const onScreen = page ? areaOfPath(page.path) : null;
+      if (onScreen && areas.size) areas.add(onScreen as ToolArea);
       const unsure = !areas.size && (route.intent === "consultar" || route.intent === "criar" || route.intent === "tela");
       if (!unsure) {
         const subset = toolCatalog(actor, areas);
@@ -265,14 +276,14 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const turn = await complete(config.model, messages, tools, { maxTokens: retried ? 6000 : 3000, reasoning });
     if (!turn.toolCalls.length) {
-      if (turn.content) return { reply: turn.content, steps: collapse(noted), actions };
+      if (turn.content) return done(turn.content);
       if (!retried) {
         // Nothing came back (usually the budget went to reasoning): ask once more, plainly.
         retried = true;
         messages.push({ role: "system", content: "Escreva agora a resposta final em texto, em português, usando o que as ferramentas devolveram. Não chame mais ferramentas." });
         continue;
       }
-      return { reply: "Não consegui formular uma resposta. Pode repetir de outro jeito?", steps: collapse(noted), actions };
+      return done("Não consegui formular uma resposta. Pode repetir de outro jeito?");
     }
     messages.push({ role: "assistant", content: turn.content, tool_calls: turn.toolCalls });
     for (const call of turn.toolCalls) {
@@ -295,11 +306,12 @@ export async function converse(actor: Actor, history: ChatTurn[], page?: PageSna
         continue;
       }
       noted.set(outcome.summary, (noted.get(outcome.summary) ?? 0) + 1);
+      if (writeToolNames.has(call.function.name) && !outcome.actions?.length) wrote = true;
       if (outcome.actions) actions.push(...outcome.actions);
       messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(outcome.result).slice(0, 20000) });
     }
   }
-  return { reply: "Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?", steps: collapse(noted), actions };
+  return done("Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?");
 }
 
 const parseArgs = (raw: string): unknown => {

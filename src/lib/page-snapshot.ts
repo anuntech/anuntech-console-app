@@ -28,9 +28,45 @@ export const pageSnapshotSchema = z.object({
 });
 export type PageSnapshot = z.infer<typeof pageSnapshotSchema>;
 
+/** Record pages: the area whose tools act on them and how the record reads in Portuguese. */
+const recordPages = {
+  orcamentos: { area: "orcamentos", noun: "orçamento", idField: "orcamentoId" },
+  contratos: { area: "contratos", noun: "contrato", idField: "contratoId" },
+  financeiro: { area: "financeiro", noun: "fatura", idField: "faturaId" },
+  chamados: { area: "chamados", noun: "chamado", idField: "chamadoId" },
+  projetos: { area: "projetos", noun: "projeto", idField: "engagementId" },
+  produtos: { area: "produtos", noun: "produto ou serviço", idField: "engagementId" },
+  empresas: { area: "empresas", noun: "empresa", idField: "companyId" },
+} as const;
+type RecordSection = keyof typeof recordPages;
+
+/** The record a path shows (`/orcamentos/<uuid>`), if any. */
+export function openRecord(path: string) {
+  const match = /^\/([a-z]+)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:[/?#]|$)/i.exec(path);
+  if (!match || !(match[1] in recordPages)) return null;
+  return { ...recordPages[match[1] as RecordSection], id: match[2].toLowerCase() };
+}
+
+/** The area of the section a path belongs to (`/orcamentos`, `/orcamentos/<id>`), for tool selection. */
+export function areaOfPath(path: string) {
+  const section = /^\/([a-z]+)/i.exec(path)?.[1];
+  return section && section in recordPages ? recordPages[section as RecordSection].area : null;
+}
+
+/** What the model must know about the open record beyond its form fields. */
+function recordLine(path: string) {
+  const record = openRecord(path);
+  if (!record) return "";
+  const base = `Registro aberto nesta tela: ${record.noun} ${record.id} (use este id como ${record.idField} nas ferramentas).`;
+  if (record.area === "orcamentos")
+    return `${base} Fases, tarefas, horas, taxa, entrada, stack e observações deste orçamento não são campos de formulário: altere com atualizar_orcamento (orcamentoId ${record.id}); a tela recarrega sozinha depois.`;
+  return base;
+}
+
 /** The screen, written for the model: one line per field with what it takes. */
 export function describePage(page: PageSnapshot) {
-  if (!page.forms.length) return `Tela atual: ${page.path} (${page.title}). Sem formulário para preencher nesta tela.`;
+  const record = recordLine(page.path);
+  if (!page.forms.length) return `Tela atual: ${page.path} (${page.title}).${record ? ` ${record}` : ""} Sem formulário para preencher nesta tela.`;
   const forms = page.forms.map((form) => {
     const fields = form.fields.map((f) => {
       const parts = [`"${f.name}"`, f.label && f.label !== f.name ? `(${f.label})` : "", f.kind, f.required ? "obrigatório" : "", f.value ? `atual: ${JSON.stringify(f.value)}` : "vazio"];
@@ -39,5 +75,5 @@ export function describePage(page: PageSnapshot) {
     });
     return `Formulário "${form.title || form.id}"${form.buttons.length ? ` (botões: ${form.buttons.join(", ")})` : ""}:\n${fields.join("\n")}`;
   });
-  return `Tela atual: ${page.path} (${page.title}).\n${forms.join("\n")}`;
+  return `Tela atual: ${page.path} (${page.title}).${record ? `\n${record}` : ""}\n${forms.join("\n")}`;
 }
