@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@base-ui/react/tooltip";
 import {
@@ -19,8 +19,7 @@ import { useAppearance } from "@/components/appearance-provider";
 import { DockAccountMenu } from "./dock-account-menu";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
-import { LiquidMetalButton } from "@/components/ui/liquid-metal-button";
-import { cn } from "cn";
+import { EnergyOrb, type EnergyOrbElement } from "@/components/ui/energy-orb";
 import styles from "./bottom-menu.module.css";
 
 export type NavigationProps = {
@@ -113,6 +112,14 @@ export default function BottomMenu({
   const { position } = useAppearance();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantBusy, setAssistantBusy] = useState(false);
+  // The orb mirrors the assistant: calm at rest, brighter while open, fast while
+  // it works, and a pulse when the answer lands.
+  const orb = useRef<EnergyOrbElement>(null);
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !assistantBusy) orb.current?.pulse?.();
+    wasBusy.current = assistantBusy;
+  }, [assistantBusy]);
   const visible = items.filter(
     (item) =>
       (!item.admin || admin) &&
@@ -159,19 +166,20 @@ export default function BottomMenu({
           <nav className={styles.dock} aria-label="Navegação principal">
             <Tooltip.Root>
               <Tooltip.Trigger
-                render={
-                  <LiquidMetalButton
-                    viewMode="icon"
-                    size={40}
-                    label="Assistente"
-                    className={cn(styles.assistant, assistantBusy && styles.assistantBusy)}
-                    onClick={() => setAssistantOpen(true)}
-                  />
-                }
+                render={<button type="button" className={styles.assistant} onClick={() => setAssistantOpen(true)} />}
+                aria-label="Assistente"
                 aria-haspopup="dialog"
                 aria-expanded={assistantOpen}
                 aria-busy={assistantBusy}
-              />
+              >
+                <EnergyOrb
+                  ref={orb}
+                  size={36}
+                  energy={assistantBusy ? 1.4 : assistantOpen ? 1.15 : 0.9}
+                  speed={assistantBusy ? 2.5 : 1}
+                  glow={false}
+                />
+              </Tooltip.Trigger>
               <Tooltip.Portal>
                 <Tooltip.Positioner
                   side={position === "top" ? "bottom" : position === "left" ? "right" : position === "right" ? "left" : "top"}

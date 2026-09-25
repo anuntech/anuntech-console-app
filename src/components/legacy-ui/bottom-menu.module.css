@@ -169,29 +169,30 @@
   }
 }
 
+/* The assistant: a live energy orb. Feedback lands on press; a soft blue halo
+   sized for the dock (the orb's own glow is drawn for a 220px sphere). */
 .assistant {
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   margin: 2px;
-}
-/* Still working with the panel closed: a quiet dot on the button. */
-.assistantBusy::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 10px;
-  height: 10px;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  background: var(--primary);
-  box-shadow: 0 0 0 2px var(--card);
-  animation: assistantPulse 1.4s ease-in-out infinite;
-  pointer-events: none;
+  background: transparent;
+  cursor: pointer;
+  box-shadow: 0 0 10px 1px rgba(64, 140, 255, 0.35);
+  transition: transform 120ms ease-out, box-shadow 200ms ease-out;
 }
-@keyframes assistantPulse {
-  50% { opacity: 0.45; }
-}
+.assistant:hover { box-shadow: 0 0 14px 2px rgba(64, 140, 255, 0.5); }
+.assistant:active { transform: scale(0.94); }
+.assistant:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+.assistant[aria-busy="true"] { box-shadow: 0 0 16px 3px rgba(64, 140, 255, 0.55); }
 @media (prefers-reduced-motion: reduce) {
-  .assistantBusy::after { animation: none; }
+  .assistant { transition: none; }
+  .assistant:active { transform: none; }
 }
 .create {
   border: 0;
