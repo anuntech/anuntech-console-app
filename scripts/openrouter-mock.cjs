@@ -47,6 +47,14 @@ function decide(messages) {
     const source = tools.flat().find((r) => r.orcamentoId);
     return reply(null, [call("criar_orcamento", { companyId: company.companyId, copiarDeOrcamentoId: source.orcamentoId, titulo: `Cópia — ${source.titulo}` })]);
   }
+  if (calls.includes("listar_faturas") && !calls.includes("ler_fatura") && user.includes("detalhes da fatura")) {
+    const first = tools.flat().find((r) => r.faturaId);
+    if (first) return reply(null, [call("ler_fatura", { faturaId: first.faturaId })]);
+  }
+  if (calls.includes("ler_fatura") && tools.length) {
+    const f = tools.flat().find((r) => r.avisos);
+    return reply(`Fatura **${f?.descricao}**: ${f?.valor}, vence ${f?.vencimento}, ${f?.situacao}; ${f?.avisos?.length ?? 0} avisos. [Ver](${f?.detalhe})`);
+  }
   if (calls.includes("listar_orcamentos") && !calls.includes("ler_orcamento") && tools.length) {
     const first = tools.flat().find((r) => r.orcamentoId);
     if (first) return reply(null, [call("ler_orcamento", { orcamentoId: first.orcamentoId })]);
@@ -70,6 +78,7 @@ function decide(messages) {
     return reply(null, [call("preencher_tela", { campos: [{ campo: "companyId", valor: "GS Comunicação" }, { campo: "subject", valor: "Preenchido pelo assistente" }, { campo: "body", valor: "Teste de preenchimento da tela pelo assistente." }], enviar: false })]);
   if (user.includes("maior cliente") || user.includes("faturamos")) return reply(null, [call("resumo_financeiro", { periodo: "tudo" })]);
   if (user.includes("igual")) return reply(null, [call("listar_empresas", { limite: 5 })]);
+  if (user.includes("detalhes da fatura")) return reply(null, [call("listar_faturas", { situacao: "todas", limite: 1 })]);
   if (user.includes("detalhes do or")) return reply(null, [call("listar_orcamentos", {})]);
   if (user.includes("orcamento") || user.includes("orçamento")) return reply(null, [call("listar_empresas", { limite: 5 })]);
   if (user.includes("boleto") || user.includes("fatura")) return reply(null, [call("listar_faturas", { situacao: "todas", limite: 3 })]);

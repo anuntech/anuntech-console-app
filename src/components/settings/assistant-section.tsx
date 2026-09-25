@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { assistantDocuments, user } from "@/db/schema";
 import { requireAdmin } from "@/lib/access";
 import { assistantConfig, DEFAULT_ASSISTANT_MODEL } from "@/lib/assistant";
+import { assistantTools } from "@/lib/assistant-tools";
 import { openRouterModels, SUGGESTED_MODEL_IDS } from "@/lib/openrouter-models";
 import { ModelField } from "./model-field";
 import { addAssistantDocument, removeAssistantDocument, saveAssistantSettings } from "@/lib/assistant-actions";
@@ -174,20 +175,35 @@ export async function AssistantSection() {
 
       <Card>
         <CardHeader>
-          <SectionTitle title="O que ele faz" description="Tudo passa pelas mesmas permissões da pessoa logada; cada ação fica no histórico como se ela mesma tivesse feito." />
+          <SectionTitle
+            title={`Ferramentas (${assistantTools.length})`}
+            description="Cada uma é uma ação do Console que o assistente pode chamar, sempre com as permissões da pessoa logada; o que altera dados passa pela checagem de confirmação e fica no histórico como se ela mesma tivesse feito. Emitir cobranças, enviar orçamentos e contratos e remover acessos continuam só na tela."
+          />
         </CardHeader>
-        <CardContent>
-          <ul className="m-0 grid list-disc gap-1.5 pl-5 text-sm text-foreground sm:grid-cols-2">
-            <li>Consulta faturas, com link de pagamento e PDF do boleto.</li>
-            <li>Lista, lê, abre e responde chamados.</li>
-            <li>Mostra projetos, produtos e tarefas; cria e move tarefas.</li>
-            <li>Lista contratos e orçamentos com situação e links.</li>
-            <li>Leva a pessoa à tela certa (nova cobrança, novo orçamento…).</li>
-            <li>Abre o chat com a equipe quando pedem para falar com alguém.</li>
-            <li>Para a equipe: monta projetos inteiros com tarefas a partir de uma descrição.</li>
-            <li>Para a equipe: cria orçamentos em rascunho com fases, horas e taxa; o envio continua na tela.</li>
-            <li>Nunca cria cobranças ou contratos, nem envia orçamentos por conta própria.</li>
-          </ul>
+        <CardContent className="grid gap-6 sm:grid-cols-2">
+          {(
+            [
+              ["Consultas", assistantTools.filter((t) => !t.write)],
+              ["Ações", assistantTools.filter((t) => t.write)],
+            ] as const
+          ).map(([title, tools]) => (
+            <div key={title}>
+              <p className="m-0 mb-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                {title} · {tools.length}
+              </p>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {tools.map((t) => (
+                  <li key={t.name} className="text-sm">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <code className="rounded bg-secondary px-1 py-0.5 text-[12px]">{t.name}</code>
+                      {t.staffOnly && <span className="rounded-full bg-accent px-1.5 py-px text-[10px] font-medium text-primary">equipe</span>}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{t.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </CardContent>
       </Card>
     </>

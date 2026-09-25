@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, ilike, inArray, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { allowedIds, canAccess, type Actor } from "./access";
+import { allowedIds, canAccess } from "./access";
 import {
   assistantDocuments,
   companies,
@@ -27,70 +27,12 @@ import { DEFAULT_QUOTE_NOTES, hoursLabel, quoteNumberLabel, quoteStatusLabels, q
 import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "./task-model";
 import { OPEN_TICKET_STATUSES } from "./ticket-status";
 
-/* ---------- plumbing ---------- */
-
-export type ClientAction =
-  | { type: "navigate"; href: string }
-  | { type: "open_support" }
-  | { type: "fill"; fields: { campo: string; valor: string }[]; submit: boolean }
-  | { type: "click"; text: string };
-export type ToolOutcome = { result: unknown; summary: string; actions?: ClientAction[] };
-export type ToolContext = { actor: Actor; today: string };
-
-/** A message the model should relay; anything else is a bug and stays generic. */
-export class ToolError extends Error {}
-
-type AnyTool = {
-  name: string;
-  description: string;
-  input: z.ZodType;
-  /** Hidden from clients; the executor refuses it too. */
-  staffOnly?: boolean;
-  /** Changes data; the prompt asks the model to confirm intent first. */
-  write?: boolean;
-  run: (ctx: ToolContext, input: never) => Promise<ToolOutcome>;
-};
-function tool<S extends z.ZodType>(def: {
-  name: string;
-  description: string;
-  input: S;
-  staffOnly?: boolean;
-  write?: boolean;
-  run: (ctx: ToolContext, input: z.output<S>) => Promise<ToolOutcome>;
-}): AnyTool {
-  return def as unknown as AnyTool;
-}
-
-const id = z.string().uuid();
-const limit = (fallback: number) => z.number().int().min(1).max(50).default(fallback);
-
-/** Which companies a read may span: a list for clients, `null` (all) for staff. */
-function scopeOf(actor: Actor, area: Area, companyId?: string) {
-  if (companyId) {
-    if (!canAccess(actor, companyId, area)) throw new ToolError("Você não tem acesso a essa empresa nesta área.");
-    return [companyId];
-  }
-  if (actor.admin) return null;
-  const ids = allowedIds(actor, area);
-  if (!ids.length) throw new ToolError("Seu acesso não inclui esta área. Peça ao gestor da empresa.");
-  return ids;
-}
-const within = <T extends { companyId: unknown }>(column: T["companyId"], ids: string[] | null) =>
-  ids ? inArray(column as never, ids) : undefined;
-
-const fold = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
-
-async function submit(action: (state: object, form: FormData) => Promise<{ error?: string; success?: string; href?: string }>, fields: Record<string, string>) {
-  const form = new FormData();
-  for (const [key, value] of Object.entries(fields)) form.set(key, value);
-  const state = await action({}, form);
-  if (state.error) throw new ToolError(state.error);
-  return state;
-}
+/* ---------- plumbing (shared with assistant-tools-extra) ---------- */
+import { fold, id, limit, scopeOf, submit, tool, ToolError, within, type AnyTool, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
+export { ToolError } from "./assistant-tools-kit";
+export type { AnyTool, ClientAction, ToolContext, ToolOutcome } from "./assistant-tools-kit";
+import type { Actor } from "./access";
+import { extraTools } from "./assistant-tools-extra";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid"
@@ -867,6 +809,7 @@ export const assistantTools: AnyTool[] = [
   openSupport,
   openScreen,
   searchKnowledge,
+  ...extraTools,
 ];
 
 /** The tool list as OpenRouter/OpenAI expect it, filtered by who is asking. */
