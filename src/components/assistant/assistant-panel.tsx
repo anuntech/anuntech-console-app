@@ -236,6 +236,15 @@ export function AssistantPanel({
     ];
     setTurns(history);
     setBusy(true);
+    // Reading the screen is a bonus: if it fails, the message still goes, without it.
+    let page: ReturnType<typeof snapshotPage> | undefined;
+    try {
+      page = snapshotPage();
+      JSON.stringify(page);
+    } catch (error) {
+      console.warn("[assistant] could not read the screen", error);
+      page = undefined;
+    }
     try {
       const res = await fetch("/api/assistente", {
         method: "POST",
@@ -244,7 +253,7 @@ export function AssistantPanel({
           messages: history
             .filter((t) => !t.failed)
             .map(({ role, content }) => ({ role, content })),
-          page: snapshotPage(),
+          page,
           conversationId: conversationId ?? undefined,
         }),
       });

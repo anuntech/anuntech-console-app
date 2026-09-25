@@ -870,15 +870,74 @@ export async function runTool(ctx: ToolContext, name: string, rawArguments: stri
   } catch {
     return { error: "Os argumentos não vieram em JSON válido." };
   }
-  const input = def.input.safeParse(parsed);
-  if (!input.success) return { error: `Argumentos inválidos: ${input.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}` };
+  let input = def.input.safeParse(withoutNulls(parsed));
+  if (!input.success) {
+    // Models often send optional fields as "" instead of leaving them out; drop the
+    // empty strings validation rejected and try once more before reporting.
+    const retry = withoutEmpty(withoutNulls(parsed), input.error.issues);
+    if (retry !== null) input = def.input.safeParse(retry);
+  }
+  if (!input.success) {
+    const error = describeIssues(input.error.issues);
+    console.warn("[assistant] tool rejected its arguments", { tool: name, error });
+    return { error };
+  }
   try {
     return await def.run(ctx, input.data as never);
   } catch (error) {
-    if (error instanceof ToolError) return { error: error.message };
+    if (error instanceof ToolError) {
+      console.warn("[assistant] tool refused", { tool: name, error: error.message });
+      return { error: error.message };
+    }
     console.error(`[assistant] ${name} failed`, error);
     return { error: "A ferramenta falhou por um erro interno. Sugira tentar de novo ou falar com a equipe." };
   }
+}
+
+/** Removes null values (an optional field "not informed"), at any depth. */
+function withoutNulls(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutNulls);
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== null).map(([k, v]) => [k, withoutNulls(v)]));
+  return value;
+}
+
+type Issue = { path: PropertyKey[]; code: string; message: string; expected?: unknown; format?: string; values?: unknown[] };
+
+/** A copy without the empty strings that failed validation, or null when there are none to drop. */
+function withoutEmpty(value: unknown, issues: readonly Issue[]): unknown {
+  const copy = structuredClone(value) as Record<string, unknown>;
+  let dropped = false;
+  for (const issue of issues) {
+    let parent: unknown = copy;
+    for (const key of issue.path.slice(0, -1)) parent = (parent as Record<PropertyKey, unknown> | undefined)?.[key as string];
+    const last = issue.path.at(-1);
+    if (parent && typeof parent === "object" && last !== undefined && (parent as Record<string, unknown>)[last as string] === "") {
+      delete (parent as Record<string, unknown>)[last as string];
+      dropped = true;
+    }
+  }
+  return dropped ? copy : null;
+}
+
+/** Validation errors in Portuguese, saying what to send instead. */
+function describeIssues(issues: readonly Issue[]) {
+  const what = (issue: Issue) => {
+    if (issue.code === "invalid_format")
+      return issue.format === "uuid"
+        ? "id inválido: use exatamente um id devolvido por outra ferramenta, ou omita o campo se ele é opcional"
+        : issue.format === "date"
+          ? "data inválida: use AAAA-MM-DD"
+          : `formato inválido (${issue.format})`;
+    if (issue.code === "invalid_type") return issue.expected === "undefined" ? "campo desconhecido, omita" : `tipo errado: esperava ${String(issue.expected)}`;
+    if (issue.code === "invalid_value" && issue.values?.length) return `use um destes valores: ${issue.values.join(", ")}`;
+    if (issue.code === "too_small") return "valor abaixo do mínimo ou vazio";
+    if (issue.code === "too_big") return "valor acima do máximo";
+    if (issue.code === "unrecognized_keys") return "campos que a ferramenta não aceita, omita-os";
+    return issue.message;
+  };
+  const list = issues.map((issue) => `${issue.path.join(".") || "(dados)"}: ${what(issue)}`).join("; ");
+  return `Dados inválidos para a ferramenta: ${list}. Corrija só esses campos e chame a ferramenta de novo; campos opcionais que não se aplicam devem ser omitidos.`;
 }
 
 export const writeToolNames = new Set(assistantTools.filter((t) => t.write).map((t) => t.name));

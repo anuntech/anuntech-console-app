@@ -78,6 +78,9 @@ function decide(messages) {
     const first = tools.flat()[0];
     if (user.includes("chamado")) return reply(null, [call("abrir_chamado", { companyId: first.companyId, assunto: "Teste do assistente", descricao: "Chamado aberto pelo assistente durante o QA." })]);
     if (user.includes("resumo")) return reply(null, [call("resumo_da_empresa", { companyId: first.companyId })]);
+    // The production failure: optional fields sent as "" / null instead of omitted.
+    if ((user.includes("orcamento") || user.includes("orçamento")) && user.includes("sem validade"))
+      return reply(null, [call("criar_orcamento", { companyId: first.companyId, copiarDeOrcamentoId: "", titulo: "Correções e melhorias", resumo: "PRs 16 a 23.", taxaHoraReais: 150, entradaPercentual: 0, validoAte: null, stack: null, fases: [{ nome: "Correções e Melhorias", descricao: "", horasMin: 54, horasMax: 54, tarefas: [{ titulo: "PR 16" }, { titulo: "PR 17" }] }], observacoes: null })]);
     if (user.includes("orcamento") || user.includes("orçamento"))
       return reply(null, [call("criar_orcamento", { companyId: first.companyId, titulo: "Portal do cliente", resumo: "Área logada para acompanhar pedidos.", taxaHoraReais: 120, entradaPercentual: 40, validoAte: "2026-10-31", stack: ["Next.js", "PostgreSQL"], fases: [{ nome: "Descoberta", descricao: "Levantamento e protótipo.", horasMin: 6, horasMax: 8, tarefas: [{ titulo: "Entrevistas", descricao: "Duas sessões com o cliente." }] }, { nome: "Construção", horasMin: 20, horasMax: 26, tarefas: [{ titulo: "Login e cadastro" }, { titulo: "Lista de pedidos" }] }] })]);
   }

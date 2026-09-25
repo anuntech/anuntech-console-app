@@ -97,7 +97,8 @@ export function snapshotPage(): PageSnapshot {
       .filter(Boolean)
       .slice(0, 4);
     const card = form.closest("[data-slot=card]") ?? form;
-    forms.push({ id: form.id || `form${index + 1}`, title: clip(text(card.querySelector("h1, h2, h3")), 80), fields, buttons });
+    // form.id would return a control named "id" (edit forms carry a hidden id input); the attribute is the form's own.
+    forms.push({ id: form.getAttribute("id") || `form${index + 1}`, title: clip(text(card.querySelector("h1, h2, h3")), 80), fields, buttons });
   });
   return { path: location.pathname + location.search, title: clip(text(document.querySelector("main h1")) || document.title, 120), forms: forms.slice(0, 6) };
 }
