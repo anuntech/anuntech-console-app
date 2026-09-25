@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Building2Icon, CheckIcon, ChevronDownIcon } from "lucide-react";
 import { cn } from "cn";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { fieldButtonClass } from "@/components/console/field";
+import { useFillable } from "@/components/console/fillable";
 import { CompanyMark } from "@/components/console/company-mark";
 import { formatDocument, onlyDigits } from "@/lib/company-input";
 
@@ -75,6 +76,7 @@ export function CompanyField({
   const [invalid, setInvalid] = useState(false);
   const [selected, setSelected] = useState(defaultValue ?? "");
   const button = useRef<HTMLButtonElement>(null);
+  const hidden = useRef<HTMLInputElement>(null);
   const current = value !== undefined ? value : selected;
   const chosen = companies.find((option) => option.id === current);
   const all = allOption && current === allOption.id ? allOption : null;
@@ -85,6 +87,25 @@ export function CompanyField({
     onChange?.(next);
   };
   const searchable = companies.length > 5;
+  // The assistant fills this field by id or by (part of) the name.
+  useFillable(
+    hidden,
+    useCallback(
+      (value: string) => {
+        const wanted = fold(value);
+        const match =
+          companies.find((c) => c.id === value) ??
+          companies.find((c) => fold(c.name) === wanted) ??
+          companies.find((c) => fold(c.name).includes(wanted));
+        if (match) {
+          setSelected(match.id);
+          setInvalid(false);
+          onChange?.(match.id);
+        }
+      },
+      [companies, onChange],
+    ),
+  );
   return (
     <div className="relative">
       <Popover open={open} onOpenChange={setOpen}>
@@ -175,12 +196,15 @@ export function CompanyField({
         /* Carries the value to the form and lets the browser enforce `required`
            without its bubble: an empty submit opens the list instead. */
         <input
+          ref={hidden}
           name={name}
           value={current}
           required={required}
           disabled={disabled}
           tabIndex={-1}
           aria-hidden="true"
+          data-picker="company"
+          data-options={JSON.stringify(companies.slice(0, 40).map((c) => ({ valor: c.id, texto: c.name })))}
           onChange={() => {}}
           onInvalid={(event) => {
             event.preventDefault();

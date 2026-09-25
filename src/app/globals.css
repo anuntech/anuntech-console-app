@@ -2261,3 +2261,11 @@ select:not([multiple]):not([size]) {
 
 select option { background: var(--background); color: var(--foreground); }
 }
+
+/* A field the assistant just filled: a soft ring that fades. */
+@keyframes assistant-fill {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); }
+  100% { box-shadow: 0 0 0 12px transparent; }
+}
+.assistant-filled { animation: assistant-fill 1.6s ease-out; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { .assistant-filled { animation: none; outline: 2px solid var(--primary); outline-offset: 1px; } }

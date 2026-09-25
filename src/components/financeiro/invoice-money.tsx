@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useFillable } from "@/components/console/fillable";
 import { NumericFormat } from "react-number-format";
 import { Input } from "@/components/ui/input";
 
@@ -23,6 +24,22 @@ export function MoneyInput({
 }) {
   const [value, setValue] = useState(
     defaultCents === undefined ? "" : (defaultCents / 100).toFixed(2),
+  );
+  const hidden = useRef<HTMLInputElement>(null);
+  // The assistant fills this field with "1.234,56", "1234,56" or "1234.56".
+  useFillable(
+    hidden,
+    useCallback(
+      (raw: string) => {
+        const cleaned = raw.replace(/[^\d,.-]/g, "");
+        const normalized = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
+        const amount = Number(normalized);
+        if (!Number.isFinite(amount) || amount < 0) return;
+        setValue(amount ? amount.toFixed(2) : "");
+        onCentsChange?.(Math.round(amount * 100));
+      },
+      [onCentsChange],
+    ),
   );
   return (
     <>
@@ -51,7 +68,7 @@ export function MoneyInput({
         autoComplete="off"
         className="tabular-nums"
       />
-      <input type="hidden" name={name} value={value} />
+      <input ref={hidden} type="hidden" name={name} value={value} data-picker="money" />
     </>
   );
 }

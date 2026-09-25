@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { CalendarIcon } from "lucide-react";
 import { ptBR } from "date-fns/locale";
 import { cn } from "cn";
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { dateLabel } from "@/lib/format";
 import { fieldButtonClass } from "./field";
+import { useFillable } from "@/components/console/fillable";
 
 /** "2026-09-23" ⇄ a local Date, so the day never drifts with the time zone. */
 function parseIso(value: string) {
@@ -58,9 +59,25 @@ export function DateField({
     setInternal(next);
     onChange?.(next);
   };
+  const hidden = useRef<HTMLInputElement>(null);
+  // The assistant fills this field with AAAA-MM-DD or DD/MM/AAAA.
+  useFillable(
+    hidden,
+    useCallback(
+      (raw: string) => {
+        const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.trim());
+        const iso = br ? `${br[3]}-${br[2]}-${br[1]}` : raw.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(iso) || iso === "") {
+          setInternal(iso);
+          onChange?.(iso);
+        }
+      },
+      [onChange],
+    ),
+  );
   return (
     <div className={cn("relative w-full", className)}>
-      <input type="hidden" name={name} value={value} />
+      <input ref={hidden} type="hidden" name={name} value={value} data-picker="date" />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button

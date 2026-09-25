@@ -6,8 +6,10 @@ import { assistantDocuments, assistantSettings } from "@/db/schema";
 import { saoPauloDate } from "./dates";
 import { longDateLabel } from "./format";
 import { hasPermission } from "./permissions";
-import { runTool, toolCatalog, type ClientAction } from "./assistant-tools";
+import { destinations, runTool, screenFor, toolCatalog, writeToolNames, type ClientAction, type Destination } from "./assistant-tools";
+import { approveAction, intents, jevEnabled, routeIntent } from "./jev";
 import { modelSupportsReasoning } from "./openrouter-models";
+import { describePage, type PageSnapshot } from "./page-snapshot";
 
 export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
@@ -71,7 +73,7 @@ async function knowledge() {
   return `Documentos disponíveis (use buscar_conhecimento para ler trechos): ${docs.map((d) => d.name).join("; ")}.`;
 }
 
-export async function systemPrompt(actor: Actor, custom: string) {
+export async function systemPrompt(actor: Actor, custom: string, page?: PageSnapshot) {
   const today = saoPauloDate();
   const who = actor.admin
     ? "Quem fala com você é da equipe da Anuntech (acesso total a todas as empresas)."
@@ -103,6 +105,7 @@ export async function systemPrompt(actor: Actor, custom: string) {
     "- Antes de ações que criam ou alteram algo (abrir_chamado, responder_chamado, criar_tarefa, mover_tarefa, criar_projeto), confirme o conteúdo com a pessoa, a não ser que o pedido já esteja completo e inequívoco. Depois de executar, diga o que foi feito com o link.",
     "- Cobranças, contratos e cadastros de empresa não são criados por você: leve a pessoa à tela com abrir_tela. Nunca diga que uma fatura foi paga se a situação não disser isso.",
     "- Se a pessoa quiser falar com alguém, ou se você não conseguir ajudar, use abrir_chat_suporte e diga que a equipe responde por ali.",
+    "- Você enxerga o formulário da tela em que a pessoa está (seção 'Tela atual'). Se ela pedir para preencher, completar ou ajustar a tela, use preencher_tela com os nomes exatos dos campos e valores no formato indicado; use clicar_na_tela para acionar botões. Só envie o formulário quando ela pedir para salvar/enviar. Prefira preencher a tela quando ela já está aberta; use as ferramentas de criação quando não está.",
     "- Dúvidas sobre a Anuntech: responda com a base de conhecimento abaixo (ou buscar_conhecimento). Se não estiver lá, diga que não sabe e ofereça o chat com a equipe.",
     "- Valores em reais no formato R$ 1.234,56 e datas como 24/09/2026.",
     actor.admin
@@ -112,6 +115,7 @@ export async function systemPrompt(actor: Actor, custom: string) {
     "Base de conhecimento da Anuntech:",
     await knowledge(),
     custom.trim() ? `\nInstruções da Anuntech:\n${custom.trim()}` : "",
+    page ? `\n${describePage(page)}` : "",
   ]
     .filter((line) => line !== "")
     .join("\n");
@@ -203,15 +207,41 @@ async function complete(
  * times as it needs (bounded), every tool running with the caller's own
  * permissions. Returns the final text plus what was done along the way.
  */
-export async function converse(actor: Actor, history: ChatTurn[]): Promise<AssistantReply> {
+export async function converse(actor: Actor, history: ChatTurn[], page?: PageSnapshot): Promise<AssistantReply> {
   const config = await assistantConfig();
   const tools = toolCatalog(actor);
-  const [prompt, reasoning] = await Promise.all([systemPrompt(actor, config.prompt), modelSupportsReasoning(config.model)]);
-  const messages: Message[] = [{ role: "system", content: prompt }, ...trimHistory(history)];
+  const [prompt, reasoning] = await Promise.all([systemPrompt(actor, config.prompt, page), modelSupportsReasoning(config.model)]);
+  const turns = trimHistory(history);
+  const messages: Message[] = [{ role: "system", content: prompt }, ...turns];
   const noted = new Map<string, number>();
   const actions: ClientAction[] = [];
   const ctx = { actor, today: saoPauloDate() };
   let retried = false;
+
+  // Jev reads the intent first: the obvious cases end here, the rest reaches the model with a hint.
+  if (jevEnabled() && turns.length) {
+    const last = turns[turns.length - 1].content;
+    const previousAssistant = [...turns].reverse().find((t) => t.role === "assistant")?.content ?? null;
+    const allowed = Object.fromEntries(
+      (Object.entries(destinations) as [Destination, { label: string; staff?: boolean }][])
+        .filter(([, d]) => !d.staff || actor.admin)
+        .map(([key, d]) => [key, d.label]),
+    );
+    const route = await routeIntent({ message: last, previousAssistant, path: page?.path ?? "", formOnScreen: !!page?.forms.length, destinations: allowed });
+    if (route) {
+      if (route.intent === "humano" && route.confidence >= 0.9)
+        return { reply: "Abrindo o chat com a equipe da Anuntech. Eles respondem por ali.", steps: ["Jev: você quer falar com a equipe"], actions: [{ type: "open_support" }] };
+      if (route.intent === "navegar" && route.destination && route.destinationConfidence >= 0.9) {
+        try {
+          const screen = screenFor(actor, route.destination as Destination);
+          return { reply: `Abrindo ${screen.label}.`, steps: [`Jev: abrir ${screen.label}`], actions: [{ type: "navigate", href: screen.href }] };
+        } catch {
+          /* not allowed for this person: let the model explain */
+        }
+      }
+      messages[0].content += `\n\nLeitura rápida da intenção (Jev, ${Math.round(route.confidence * 100)}%): ${route.intent} — ${intents[route.intent]}.`;
+    }
+  }
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const turn = await complete(config.model, messages, tools, { maxTokens: retried ? 6000 : 3000, reasoning });
     if (!turn.toolCalls.length) {
@@ -226,6 +256,19 @@ export async function converse(actor: Actor, history: ChatTurn[]): Promise<Assis
     }
     messages.push({ role: "assistant", content: turn.content, tool_calls: turn.toolCalls });
     for (const call of turn.toolCalls) {
+      if (jevEnabled() && writeToolNames.has(call.function.name) && needsConsent(call.function.name, call.function.arguments)) {
+        // A second opinion before anything changes: was this exact action asked for or approved?
+        const verdict = await approveAction({ conversation: turns, tool: call.function.name, args: parseArgs(call.function.arguments) });
+        if (verdict && !verdict.approved) {
+          messages.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content: JSON.stringify({ erro: "Ação ainda não confirmada pela pessoa (checagem automática). Descreva exatamente o que vai fazer, com os dados, e peça um 'sim' antes de executar." }),
+          });
+          noted.set("Pedi confirmação antes de agir", 1);
+          continue;
+        }
+      }
       const outcome = await runTool(ctx, call.function.name, call.function.arguments);
       if ("error" in outcome) {
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ erro: outcome.error }) });
@@ -238,6 +281,20 @@ export async function converse(actor: Actor, history: ChatTurn[]): Promise<Assis
   }
   return { reply: "Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?", steps: collapse(noted), actions };
 }
+
+const parseArgs = (raw: string): unknown => {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+};
+/** Filling a form is harmless until it is submitted; everything else that writes gets checked. */
+const needsConsent = (tool: string, raw: string) => {
+  if (tool !== "preencher_tela") return true;
+  const args = parseArgs(raw) as { enviar?: boolean } | null;
+  return !!args && typeof args === "object" && args.enviar === true;
+};
 
 /** "Consultei as faturas ×7" instead of seven identical chips. */
 const collapse = (noted: Map<string, number>) => [...noted].map(([summary, n]) => (n > 1 ? `${summary} ×${n}` : summary));

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getActor } from "@/lib/access";
 import { allowRequest, AssistantError, converse, type ChatTurn } from "@/lib/assistant";
+import { pageSnapshotSchema } from "@/lib/page-snapshot";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
@@ -9,6 +10,7 @@ const body = z.object({
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(20000) }))
     .min(1)
     .max(60),
+  page: pageSnapshotSchema.optional(),
 });
 
 /** One conversational turn; the caller's own session scopes every tool. */
@@ -21,7 +23,7 @@ export async function POST(request: Request) {
   const history = parsed.data.messages as ChatTurn[];
   if (history[history.length - 1].role !== "user") return Response.json({ error: "A última mensagem precisa ser sua." }, { status: 400 });
   try {
-    const reply = await converse(actor, history);
+    const reply = await converse(actor, history, parsed.data.page);
     return Response.json(reply, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof AssistantError) return Response.json({ error: error.message }, { status: 503 });

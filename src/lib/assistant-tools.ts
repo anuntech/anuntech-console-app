@@ -29,7 +29,11 @@ import { OPEN_TICKET_STATUSES } from "./ticket-status";
 
 /* ---------- plumbing ---------- */
 
-export type ClientAction = { type: "navigate"; href: string } | { type: "open_support" };
+export type ClientAction =
+  | { type: "navigate"; href: string }
+  | { type: "open_support" }
+  | { type: "fill"; fields: { campo: string; valor: string }[]; submit: boolean }
+  | { type: "click"; text: string };
 export type ToolOutcome = { result: unknown; summary: string; actions?: ClientAction[] };
 export type ToolContext = { actor: Actor; today: string };
 
@@ -656,6 +660,30 @@ const createQuoteTool = tool({
   },
 });
 
+const fillScreen = tool({
+  name: "preencher_tela",
+  description:
+    "Preenche campos do formulário que está na tela da pessoa (veja 'Tela atual' nas instruções): use o nome exato de cada campo. Datas em AAAA-MM-DD, dinheiro como 1234,56, empresa pelo companyId ou pelo nome, selects pelo valor da opção, caixas com 'sim' ou 'não'. Só marque enviar=true se a pessoa pediu para salvar ou enviar; senão preencha e peça que confira. O painel fecha para ela ver a tela.",
+  input: z.object({
+    campos: z.array(z.object({ campo: z.string().trim().min(1).max(80), valor: z.string().max(10000) })).min(1).max(60),
+    enviar: z.boolean().default(false),
+  }),
+  write: true,
+  run: async (_ctx, { campos, enviar }) => ({
+    result: { preenchendo: campos.map((c) => c.campo), enviar, aviso: "Os valores são aplicados na tela da pessoa agora; campos com nome errado são ignorados." },
+    summary: `Preenchi ${campos.length} ${campos.length === 1 ? "campo" : "campos"} na tela`,
+    actions: [{ type: "fill", fields: campos, submit: enviar }],
+  }),
+});
+
+const clickScreen = tool({
+  name: "clicar_na_tela",
+  description: "Clica em um botão ou link visível na tela da pessoa, pelo texto dele (por exemplo 'Salvar rascunho', 'Enviar ao cliente', 'Nova cobrança'). Use depois de preencher, ou para acionar algo que ela pediu.",
+  input: z.object({ texto: z.string().trim().min(1).max(60) }),
+  write: true,
+  run: async (_ctx, { texto }) => ({ result: { clicando: texto }, summary: `Cliquei em "${texto}"`, actions: [{ type: "click", text: texto }] }),
+});
+
 const openSupport = tool({
   name: "abrir_chat_suporte",
   description: "Abre o chat com a equipe da Anuntech (pessoas de verdade) para a pessoa conversar. Use quando ela quiser falar com alguém ou quando você não conseguir resolver.",
@@ -663,7 +691,7 @@ const openSupport = tool({
   run: async () => ({ result: { aberto: true }, summary: "Abri o chat com a equipe da Anuntech", actions: [{ type: "open_support" }] }),
 });
 
-const destinations = {
+export const destinations = {
   painel: { href: "/painel", label: "Visão geral" },
   financeiro: { href: "/financeiro", label: "Financeiro" },
   chamados: { href: "/chamados", label: "Chamados" },
@@ -683,7 +711,17 @@ const destinations = {
   cadastrar_empresa: { href: "/empresas/nova", label: "Cadastrar empresa", staff: true },
   empresas: { href: "/empresas", label: "Empresas", staff: true },
 } satisfies Record<string, { href: string; label: string; staff?: boolean; area?: Area }>;
-type Destination = keyof typeof destinations;
+export type Destination = keyof typeof destinations;
+
+/** The screen a person may open, with its permission check; throws a ToolError otherwise. */
+export function screenFor(actor: Actor, destino: Destination, companyId?: string) {
+  const target = destinations[destino] as { href: string; label: string; staff?: boolean; area?: Area };
+  if (target.staff && !actor.admin) throw new ToolError("Essa tela é só da equipe da Anuntech.");
+  if (target.area && !actor.admin && !allowedIds(actor, target.area).length) throw new ToolError("Seu acesso não inclui essa tela.");
+  if (companyId && !canAccess(actor, companyId, target.area ?? "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
+  const creation = target.href.endsWith("/novo") || target.href.endsWith("/nova");
+  return { label: target.label, href: companyId && creation ? `${target.href}?companyId=${companyId}` : target.href };
+}
 
 const openScreen = tool({
   name: "abrir_tela",
@@ -691,12 +729,8 @@ const openScreen = tool({
     "Leva a pessoa a uma tela do Console (o painel fecha e a tela abre). Para criar cobranças, orçamentos, contratos, projetos ou cadastrar empresas, esta é a única forma: essas telas são preenchidas pela pessoa. Passe companyId quando a tela for de criação e a empresa já estiver definida.",
   input: z.object({ destino: z.enum(Object.keys(destinations) as [Destination, ...Destination[]]), companyId: id.optional() }),
   run: async ({ actor }, { destino, companyId }) => {
-    const target = destinations[destino] as { href: string; label: string; staff?: boolean; area?: Area };
-    if (target.staff && !actor.admin) throw new ToolError("Essa tela é só da equipe da Anuntech.");
-    if (target.area && !actor.admin && !allowedIds(actor, target.area).length) throw new ToolError("Seu acesso não inclui essa tela.");
-    if (companyId && !canAccess(actor, companyId, target.area ?? "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
-    const href = companyId && target.href.endsWith("/novo") || (companyId && target.href.endsWith("/nova")) ? `${target.href}?companyId=${companyId}` : target.href;
-    return { result: { aberta: target.label, link: href }, summary: `Abri ${target.label}`, actions: [{ type: "navigate", href }] };
+    const screen = screenFor(actor, destino, companyId);
+    return { result: { aberta: screen.label, link: screen.href }, summary: `Abri ${screen.label}`, actions: [{ type: "navigate", href: screen.href }] };
   },
 });
 
@@ -737,6 +771,8 @@ export const assistantTools: AnyTool[] = [
   listContracts,
   listQuotes,
   createQuoteTool,
+  fillScreen,
+  clickScreen,
   openSupport,
   openScreen,
   searchKnowledge,

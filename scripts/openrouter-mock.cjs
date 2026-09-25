@@ -39,7 +39,7 @@ function decide(messages) {
       })
       .join("\n");
   // Second round onwards: chain or finish.
-  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento"))
+  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela"))
     return reply(`Feito.\n\n${summarize()}`);
   if (calls.includes("listar_empresas") && tools.length) {
     const first = tools.flat()[0];
@@ -50,6 +50,10 @@ function decide(messages) {
   }
   if (tools.length) return reply(`Aqui está o que encontrei:\n\n${summarize()}`);
   // First round: pick a tool from the wording.
+  if (user.includes("preench") && user.includes("cobran"))
+    return reply(null, [call("preencher_tela", { campos: [{ campo: "companyId", valor: "Cliente QA" }, { campo: "description", valor: "Manutenção mensal — preenchido pelo assistente" }, { campo: "amount", valor: "1.500,00" }, { campo: "dueDate", valor: "15/10/2026" }], enviar: false })]);
+  if (user.includes("preench"))
+    return reply(null, [call("preencher_tela", { campos: [{ campo: "companyId", valor: "GS Comunicação" }, { campo: "subject", valor: "Preenchido pelo assistente" }, { campo: "body", valor: "Teste de preenchimento da tela pelo assistente." }], enviar: false })]);
   if (user.includes("maior cliente") || user.includes("faturamos")) return reply(null, [call("resumo_financeiro", { periodo: "tudo" })]);
   if (user.includes("orcamento") || user.includes("orçamento")) return reply(null, [call("listar_empresas", { limite: 5 })]);
   if (user.includes("boleto") || user.includes("fatura")) return reply(null, [call("listar_faturas", { situacao: "todas", limite: 3 })]);
@@ -69,11 +73,30 @@ globalThis.fetch = async function (input, init) {
     if (!file || !fs.existsSync(file)) return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
     return new Response(fs.readFileSync(file), { status: 200, headers: { "Content-Type": "application/json" } });
   }
-  if (!url.includes("openrouter.ai/api/v1/chat/completions")) return originalFetch.apply(this, arguments);
+  if (!url.includes("openrouter.ai/api/v1/chat/completions") && !url.includes("openrouter.ai/api/v1/systemone")) return originalFetch.apply(this, arguments);
   // Live mode: let the real OpenRouter answer, bypassing the OTP harness's outbound block.
   if (process.env.CONSOLE_TEST_OPENROUTER_LIVE === "1" && globalThis.__nativeFetch) {
-    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), live: true, model: JSON.parse(init.body).model }) + "\n");
+    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), live: true, url, model: JSON.parse(init.body).model }) + "\n");
     return globalThis.__nativeFetch.apply(this, arguments);
+  }
+  if (url.includes("/systemone")) {
+    // Jev stand-in: keyword intent, keyword approval.
+    const req = JSON.parse(init.body);
+    const answers = {};
+    const message = String(req.state?.mensagem ?? "").toLowerCase();
+    if (req.questions.intent) {
+      const intent = /falar|atendente|humano/.test(message) ? "humano" : /abre a tela|abrir a tela|vai para|me leva/.test(message) ? "navegar" : /preench/.test(message) ? "tela" : /crie|abra um|criar/.test(message) ? "criar" : "consultar";
+      const destino = intent !== "navegar" ? "nenhuma" : /cobran/.test(message) ? "nova_cobranca" : /or[cç]amento/.test(message) ? "novo_orcamento" : /chamado/.test(message) ? "abrir_chamado" : "painel";
+      answers.intent = { type: "choice", choice: intent, probabilities: { [intent]: 1 }, confidence: 1 };
+      answers.destino = { type: "choice", choice: destino, probabilities: { [destino]: 1 }, confidence: 1 };
+    }
+    if (req.questions.aprovado) {
+      const recent = req.state?.conversa_recente ?? [];
+      const person = [...recent].reverse().find((m) => m.de === "pessoa")?.texto?.toLowerCase() ?? "";
+      const approved = /\b(sim|aprovo|pode|fa[cç]a|crie|abra|confirmo|preencha|envie|manda)\b/.test(person);
+      answers.aprovado = { type: "noul", noul: approved ? 0.95 : 0.15 };
+    }
+    return new Response(JSON.stringify({ model: "typesafe/jev-mock", answers, usage: { cost: 0 } }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
   const body = JSON.parse(init.body);
   if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length }) + "\n");

@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useFillable } from "@/components/console/fillable";
 import { CheckIcon, ChevronDownIcon, CpuIcon, PencilLineIcon } from "lucide-react";
 import { cn } from "cn";
 import {
@@ -76,6 +77,17 @@ export function ModelField({
     setCustom(false);
     setOpen(false);
   };
+  const hidden = useRef<HTMLInputElement>(null);
+  useFillable(
+    hidden,
+    useCallback(
+      (next: string) => {
+        setValue(next);
+        setCustom(!byId.has(next));
+      },
+      [byId],
+    ),
+  );
   if (custom)
     return (
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -125,7 +137,7 @@ export function ModelField({
   );
   return (
     <>
-      <input type="hidden" name={name} value={value} />
+      <input ref={hidden} type="hidden" name={name} value={value} data-picker="model" />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button id={id} type="button" aria-haspopup="listbox" aria-expanded={open} className={cn(fieldButtonClass, "h-auto min-h-9 py-1.5")}>

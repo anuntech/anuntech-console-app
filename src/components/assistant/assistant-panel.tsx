@@ -8,14 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { MetalPromptBar } from "@/components/ui/metal-prompt-bar";
 import { openSupportWidget } from "@/components/support-trigger";
+import { toast } from "@/components/notifications";
 import { MessageMarkdown } from "./message-markdown";
+import { clickPage, fillPage, snapshotPage } from "./page-bridge";
 
 export type AssistantShortcut = { href: string; label: string };
 type Turn = { id: string; role: "user" | "assistant"; content: string; steps?: string[]; failed?: boolean };
 type Reply = {
   reply: string;
   steps: string[];
-  actions: ({ type: "navigate"; href: string } | { type: "open_support" })[];
+  actions: (
+    | { type: "navigate"; href: string }
+    | { type: "open_support" }
+    | { type: "fill"; fields: { campo: string; valor: string }[]; submit: boolean }
+    | { type: "click"; text: string }
+  )[];
 };
 
 function suggestionsFor(admin: boolean, finance: boolean, support: boolean) {
@@ -84,7 +91,7 @@ export function AssistantPanel({
       const res = await fetch("/api/assistente", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.filter((t) => !t.failed).map(({ role, content }) => ({ role, content })) }),
+        body: JSON.stringify({ messages: history.filter((t) => !t.failed).map(({ role, content }) => ({ role, content })), page: snapshotPage() }),
       });
       const data = (await res.json().catch(() => null)) as (Reply & { error?: string }) | { error: string } | null;
       if (!res.ok || !data || "error" in data && data.error) {
@@ -94,11 +101,27 @@ export function AssistantPanel({
       }
       const reply = data as Reply;
       setTurns((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: reply.reply, steps: reply.steps }]);
+      let delay = 0;
       for (const action of reply.actions) {
         if (action.type === "open_support") {
           close();
           setTimeout(openSupportWidget, 300);
         } else if (action.type === "navigate") go(action.href);
+        else if (action.type === "fill") {
+          close();
+          delay += 300;
+          setTimeout(() => {
+            const outcome = fillPage(action.fields, action.submit);
+            if (outcome.filled) toast.success(`${outcome.filled === 1 ? "1 campo preenchido" : `${outcome.filled} campos preenchidos`}${outcome.submitted ? " e enviado" : ". Confira antes de salvar"}.`);
+            if (outcome.missing.length) toast.error(`Não achei na tela: ${outcome.missing.join(", ")}.`);
+          }, delay);
+        } else if (action.type === "click") {
+          close();
+          delay += 400;
+          setTimeout(() => {
+            if (!clickPage(action.text)) toast.error(`Não achei o botão "${action.text}" na tela.`);
+          }, delay);
+        }
       }
     } catch {
       setTurns((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: "Sem conexão com o Console agora. Tente de novo em instantes.", failed: true }]);
@@ -111,6 +134,7 @@ export function AssistantPanel({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-assistant=""
         className="top-auto bottom-0 left-0 flex h-[min(720px,88svh)] w-full max-w-none sm:h-[min(720px,calc(100svh-128px))] translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-2xl rounded-b-none p-0 sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
