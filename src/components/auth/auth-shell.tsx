@@ -51,7 +51,7 @@ export function AuthShell({
     <div className="min-h-svh bg-background lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <aside
         aria-label="Anuntech"
-        className="relative hidden overflow-hidden bg-[#011e41] text-white lg:flex lg:flex-col lg:justify-between lg:p-12"
+        className="relative hidden overflow-hidden bg-[#0d1d41] text-white lg:flex lg:flex-col lg:justify-between lg:p-12"
       >
         <div
           aria-hidden="true"

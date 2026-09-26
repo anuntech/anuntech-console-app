@@ -32,9 +32,9 @@
   --settings-close: #dce3ed;
   --primary-hover: #153872;
   --background: #f5f7fb;
-  --foreground: #011e41;
+  --foreground: #0d1d41;
   --card: #fff;
-  --card-foreground: #011e41;
+  --card-foreground: #0d1d41;
   --primary: #1a428a;
   --primary-foreground: #fff;
   --secondary: #eef2f8;
@@ -59,7 +59,7 @@
   --destructive-border: #f2cdd0;
   --navy: var(--foreground);
   --blue: var(--primary);
-  --yellow: #e1e667;
+  --yellow: #e1e666;
   --muted: var(--muted-foreground);
   --bg: var(--background);
   --white: var(--card);
@@ -68,8 +68,8 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 18px;
-  --shadow-sm: 0 1px 2px #011e4105, 0 3px 12px #011e4103;
-  --shadow-popover: 0 12px 40px #011e411a, 0 2px 8px #011e410a;
+  --shadow-sm: 0 1px 2px #0d1d4105, 0 3px 12px #0d1d4103;
+  --shadow-popover: 0 12px 40px #0d1d411a, 0 2px 8px #0d1d410a;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -502,7 +502,7 @@ html:has(.console-shell) {
 .sheet-overlay {
   position: fixed;
   inset: 0;
-  background: #011e416b;
+  background: #0d1d416b;
   z-index: 100;
   transition: opacity 0.18s;
 }

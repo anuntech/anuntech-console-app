@@ -83,8 +83,8 @@
   --radius-xl: 18px;
   --radius-2xl: 22px;
 
-  --shadow-card: 0 1px 2px #011e4105, 0 3px 12px #011e4103;
-  --shadow-float: 0 12px 40px #011e411a, 0 2px 8px #011e410a;
+  --shadow-card: 0 1px 2px #0d1d4105, 0 3px 12px #0d1d4103;
+  --shadow-float: 0 12px 40px #0d1d411a, 0 2px 8px #0d1d410a;
 }
 
 @layer base {

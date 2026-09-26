@@ -18,7 +18,7 @@ const when = (date: Date) =>
   `${new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: "short", timeStyle: "short", timeZone: APP_TIME_ZONE }).format(date)} (São Paulo)`;
 const day = (date: Date) => new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: "short", timeZone: APP_TIME_ZONE }).format(date);
 
-const INK = "#10233e";
+const INK = "#0d1d41";
 const TEXT = "#202630";
 const MUTED = "#53637a";
 const LINE = "#e3e8ef";
