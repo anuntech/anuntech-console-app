@@ -82,7 +82,7 @@ export async function contractPdf(
           ? `${noun} CANCELADO`
           : "RASCUNHO — SEM VALIDADE";
   doc.font("Bold").fontSize(9).fillColor("#53637a").text(eyebrow);
-  doc.moveDown(1).fontSize(20).fillColor("#10233e").text(input.title, { width });
+  doc.moveDown(1).fontSize(20).fillColor("#0d1d41").text(input.title, { width });
   doc
     .moveDown(0.6)
     .font("Regular")
@@ -158,7 +158,7 @@ export async function contractPdf(
   if (!draft) {
     doc.addPage();
     doc.font("Bold").fontSize(9).fillColor("#53637a").text("ASSINATURAS");
-    doc.moveDown(1).fontSize(16).fillColor("#10233e").text("Registro de assinaturas eletrônicas", { width });
+    doc.moveDown(1).fontSize(16).fillColor("#0d1d41").text("Registro de assinaturas eletrônicas", { width });
     doc
       .moveDown(0.6)
       .font("Regular")
@@ -172,7 +172,7 @@ export async function contractPdf(
       );
     for (const party of ["client", "anuntech"] as const) {
       const line = input.signatures.find((s) => s.party === party);
-      doc.moveDown(1.4).font("Bold").fontSize(11).fillColor("#10233e").text(
+      doc.moveDown(1.4).font("Bold").fontSize(11).fillColor("#0d1d41").text(
         party === "client" ? `Contratante — ${input.companyName}` : "Contratada — Anuntech",
         { width },
       );
