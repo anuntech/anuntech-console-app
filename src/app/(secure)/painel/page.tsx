@@ -143,7 +143,13 @@ export default async function Dashboard() {
       .select({ n: count(), oldest: sql<Date | null>`min(${tickets.updatedAt})` })
       .from(tickets)
       .where(eq(tickets.status, "open")),
-    db.select({ n: count() }).from(invoices).where(eq(invoices.status, "draft")),
+    // Same split as the Financeiro list: a draft of an active recurrence is "Agendada",
+    // issued by the recurrence itself; only the other drafts wait for someone.
+    db
+      .select({ n: count() })
+      .from(invoices)
+      .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
+      .where(and(eq(invoices.status, "draft"), sql`${subscriptions.status} is distinct from 'active'`)),
     db.select({ n: count() }).from(quotes).where(and(eq(quotes.status, "sent"), sql`(${quotes.validUntil} is null or ${quotes.validUntil} >= ${today})`)),
     db.select({ n: count() }).from(contracts).where(eq(contracts.status, "sent")),
     db
