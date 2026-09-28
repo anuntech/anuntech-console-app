@@ -13,7 +13,7 @@ import {
 import { getActor, canAccess } from "@/lib/access/access";
 import { addressLabel } from "@/lib/companies/company-billing";
 import { saoPauloDate } from "@/lib/dates";
-import { canDeleteDraftInvoice } from "@/lib/deletion-rules";
+import { canDeleteInvoice, closedAtBank, recurrenceAllowsDelete } from "@/lib/deletion-rules";
 import { interBase } from "@/lib/integrations/integrations";
 import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
 import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
@@ -152,8 +152,9 @@ export default async function Invoice({
               : i.status === "issued"
                 ? "issued"
                 : null,
-          // A recurrence that already ran would bill the period again; the action refuses it too.
-          deletable: actor.admin && (!sub || sub.status === "draft") && canDeleteDraftInvoice(i),
+          // A recurrence must not bill the period again; the action refuses it too.
+          deletable: actor.admin && canDeleteInvoice(i) && recurrenceAllowsDelete(i, sub),
+          bankClosed: closedAtBank(i),
           terms: {
             discountCents: i.discountCents,
             fineBps: i.fineBps,

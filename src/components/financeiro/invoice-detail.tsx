@@ -98,6 +98,7 @@ export type InvoiceDetailData = {
     editable: "draft" | "issued" | null;
     /** Staff only: a draft (or cancelled draft) that never reached the Inter. */
     deletable?: boolean;
+    bankClosed?: boolean;
     terms: ChargeTerms;
   };
   company: {

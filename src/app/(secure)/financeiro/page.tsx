@@ -16,7 +16,7 @@ import { getActor, allowedIds } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { paymentUrl } from "@/lib/billing/payment-link";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
-import { canDeleteDraftInvoice } from "@/lib/deletion-rules";
+import { canDeleteInvoice, closedAtBank, recurrenceAllowsDelete } from "@/lib/deletion-rules";
 import {
   invoiceListHref,
   invoicePeriodRange,
@@ -127,6 +127,7 @@ export default async function Finance({
         publicEnabled: invoices.publicEnabled,
         subscriptionId: invoices.subscriptionId,
         subscriptionStatus: subscriptions.status,
+        subscriptionNextDueDate: subscriptions.nextDueDate,
         interval: subscriptions.interval,
         bankRequested: sql<boolean>`(${invoices.bankRequest} is not null)`,
         // What proves the invoice never reached the Inter, for "Excluir".
@@ -265,11 +266,17 @@ export default async function Finance({
                 ? "issued"
                 : null,
           cancellable: row.status === "draft" && !row.bankRequested,
-          // A recurrence that already ran would bill the period again; the action refuses it too.
+          // A recurrence must not bill the period again; the action refuses it too.
           deletable:
             actor.admin &&
-            (!row.subscriptionId || row.subscriptionStatus === "draft") &&
-            canDeleteDraftInvoice({ ...row, bankRequest: row.bankRequested }),
+            canDeleteInvoice({ ...row, bankRequest: row.bankRequested }) &&
+            recurrenceAllowsDelete(
+              row,
+              row.subscriptionStatus && row.subscriptionNextDueDate
+                ? { status: row.subscriptionStatus, nextDueDate: row.subscriptionNextDueDate }
+                : null,
+            ),
+          bankClosed: closedAtBank(row),
         }))}
         query={{ ...query, page }}
         total={total}

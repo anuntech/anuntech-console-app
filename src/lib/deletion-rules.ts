@@ -19,7 +19,22 @@ export function canDeleteTicket(status: string) {
 /* ---------- faturas ---------- */
 
 export const INVOICE_DELETE_REFUSAL =
-  "Só faturas em rascunho que nunca foram enviadas ao Inter podem ser excluídas.";
+  "Só podem ser excluídos rascunhos que nunca foram ao Inter e cobranças que o Inter já cancelou.";
+
+/** The Inter's final answers for a charge nobody can pay anymore. */
+export const BANK_CLOSED_STATUSES = ["CANCELADO", "EXPIRADO", "FALHA_EMISSAO"];
+
+/**
+ * A charge the Inter itself closed (cancelled, expired or never issued), as
+ * the reconciliation recorded it. Nothing is left to pay or to reconcile.
+ */
+export function closedAtBank(invoice: { status: string; bankStatus: unknown }) {
+  return (
+    invoice.status === "cancelled" &&
+    typeof invoice.bankStatus === "string" &&
+    BANK_CLOSED_STATUSES.includes(invoice.bankStatus)
+  );
+}
 
 /**
  * Every column that proves an invoice reached the Inter (or came back from
@@ -62,7 +77,10 @@ export const INVOICE_BANK_EVENTS = [
 
 /** The reason an invoice cannot be deleted, or null when it can. */
 export function invoiceDeletionBlock(invoice: InvoiceDeletionInput): string | null {
-  // "cancelled" here can only be a cancelled draft: the fields below rule out a charge cancelled at the bank.
+  // A nota fiscal is a legal record: its invoice stays, whatever happened at the bank.
+  if (invoice.fiscalStatus !== "not_requested" || present(invoice.fiscalUrl)) return INVOICE_DELETE_REFUSAL;
+  if (closedAtBank(invoice)) return null;
+  // Past this point "cancelled" is a cancelled draft: any trace below means the charge reached the bank.
   if (invoice.status !== "draft" && invoice.status !== "cancelled") return INVOICE_DELETE_REFUSAL;
   const traces = [
     invoice.bankRequest,
@@ -77,15 +95,35 @@ export function invoiceDeletionBlock(invoice: InvoiceDeletionInput): string | nu
     invoice.publicId,
     invoice.fiscalUrl,
   ];
-  if (traces.some((value) => value !== null && value !== undefined && value !== false))
-    return INVOICE_DELETE_REFUSAL;
-  if (invoice.fiscalStatus !== "not_requested") return INVOICE_DELETE_REFUSAL;
+  if (traces.some(present)) return INVOICE_DELETE_REFUSAL;
   return null;
 }
 
-/** A draft (or a cancelled draft) that never reached the bank nor asked for a nota fiscal. */
-export function canDeleteDraftInvoice(invoice: InvoiceDeletionInput) {
+const present = (value: unknown) => value !== null && value !== undefined && value !== false;
+
+/**
+ * A draft (or cancelled draft) that never reached the bank, or a charge the
+ * Inter closed; neither with a nota fiscal.
+ */
+export function canDeleteInvoice(invoice: InvoiceDeletionInput) {
   return invoiceDeletionBlock(invoice) === null;
+}
+
+/**
+ * Whether removing an invoice leaves its recurrence billing the right
+ * periods. The cron bills `nextDueDate` only. A draft goes with a recurrence
+ * never activated (the action takes the recurrence along). A charge closed
+ * at the bank goes once the recurrence moved past its due date, or ended;
+ * otherwise the cron would bill that period again.
+ */
+export function recurrenceAllowsDelete(
+  invoice: { status: string; bankStatus: unknown; dueDate: string },
+  recurrence: { status: string; nextDueDate: string } | null | undefined,
+) {
+  if (!recurrence) return true;
+  if (closedAtBank(invoice))
+    return recurrence.status === "cancelled" || invoice.dueDate < recurrence.nextDueDate;
+  return recurrence.status === "draft";
 }
 
 /* ---------- documents: quotes and contracts ---------- */

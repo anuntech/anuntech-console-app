@@ -1325,6 +1325,70 @@ try {
       ).rows[0].status === "cancelled",
       "Administrador cancela somente rascunho",
     );
+    // A charge the Inter itself cancelled, as the reconciliation records it.
+    const closedCharge = async (values = {}) => {
+      const id = randomUUID();
+      await database.query(
+        "insert into console_invoices(id,company_id,subscription_id,status,description,amount_cents,due_date,provider_id,bank_request,bank_base,bank_status,public_id) values($1,$2,$3,'cancelled',$4,12345,$5,$6,$7,$8,'CANCELADO',$9)",
+        [
+          id,
+          ids.a,
+          values.subscriptionId ?? null,
+          `Closed at bank ${marker}`,
+          values.dueDate ?? "2026-08-10",
+          randomUUID(),
+          JSON.stringify({ seuNumero: id.slice(0, 15) }),
+          "https://cdpj.partners.bancointer.com.br",
+          randomUUID().replaceAll("-", ""),
+        ],
+      );
+      await database.query(
+        "insert into console_audit_events(id,actor_id,company_id,action,entity_id) values($1,$2,$3,'invoice.bank_accepted',$4)",
+        [randomUUID(), people.admin.id, ids.a, id],
+      );
+      return id;
+    };
+    const invoiceExists = async (id) =>
+      (await database.query("select id from console_invoices where id=$1", [id]))
+        .rowCount === 1;
+    const closedId = await closedCharge();
+    await submitForm(`/financeiro/${closedId}`, "admin", "manager", { action: "deleteDraftInvoice" }, { id: closedId });
+    ok(await invoiceExists(closedId), "Cliente não exclui fatura cancelada no Inter");
+    await submitForm(`/financeiro/${closedId}`, "admin", "admin", { action: "deleteDraftInvoice" }, { id: closedId });
+    const deletedAudit = (
+      await database.query(
+        "select details from console_audit_events where entity_id=$1 and action='invoice.deleted'",
+        [closedId],
+      )
+    ).rows[0];
+    ok(
+      !(await invoiceExists(closedId)) &&
+        deletedAudit?.details.bankStatus === "CANCELADO" &&
+        !!deletedAudit.details.providerId,
+      "Equipe exclui fatura que o Inter cancelou e a atividade guarda o registro",
+    );
+    await submitForm(`/financeiro/${ids.draft}`, "admin", "admin", { action: "deleteDraftInvoice" }, { id: ids.draft });
+    ok(await invoiceExists(ids.draft), "Fatura paga nunca é excluída");
+    const periodSub = randomUUID();
+    await database.query(
+      "insert into console_subscriptions(id,company_id,description,amount_cents,interval,anchor_day,anchor_month,next_due_date,status,actor_id) values($1,$2,$3,12345,'monthly',10,8,'2026-08-10','paused',$4)",
+      [periodSub, ids.a, `Closed period ${marker}`, people.admin.id],
+    );
+    const pendingPeriod = await closedCharge({ subscriptionId: periodSub });
+    await submitForm(`/financeiro/${pendingPeriod}`, "admin", "admin", { action: "deleteDraftInvoice" }, { id: pendingPeriod });
+    ok(
+      await invoiceExists(pendingPeriod),
+      "Fatura cancelada no Inter fica enquanto a recorrência ainda vai cobrar aquele vencimento",
+    );
+    await database.query("update console_subscriptions set next_due_date='2026-09-10' where id=$1", [periodSub]);
+    await submitForm(`/financeiro/${pendingPeriod}`, "admin", "admin", { action: "deleteDraftInvoice" }, { id: pendingPeriod });
+    ok(
+      !(await invoiceExists(pendingPeriod)) &&
+        (await database.query("select id from console_subscriptions where id=$1", [periodSub])).rowCount === 1,
+      "Período já passado sai sem levar a recorrência junto",
+    );
+    // The billing suite counts every recurrence; this fixture must not linger.
+    await database.query("delete from console_subscriptions where id=$1", [periodSub]);
     await database.query(
       "update console_memberships set active=false where email=$1",
       [people.support.email],

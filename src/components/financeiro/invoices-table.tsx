@@ -88,6 +88,8 @@ export type InvoiceRow = {
   cancellable: boolean;
   /** Staff only: a draft (or cancelled draft) that never reached the Inter. */
   deletable?: boolean;
+  /** Cancelled by the Inter itself: deleting removes a charge that did exist. */
+  bankClosed?: boolean;
   terms: ChargeTerms;
 };
 
@@ -100,9 +102,10 @@ export const billingTypeLabel = (
     : "Cobrança única";
 
 /**
- * Deleting a draft that never reached the bank, for good. Nothing is sent to
- * the Inter or to anyone. From the list it stays on the list (filters and
- * page); from the invoice it goes back to the list.
+ * Deleting an invoice for good: a draft that never reached the bank, or a
+ * charge the Inter already cancelled. Nothing is sent to the Inter or to
+ * anyone. From the list it stays on the list (filters and page); from the
+ * invoice it goes back to the list.
  */
 export function DeleteInvoiceDialog({
   invoice,
@@ -112,7 +115,7 @@ export function DeleteInvoiceDialog({
   onOpenChange,
   fromList = false,
 }: {
-  invoice: { id: string; amountCents: number; dueDate: string };
+  invoice: { id: string; amountCents: number; dueDate: string; bankClosed?: boolean };
   company: string;
   recurring: boolean;
   open: boolean;
@@ -125,13 +128,20 @@ export function DeleteInvoiceDialog({
       onOpenChange={onOpenChange}
       action={deleteDraftInvoice}
       fields={fromList ? { id: invoice.id, from: "list" } : { id: invoice.id }}
-      title="Excluir rascunho de fatura?"
-      description={[
-        `O rascunho de ${currency(invoice.amountCents)} para ${company}, com vencimento em ${dateLabel(invoice.dueDate)}, será apagado. Nada foi enviado ao Inter.`,
-        recurring &&
-          "Se a recorrência ainda não foi ativada, ela sai junto; se já rodou, a exclusão é recusada (pause ou cancele a recorrência).",
-        "Isso não pode ser desfeito.",
-      ]
+      title={invoice.bankClosed ? "Excluir fatura cancelada?" : "Excluir rascunho de fatura?"}
+      description={(invoice.bankClosed
+        ? [
+            `A cobrança de ${currency(invoice.amountCents)} para ${company}, com vencimento em ${dateLabel(invoice.dueDate)}, já foi cancelada no Inter e sai do Console junto com os avisos enviados. O registro da exclusão fica na atividade.`,
+            recurring && "A recorrência continua como está.",
+            "Isso não pode ser desfeito.",
+          ]
+        : [
+            `O rascunho de ${currency(invoice.amountCents)} para ${company}, com vencimento em ${dateLabel(invoice.dueDate)}, será apagado. Nada foi enviado ao Inter.`,
+            recurring &&
+              "Se a recorrência ainda não foi ativada, ela sai junto; se já rodou, a exclusão é recusada (pause ou cancele a recorrência).",
+            "Isso não pode ser desfeito.",
+          ]
+      )
         .filter(Boolean)
         .join(" ")}
       confirmLabel="Excluir"

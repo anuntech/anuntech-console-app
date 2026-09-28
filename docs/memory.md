@@ -30,6 +30,7 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 - **Dois papéis por empresa** (21/09): "Atendimento" e "Financeiro" viraram "Membro"; só o Administrador vê dinheiro, contratos e orçamentos. A migração 0016 converteu os dados.
 - **Um ambiente por conta.** A mesma pessoa não pode ser da equipe e de um cliente, nem de dois clientes, contando os e-mails verificados.
 - **Contratos são assinados no Console** (24/09), com hash do texto de cada versão. Substituiu "publicar para o cliente".
+- **Exclusão de faturas** (28/09): além dos rascunhos que nunca foram ao Inter, a equipe exclui cobranças que o próprio Inter encerrou (`CANCELADO`, `EXPIRADO`, `FALHA_EMISSAO`, já aplicados pela conciliação). Paga ou com nota fiscal, nunca.
 - **Nota fiscal fica para depois.** A preferência por empresa existe; a emissão depende dos parâmetros fiscais da contabilidade.
 - **Datas:** o calendário próprio (`DateField`, react-day-picker) voltou no redesenho de 23/09 e substituiu o `<input type="date">` nativo de 20/09. Seleções simples continuam com `<select>` nativo (`NativeSelect`).
 - **Visual:** shadcn e shadcn.io como base, com a marca Anuntech. O CSS antigo continua numa camada própria até cada tela ser refeita.

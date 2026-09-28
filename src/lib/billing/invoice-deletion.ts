@@ -9,23 +9,31 @@ import { db } from "../db";
 import {
   INVOICE_BANK_EVENTS,
   INVOICE_DELETE_REFUSAL,
+  closedAtBank,
   invoiceDeletionBlock,
+  recurrenceAllowsDelete,
 } from "../deletion-rules";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
 
 /**
- * Deletes for good an invoice that never reached the Inter: a draft, or a
- * draft that was cancelled. Nothing is sent to the bank or to anyone. Its
- * billing notices go with it. A draft of a recurrence that was never
- * activated takes that recurrence along (it has nothing else); a draft of a
- * recurrence that already ran is refused: the cron would bill that period
- * again once the recurrence resumes, so pause or cancel it instead.
- * Staff only; the audit event keeps the description, amount, due date and
- * company so the log still reads after the row is gone. With `from=list` the
- * list stays where it is (filters and page) and refreshes; otherwise the
- * answer carries `href` back to the list.
+ * Deletes an invoice for good. Two kinds qualify: one that never reached the
+ * Inter (a draft, or a cancelled draft), and a charge the Inter itself
+ * closed (cancelled, expired or never issued, as the reconciliation
+ * recorded it), so nothing is left to pay. Nothing is sent to the bank or to
+ * anyone. Its billing notices go with it.
+ *
+ * Recurrences: a draft of a recurrence that was never activated takes that
+ * recurrence along (it has nothing else); a draft of a recurrence that
+ * already ran is refused, since the cron would bill that period again. A
+ * closed charge goes only once its recurrence moved past its due date, and
+ * never takes the recurrence along.
+ *
+ * Staff only; the audit event keeps the description, amount, due date,
+ * company and the bank's identifiers so the log still reads after the row is
+ * gone. With `from=list` the list stays where it is (filters and page) and
+ * refreshes; otherwise the answer carries `href` back to the list.
  */
 export async function deleteDraftInvoice(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
@@ -44,6 +52,7 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
       if (!invoice) throw new Refusal("Fatura não encontrada.");
       const block = invoiceDeletionBlock(invoice);
       if (block) throw new Refusal(block);
+      const closed = closedAtBank(invoice);
       // A reissue clears the bank columns; the history still says it was there.
       const [{ bankEvents }] = await tx
         .select({ bankEvents: count() })
@@ -54,15 +63,24 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
             inArray(auditEvents.action, INVOICE_BANK_EVENTS),
           ),
         );
-      if (bankEvents > 0) throw new Refusal(INVOICE_DELETE_REFUSAL);
+      if (bankEvents > 0 && !closed) throw new Refusal(INVOICE_DELETE_REFUSAL);
       let recurrence: string | null = null;
       if (invoice.subscriptionId) {
         const [sub] = await tx
-          .select({ id: subscriptions.id, status: subscriptions.status })
+          .select({
+            id: subscriptions.id,
+            status: subscriptions.status,
+            nextDueDate: subscriptions.nextDueDate,
+          })
           .from(subscriptions)
           .where(eq(subscriptions.id, invoice.subscriptionId))
           .for("update");
-        if (sub) {
+        if (sub && closed) {
+          if (!recurrenceAllowsDelete(invoice, sub))
+            throw new Refusal(
+              "A recorrência ainda vai cobrar este vencimento. Excluir a fatura faria o período ser cobrado de novo; ajuste o próximo vencimento ou cancele a recorrência antes.",
+            );
+        } else if (sub) {
           const [{ others }] = await tx
             .select({ others: count() })
             .from(invoices)
@@ -96,6 +114,8 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
           amountCents: invoice.amountCents,
           dueDate: invoice.dueDate,
           status: invoice.status,
+          bankStatus: invoice.bankStatus,
+          providerId: invoice.providerId,
           subscriptionId: invoice.subscriptionId,
           recurrenceDeleted: !!recurrence,
           engagementId: invoice.engagementId,
@@ -103,7 +123,7 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
       });
       return invoice;
     });
-    const success = "Rascunho de fatura excluído.";
+    const success = closedAtBank(deleted) ? "Fatura cancelada excluída." : "Rascunho de fatura excluído.";
     // Any revalidation re-renders the page that called the action. From the
     // invoice itself that page is gone (404) and would unmount the dialog
     // before it navigates; the list is dynamic, so going there loads it fresh.

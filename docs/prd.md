@@ -78,6 +78,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Só o Inter confirma pagamento (situação `RECEBIDO`), por consulta manual ou pela conciliação a cada 5 minutos. O navegador nunca confirma pagamento.
 - Editar uma cobrança emitida (valor, vencimento ou condições) cancela o boleto e o Pix atuais e emite novos; o link continua o mesmo.
 - Financeiro → Envios mostra cada aviso: aceito pelo provedor, entregue, falhou ou incerto, com reenvio manual.
+- A equipe pode excluir de vez um rascunho que nunca foi ao Inter e uma cobrança que o próprio Inter cancelou (cancelada, expirada ou com falha de emissão). Fatura paga ou com nota fiscal nunca é excluída, e a exclusão não deixa uma recorrência cobrar o mesmo período de novo. A atividade guarda o registro.
 
 ### Contratos
 
