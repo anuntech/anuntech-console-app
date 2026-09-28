@@ -31,7 +31,7 @@ A base visual, os componentes e os padrões de tela do Console. Toda tela nova o
 | Token | Claro | Escuro | Uso |
 | --- | --- | --- | --- |
 | `--background` | `#f5f7fb` | `#101722` | Fundo da aplicação |
-| `--foreground` | `#011e41` | `#e7edf7` | Texto principal (azul-marinho da marca) |
+| `--foreground` | `#0d1d41` | `#e7edf7` | Texto principal (azul-marinho do logotipo) |
 | `--card` | `#ffffff` | `#182231` | Superfícies |
 | `--primary` | `#1a428a` | `#9ebfff` | Ação principal, links, foco de marca |
 | `--secondary` | `#eef2f8` | `#222f42` | Fundos neutros (`muted` aponta aqui) |
@@ -40,11 +40,11 @@ A base visual, os componentes e os padrões de tela do Console. Toda tela nova o
 | `--border` | `#e0e6ef` | `#364458` | Divisores e bordas de superfície |
 | `--field-background` / `--field-border` | `#f0f3f8` / `#d5dce7` | `#202c3d` / `#41516a` | Campos (`bg-field`, `border-input`) |
 | `--ring` | `#557ac0` | `#a6c4ff` | Foco |
-| `--yellow` | `#e1e667` | | Amarelo da marca, só em destaque |
+| `--yellow` | `#e1e666` | | Amarelo do logotipo, só em destaque |
 
 Estados, sempre com texto além da cor: `success`, `warning` e `destructive`, cada um com `-soft` (fundo) e `-edge` (borda). Ex.: `bg-warning-soft border-warning-edge text-warning`.
 
-O azul-marinho e o amarelo estão sendo alinhados às tintas do logotipo (`#0d1d41` e `#e1e666`) no PR anuntech/anuntech-console#1. O tema escuro não muda.
+O azul-marinho e o amarelo são as tintas do logotipo, as mesmas do `anuntech/design-system`. Sombras usam o azul-marinho com transparência. O tema escuro tem valores próprios e não segue essas duas tintas.
 
 ### Forma e profundidade
 
