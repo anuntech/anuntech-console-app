@@ -93,6 +93,10 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_task_comments.task_id": "not null",
     "console_attachments.task_id": "null",
   });
+  // Its files go with it (deleted before it, like every task file).
+  assert.deepEqual(pointingAt(schema.taskComments), {
+    "console_attachments.comment_id": "null",
+  });
   assert.deepEqual(pointingAt(schema.tickets), {
     "console_messages.ticket_id": "not null",
     "console_attachments.ticket_id": "null",
@@ -110,7 +114,6 @@ test("the children deleted with a company or its work are all accounted for", ()
     schema.messages,
     schema.attachments,
     schema.taskAssignees,
-    schema.taskComments,
     schema.ticketNotices,
     schema.emailDeliveries,
     schema.bookmarks,

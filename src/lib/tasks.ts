@@ -120,7 +120,7 @@ export async function taskSummary(engagementIds: string[]) {
 
 export type TaskFile = { id: string; name: string; size: number; mime: string; authorId: string };
 export type TaskPerson = { id: string; name: string; image: string | null };
-export type TaskComment = { id: string; body: string; createdAt: Date; author: TaskPerson };
+export type TaskComment = { id: string; body: string; createdAt: Date; author: TaskPerson; files: TaskFile[] };
 
 /** The board's cards, in column order, each with its files and comments. */
 export async function boardTasks(engagementId: string) {
@@ -170,15 +170,18 @@ export async function boardTasks(engagementId: string) {
           size: attachments.size,
           mime: attachments.mime,
           authorId: attachments.authorId,
+          commentId: attachments.commentId,
         })
         .from(attachments)
         .where(inArray(attachments.taskId, ids))
         .orderBy(asc(attachments.createdAt))
     : [];
+  // A comment's files show on the comment; the task's own files in its form.
   const byTask = new Map<string, TaskFile[]>();
-  for (const { taskId, ...file } of files) {
-    if (!taskId) continue;
-    byTask.set(taskId, [...(byTask.get(taskId) ?? []), file]);
+  const byComment = new Map<string, TaskFile[]>();
+  for (const { taskId, commentId, ...file } of files) {
+    if (commentId) byComment.set(commentId, [...(byComment.get(commentId) ?? []), file]);
+    else if (taskId) byTask.set(taskId, [...(byTask.get(taskId) ?? []), file]);
   }
   const said = rows.length
     ? await db
@@ -200,7 +203,7 @@ export async function boardTasks(engagementId: string) {
   for (const c of said)
     commentsByTask.set(c.taskId, [
       ...(commentsByTask.get(c.taskId) ?? []),
-      { id: c.id, body: c.body, createdAt: c.createdAt, author: { id: c.authorId, name: c.authorName, image: c.authorImage } },
+      { id: c.id, body: c.body, createdAt: c.createdAt, author: { id: c.authorId, name: c.authorName, image: c.authorImage }, files: byComment.get(c.id) ?? [] },
     ]);
   return rows.map((row) => ({
     ...row,

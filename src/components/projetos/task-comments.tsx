@@ -6,6 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { EmptyState } from "@/components/console/page-header";
 import { PersonAvatar, type PersonLike } from "@/components/console/person-avatar";
+import { AttachmentField } from "@/components/console/attachment-field";
+import { FileChip, FileChips } from "@/components/console/file-chip";
+import { useStagedUploads } from "@/components/console/staged-uploads";
+import { toast } from "@/components/notifications";
 import { addTaskComment, deleteTaskComment } from "@/lib/task-actions";
 import { relativeLabel } from "@/lib/format";
 
@@ -14,11 +18,13 @@ export type BoardComment = {
   body: string;
   createdAt: string;
   author: PersonLike & { id: string };
+  files: { id: string; name: string; size: number; mime: string }[];
 };
 
 /**
- * A task's conversation, oldest first, with the composer pinned below.
- * Whoever wrote a comment, or the team, can take it back.
+ * A task's conversation, oldest first, with the composer pinned below: text,
+ * files or both. Whoever wrote a comment, or the team, can take it back
+ * (its files go with it).
  */
 export function TaskComments({
   taskId,
@@ -33,6 +39,7 @@ export function TaskComments({
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
+  const uploads = useStagedUploads();
   // Newest at the bottom, like a conversation: land there, and follow new ones.
   useEffect(() => {
     list.current?.scrollTo({ top: list.current.scrollHeight });
@@ -72,9 +79,20 @@ export function TaskComments({
                         </Button>
                       )}
                     </div>
-                    <p className="m-0 mt-1 text-sm leading-6 break-words whitespace-pre-wrap text-foreground">
-                      {comment.body}
-                    </p>
+                    {comment.body && (
+                      <p className="m-0 mt-1 text-sm leading-6 break-words whitespace-pre-wrap text-foreground">
+                        {comment.body}
+                      </p>
+                    )}
+                    {comment.files.length > 0 && (
+                      <FileChips className="mt-2">
+                        {comment.files.map((file) => (
+                          <li key={file.id}>
+                            <FileChip file={file} href={`/api/anexos/${file.id}`} />
+                          </li>
+                        ))}
+                      </FileChips>
+                    )}
                   </div>
                 </li>
               );
@@ -89,12 +107,26 @@ export function TaskComments({
           />
         )}
       </div>
-      <ServerForm action={addTaskComment} reset quiet className="block border-t px-6 py-4">
+      <ServerForm
+        action={addTaskComment}
+        prepare={uploads}
+        reset
+        quiet
+        className="block border-t px-6 py-4"
+        onSubmit={(event) => {
+          const form = event.currentTarget;
+          const body = (form.elements.namedItem("body") as HTMLTextAreaElement).value.trim();
+          const files = (form.elements.namedItem("files") as HTMLInputElement | null)?.files?.length;
+          if (!body && !files) {
+            event.preventDefault();
+            toast.error("Escreva o comentário ou anexe um arquivo.");
+          }
+        }}
+      >
         <input type="hidden" name="taskId" value={taskId} />
         <FormError className="mb-3" />
         <Textarea
           name="body"
-          required
           maxLength={5000}
           rows={3}
           aria-label="Comentário"
@@ -108,7 +140,8 @@ export function TaskComments({
             }
           }}
         />
-        <div className="mt-3 flex justify-end">
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+          <AttachmentField variant="compact" className="flex-1" />
           <SubmitButton pendingLabel="Publicando…">Comentar</SubmitButton>
         </div>
       </ServerForm>

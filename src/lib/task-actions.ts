@@ -235,7 +235,7 @@ export async function updateTask(
         const [total] = await tx
           .select({ n: sql<number>`count(*)::int` })
           .from(attachments)
-          .where(eq(attachments.taskId, input.id));
+          .where(and(eq(attachments.taskId, input.id), isNull(attachments.commentId)));
         if (total.n - removing.length + files.length > MAX_FILES_PER_TASK)
           return { error: `Limite de ${MAX_FILES_PER_TASK} anexos por tarefa atingido.` };
         await tx.insert(attachments).values(
@@ -442,14 +442,10 @@ export async function deleteTask(
 
 const commentInput = z.object({
   taskId: id,
-  body: z
-    .string()
-    .trim()
-    .min(1, "Escreva o comentário.")
-    .max(5000, "O comentário excede o tamanho permitido."),
+  body: z.string().trim().max(5000, "O comentário excede o tamanho permitido."),
 });
 
-/** A comment on a task, by anyone who can open its board. */
+/** A comment on a task, by anyone who can open its board: text, files or both. */
 export async function addTaskComment(
   _: ActionState,
   form: FormData,
@@ -464,21 +460,42 @@ export async function addTaskComment(
     const context = await projectFor(task.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
-    await db.transaction(async (tx) => {
+    let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
+    try {
+      direct = await prepareTicketFiles(form.getAll("files"));
+    } catch (error) {
+      return { error: message(error, "Anexos inválidos.") };
+    }
+    const result = await db.transaction(async (tx): Promise<ActionState> => {
+      let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
+      try {
+        uploaded = await takeTicketUploads(tx, actor.user.id, form);
+      } catch (error) {
+        return { error: message(error, "Anexos inválidos.") };
+      }
+      const files = [...direct, ...uploaded];
+      if (!input.body && !files.length) return { error: "Escreva o comentário ou anexe um arquivo." };
+      if (files.length > MAX_FILES_AT_ONCE)
+        return { error: `Selecione até ${MAX_FILES_AT_ONCE} anexos por vez.` };
       const [comment] = await tx
         .insert(taskComments)
         .values({ taskId: task.id, authorId: actor.user.id, body: input.body })
         .returning({ id: taskComments.id });
+      if (files.length)
+        await tx.insert(attachments).values(
+          files.map((file) => ({ ...file, taskId: task.id, commentId: comment.id, authorId: actor.user.id })),
+        );
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: project.companyId,
         action: "task.commented",
         entityId: task.id,
-        details: { engagementId: project.id, title: task.title, commentId: comment.id },
+        details: { engagementId: project.id, title: task.title, commentId: comment.id, files: files.length },
       });
+      return { success: "Comentário publicado." };
     });
-    refresh(project.id);
-    return { success: "Comentário publicado." };
+    if (result.success) refresh(project.id);
+    return result;
   } catch (error) {
     return failure(error);
   }
@@ -503,6 +520,7 @@ export async function deleteTaskComment(
     if (!actor.admin && comment.authorId !== actor.user.id)
       return { error: "Só quem escreveu o comentário ou a equipe pode excluí-lo." };
     await db.transaction(async (tx) => {
+      await tx.delete(attachments).where(eq(attachments.commentId, comment.id));
       await tx.delete(taskComments).where(eq(taskComments.id, comment.id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,

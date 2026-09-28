@@ -599,6 +599,8 @@ export const attachments = pgTable(
     /** Exactly one of ticketId / taskId is set. */
     ticketId: text("ticket_id").references(() => tickets.id),
     taskId: text("task_id").references(() => tasks.id),
+    /** A file sent with a task comment; taskId is set too, so access follows the task. */
+    commentId: text("comment_id").references(() => taskComments.id),
     authorId: text("author_id")
       .notNull()
       .references(() => user.id),
@@ -611,6 +613,7 @@ export const attachments = pgTable(
   (t) => [
     index("console_attachment_ticket_idx").on(t.ticketId),
     index("console_attachment_task_idx").on(t.taskId),
+    index("console_attachment_comment_idx").on(t.commentId),
   ],
 );
 export const subscriptions = pgTable("console_subscriptions", {

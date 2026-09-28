@@ -141,7 +141,7 @@ const readTask = tool({
     const t = await taskWithAccess(actor, tarefaId);
     const [people, files, said] = await Promise.all([
       db.select({ name: user.name, email: user.email }).from(taskAssignees).innerJoin(user, eq(user.id, taskAssignees.userId)).where(eq(taskAssignees.taskId, t.id)),
-      db.select({ name: attachments.name, size: attachments.size }).from(attachments).where(eq(attachments.taskId, t.id)),
+      db.select({ name: attachments.name, commentId: attachments.commentId }).from(attachments).where(eq(attachments.taskId, t.id)),
       db
         .select({ id: taskComments.id, body: taskComments.body, createdAt: taskComments.createdAt, authorId: user.id, name: user.name, email: user.email })
         .from(taskComments)
@@ -162,13 +162,14 @@ const readTask = tool({
         estimativa: t.estimateMinutes ? estimateLabel(t.estimateMinutes) : null,
         etiquetas: t.labels ?? [],
         responsaveis: people.map((p) => p.name || p.email),
-        anexos: files.map((f) => f.name),
+        anexos: files.filter((f) => !f.commentId).map((f) => f.name),
         // Oldest first, like the sheet shows them.
         comentarios: said.reverse().map((c) => ({
           comentarioId: c.id,
           autor: c.authorId === actor.user.id ? "você" : c.name || c.email,
           quando: c.createdAt.toISOString(),
           texto: c.body.slice(0, 1500),
+          anexos: files.filter((f) => f.commentId === c.id).map((f) => f.name),
         })),
         link: `/projetos/${t.engagementId}`,
       },
