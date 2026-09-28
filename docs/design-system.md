@@ -50,6 +50,7 @@ A fonte única dos tokens é `src/app/globals.css`. Novas telas devem usar token
 | Card                 | `src/components/ui/card.tsx`                                         | Superfície com cabeçalho, título, descrição e conteúdo                        |
 | Heading              | `src/components/ui.tsx`                                              | Título da página, contexto e ação principal                                   |
 | Empty                | `src/components/ui.tsx`                                              | Estado vazio com explicação e ação opcional                                   |
+| StatusPage           | `src/components/console/status-page.tsx`, `error-view.tsx`           | 404, erro inesperado e link de pagamento inválido: o que houve, o que fazer e o código do erro para a equipe; tela inteira fora do app, embutido dentro dele |
 | Badge                | `src/components/ui.tsx`                                              | Rótulo de situação com indicador visual                                       |
 | Field                | `src/components/field.tsx` (reexportado em `ui.tsx`)                 | Rótulo explícito, dica/erro associados e validação persistente                |
 | Back                 | `src/components/ui.tsx`                                              | Retorno à área anterior                                                       |

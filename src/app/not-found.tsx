@@ -1,37 +1,28 @@
 import Link from "next/link";
-import { Brand } from "@/components/brand";
-import { ArrowLeftIcon, FileQuestionIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import styles from "@/components/public-layout.module.css";
+import { BackButton } from "@/components/console/back-button";
+import { StatusPage } from "@/components/console/status-page";
+
 export const metadata = {
   title: "Página não encontrada",
   robots: { index: false, follow: false },
 };
+
+/** An address that matches no screen of the Console. */
 export default function NotFound() {
   return (
-    <main id="main-content" tabIndex={-1} className={styles.page}>
-      <header className={styles.header}>
-        <Brand />
-      </header>
-      <section className={styles.stateCard}>
-        <div className={styles.stateIcon}>
-          <FileQuestionIcon size={26} aria-hidden="true" />
-        </div>
-        <p className={styles.eyebrow}>ERRO 404</p>
-        <h1>Página não encontrada</h1>
-        <p>
-          O endereço não está disponível para o seu acesso. Confira o link
-          recebido ou volte ao Console.
-        </p>
-        <div className={styles.stateActions}>
-          <Button size="lg" asChild>
-            <Link href="/painel">
-              <ArrowLeftIcon />
-              Voltar ao Console
-            </Link>
+    <StatusPage
+      numeral="404"
+      title="Esta página não existe"
+      description="O endereço pode estar incompleto ou ter mudado. Se o link veio de alguém, peça de novo."
+      actions={
+        <>
+          <Button asChild>
+            <Link href="/painel">Ir para o Console</Link>
           </Button>
-        </div>
-      </section>
-    </main>
+          <BackButton />
+        </>
+      }
+    />
   );
 }
