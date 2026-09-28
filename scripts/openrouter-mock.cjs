@@ -39,12 +39,22 @@ function decide(messages) {
         if (row.aberto && row.link) return `- Chamado aberto: [${row.assunto ?? "ver"}](${row.link})`;
         if (row.atualizado && row.valorTotal) return `- Orçamento atualizado: ${row.valorTotal} · [abrir](${row.link})`;
         if (row.atualizadas) return `- ${row.atualizadas} tarefas atualizadas · [quadro](${row.link})`;
+        if (row.comentadas) return `- Comentário publicado em ${row.comentadas} tarefa(s) · [quadro](${row.link})`;
         return `- ${JSON.stringify(row).slice(0, 200)}`;
       })
       .join("\n");
   // Second round onwards: chain or finish.
-  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela") || calls.includes("atualizar_tarefa") || calls.includes("atualizar_orcamento"))
+  if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela") || calls.includes("atualizar_tarefa") || calls.includes("atualizar_orcamento") || calls.includes("comentar_tarefa"))
     return reply(`Feito.\n\n${summarize()}`);
+  // "comente no projeto X ...": projects → tasks → a comment on the first one.
+  if (user.includes("coment") && calls.includes("listar_projetos_e_produtos") && !calls.includes("listar_tarefas")) {
+    const project = tools.flat().find((r) => r.engagementId && /site institucional/i.test(r.nome));
+    if (project) return reply(null, [call("listar_tarefas", { engagementId: project.engagementId })]);
+  }
+  if (user.includes("coment") && calls.includes("listar_tarefas") && !calls.includes("comentar_tarefa")) {
+    const board = tools.flat().find((r) => r.tarefas);
+    if (board?.tarefas?.length) return reply(null, [call("comentar_tarefa", { tarefaId: board.tarefas[0].tarefaId, texto: "Layout aprovado pelo cliente; seguir para o desenvolvimento." })]);
+  }
   // "vincule todos os cards do projeto X a mim": projects → tasks → one bulk update.
   if (user.includes("vincul") && calls.includes("listar_projetos_e_produtos") && !calls.includes("listar_tarefas")) {
     const rows = tools.flat();

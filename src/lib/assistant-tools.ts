@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, ilike, inArray, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
 import { allowedIds, canAccess } from "./access";
@@ -13,6 +13,7 @@ import {
   quotes,
   subscriptions,
   taskAssignees,
+  taskComments,
   tasks,
   tickets,
   user,
@@ -411,7 +412,7 @@ async function projectAccess(actor: Actor, engagementId: string) {
 const listTasks = tool({
   name: "listar_tarefas",
   area: "projetos",
-  description: "As tarefas do quadro de um projeto, com situação, prioridade, prazo e responsáveis.",
+  description: "As tarefas do quadro de um projeto, com situação, prioridade, prazo, responsáveis e quantos comentários cada uma tem.",
   input: z.object({ engagementId: id, situacao: z.enum([...TASK_STATUSES, "all"]).default("all") }),
   run: async ({ actor }, { engagementId, situacao }) => {
     const work = await projectAccess(actor, engagementId);
@@ -421,13 +422,20 @@ const listTasks = tool({
       .where(and(eq(tasks.engagementId, engagementId), situacao === "all" ? undefined : eq(tasks.status, situacao)))
       .orderBy(asc(tasks.status), asc(tasks.position))
       .limit(100);
-    const assigned = rows.length
-      ? await db
-          .select({ taskId: taskAssignees.taskId, name: user.name, email: user.email })
-          .from(taskAssignees)
-          .innerJoin(user, eq(user.id, taskAssignees.userId))
-          .where(inArray(taskAssignees.taskId, rows.map((t) => t.id)))
-      : [];
+    const [assigned, said] = rows.length
+      ? await Promise.all([
+          db
+            .select({ taskId: taskAssignees.taskId, name: user.name, email: user.email })
+            .from(taskAssignees)
+            .innerJoin(user, eq(user.id, taskAssignees.userId))
+            .where(inArray(taskAssignees.taskId, rows.map((t) => t.id))),
+          db
+            .select({ taskId: taskComments.taskId, n: sql<number>`count(*)::int` })
+            .from(taskComments)
+            .where(inArray(taskComments.taskId, rows.map((t) => t.id)))
+            .groupBy(taskComments.taskId),
+        ])
+      : [[], []];
     return {
       result: {
         projeto: work.name,
@@ -439,6 +447,7 @@ const listTasks = tool({
           prioridade: taskPriorityLabels[t.priority],
           prazo: t.dueDate,
           responsaveis: assigned.filter((a) => a.taskId === t.id).map((a) => a.name || a.email),
+          comentarios: said.find((c) => c.taskId === t.id)?.n ?? 0,
           descricao: t.description?.slice(0, 200) ?? null,
         })),
       },

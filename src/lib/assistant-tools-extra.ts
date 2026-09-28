@@ -18,6 +18,7 @@ import {
   quotes,
   subscriptions,
   taskAssignees,
+  taskComments,
   tasks,
   user,
 } from "@/db/schema";
@@ -30,7 +31,7 @@ import {
   updateEngagement,
   updateTicket,
 } from "./actions";
-import { deleteTask, updateProject, updateTask } from "./task-actions";
+import { addTaskComment, deleteTask, deleteTaskComment, updateProject, updateTask } from "./task-actions";
 import { createFolder, saveBookmark } from "./bookmark-actions";
 import { addCatalogEngagement, saveCatalogItem } from "./catalog-actions";
 import { createContract, setContractTerm } from "./contract-actions";
@@ -134,13 +135,20 @@ async function taskWithAccess(actor: Actor, taskId: string) {
 const readTask = tool({
   name: "ler_tarefa",
   area: "projetos",
-  description: "Uma tarefa em detalhe: descrição, situação, prioridade, prazo, estimativa, etiquetas, responsáveis e anexos.",
+  description: "Uma tarefa em detalhe: descrição, situação, prioridade, prazo, estimativa, etiquetas, responsáveis, anexos e os comentários (os 30 mais recentes, com id, autor e data).",
   input: z.object({ tarefaId: id }),
   run: async ({ actor }, { tarefaId }) => {
     const t = await taskWithAccess(actor, tarefaId);
-    const [people, files] = await Promise.all([
+    const [people, files, said] = await Promise.all([
       db.select({ name: user.name, email: user.email }).from(taskAssignees).innerJoin(user, eq(user.id, taskAssignees.userId)).where(eq(taskAssignees.taskId, t.id)),
       db.select({ name: attachments.name, size: attachments.size }).from(attachments).where(eq(attachments.taskId, t.id)),
+      db
+        .select({ id: taskComments.id, body: taskComments.body, createdAt: taskComments.createdAt, authorId: user.id, name: user.name, email: user.email })
+        .from(taskComments)
+        .innerJoin(user, eq(user.id, taskComments.authorId))
+        .where(eq(taskComments.taskId, t.id))
+        .orderBy(desc(taskComments.createdAt))
+        .limit(30),
     ]);
     return {
       result: {
@@ -155,6 +163,13 @@ const readTask = tool({
         etiquetas: t.labels ?? [],
         responsaveis: people.map((p) => p.name || p.email),
         anexos: files.map((f) => f.name),
+        // Oldest first, like the sheet shows them.
+        comentarios: said.reverse().map((c) => ({
+          comentarioId: c.id,
+          autor: c.authorId === actor.user.id ? "você" : c.name || c.email,
+          quando: c.createdAt.toISOString(),
+          texto: c.body.slice(0, 1500),
+        })),
         link: `/projetos/${t.engagementId}`,
       },
       summary: `Li a tarefa "${t.title}"`,
@@ -414,6 +429,60 @@ const removeTask = tool({
     const t = await taskWithAccess(actor, tarefaId);
     await submit(deleteTask, { id: t.id });
     return { result: { excluida: true, link: `/projetos/${t.engagementId}` }, summary: `Excluí a tarefa "${t.title}"` };
+  },
+});
+
+const commentTask = tool({
+  name: "comentar_tarefa",
+  area: "projetos",
+  description:
+    "Publica um comentário numa tarefa, em nome da pessoa (aparece na aba Comentários da tarefa, para a equipe e o cliente). Para o mesmo comentário em várias tarefas, passe a lista em tarefaIds. Escreva o texto como a pessoa pediu; se ela só deu a ideia, mostre o texto e confirme antes.",
+  input: z
+    .object({
+      tarefaId: id.optional(),
+      tarefaIds: z.array(id).min(1).max(50).optional(),
+      texto: z.string().trim().min(1).max(5000),
+    })
+    .refine((v) => v.tarefaId || v.tarefaIds?.length, { message: "Informe tarefaId ou tarefaIds." }),
+  write: true,
+  run: async ({ actor }, input) => {
+    const ids = [...new Set([...(input.tarefaId ? [input.tarefaId] : []), ...(input.tarefaIds ?? [])])];
+    const done: { tarefaId: string; titulo: string }[] = [];
+    const failed: { tarefaId: string; erro: string }[] = [];
+    let link = "/projetos";
+    for (const tarefaId of ids) {
+      try {
+        const t = await taskWithAccess(actor, tarefaId);
+        link = `/projetos/${t.engagementId}`;
+        await submit(addTaskComment, { taskId: t.id, body: input.texto });
+        done.push({ tarefaId: t.id, titulo: t.title });
+      } catch (error) {
+        failed.push({ tarefaId, erro: error instanceof ToolError ? error.message : "Não consegui comentar." });
+      }
+    }
+    if (!done.length) throw new ToolError(failed[0]?.erro ?? "Nenhum comentário publicado.");
+    return {
+      result: { comentadas: done.length, tarefas: done, ...(failed.length ? { falhas: failed } : {}), link },
+      summary: done.length === 1 ? `Comentei na tarefa "${done[0].titulo}"` : `Comentei em ${done.length} tarefas`,
+    };
+  },
+});
+
+const uncommentTask = tool({
+  name: "excluir_comentario_tarefa",
+  area: "projetos",
+  description: "Exclui um comentário de tarefa (o id vem de ler_tarefa). Só quem escreveu, ou a equipe. Confirme antes: não tem volta.",
+  input: z.object({ comentarioId: id }),
+  write: true,
+  run: async ({ actor }, { comentarioId }) => {
+    const [c] = await db
+      .select({ taskId: taskComments.taskId })
+      .from(taskComments)
+      .where(eq(taskComments.id, comentarioId));
+    if (!c) throw new ToolError("Comentário não encontrado.");
+    const t = await taskWithAccess(actor, c.taskId);
+    await submit(deleteTaskComment, { id: comentarioId });
+    return { result: { excluido: true, link: `/projetos/${t.engagementId}` }, summary: `Excluí um comentário da tarefa "${t.title}"` };
   },
 });
 
@@ -720,6 +789,8 @@ export const extraTools = [
   myAccount,
   editTask,
   removeTask,
+  commentTask,
+  uncommentTask,
   editProject,
   editTicket,
   draftInvoice,

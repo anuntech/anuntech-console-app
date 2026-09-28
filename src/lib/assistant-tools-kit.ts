@@ -24,7 +24,7 @@ export const toolAreas = {
   empresas: "Empresas e clientes: dados cadastrais, pessoas com acesso, cadastrar ou alterar empresa, dar acesso",
   financeiro: "Financeiro: faturas, boletos, Pix, cobranças em rascunho, recorrências, totais, avisos de cobrança, quem deve",
   chamados: "Chamados de suporte: ler a conversa, abrir, responder, mudar situação ou responsável",
-  projetos: "Projetos e tarefas: quadro, criar, alterar, mover ou excluir tarefas, criar ou alterar projeto",
+  projetos: "Projetos e tarefas: quadro, criar, alterar, mover ou excluir tarefas, ler ou escrever comentários nas tarefas, criar ou alterar projeto",
   produtos: "Produtos, serviços e catálogo: o que a empresa contratou, vincular item do catálogo, cadastrar item",
   contratos: "Contratos: texto, vigência, modelos, criar rascunho",
   orcamentos: "Orçamentos e propostas: ler, criar, copiar, alterar, duplicar",
