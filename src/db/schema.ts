@@ -540,6 +540,8 @@ export const taskComments = pgTable(
       .references(() => user.id),
     body: text("body").notNull(),
     createdAt: created(),
+    /** Set when the author changes the text; the comment then reads "editado". */
+    editedAt: timestamp("edited_at", { withTimezone: true }),
   },
   (t) => [index("console_task_comment_task_idx").on(t.taskId, t.createdAt)],
 );

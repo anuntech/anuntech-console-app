@@ -120,7 +120,7 @@ export async function taskSummary(engagementIds: string[]) {
 
 export type TaskFile = { id: string; name: string; size: number; mime: string; authorId: string };
 export type TaskPerson = { id: string; name: string; image: string | null };
-export type TaskComment = { id: string; body: string; createdAt: Date; author: TaskPerson; files: TaskFile[] };
+export type TaskComment = { id: string; body: string; createdAt: Date; editedAt: Date | null; author: TaskPerson; files: TaskFile[] };
 
 /** The board's cards, in column order, each with its files and comments. */
 export async function boardTasks(engagementId: string) {
@@ -190,6 +190,7 @@ export async function boardTasks(engagementId: string) {
           taskId: taskComments.taskId,
           body: taskComments.body,
           createdAt: taskComments.createdAt,
+          editedAt: taskComments.editedAt,
           authorId: user.id,
           authorName: user.name,
           authorImage: user.image,
@@ -203,7 +204,7 @@ export async function boardTasks(engagementId: string) {
   for (const c of said)
     commentsByTask.set(c.taskId, [
       ...(commentsByTask.get(c.taskId) ?? []),
-      { id: c.id, body: c.body, createdAt: c.createdAt, author: { id: c.authorId, name: c.authorName, image: c.authorImage }, files: byComment.get(c.id) ?? [] },
+      { id: c.id, body: c.body, createdAt: c.createdAt, editedAt: c.editedAt, author: { id: c.authorId, name: c.authorName, image: c.authorImage }, files: byComment.get(c.id) ?? [] },
     ]);
   return rows.map((row) => ({
     ...row,

@@ -142,7 +142,13 @@ export function FormSheet({
   );
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className={cn("flex w-full flex-col gap-0 p-0", widths[size])}>
+      <SheetContent
+        className={cn("flex w-full flex-col gap-0 p-0", widths[size])}
+        onEscapeKeyDown={(event) => {
+          // An inline editor inside (a comment being edited) takes Escape to cancel itself.
+          if (event.target instanceof Element && event.target.closest("[data-escape-local]")) event.preventDefault();
+        }}
+      >
         {tabs ? (
           // A new record starts on the form; the key resets the tab with it.
           <Tabs key={formKey} defaultValue="form" className="flex min-h-0 flex-1 flex-col gap-0">

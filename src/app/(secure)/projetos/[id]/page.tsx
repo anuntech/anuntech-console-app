@@ -50,7 +50,11 @@ export default async function Project({
         tasks: tasks.map((task) => ({
           ...task,
           updatedAt: task.updatedAt.toISOString(),
-          comments: task.comments.map((comment) => ({ ...comment, createdAt: comment.createdAt.toISOString() })),
+          comments: task.comments.map((comment) => ({
+            ...comment,
+            createdAt: comment.createdAt.toISOString(),
+            editedAt: comment.editedAt?.toISOString() ?? null,
+          })),
         })),
         people: people.map((person) => ({
           id: person.id,

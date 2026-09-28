@@ -31,7 +31,7 @@ import {
   updateEngagement,
   updateTicket,
 } from "./actions";
-import { addTaskComment, deleteTask, deleteTaskComment, updateProject, updateTask } from "./task-actions";
+import { addTaskComment, deleteTask, deleteTaskComment, updateProject, updateTask, updateTaskComment } from "./task-actions";
 import { createFolder, saveBookmark } from "./bookmark-actions";
 import { addCatalogEngagement, saveCatalogItem } from "./catalog-actions";
 import { createContract, setContractTerm } from "./contract-actions";
@@ -143,7 +143,7 @@ const readTask = tool({
       db.select({ name: user.name, email: user.email }).from(taskAssignees).innerJoin(user, eq(user.id, taskAssignees.userId)).where(eq(taskAssignees.taskId, t.id)),
       db.select({ name: attachments.name, commentId: attachments.commentId }).from(attachments).where(eq(attachments.taskId, t.id)),
       db
-        .select({ id: taskComments.id, body: taskComments.body, createdAt: taskComments.createdAt, authorId: user.id, name: user.name, email: user.email })
+        .select({ id: taskComments.id, body: taskComments.body, createdAt: taskComments.createdAt, editedAt: taskComments.editedAt, authorId: user.id, name: user.name, email: user.email })
         .from(taskComments)
         .innerJoin(user, eq(user.id, taskComments.authorId))
         .where(eq(taskComments.taskId, t.id))
@@ -168,6 +168,7 @@ const readTask = tool({
           comentarioId: c.id,
           autor: c.authorId === actor.user.id ? "você" : c.name || c.email,
           quando: c.createdAt.toISOString(),
+          ...(c.editedAt ? { editadoEm: c.editedAt.toISOString() } : {}),
           texto: c.body.slice(0, 1500),
           anexos: files.filter((f) => f.commentId === c.id).map((f) => f.name),
         })),
@@ -466,6 +467,21 @@ const commentTask = tool({
       result: { comentadas: done.length, tarefas: done, ...(failed.length ? { falhas: failed } : {}), link },
       summary: done.length === 1 ? `Comentei na tarefa "${done[0].titulo}"` : `Comentei em ${done.length} tarefas`,
     };
+  },
+});
+
+const editComment = tool({
+  name: "editar_comentario_tarefa",
+  area: "projetos",
+  description: "Troca o texto de um comentário de tarefa (o id vem de ler_tarefa). Só comentários da própria pessoa; o comentário passa a mostrar \"editado\". Mostre o texto novo e confirme antes.",
+  input: z.object({ comentarioId: id, texto: z.string().trim().min(1).max(5000) }),
+  write: true,
+  run: async ({ actor }, { comentarioId, texto }) => {
+    const [c] = await db.select({ taskId: taskComments.taskId }).from(taskComments).where(eq(taskComments.id, comentarioId));
+    if (!c) throw new ToolError("Comentário não encontrado.");
+    const t = await taskWithAccess(actor, c.taskId);
+    await submit(updateTaskComment, { id: comentarioId, body: texto });
+    return { result: { editado: true, link: `/projetos/${t.engagementId}` }, summary: `Editei um comentário da tarefa "${t.title}"` };
   },
 });
 
@@ -791,6 +807,7 @@ export const extraTools = [
   editTask,
   removeTask,
   commentTask,
+  editComment,
   uncommentTask,
   editProject,
   editTicket,

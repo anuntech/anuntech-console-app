@@ -501,6 +501,56 @@ export async function addTaskComment(
   }
 }
 
+/**
+ * Only whoever wrote a comment changes its words (the team can delete, not
+ * rewrite, someone else's). A comment with files may end up without text.
+ */
+export async function updateTaskComment(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  try {
+    const commentId = id.parse(form.get("id"));
+    const body = z
+      .string()
+      .trim()
+      .max(5000, "O comentário excede o tamanho permitido.")
+      .parse(form.get("body") ?? "");
+    const [comment] = await db
+      .select({ id: taskComments.id, authorId: taskComments.authorId, body: taskComments.body, taskId: tasks.id, title: tasks.title, engagementId: tasks.engagementId })
+      .from(taskComments)
+      .innerJoin(tasks, eq(tasks.id, taskComments.taskId))
+      .where(eq(taskComments.id, commentId));
+    if (!comment) return blocked;
+    const context = await projectFor(comment.engagementId);
+    if (!context) return blocked;
+    const { actor, project } = context;
+    if (comment.authorId !== actor.user.id) return { error: "Só quem escreveu o comentário pode editá-lo." };
+    if (body === comment.body) return { success: "Comentário sem alterações." };
+    if (!body) {
+      const [files] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(attachments)
+        .where(eq(attachments.commentId, comment.id));
+      if (!files.n) return { error: "Escreva o comentário ou exclua-o." };
+    }
+    await db.transaction(async (tx) => {
+      await tx.update(taskComments).set({ body, editedAt: new Date() }).where(eq(taskComments.id, comment.id));
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: project.companyId,
+        action: "task.comment_edited",
+        entityId: comment.taskId,
+        details: { engagementId: project.id, title: comment.title, commentId: comment.id },
+      });
+    });
+    refresh(project.id);
+    return { success: "Comentário editado." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
 /** Whoever wrote it, or the team, can take a comment back. */
 export async function deleteTaskComment(
   _: ActionState,
