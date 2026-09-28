@@ -3,9 +3,9 @@ import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { cn } from "cn";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
-import { useAppearance } from "@/components/appearance-provider";
-import { toast } from "@/components/notifications";
-import type { DockPosition, Theme } from "@/lib/appearance";
+import { useAppearance } from "@/components/shell/appearance-provider";
+import { toast } from "@/components/shell/notifications";
+import type { DockPosition, Theme } from "@/lib/account/appearance";
 
 const THEMES: { value: Theme; label: string; icon: React.ReactNode }[] = [
   { value: "light", label: "Claro", icon: <SunIcon /> },

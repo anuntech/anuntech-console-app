@@ -1,6 +1,6 @@
 "use client";
 import { ConfirmDialog } from "@/components/console/server-form";
-import { deleteCompany } from "@/lib/company-deletion";
+import { deleteCompany } from "@/lib/companies/company-deletion";
 
 /**
  * Staff-only confirmation that deletes a company and everything that belongs

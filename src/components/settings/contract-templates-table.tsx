@@ -21,7 +21,7 @@ import {
 import { EmptyState } from "@/components/console/page-header";
 import { LinkRow, ListCard, PrimaryCell, RowActions } from "@/components/console/list-view";
 import { ServerForm } from "@/components/console/server-form";
-import { toggleContractTemplate } from "@/lib/contract-actions";
+import { toggleContractTemplate } from "@/lib/contracts/contract-actions";
 import { ActiveStatus } from "./catalog-table";
 import { ContractTemplateSheet, type ContractTemplateValues } from "./contract-template-sheet";
 

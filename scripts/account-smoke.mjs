@@ -29,7 +29,7 @@ const manifest = JSON.parse(
 );
 const actionIds = Object.fromEntries(
   Object.entries(manifest.node)
-    .filter(([, value]) => value.filename === "src/lib/account-actions.ts")
+    .filter(([, value]) => value.filename === "src/lib/account/account-actions.ts")
     .map(([id, value]) => [value.exportedName, id]),
 );
 let server,

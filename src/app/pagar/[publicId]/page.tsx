@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { publicInvoice } from "@/lib/payment-link";
+import { publicInvoice } from "@/lib/billing/payment-link";
 import { saoPauloDate } from "@/lib/dates";
 import { PaymentView } from "@/components/pagar/payment-view";
 export const dynamic = "force-dynamic";

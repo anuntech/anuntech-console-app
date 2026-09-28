@@ -12,7 +12,7 @@ import { FormField } from "@/components/console/form-field";
 import { MoneyField } from "@/components/console/money-field";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { TokenChip } from "@/components/console/token-chip";
-import { saveQuote } from "@/lib/quote-actions";
+import { saveQuote } from "@/lib/quotes/quote-actions";
 import { currency } from "@/lib/format";
 import {
   hoursLabel,
@@ -20,7 +20,7 @@ import {
   taskCode,
   type QuoteContent,
   type QuotePhase,
-} from "@/lib/quote-model";
+} from "@/lib/quotes/quote-model";
 
 export type QuoteEditorData = {
   quote: { id: string; revision: number; title: string; validUntil: string | null; content: QuoteContent };

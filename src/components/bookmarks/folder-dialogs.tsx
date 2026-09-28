@@ -23,8 +23,8 @@ import {
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { createFolder, deleteFolder, renameFolder, shareFolder } from "@/lib/bookmark-actions";
-import type { FolderView } from "@/lib/bookmarks";
+import { createFolder, deleteFolder, renameFolder, shareFolder } from "@/lib/bookmarks/bookmark-actions";
+import type { FolderView } from "@/lib/bookmarks/bookmarks";
 import { SharePeoplePicker } from "./share-people-picker";
 
 export type { CompanyOption };

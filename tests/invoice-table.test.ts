@@ -5,7 +5,7 @@ import {
   invoiceDisplayStatus,
   invoiceQuery,
   invoiceListHref,
-} from "../src/lib/invoice-table";
+} from "../src/lib/billing/invoice-table";
 
 test("only unpaid issued invoices become overdue after their civil due date", () => {
   assert.equal(

@@ -45,16 +45,16 @@ import {
   RowActions,
 } from "@/components/console/list-view";
 import { setCompanyArchived } from "@/lib/actions";
-import { startAssistedSession } from "@/lib/assisted-actions";
+import { startAssistedSession } from "@/lib/access/assisted-actions";
 import {
   companyFilters,
   companyListHref,
   companyStatusLabels,
   type CompanyQuery,
   type CompanyStatusFilter,
-} from "@/lib/company-table";
-import { formatDocument, formatPhone } from "@/lib/company-input";
-import type { CompanyAddress } from "@/lib/company-billing";
+} from "@/lib/companies/company-table";
+import { formatDocument, formatPhone } from "@/lib/companies/company-input";
+import type { CompanyAddress } from "@/lib/companies/company-billing";
 import { canDeleteCompany, type CompanyLinks } from "@/lib/deletion-rules";
 import { CompanySheet } from "./company-sheet";
 import { DeleteCompanyDialog } from "./delete-company-dialog";

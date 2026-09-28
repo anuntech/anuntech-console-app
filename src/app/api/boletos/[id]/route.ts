@@ -1,8 +1,8 @@
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { db } from "@/lib/db";
 import { invoices } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { interApi, interBase } from "@/lib/integrations";
+import { interApi, interBase } from "@/lib/integrations/integrations";
 export async function GET(
   _: Request,
   { params }: { params: Promise<{ id: string }> },

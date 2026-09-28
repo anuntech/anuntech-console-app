@@ -1,5 +1,5 @@
 import "server-only";
-import { accessibleCompanies, requireAdmin } from "@/lib/access";
+import { accessibleCompanies, requireAdmin } from "@/lib/access/access";
 import type { NewQuoteData } from "./quote-sheet";
 
 export type NewQuoteSearchParams = Promise<{ companyId?: string }>;

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { priorityLabels, ticketLabels } from "@/lib/format";
-import type { TicketPriority, TicketStatus } from "@/lib/ticket-table";
+import type { TicketPriority, TicketStatus } from "@/lib/tickets/ticket-table";
 
 /* One tone per situation, used identically in lists, headers and cards:
    what needs the team is blue, what needs the client is amber, what is done

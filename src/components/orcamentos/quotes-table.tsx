@@ -21,12 +21,12 @@ import {
   PrimaryCell,
   RowActions,
 } from "@/components/console/list-view";
-import { duplicateQuote } from "@/lib/quote-actions";
-import { deleteQuote } from "@/lib/quote-deletion";
+import { duplicateQuote } from "@/lib/quotes/quote-actions";
+import { deleteQuote } from "@/lib/quotes/quote-deletion";
 import { canDeleteQuote, quoteDecisionNotice } from "@/lib/deletion-rules";
 import { currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
-import { hoursLabel, quoteExpired, quoteFilterLabels, quoteListHref, type QuoteStatusFilter } from "@/lib/quote-model";
-import { QUOTE_NOUN, quoteFiltersFor, type QuoteTableQuery } from "@/lib/quote-table";
+import { hoursLabel, quoteExpired, quoteFilterLabels, quoteListHref, type QuoteStatusFilter } from "@/lib/quotes/quote-model";
+import { QUOTE_NOUN, quoteFiltersFor, type QuoteTableQuery } from "@/lib/quotes/quote-table";
 import { QuoteStatusBadge, validityText } from "./quote-badges";
 import type { QuoteRow } from "./quote-row";
 

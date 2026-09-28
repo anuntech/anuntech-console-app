@@ -1,7 +1,7 @@
 import "server-only";
 import { asc } from "drizzle-orm";
 import { catalogItems } from "@/db/schema";
-import { requireAdmin } from "@/lib/access";
+import { requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
 import { CatalogTable } from "./catalog-table";
 

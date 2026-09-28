@@ -57,18 +57,18 @@ import {
   sendContract,
   setContractTerm,
   signContract,
-} from "@/lib/contract-actions";
-import { deleteContract } from "@/lib/contract-deletion";
+} from "@/lib/contracts/contract-actions";
+import { deleteContract } from "@/lib/contracts/contract-deletion";
 import { canDeleteContract } from "@/lib/deletion-rules";
 import { auditLabels, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
-import { formatDocument } from "@/lib/company-input";
+import { formatDocument } from "@/lib/companies/company-input";
 import {
   contractStatusLabels,
   contractTerm,
   contractTermLabel,
   type ContractKind,
   type ContractStatus,
-} from "@/lib/contract-table";
+} from "@/lib/contracts/contract-table";
 import { ContractKindChip, ContractStatusBadge, ContractTermBadge } from "./contract-badges";
 import { ContractText } from "./contract-text";
 

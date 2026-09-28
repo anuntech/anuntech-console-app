@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { Loader2Icon } from "lucide-react";
 import { cn } from "cn";
-import { toast } from "@/components/notifications";
+import { toast } from "@/components/shell/notifications";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,

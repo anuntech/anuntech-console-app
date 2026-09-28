@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isPrimarySignIn, secondaryChannel } from "../src/lib/security-policy";
+import { isPrimarySignIn, secondaryChannel } from "../src/lib/auth/security-policy";
 
 test("a second passwordless step always uses the other verified contact", () => {
   for (const preference of ["email", "whatsapp"] as const) {

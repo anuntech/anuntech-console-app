@@ -18,7 +18,7 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/auth-client";
 import { AuthAlert } from "./feedback";
 import { GoogleButton } from "./google-button";
 import { normalizePhone, useCooldown } from "./otp";

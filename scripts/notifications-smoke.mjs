@@ -31,8 +31,8 @@ const actionIds = Object.fromEntries(
   Object.entries(manifest.node)
     .filter(([, value]) =>
       [
-        "src/lib/notification-actions.ts",
-        "src/lib/members-actions.ts",
+        "src/lib/notifications/notification-actions.ts",
+        "src/lib/access/members-actions.ts",
       ].includes(value.filename),
     )
     .map(([id, value]) => [value.exportedName, id]),

@@ -13,7 +13,7 @@ import { FormField } from "@/components/console/form-field";
 import { AttachmentField } from "@/components/console/attachment-field";
 import { FileChip, FileChips } from "@/components/console/file-chip";
 import { useStagedUploads } from "@/components/console/staged-uploads";
-import { createTask, deleteTask, updateTask } from "@/lib/task-actions";
+import { createTask, deleteTask, updateTask } from "@/lib/projects/task-actions";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -22,7 +22,7 @@ import {
   taskStatusLabels,
   type TaskPriority,
   type TaskStatus,
-} from "@/lib/task-model";
+} from "@/lib/projects/task-model";
 import { relativeLabel } from "@/lib/format";
 import { LabelField } from "./label-field";
 import { TaskComments, type BoardComment } from "./task-comments";

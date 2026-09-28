@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { NumberFormatBase } from "react-number-format";
 import { Loader2Icon } from "lucide-react";
-import { toast } from "@/components/notifications";
+import { toast } from "@/components/shell/notifications";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,15 +16,15 @@ import {
   formatPhone,
   onlyDigits,
   phoneDigits,
-} from "@/lib/company-input";
+} from "@/lib/companies/company-input";
 import {
   digits,
   lookupFields,
   mergeLookupFields,
   type LookupKind,
-} from "@/lib/company-lookup";
-import { payerAddress } from "@/lib/billing-rules";
-import type { CompanyAddress } from "@/lib/company-billing";
+} from "@/lib/companies/company-lookup";
+import { payerAddress } from "@/lib/billing/billing-rules";
+import type { CompanyAddress } from "@/lib/companies/company-billing";
 
 export type CompanyFormValues = {
   name: string;

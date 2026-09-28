@@ -10,8 +10,8 @@ import {
   SparklesIcon,
 } from "lucide-react";
 import { cn } from "cn";
-import { requireAdmin } from "@/lib/access";
-import { checkIntegration } from "@/lib/integration-actions";
+import { requireAdmin } from "@/lib/access/access";
+import { checkIntegration } from "@/lib/integrations/integration-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";

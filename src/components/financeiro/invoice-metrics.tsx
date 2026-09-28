@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "cn";
 import { currency } from "@/lib/format";
-import type { InvoiceStatusFilter } from "@/lib/invoice-table";
+import type { InvoiceStatusFilter } from "@/lib/billing/invoice-table";
 
 export type InvoiceMetric = {
   status: InvoiceStatusFilter;

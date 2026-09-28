@@ -6,7 +6,7 @@ import {
   contractTermLabel,
   type ContractKind,
   type ContractStatus,
-} from "@/lib/contract-table";
+} from "@/lib/contracts/contract-table";
 
 const tones: Record<ContractStatus, { pill: string; dot: string }> = {
   draft: { pill: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground/60" },

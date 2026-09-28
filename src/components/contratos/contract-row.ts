@@ -1,4 +1,4 @@
-import type { ContractKind, ContractStatus } from "@/lib/contract-table";
+import type { ContractKind, ContractStatus } from "@/lib/contracts/contract-table";
 
 /** One contract as the lists show it; amendments carry their parent. */
 export type ContractRow = {

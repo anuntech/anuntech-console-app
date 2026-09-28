@@ -8,8 +8,8 @@ import { DateField } from "@/components/console/date-field";
 import { FormField } from "@/components/console/form-field";
 import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
-import { createQuote } from "@/lib/quote-actions";
-import { emptyQuoteContent } from "@/lib/quote-model";
+import { createQuote } from "@/lib/quotes/quote-actions";
+import { emptyQuoteContent } from "@/lib/quotes/quote-model";
 
 export type NewQuoteData = {
   companies: CompanyOption[];

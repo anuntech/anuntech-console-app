@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { plainApproval } from "../src/lib/assistant-consent";
+import { plainApproval } from "../src/lib/assistant/assistant-consent";
 
 const asked = {
   role: "assistant",

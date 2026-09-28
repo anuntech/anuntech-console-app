@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { bookmarkFolderShares, bookmarkFolders, bookmarks } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { db } from "@/lib/db";
 
 /** A saved file, for whoever can see the bookmark. */

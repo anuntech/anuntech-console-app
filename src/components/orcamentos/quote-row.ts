@@ -1,4 +1,4 @@
-import type { QuoteStatus } from "@/lib/quote-model";
+import type { QuoteStatus } from "@/lib/quotes/quote-model";
 
 /** One proposal as the lists show it. */
 export type QuoteRow = {

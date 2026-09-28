@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import "./shadcn.css";
 import "./globals.css";
 import { ErrorView, type ErrorBoundaryProps } from "@/components/console/error-view";
-import { parseTheme } from "@/lib/appearance";
+import { parseTheme } from "@/lib/account/appearance";
 import { SUPPORT_WHATSAPP_URL } from "@/lib/support";
 
 /**

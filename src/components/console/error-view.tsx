@@ -4,7 +4,7 @@ import Link from "next/link";
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPage } from "@/components/console/status-page";
-import { SupportButton } from "@/components/support-trigger";
+import { SupportButton } from "@/components/shell/support-trigger";
 
 export type ErrorBoundaryProps = {
   error: Error & { digest?: string };

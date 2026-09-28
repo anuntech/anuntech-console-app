@@ -2,7 +2,7 @@
 import { useState, type ComponentProps } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/notifications";
+import { toast } from "@/components/shell/notifications";
 
 /** Copies `value`; the icon confirms for a moment and a toast names what was copied. */
 export function CopyButton({

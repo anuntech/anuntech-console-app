@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nextDueDate, issueDate } from "../src/lib/recurrence";
-import { billingEmailTemplate } from "../src/lib/billing-email-template";
+import { nextDueDate, issueDate } from "../src/lib/billing/recurrence";
+import { billingEmailTemplate } from "../src/lib/billing/billing-email-template";
 test("monthly recurrence clamps February and recovers the original day", () => {
   assert.equal(nextDueDate("2027-01-31", "monthly", 31, 1), "2027-02-28");
   assert.equal(nextDueDate("2027-02-28", "monthly", 31, 1), "2027-03-31");
@@ -33,7 +33,7 @@ import {
   reminderKind,
   noticeIsCurrent,
   billingWhatsappParameters,
-} from "../src/lib/billing-notice-rules";
+} from "../src/lib/billing/billing-notice-rules";
 test("reminders send five stages, never an accumulated backlog", () => {
   const due = "2026-01-01";
   assert.equal(reminderKind(due, "2025-12-31"), null);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectListHref, projectQuery } from "../src/lib/project-table";
+import { projectListHref, projectQuery } from "../src/lib/projects/project-table";
 
 test("project list defaults to active work and rejects malformed parameters", () => {
   assert.deepEqual(projectQuery({}), { status: "active", search: "", company: "" });

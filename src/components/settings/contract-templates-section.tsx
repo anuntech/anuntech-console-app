@@ -1,7 +1,7 @@
 import "server-only";
 import { asc, eq, sql } from "drizzle-orm";
 import { contractTemplates, contracts } from "@/db/schema";
-import { requireAdmin } from "@/lib/access";
+import { requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
 import { ContractTemplatesTable } from "./contract-templates-table";
 

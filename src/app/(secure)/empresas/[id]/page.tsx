@@ -13,9 +13,9 @@ import {
   tickets,
   user,
 } from "@/db/schema";
-import { requireAdmin } from "@/lib/access";
+import { requireAdmin } from "@/lib/access/access";
 import { companyLinks } from "@/lib/record-links";
-import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
+import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
 export const metadata = {

@@ -5,7 +5,7 @@ import {
   payerAddress,
   bankReference,
   bankCharge,
-} from "../src/lib/billing-rules";
+} from "../src/lib/billing/billing-rules";
 test("Marcação manual e processamento no banco não comprovam pagamento", () => {
   for (const s of [
     "MARCADO_RECEBIDO",

@@ -12,9 +12,9 @@ import { FileChip, FileChips } from "@/components/console/file-chip";
 import { FormField } from "@/components/console/form-field";
 import { FormSheet } from "@/components/console/form-sheet";
 import { ConfirmDialog } from "@/components/console/server-form";
-import { deleteBookmark, saveBookmark, updateBookmark } from "@/lib/bookmark-actions";
-import { BOOKMARK_FILE, limitLabel } from "@/lib/attachment-rules";
-import type { BookmarkView, FolderView } from "@/lib/bookmarks";
+import { deleteBookmark, saveBookmark, updateBookmark } from "@/lib/bookmarks/bookmark-actions";
+import { BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
+import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
 
 export type BookmarkEditor =

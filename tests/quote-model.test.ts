@@ -11,7 +11,7 @@ import {
   quoteValidity,
   quoteValidityLabel,
   taskCode,
-} from "../src/lib/quote-model";
+} from "../src/lib/quotes/quote-model";
 
 const phase = (hoursMin: number, hoursMax: number, tasks: number) => ({
   name: "Fase",

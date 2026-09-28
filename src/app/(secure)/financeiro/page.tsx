@@ -12,9 +12,9 @@ import {
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, invoices, subscriptions } from "@/db/schema";
-import { getActor, allowedIds } from "@/lib/access";
+import { getActor, allowedIds } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
-import { paymentUrl } from "@/lib/payment-link";
+import { paymentUrl } from "@/lib/billing/payment-link";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { canDeleteDraftInvoice } from "@/lib/deletion-rules";
 import {
@@ -24,7 +24,7 @@ import {
   invoiceQuery,
   type InvoiceDisplayStatus,
   type InvoiceStatusFilter,
-} from "@/lib/invoice-table";
+} from "@/lib/billing/invoice-table";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import {

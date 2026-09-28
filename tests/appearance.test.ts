@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTheme, parseDockPosition } from "../src/lib/appearance";
-import { sessionDevice } from "../src/lib/session-device";
+import { parseTheme, parseDockPosition } from "../src/lib/account/appearance";
+import { sessionDevice } from "../src/lib/auth/session-device";
 test("appearance cookies accept only supported values", () => {
   assert.equal(parseTheme("dark"), "dark");
   assert.equal(parseTheme("system"), "system");

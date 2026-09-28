@@ -165,7 +165,7 @@ export const companies = pgTable("console_companies", {
   phone: text("phone"),
   billingAddress:
     jsonb("billing_address").$type<
-      import("@/lib/company-billing").CompanyAddress
+      import("@/lib/companies/company-billing").CompanyAddress
     >(),
   autoIssueNfse: boolean("auto_issue_nfse").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
@@ -316,14 +316,14 @@ export const quotes = pgTable(
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
     title: text("title").notNull(),
-    content: jsonb("content").$type<import("@/lib/quote-model").QuoteContent>().notNull(),
+    content: jsonb("content").$type<import("@/lib/quotes/quote-model").QuoteContent>().notNull(),
     validUntil: date("valid_until"),
     revision: integer("revision").notNull().default(1),
     /** draft → sent (frozen, awaiting the client) → accepted | declined; or cancelled. */
     status: text("status", { enum: ["draft", "sent", "accepted", "declined", "cancelled"] })
       .notNull()
       .default("draft"),
-    publication: jsonb("publication").$type<import("@/lib/quote-model").QuotePublication>(),
+    publication: jsonb("publication").$type<import("@/lib/quotes/quote-model").QuotePublication>(),
     publishedVersion: integer("published_version").notNull().default(0),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     /** SHA-256 of the frozen proposal; printed on the PDF and checked at acceptance. */
@@ -358,7 +358,7 @@ export const quoteVersions = pgTable(
       .notNull()
       .references(() => quotes.id),
     version: integer("version").notNull(),
-    publication: jsonb("publication").$type<import("@/lib/quote-model").QuotePublication>().notNull(),
+    publication: jsonb("publication").$type<import("@/lib/quotes/quote-model").QuotePublication>().notNull(),
     documentHash: text("document_hash").notNull(),
     sentBy: text("sent_by")
       .notNull()
@@ -805,7 +805,7 @@ export const billingNotices = pgTable(
     channel: text("channel", { enum: ["email", "whatsapp"] }).notNull(),
     recipient: text("recipient").notNull().default(""),
     kind: text("kind")
-      .$type<import("@/lib/billing-notice-rules").BillingNoticeKind>()
+      .$type<import("@/lib/billing/billing-notice-rules").BillingNoticeKind>()
       .notNull(),
     status: text("status", {
       enum: [
@@ -885,7 +885,7 @@ export const environmentProfile = pgTable("console_environment_profile", {
   phone: text("phone"),
   billingAddress:
     jsonb("billing_address").$type<
-      import("@/lib/company-billing").CompanyAddress
+      import("@/lib/companies/company-billing").CompanyAddress
     >(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

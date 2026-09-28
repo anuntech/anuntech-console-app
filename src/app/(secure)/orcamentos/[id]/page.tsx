@@ -3,10 +3,10 @@ import { desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { auditEvents, companies, quoteVersions, quotes } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
-import { hasPermission } from "@/lib/permissions";
-import { quoteNumberLabel } from "@/lib/quote-model";
+import { hasPermission } from "@/lib/access/permissions";
+import { quoteNumberLabel } from "@/lib/quotes/quote-model";
 import { QuoteDetail } from "@/components/orcamentos/quote-detail";
 export const metadata: Metadata = {
   title: "Orçamento",

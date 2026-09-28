@@ -10,15 +10,15 @@ import {
   invoices,
   subscriptions,
 } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
-import { addressLabel } from "@/lib/company-billing";
+import { getActor, canAccess } from "@/lib/access/access";
+import { addressLabel } from "@/lib/companies/company-billing";
 import { saoPauloDate } from "@/lib/dates";
 import { canDeleteDraftInvoice } from "@/lib/deletion-rules";
-import { interBase } from "@/lib/integrations";
-import { invoiceDisplayStatus } from "@/lib/invoice-table";
-import { getNoticePreferences } from "@/lib/notification-preferences";
-import { paymentUrl } from "@/lib/payment-link";
-import { issueDate } from "@/lib/recurrence";
+import { interBase } from "@/lib/integrations/integrations";
+import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
+import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
+import { paymentUrl } from "@/lib/billing/payment-link";
+import { issueDate } from "@/lib/billing/recurrence";
 import {
   InvoiceDetail,
   type InvoiceDetailData,

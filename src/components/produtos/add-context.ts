@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { catalogItems, subscriptions } from "@/db/schema";
-import { accessibleCompanies, requireAdmin } from "@/lib/access";
+import { accessibleCompanies, requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
 import type { AddFromCatalogData } from "./add-from-catalog";
 

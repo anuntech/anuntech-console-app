@@ -4,16 +4,16 @@ import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { sql } from "drizzle-orm";
 import { cn } from "cn";
 import { db } from "@/lib/db";
-import { settingsEnvironment } from "@/lib/environment";
+import { settingsEnvironment } from "@/lib/access/environment";
 import { auditLabels, dateTimeLabel } from "@/lib/format";
 import {
   getNoticePreferences,
   noticeEmails,
   noticePhones,
   type NotificationTopic,
-} from "@/lib/notification-preferences";
-import { ticketNotificationsEnabled } from "@/lib/notification-settings";
-import { saveNotificationPreferences } from "@/lib/company-settings-actions";
+} from "@/lib/notifications/notification-preferences";
+import { ticketNotificationsEnabled } from "@/lib/notifications/notification-settings";
+import { saveNotificationPreferences } from "@/lib/companies/company-settings-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";

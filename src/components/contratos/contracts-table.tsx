@@ -29,7 +29,7 @@ import {
 import { EmptyState } from "@/components/console/page-header";
 import { SearchField } from "@/components/console/search-field";
 import { ConfirmDialog } from "@/components/console/server-form";
-import { deleteContract } from "@/lib/contract-deletion";
+import { deleteContract } from "@/lib/contracts/contract-deletion";
 import { canDeleteContract } from "@/lib/deletion-rules";
 import { dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
 import {
@@ -41,7 +41,7 @@ import {
   contractTermLabel,
   type ContractQuery,
   type ContractStatusFilter,
-} from "@/lib/contract-table";
+} from "@/lib/contracts/contract-table";
 import { ContractStatusBadge } from "./contract-badges";
 import type { ContractRow } from "./contract-row";
 

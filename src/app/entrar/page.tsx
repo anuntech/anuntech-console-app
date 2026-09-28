@@ -1,6 +1,6 @@
 import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthAlert } from "@/components/auth/feedback";
-import { SupportButton } from "@/components/support-trigger";
+import { SupportButton } from "@/components/shell/support-trigger";
 import { LoginForm } from "@/components/auth/login-form";
 export const metadata = {
   title: "Entrar",

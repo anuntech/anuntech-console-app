@@ -17,7 +17,7 @@ import {
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { addCatalogEngagement } from "@/lib/catalog-actions";
+import { addCatalogEngagement } from "@/lib/catalog/catalog-actions";
 import { currency } from "@/lib/format";
 
 export type CatalogOption = {

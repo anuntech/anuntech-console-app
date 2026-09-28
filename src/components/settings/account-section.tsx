@@ -1,5 +1,5 @@
 import "server-only";
-import { getActor } from "@/lib/access";
+import { getActor } from "@/lib/access/access";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import { AuthAlert } from "@/components/auth/feedback";

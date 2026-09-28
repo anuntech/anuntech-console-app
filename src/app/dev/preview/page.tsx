@@ -58,7 +58,7 @@ import {
 import { AuthAlert } from "@/components/auth/feedback";
 import { LoginForm } from "@/components/auth/login-form";
 import QRCode from "qrcode";
-import { invoiceListHref } from "@/lib/invoice-table";
+import { invoiceListHref } from "@/lib/billing/invoice-table";
 import { saoPauloDate } from "@/lib/dates";
 
 const SCREENS = [

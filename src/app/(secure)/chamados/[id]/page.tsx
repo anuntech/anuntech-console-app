@@ -12,10 +12,10 @@ import {
   tickets,
   user,
 } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
-import { resolveAccountIdentity } from "@/lib/account-identity";
-import { hasConsoleStaffAccess } from "@/lib/console-members";
-import { normalizeEmail } from "@/lib/permissions";
+import { getActor, canAccess } from "@/lib/access/access";
+import { resolveAccountIdentity } from "@/lib/account/account-identity";
+import { hasConsoleStaffAccess } from "@/lib/access/console-members";
+import { normalizeEmail } from "@/lib/access/permissions";
 import {
   TicketDetail,
   type TicketAssignee,

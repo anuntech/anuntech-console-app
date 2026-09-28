@@ -1,13 +1,13 @@
 "use server";
-import { prepareTicketFiles, takeTicketUploads } from "./ticket-files";
-import { DOCUMENT_ATTACHMENTS } from "./attachment-rules";
+import { prepareTicketFiles, takeTicketUploads } from "./tickets/ticket-files";
+import { DOCUMENT_ATTACHMENTS } from "./tickets/attachment-rules";
 import { z } from "zod";
 import { and, eq, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "./db";
-import { resolveBankDueDate } from "./billing-notice-rules";
+import { resolveBankDueDate } from "./billing/billing-notice-rules";
 import { saoPauloDate } from "./dates";
-import { getActor, canAccess } from "./access";
+import { getActor, canAccess } from "./access/access";
 import {
   companies,
   engagements,
@@ -19,17 +19,17 @@ import {
   attachments,
   user,
 } from "@/db/schema";
-import { normalizeEmail, moneyToCents } from "./permissions";
-import { parseChargeTerms, parseTermsScope } from "./billing-terms";
+import { normalizeEmail, moneyToCents } from "./access/permissions";
+import { parseChargeTerms, parseTermsScope } from "./billing/billing-terms";
 import type { ActionState } from "./action-state";
-import { saveCompanyMember, revokeCompanyMember } from "./members-actions";
+import { saveCompanyMember, revokeCompanyMember } from "./access/members-actions";
 import {
   enqueueTicketNotice,
   scheduleTicketNotices,
-} from "./ticket-notifications";
+} from "./tickets/ticket-notifications";
 import { priorityLabels, ticketLabels } from "./format";
-import { companyIdentity } from "./company-input";
-import { companyBillingInput } from "./company-billing";
+import { companyIdentity } from "./companies/company-input";
+import { companyBillingInput } from "./companies/company-billing";
 const id = z.string().uuid();
 function isWebUrl(value: string) {
   try {

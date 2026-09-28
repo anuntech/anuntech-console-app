@@ -11,10 +11,10 @@ import {
   contracts,
   engagements,
 } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
-import { hasPermission } from "@/lib/permissions";
-import { pendingContractVariables } from "@/lib/contract-templates";
+import { hasPermission } from "@/lib/access/permissions";
+import { pendingContractVariables } from "@/lib/contracts/contract-templates";
 import { ContractDetail } from "@/components/contratos/contract-detail";
 export const metadata: Metadata = {
   title: "Contrato",

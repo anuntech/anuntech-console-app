@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bookmarkInput, safeFileName } from "../src/lib/bookmark-validation";
-import { prepareTicketFiles } from "../src/lib/ticket-files";
+import { bookmarkInput, safeFileName } from "../src/lib/bookmarks/bookmark-validation";
+import { prepareTicketFiles } from "../src/lib/tickets/ticket-files";
 const base = {
   companyId: "123e4567-e89b-42d3-a456-426614174000",
   engagementId: "",

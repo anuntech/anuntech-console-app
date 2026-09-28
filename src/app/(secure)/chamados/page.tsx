@@ -5,12 +5,12 @@ import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { companies, engagements, tickets, user } from "@/db/schema";
-import { getActor, allowedIds } from "@/lib/access";
+import { getActor, allowedIds } from "@/lib/access/access";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { TicketsTable } from "@/components/chamados/tickets-table";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
-import { ticketFilterStatuses, ticketQuery } from "@/lib/ticket-table";
+import { ticketFilterStatuses, ticketQuery } from "@/lib/tickets/ticket-table";
 export const metadata: Metadata = {
   title: "Chamados",
   description:

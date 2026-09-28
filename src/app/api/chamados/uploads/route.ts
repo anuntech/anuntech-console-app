@@ -1,10 +1,10 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
-import { getActor, allowedIds } from "@/lib/access";
+import { getActor, allowedIds } from "@/lib/access/access";
 import { db } from "@/lib/db";
 import { ticketUploads } from "@/db/schema";
-import { MAX_TICKET_BYTES, normalizeTicketFile } from "@/lib/ticket-files";
-import { safeFileName } from "@/lib/bookmark-validation";
+import { MAX_TICKET_BYTES, normalizeTicketFile } from "@/lib/tickets/ticket-files";
+import { safeFileName } from "@/lib/bookmarks/bookmark-validation";
 export const maxDuration = 60;
 const respond = (data: unknown, status = 200) =>
   Response.json(data, {

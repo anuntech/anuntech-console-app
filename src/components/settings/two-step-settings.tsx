@@ -11,9 +11,9 @@ import { AuthAlert } from "@/components/auth/feedback";
 import { FormAlert } from "@/components/console/server-form";
 import { CodeInput } from "@/components/auth/login-form";
 import { useCooldown } from "@/components/auth/otp";
-import { securityRequest } from "@/components/security-request";
-import { toast } from "@/components/notifications";
-import type { SecurityChannel } from "@/lib/security-policy";
+import { securityRequest } from "@/components/auth/security-request";
+import { toast } from "@/components/shell/notifications";
+import type { SecurityChannel } from "@/lib/auth/security-policy";
 
 type Proof = { changeId: string; stage: SecurityChannel; destination: string };
 

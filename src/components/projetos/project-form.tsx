@@ -13,7 +13,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { createEngagement } from "@/lib/actions";
-import { updateProject } from "@/lib/task-actions";
+import { updateProject } from "@/lib/projects/task-actions";
 
 export type ProjectCompanyOption = CompanyOption;
 export type ProjectFormValues = {

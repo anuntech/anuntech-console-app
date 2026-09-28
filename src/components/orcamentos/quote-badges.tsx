@@ -5,7 +5,7 @@ import {
   quoteValidity,
   quoteValidityLabel,
   type QuoteStatus,
-} from "@/lib/quote-model";
+} from "@/lib/quotes/quote-model";
 
 const tones: Record<QuoteStatus | "expired", { pill: string; dot: string }> = {
   draft: { pill: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground/60" },

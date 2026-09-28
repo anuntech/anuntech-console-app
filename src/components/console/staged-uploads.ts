@@ -5,7 +5,7 @@ import {
   DOCUMENT_ATTACHMENTS,
   attachmentLimitError,
   type AttachmentRules,
-} from "@/lib/attachment-rules";
+} from "@/lib/tickets/attachment-rules";
 
 const CHUNK = 1024 * 1024;
 

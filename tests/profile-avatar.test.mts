@@ -9,7 +9,7 @@ import {
   isOwnedProfileAvatar,
   normalizeProfileAvatar,
   readAvatarBytes,
-} from "../src/lib/profile-avatar";
+} from "../src/lib/account/profile-avatar";
 
 const input = () =>
   sharp({

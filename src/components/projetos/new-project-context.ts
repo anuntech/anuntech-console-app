@@ -1,5 +1,5 @@
 import "server-only";
-import { accessibleCompanies, requireAdmin } from "@/lib/access";
+import { accessibleCompanies, requireAdmin } from "@/lib/access/access";
 import type { ProjectCompanyOption } from "./project-form";
 
 export type NewProjectSearchParams = Promise<{ companyId?: string }>;

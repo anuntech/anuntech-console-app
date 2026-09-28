@@ -39,15 +39,15 @@ import {
 } from "@/components/console/server-form";
 import { CodeInput } from "@/components/auth/login-form";
 import { normalizePhone, useCooldown } from "@/components/auth/otp";
-import { toast } from "@/components/notifications";
-import { authClient } from "@/lib/auth-client";
+import { toast } from "@/components/shell/notifications";
+import { authClient } from "@/lib/auth/auth-client";
 import {
   confirmAccountEmail,
   requestAccountEmail,
   updateAccountName,
   type AccountEmailState,
-} from "@/lib/account-actions";
-import { formatPhone } from "@/lib/company-input";
+} from "@/lib/account/account-actions";
+import { formatPhone } from "@/lib/companies/company-input";
 
 export function NameForm({ name }: { name: string }) {
   const [value, setValue] = useState(name);

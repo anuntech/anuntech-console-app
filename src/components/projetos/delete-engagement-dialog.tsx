@@ -1,6 +1,6 @@
 "use client";
 import { ConfirmDialog } from "@/components/console/server-form";
-import { deleteEngagement } from "@/lib/engagement-deletion";
+import { deleteEngagement } from "@/lib/projects/engagement-deletion";
 
 const nouns = { project: "projeto", product: "produto", service: "serviço" } as const;
 

@@ -23,7 +23,7 @@ import {
 import { EmptyState } from "@/components/console/page-header";
 import { LinkRow, ListCard, PrimaryCell, RowActions } from "@/components/console/list-view";
 import { ServerForm } from "@/components/console/server-form";
-import { toggleCatalogItem } from "@/lib/catalog-actions";
+import { toggleCatalogItem } from "@/lib/catalog/catalog-actions";
 import { currency } from "@/lib/format";
 import { CatalogSheet, type CatalogItemValues } from "./catalog-sheet";
 

@@ -1,6 +1,6 @@
 "use client";
 import { SearchField } from "@/components/console/search-field";
-import type { ChargeTerms } from "@/lib/billing-terms";
+import type { ChargeTerms } from "@/lib/billing/billing-terms";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -47,10 +47,10 @@ import {
   PrimaryCell,
   RowActions,
 } from "@/components/console/list-view";
-import { toast } from "@/components/notifications";
+import { toast } from "@/components/shell/notifications";
 import { cancelDraft } from "@/lib/actions";
-import { deleteDraftInvoice } from "@/lib/invoice-deletion";
-import { daysOverdue } from "@/lib/billing-notice-rules";
+import { deleteDraftInvoice } from "@/lib/billing/invoice-deletion";
+import { daysOverdue } from "@/lib/billing/billing-notice-rules";
 import { currency, dateLabel } from "@/lib/format";
 import { DateField } from "@/components/console/date-field";
 import {
@@ -65,7 +65,7 @@ import {
   type InvoiceQuery,
   type InvoiceStatusFilter,
   type InvoiceTableStatus,
-} from "@/lib/invoice-table";
+} from "@/lib/billing/invoice-table";
 import { InvoiceStatusBadge } from "./invoice-badges";
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
 

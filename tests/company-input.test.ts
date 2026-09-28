@@ -6,7 +6,7 @@ import {
   companyIdentity,
   companyPhone,
   companyEmail,
-} from "../src/lib/company-input";
+} from "../src/lib/companies/company-input";
 test("Máscaras preservam CPF, CNPJ e telefone fixo/celular", () => {
   assert.equal(formatDocument("43619917000181"), "43.619.917/0001-81");
   assert.equal(formatDocument("12345678901"), "123.456.789-01");

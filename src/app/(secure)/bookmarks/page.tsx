@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { accessibleCompanies, getActor } from "@/lib/access";
-import { bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks";
+import { accessibleCompanies, getActor } from "@/lib/access/access";
+import { bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { pageCountOf, pageQuery } from "@/lib/list-query";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 export const metadata: Metadata = {

@@ -3,13 +3,13 @@ import { Suspense } from "react";
 import { db } from "@/lib/db";
 import { and, asc, count, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { companies, memberships, tickets } from "@/db/schema";
-import { requireAdmin } from "@/lib/access";
+import { requireAdmin } from "@/lib/access/access";
 import { PageHeader } from "@/components/console/page-header";
 import { CompaniesTable } from "@/components/empresas/companies-table";
 import { NewCompanyButton } from "@/components/empresas/company-sheet";
-import { companyQuery } from "@/lib/company-table";
+import { companyQuery } from "@/lib/companies/company-table";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
-import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
+import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import { companyLinks } from "@/lib/record-links";
 export const metadata: Metadata = {
   title: "Empresas",

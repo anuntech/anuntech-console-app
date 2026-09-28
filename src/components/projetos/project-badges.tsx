@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "cn";
 import { engagementLabels } from "@/lib/format";
-import { taskPriorityLabels, type TaskPriority } from "@/lib/task-model";
+import { taskPriorityLabels, type TaskPriority } from "@/lib/projects/task-model";
 
 const statusTones: Record<string, { pill: string; dot: string }> = {
   active: { pill: "bg-success-soft text-success", dot: "bg-success" },

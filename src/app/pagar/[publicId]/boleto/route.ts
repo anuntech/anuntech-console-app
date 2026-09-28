@@ -1,8 +1,8 @@
-import { publicInvoice } from "@/lib/payment-link";
+import { publicInvoice } from "@/lib/billing/payment-link";
 import { db } from "@/lib/db";
 import { invoices } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { interApi, interBase } from "@/lib/integrations";
+import { interApi, interBase } from "@/lib/integrations/integrations";
 export async function GET(
   _: Request,
   { params }: { params: Promise<{ publicId: string }> },

@@ -17,7 +17,7 @@ import {
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { createContract } from "@/lib/contract-actions";
+import { createContract } from "@/lib/contracts/contract-actions";
 import { dateLabel } from "@/lib/format";
 
 export type NewContractData = {

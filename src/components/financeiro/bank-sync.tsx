@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCwIcon } from "lucide-react";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";
-import { refreshCharge, syncCharge } from "@/lib/billing-actions";
+import { refreshCharge, syncCharge } from "@/lib/billing/billing-actions";
 import { relativeLabel } from "@/lib/format";
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
-import { useAppearance } from "@/components/appearance-provider";
+import { useAppearance } from "@/components/shell/appearance-provider";
 
 export type SurfaceTheme = "auto" | "light" | "dark";
 

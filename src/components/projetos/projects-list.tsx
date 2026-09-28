@@ -51,7 +51,7 @@ import {
   projectListHref,
   type ProjectListQuery,
   type ProjectStatusFilter,
-} from "@/lib/project-table";
+} from "@/lib/projects/project-table";
 import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
 import { EngagementStatusBadge } from "./project-badges";
 import { useEngagementStatus, type EngagementStatus } from "./engagement-status";

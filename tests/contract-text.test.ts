@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { contractBlocks } from "../src/lib/contract-text";
+import { contractBlocks } from "../src/lib/contracts/contract-text";
 
 test("contract text is read into title, parties, headings, clauses and paragraphs", () => {
   const body = [

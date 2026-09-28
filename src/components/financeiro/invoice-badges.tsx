@@ -1,9 +1,9 @@
 import { cn } from "cn";
-import { noticeStatusLabels } from "@/lib/billing-notice-rules";
+import { noticeStatusLabels } from "@/lib/billing/billing-notice-rules";
 import {
   invoiceStatusLabels,
   type InvoiceDisplayStatus,
-} from "@/lib/invoice-table";
+} from "@/lib/billing/invoice-table";
 
 function Pill({
   tone,

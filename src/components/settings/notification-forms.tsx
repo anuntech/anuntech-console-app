@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "@/components/notifications";
-import { setTicketNotifications } from "@/lib/notification-actions";
+import { toast } from "@/components/shell/notifications";
+import { setTicketNotifications } from "@/lib/notifications/notification-actions";
 
 /** Up to ten addresses or numbers, one per line; empty lines are ignored. */
 export function ContactsField({

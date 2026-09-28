@@ -12,11 +12,11 @@ import { desc, eq } from "drizzle-orm";
 import { cn } from "cn";
 import { db } from "@/lib/db";
 import { billingNotices, companies, invoices } from "@/db/schema";
-import { requireAdmin } from "@/lib/access";
+import { requireAdmin } from "@/lib/access/access";
 import {
   noticeChannelLabels,
   noticeKindLabel,
-} from "@/lib/billing-notice-rules";
+} from "@/lib/billing/billing-notice-rules";
 import { dateTimeLabel } from "@/lib/format";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { NoticeStatusBadge } from "@/components/financeiro/invoice-badges";

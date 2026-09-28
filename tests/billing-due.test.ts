@@ -6,7 +6,7 @@ import {
   payableUntil,
   reminderKindFor,
   resolveBankDueDate,
-} from "../src/lib/billing-notice-rules";
+} from "../src/lib/billing/billing-notice-rules";
 
 const today = "2026-09-24";
 

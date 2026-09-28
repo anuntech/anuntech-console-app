@@ -1,6 +1,6 @@
 import { and, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAccountSession } from "@/lib/account-session";
+import { getAccountSession } from "@/lib/account/account-session";
 import { db } from "@/lib/db";
 import { user, session } from "@/db/schema";
 import {
@@ -12,10 +12,10 @@ import {
   readAvatarBytes,
   readProfileAvatar,
   storeProfileAvatar,
-} from "@/lib/profile-avatar";
+} from "@/lib/account/profile-avatar";
 
-import { isCatalogAvatar } from "@/lib/avatar-catalog";
-import { randomProfileAvatar } from "@/lib/default-avatar";
+import { isCatalogAvatar } from "@/lib/account/avatar-catalog";
+import { randomProfileAvatar } from "@/lib/account/default-avatar";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

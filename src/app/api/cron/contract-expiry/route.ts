@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { pool } from "@/lib/db";
-import { processContractExpiry } from "@/lib/contract-expiry";
+import { processContractExpiry } from "@/lib/contracts/contract-expiry";
 export const maxDuration = 120;
 
 /** Once a day: warns about contracts ending soon or already ended. */

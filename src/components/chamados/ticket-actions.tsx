@@ -3,8 +3,8 @@ import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { updateTicket } from "@/lib/actions";
-import { deleteTicket } from "@/lib/ticket-deletion";
-import type { TicketStatus } from "@/lib/ticket-table";
+import { deleteTicket } from "@/lib/tickets/ticket-deletion";
+import type { TicketStatus } from "@/lib/tickets/ticket-table";
 
 /**
  * Moves a ticket between situations from menu items and buttons through one

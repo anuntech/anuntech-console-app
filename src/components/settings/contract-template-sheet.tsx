@@ -3,8 +3,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/console/form-field";
 import { FormSheet } from "@/components/console/form-sheet";
-import { saveContractTemplate } from "@/lib/contract-actions";
-import { CONTRACT_VARIABLES } from "@/lib/contract-templates";
+import { saveContractTemplate } from "@/lib/contracts/contract-actions";
+import { CONTRACT_VARIABLES } from "@/lib/contracts/contract-templates";
 
 export type ContractTemplateValues = {
   id?: string;

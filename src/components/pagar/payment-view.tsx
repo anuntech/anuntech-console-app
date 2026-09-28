@@ -17,7 +17,7 @@ import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { currency, dateLabel } from "@/lib/format";
-import { lateFeesLabel, noChargeTerms, type ChargeTerms } from "@/lib/billing-terms";
+import { lateFeesLabel, noChargeTerms, type ChargeTerms } from "@/lib/billing/billing-terms";
 import { PaymentRefresh, PaymentStatusAnnouncer } from "./payment-live";
 
 export type PublicInvoiceView = {

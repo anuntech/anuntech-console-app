@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { pool } from "@/lib/db";
-import { sendOpsDigest } from "@/lib/ops-alerts";
+import { sendOpsDigest } from "@/lib/notifications/ops-alerts";
 export const maxDuration = 120;
 
 /** Once a day, 08:30 in São Paulo: what needs a look, or "tudo em dia". */

@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { getActor } from "@/lib/access";
-import { allowRequest, AssistantError, converse, type ChatTurn } from "@/lib/assistant";
-import { pageSnapshotSchema } from "@/lib/page-snapshot";
-import { appendExchange } from "@/lib/assistant-history";
+import { getActor } from "@/lib/access/access";
+import { allowRequest, AssistantError, converse, type ChatTurn } from "@/lib/assistant/assistant";
+import { pageSnapshotSchema } from "@/lib/assistant/page-snapshot";
+import { appendExchange } from "@/lib/assistant/assistant-history";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 

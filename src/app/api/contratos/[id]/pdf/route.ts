@@ -1,8 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import { contracts, companies, contractSignatures, contractVersions } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { db } from "@/lib/db";
-import { contractPdf } from "@/lib/contract-pdf";
+import { contractPdf } from "@/lib/contracts/contract-pdf";
 export const runtime = "nodejs";
 
 /**

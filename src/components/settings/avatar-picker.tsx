@@ -12,12 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { toast } from "@/components/notifications";
+import { toast } from "@/components/shell/notifications";
 import { ConfirmAction } from "@/components/console/server-form";
 import { optimizeImage } from "@/lib/client-image";
-import { AVATAR_IMAGE, attachmentHint, limitLabel } from "@/lib/attachment-rules";
+import { AVATAR_IMAGE, attachmentHint, limitLabel } from "@/lib/tickets/attachment-rules";
 import type { ActionState } from "@/lib/action-state";
-import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/avatar-catalog";
+import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/account/avatar-catalog";
 import { initials } from "@/lib/format";
 import { IllustratedAvatar, profileAvatarSource } from "./illustrated-avatar";
 

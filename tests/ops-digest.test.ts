@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { opsDigestText } from "../src/lib/ops-digest-text";
+import { opsDigestText } from "../src/lib/notifications/ops-digest-text";
 
 const base = {
   today: "2026-09-24",

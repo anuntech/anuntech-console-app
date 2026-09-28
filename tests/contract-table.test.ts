@@ -6,7 +6,7 @@ import {
   contractQuery,
   contractTerm,
   contractTermLabel,
-} from "../src/lib/contract-table";
+} from "../src/lib/contracts/contract-table";
 
 test("contract list accepts the derived situations and rejects the rest", () => {
   assert.deepEqual(contractQuery({}), { status: "all", search: "", company: "", page: 1, pageSize: 25 });

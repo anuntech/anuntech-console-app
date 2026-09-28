@@ -61,7 +61,7 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { useAppearance } from "@/components/appearance-provider";
+import { useAppearance } from "@/components/shell/appearance-provider";
 import { Input } from "@/components/ui/input";
 import { MultiSelect } from "@/components/console/multi-select";
 import {
@@ -72,8 +72,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/console/page-header";
-import { toast } from "@/components/notifications";
-import { moveTask } from "@/lib/task-actions";
+import { toast } from "@/components/shell/notifications";
+import { moveTask } from "@/lib/projects/task-actions";
 import { shortDateLabel } from "@/lib/format";
 import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
 import { AvatarStack, PersonAvatar } from "@/components/console/person-avatar";
@@ -84,7 +84,7 @@ import {
   taskPriorityLabels,
   taskStatusLabels,
   type TaskStatus,
-} from "@/lib/task-model";
+} from "@/lib/projects/task-model";
 import {
   EngagementStatusBadge,
   LabelChip,

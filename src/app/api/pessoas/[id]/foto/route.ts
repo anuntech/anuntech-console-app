@@ -1,11 +1,11 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { memberships, user } from "@/db/schema";
-import { getAccountEmails } from "@/lib/account-identity";
-import { getConsoleStaffAccess, hasConsoleStaffAccess } from "@/lib/console-members";
-import { isOwnedProfileAvatar, readProfileAvatar } from "@/lib/profile-avatar";
+import { getAccountEmails } from "@/lib/account/account-identity";
+import { getConsoleStaffAccess, hasConsoleStaffAccess } from "@/lib/access/console-members";
+import { isOwnedProfileAvatar, readProfileAvatar } from "@/lib/account/profile-avatar";
 
 const notFound = () => new Response(null, { status: 404 });
 

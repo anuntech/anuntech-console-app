@@ -1,5 +1,5 @@
-import type { ContractKind, ContractStatus } from "./contract-table";
-import { quoteExpired, type QuoteStatus } from "./quote-model";
+import type { ContractKind, ContractStatus } from "./contracts/contract-table";
+import { quoteExpired, type QuoteStatus } from "./quotes/quote-model";
 /*
  * When a record may be deleted for good. Pure (no database, no server code),
  * so pages can hide the option, server actions can refuse with the same rule,

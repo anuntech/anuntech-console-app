@@ -2,8 +2,8 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { companies, environmentProfile } from "@/db/schema";
 import { db } from "@/lib/db";
-import { settingsEnvironment } from "@/lib/environment";
-import { saveCompanySettings } from "@/lib/company-settings-actions";
+import { settingsEnvironment } from "@/lib/access/environment";
+import { saveCompanySettings } from "@/lib/companies/company-settings-actions";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import {

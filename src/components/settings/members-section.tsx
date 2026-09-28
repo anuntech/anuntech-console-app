@@ -7,9 +7,9 @@ import {
   user,
 } from "@/db/schema";
 import { db } from "@/lib/db";
-import type { Actor } from "@/lib/access";
-import { resolveAccountIdentity } from "@/lib/account-identity";
-import { settingsEnvironment } from "@/lib/environment";
+import type { Actor } from "@/lib/access/access";
+import { resolveAccountIdentity } from "@/lib/account/account-identity";
+import { settingsEnvironment } from "@/lib/access/environment";
 import { MembersTable, type Person } from "./members-table";
 
 async function staffPeople(actor: Actor): Promise<Person[]> {

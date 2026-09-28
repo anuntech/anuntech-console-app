@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { PersonAvatar } from "@/components/console/person-avatar";
 import { TokenChip } from "@/components/console/token-chip";
 import type { PersonOption } from "@/components/console/people-field";
-import { searchPeople } from "@/lib/bookmark-actions";
+import { searchPeople } from "@/lib/bookmarks/bookmark-actions";
 
 /**
  * Picks people by typing a name: nothing is listed until there is a query,

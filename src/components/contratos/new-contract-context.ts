@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, count, eq, inArray, ne } from "drizzle-orm";
 import { companies, contractTemplates, contracts, engagements } from "@/db/schema";
-import { accessibleCompanies, requireAdmin } from "@/lib/access";
+import { accessibleCompanies, requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
 import type { NewContractData } from "./contract-sheet";
 

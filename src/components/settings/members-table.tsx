@@ -14,7 +14,7 @@ import {
 import { EmptyState } from "@/components/console/page-header";
 import { ListCard } from "@/components/console/list-view";
 import { TablePagination } from "@/components/console/table-pagination";
-import { isCatalogAvatar } from "@/lib/avatar-catalog";
+import { isCatalogAvatar } from "@/lib/account/avatar-catalog";
 import { roleLabels } from "@/lib/format";
 import { clampPage, DEFAULT_PAGE_SIZE, offsetOf, pageCountOf, type PageQuery } from "@/lib/list-query";
 import { IllustratedAvatar } from "./illustrated-avatar";

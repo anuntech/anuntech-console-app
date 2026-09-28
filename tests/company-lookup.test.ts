@@ -4,7 +4,7 @@ import {
   normalizeCnpj,
   normalizeCep,
   mergeLookupFields,
-} from "../src/lib/company-lookup";
+} from "../src/lib/companies/company-lookup";
 const cnpj = "12345678000199";
 const company = {
   razao_social: "Empresa Teste",

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { getConsoleStaffAccess } from "@/lib/console-members";
-import { normalizeCnpj, normalizeCep } from "@/lib/company-lookup";
+import { auth } from "@/lib/auth/auth";
+import { getConsoleStaffAccess } from "@/lib/access/console-members";
+import { normalizeCnpj, normalizeCep } from "@/lib/companies/company-lookup";
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
     status,

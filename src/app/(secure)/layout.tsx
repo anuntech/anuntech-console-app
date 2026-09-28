@@ -1,9 +1,9 @@
-import { getActor, allowedIds } from "@/lib/access";
-import { WorkspaceHeader } from "@/components/sidebar";
+import { getActor, allowedIds } from "@/lib/access/access";
+import { Dock } from "@/components/shell/dock";
 import { redirect } from "next/navigation";
-import { canManageMembers } from "@/lib/member-access";
+import { canManageMembers } from "@/lib/access/member-access";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";
-import { endAssistedSession } from "@/lib/assisted-actions";
+import { endAssistedSession } from "@/lib/access/assisted-actions";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function ConsoleLayout({
@@ -42,7 +42,7 @@ export default async function ConsoleLayout({
       )}
       <div className="console-shell">
         <div className="workspace">
-          <WorkspaceHeader
+          <Dock
             userName={actor.user.name}
             userImage={actor.user.image ?? null}
             canManageMembers={canManageMembers(actor)}

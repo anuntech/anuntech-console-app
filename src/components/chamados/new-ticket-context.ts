@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { contracts, invoices, tickets } from "@/db/schema";
 import { db } from "@/lib/db";
-import { accessibleCompanies, getActor } from "@/lib/access";
+import { accessibleCompanies, getActor } from "@/lib/access/access";
 import type { TicketCompanyOption } from "./ticket-form";
 
 export type NewTicketSearchParams = Promise<{

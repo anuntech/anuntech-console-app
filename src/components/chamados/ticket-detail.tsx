@@ -33,7 +33,7 @@ import {
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { toast } from "@/components/notifications";
+import { toast } from "@/components/shell/notifications";
 import { replyTicket, updateTicket } from "@/lib/actions";
 import {
   dateLabel,
@@ -42,7 +42,7 @@ import {
   relativeLabel,
   ticketLabels,
 } from "@/lib/format";
-import type { TicketPriority, TicketStatus } from "@/lib/ticket-table";
+import type { TicketPriority, TicketStatus } from "@/lib/tickets/ticket-table";
 import { AttachmentField } from "@/components/console/attachment-field";
 import { FileChip, FileRow } from "@/components/console/file-chip";
 import { canDeleteTicket } from "@/lib/deletion-rules";

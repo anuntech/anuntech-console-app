@@ -17,8 +17,8 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { companies, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
-import { allowedIds, type Actor } from "@/lib/access";
-import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks";
+import { allowedIds, type Actor } from "@/lib/access/access";
+import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { currency, dateLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";

@@ -7,8 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { AttachmentField } from "@/components/console/attachment-field";
 import { FormField } from "@/components/console/form-field";
 import { FormSheet } from "@/components/console/form-sheet";
-import { addAssistantDocument } from "@/lib/assistant-actions";
-import { KNOWLEDGE_DOCUMENT } from "@/lib/attachment-rules";
+import { addAssistantDocument } from "@/lib/assistant/assistant-actions";
+import { KNOWLEDGE_DOCUMENT } from "@/lib/tickets/attachment-rules";
 
 type Source = "file" | "text";
 const SOURCES: { value: Source; label: string; hint: string; icon: ReactNode }[] = [

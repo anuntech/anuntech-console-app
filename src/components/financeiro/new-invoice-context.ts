@@ -2,7 +2,7 @@ import "server-only";
 import { inArray } from "drizzle-orm";
 import { engagements } from "@/db/schema";
 import { db } from "@/lib/db";
-import { accessibleCompanies, requireAdmin } from "@/lib/access";
+import { accessibleCompanies, requireAdmin } from "@/lib/access/access";
 import type {
   InvoiceCompanyOption,
   InvoiceEngagementOption,

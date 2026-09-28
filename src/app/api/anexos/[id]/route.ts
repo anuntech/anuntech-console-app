@@ -1,11 +1,11 @@
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
 import { attachments, tasks, tickets, memberships } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
-import { hasPermission, type Area } from "@/lib/permissions";
-import { getConsoleStaffAccess } from "@/lib/console-members";
-import { getAccountEmails } from "@/lib/account-identity";
+import { hasPermission, type Area } from "@/lib/access/permissions";
+import { getConsoleStaffAccess } from "@/lib/access/console-members";
+import { getAccountEmails } from "@/lib/account/account-identity";
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },

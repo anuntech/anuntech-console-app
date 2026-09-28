@@ -1,12 +1,12 @@
-import { Notifications } from "@/components/notifications";
+import { Notifications } from "@/components/shell/notifications";
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./shadcn.css";
 import "./globals.css";
 import { cookies } from "next/headers";
-import { AppearanceProvider } from "@/components/appearance-provider";
+import { AppearanceProvider } from "@/components/shell/appearance-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { parseTheme, parseDockPosition } from "@/lib/appearance";
+import { parseTheme, parseDockPosition } from "@/lib/account/appearance";
 export const metadata: Metadata = {
   title: { default: "Anuntech Console", template: "%s | Anuntech Console" },
   description: "Portal do cliente Anuntech.",

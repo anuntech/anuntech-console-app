@@ -67,16 +67,16 @@ import { CompanySheet } from "./company-sheet";
 import { companyInitials, StatusDot } from "./companies-table";
 import { DeleteCompanyDialog } from "./delete-company-dialog";
 import type { CompanyFormValues } from "./company-form";
-import { formatDocument, formatPhone } from "@/lib/company-input";
-import { addressLabel } from "@/lib/company-billing";
+import { formatDocument, formatPhone } from "@/lib/companies/company-input";
+import { addressLabel } from "@/lib/companies/company-billing";
 import { auditLabels, currency, dateLabel, roleLabels } from "@/lib/format";
 import {
   revokeMembership,
   saveMembership,
   setCompanyArchived,
 } from "@/lib/actions";
-import { sendAccessNotice } from "@/lib/email-actions";
-import { startAssistedSession } from "@/lib/assisted-actions";
+import { sendAccessNotice } from "@/lib/access/email-actions";
+import { startAssistedSession } from "@/lib/access/assisted-actions";
 import { canDeleteCompany, type CompanyLinks } from "@/lib/deletion-rules";
 
 export type CompanyDetailData = {

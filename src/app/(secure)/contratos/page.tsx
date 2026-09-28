@@ -5,10 +5,10 @@ import { and, count, desc, eq, gte, ilike, inArray, lt, lte, or, sql } from "dri
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { companies, contractSignatures, contracts, engagements } from "@/db/schema";
-import { getActor, allowedIds } from "@/lib/access";
+import { getActor, allowedIds } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
-import { addDays, clientContractFilters, contractQuery, EXPIRY_WARNING_DAYS } from "@/lib/contract-table";
+import { addDays, clientContractFilters, contractQuery, EXPIRY_WARNING_DAYS } from "@/lib/contracts/contract-table";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { ContractsTable } from "@/components/contratos/contracts-table";

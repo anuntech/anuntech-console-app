@@ -44,7 +44,7 @@ import {
   RowActions,
 } from "@/components/console/list-view";
 import { dateTimeLabel, relativeLabel } from "@/lib/format";
-import { OPEN_TICKET_STATUSES } from "@/lib/ticket-status";
+import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import {
   ticketFilterLabels,
   ticketFilters,
@@ -53,7 +53,7 @@ import {
   type TicketQuery,
   type TicketStatus,
   type TicketStatusFilter,
-} from "@/lib/ticket-table";
+} from "@/lib/tickets/ticket-table";
 import { canDeleteTicket } from "@/lib/deletion-rules";
 import {
   CloseTicketDialog,

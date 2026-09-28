@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { contractBlocks } from "@/lib/contract-text";
+import { contractBlocks } from "@/lib/contracts/contract-text";
 
 /**
  * The contract as a document: a sheet with the title centered, parties

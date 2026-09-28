@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { enqueueBillingNotice } from "../src/lib/billing-notice-queue";
+import { enqueueBillingNotice } from "../src/lib/billing/billing-notice-queue";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/lib/db";
 import {
@@ -14,11 +14,11 @@ import {
 import {
   enqueueTicketNotice,
   processTicketNotices,
-} from "../src/lib/ticket-notifications";
+} from "../src/lib/tickets/ticket-notifications";
 import {
   lockTicketNotifications,
   TICKET_NOTIFICATION_KEY,
-} from "../src/lib/notification-settings";
+} from "../src/lib/notifications/notification-settings";
 assert.match(
   new URL(process.env.DATABASE_URL!).pathname,
   /^\/console_test_[a-f0-9]+$/,

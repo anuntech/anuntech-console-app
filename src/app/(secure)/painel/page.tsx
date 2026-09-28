@@ -19,11 +19,11 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { auditEvents, companies, contracts, invoices, quotes, subscriptions, tickets, user } from "@/db/schema";
-import { getActor } from "@/lib/access";
+import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
-import { addDays, EXPIRY_WARNING_DAYS } from "@/lib/contract-table";
-import { invoiceDisplayStatus } from "@/lib/invoice-table";
+import { addDays, EXPIRY_WARNING_DAYS } from "@/lib/contracts/contract-table";
+import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState, PageHeader, SectionTitle } from "@/components/console/page-header";

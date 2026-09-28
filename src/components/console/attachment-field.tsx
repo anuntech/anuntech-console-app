@@ -9,7 +9,7 @@ import {
   attachmentHint,
   attachmentLimitError,
   type AttachmentRules,
-} from "@/lib/attachment-rules";
+} from "@/lib/tickets/attachment-rules";
 
 // The rules live in lib/ so server checks share them; existing importers keep this path.
 export { DOCUMENT_ATTACHMENTS, attachmentHint, type AttachmentRules };

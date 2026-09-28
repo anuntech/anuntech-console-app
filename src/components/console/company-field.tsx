@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { fieldButtonClass } from "@/components/console/field";
 import { useFillable } from "@/components/console/fillable";
 import { CompanyMark } from "@/components/console/company-mark";
-import { formatDocument, onlyDigits } from "@/lib/company-input";
+import { formatDocument, onlyDigits } from "@/lib/companies/company-input";
 
 export type CompanyOption = { id: string; name: string; document?: string | null };
 

@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/console/form-field";
 import { FormSheet } from "@/components/console/form-sheet";
 import { MoneyField } from "@/components/console/money-field";
-import { updateProject } from "@/lib/task-actions";
+import { updateProject } from "@/lib/projects/task-actions";
 
 export type ProductFormValues = {
   id?: string;

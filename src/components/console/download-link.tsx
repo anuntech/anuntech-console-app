@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ComponentProps } from "react";
 import { cn } from "cn";
-import { toast } from "@/components/notifications";
+import { toast } from "@/components/shell/notifications";
 
 /**
  * Downloads a private file through fetch so the session cookie travels with

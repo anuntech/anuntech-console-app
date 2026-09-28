@@ -22,8 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { MetalPromptBar } from "@/components/ui/metal-prompt-bar";
 import { EnergyOrb } from "@/components/ui/energy-orb";
-import { openSupportWidget } from "@/components/support-trigger";
-import { toast } from "@/components/notifications";
+import { openSupportWidget } from "@/components/shell/support-trigger";
+import { toast } from "@/components/shell/notifications";
 import { relativeLabel } from "@/lib/format";
 import { MessageMarkdown } from "./message-markdown";
 import { clickPage, fillPage, snapshotPage } from "./page-bridge";

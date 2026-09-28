@@ -2,7 +2,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { cn } from "cn";
-import { isCatalogAvatar } from "@/lib/avatar-catalog";
+import { isCatalogAvatar } from "@/lib/account/avatar-catalog";
 import { initials } from "@/lib/format";
 import { IllustratedAvatar } from "@/components/settings/illustrated-avatar";
 

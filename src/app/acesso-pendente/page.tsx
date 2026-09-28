@@ -1,10 +1,10 @@
-import { getActor } from "@/lib/access";
-import { SignOutButton } from "@/components/auth-buttons";
-import { Brand } from "@/components/brand";
+import { getActor } from "@/lib/access/access";
+import { SignOutButton } from "@/components/auth/auth-buttons";
+import { Brand } from "@/components/shell/brand";
 import Link from "next/link";
 import { ArrowRightIcon, UserRoundCheckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import styles from "@/components/public-layout.module.css";
+import styles from "@/components/shell/public-layout.module.css";
 export const metadata = {
   title: "Acesso pendente",
   robots: { index: false, follow: false },

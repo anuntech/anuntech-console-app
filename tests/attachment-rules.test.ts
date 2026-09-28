@@ -8,8 +8,8 @@ import {
   attachmentHint,
   attachmentLimitError,
   limitLabel,
-} from "../src/lib/attachment-rules";
-import { MAX_TICKET_BYTES } from "../src/lib/ticket-files";
+} from "../src/lib/tickets/attachment-rules";
+import { MAX_TICKET_BYTES } from "../src/lib/tickets/ticket-files";
 
 test("attachment limits read the same on the field and in server messages", () => {
   assert.equal(attachmentHint(DOCUMENT_ATTACHMENTS), "PDF, PNG, JPEG ou WebP · até 5 arquivos, 20 MB no total");

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { catalogItems, companies, engagements, subscriptions } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { engagementLinks } from "@/lib/record-links";
 import { ServiceDetail } from "@/components/produtos/service-detail";
 export const metadata: Metadata = { title: "Serviço" };

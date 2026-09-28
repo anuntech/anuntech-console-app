@@ -1,9 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { companies, quoteVersions, quotes } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { db } from "@/lib/db";
-import { quoteNumberLabel, type QuotePublication } from "@/lib/quote-model";
-import { quotePdf } from "@/lib/quote-pdf";
+import { quoteNumberLabel, type QuotePublication } from "@/lib/quotes/quote-model";
+import { quotePdf } from "@/lib/quotes/quote-pdf";
 export const runtime = "nodejs";
 
 /**

@@ -4,7 +4,7 @@ import {
   hasPermission,
   isAdministrator,
   moneyToCents,
-} from "../src/lib/permissions";
+} from "../src/lib/access/permissions";
 test("administrador vê tudo; membro só tem chamados além do geral", () => {
   for (const area of ["overview", "support", "finance"] as const)
     assert.equal(hasPermission("manager", area), true);

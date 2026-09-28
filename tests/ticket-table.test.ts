@@ -4,7 +4,7 @@ import {
   ticketFilterStatuses,
   ticketListHref,
   ticketQuery,
-} from "../src/lib/ticket-table";
+} from "../src/lib/tickets/ticket-table";
 
 test("ticket list defaults to what needs attention and rejects malformed parameters", () => {
   assert.deepEqual(ticketQuery({}), {

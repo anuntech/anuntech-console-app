@@ -35,7 +35,7 @@ import {
   revokeConsoleStaffMember,
   saveCompanyMember,
   saveConsoleStaffMember,
-} from "@/lib/members-actions";
+} from "@/lib/access/members-actions";
 
 /** The company permission picker; also used by the company page's "Liberar acesso". */
 export function RoleSelect({

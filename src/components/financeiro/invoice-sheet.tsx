@@ -7,8 +7,8 @@ import { FormField } from "@/components/console/form-field";
 import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import { MoneyField } from "@/components/console/money-field";
 import { createInvoice, updateDraft } from "@/lib/actions";
-import { reissueInvoice } from "@/lib/billing-actions";
-import { updateSubscription } from "@/lib/billing-public-actions";
+import { reissueInvoice } from "@/lib/billing/billing-actions";
+import { updateSubscription } from "@/lib/billing/billing-public-actions";
 import {
   InvoiceFields,
   type InvoiceCompanyOption,
@@ -16,7 +16,7 @@ import {
 } from "./invoice-form";
 import { ChargeTermsFields } from "./charge-terms-fields";
 import { BankDueDateField } from "./bank-due-date-field";
-import { sameTerms, type ChargeTerms } from "@/lib/billing-terms";
+import { sameTerms, type ChargeTerms } from "@/lib/billing/billing-terms";
 
 export type InvoiceEditable = {
   id: string;

@@ -9,8 +9,8 @@ import { PersonAvatar, type PersonLike } from "@/components/console/person-avata
 import { AttachmentField } from "@/components/console/attachment-field";
 import { FileChip, FileChips } from "@/components/console/file-chip";
 import { useStagedUploads } from "@/components/console/staged-uploads";
-import { toast } from "@/components/notifications";
-import { addTaskComment, deleteTaskComment, updateTaskComment } from "@/lib/task-actions";
+import { toast } from "@/components/shell/notifications";
+import { addTaskComment, deleteTaskComment, updateTaskComment } from "@/lib/projects/task-actions";
 import { relativeLabel } from "@/lib/format";
 
 export type BoardComment = {

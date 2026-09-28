@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { getActor } from "@/lib/access";
-import { conversationMessages, deleteConversation } from "@/lib/assistant-history";
+import { getActor } from "@/lib/access/access";
+import { conversationMessages, deleteConversation } from "@/lib/assistant/assistant-history";
 export const runtime = "nodejs";
 
 const id = z.string().uuid();

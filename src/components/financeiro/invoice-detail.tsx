@@ -45,22 +45,22 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { cancelDraft } from "@/lib/actions";
-import { issueCharge, syncCharge } from "@/lib/billing-actions";
+import { issueCharge, syncCharge } from "@/lib/billing/billing-actions";
 import {
   changePaymentLink,
   changeSubscription,
   resendBillingNotice,
   sendInvoiceNotice,
-} from "@/lib/billing-public-actions";
+} from "@/lib/billing/billing-public-actions";
 import {
   daysOverdue,
   noticeChannelLabels,
   noticeKindLabel,
-} from "@/lib/billing-notice-rules";
-import { bankStatusLabels } from "@/lib/billing-rules";
-import { formatDocument, formatPhone } from "@/lib/company-input";
+} from "@/lib/billing/billing-notice-rules";
+import { bankStatusLabels } from "@/lib/billing/billing-rules";
+import { formatDocument, formatPhone } from "@/lib/companies/company-input";
 import { auditLabels, currency, dateLabel, dateTimeLabel } from "@/lib/format";
-import type { InvoiceDisplayStatus, InvoiceTableStatus } from "@/lib/invoice-table";
+import type { InvoiceDisplayStatus, InvoiceTableStatus } from "@/lib/billing/invoice-table";
 import { BankSync, SyncControl } from "./bank-sync";
 import {
   InvoiceStatusBadge,
@@ -68,7 +68,7 @@ import {
   SubscriptionStatusBadge,
 } from "./invoice-badges";
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
-import { hasTerms, lateFeesLabel, type ChargeTerms } from "@/lib/billing-terms";
+import { hasTerms, lateFeesLabel, type ChargeTerms } from "@/lib/billing/billing-terms";
 import { billingTypeLabel, DeleteInvoiceDialog } from "./invoices-table";
 
 export type InvoiceDetailData = {

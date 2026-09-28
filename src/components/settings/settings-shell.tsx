@@ -11,8 +11,8 @@ import {
   UserRoundIcon,
   UsersIcon,
 } from "lucide-react";
-import { getActor } from "@/lib/access";
-import { canManageMembers } from "@/lib/member-access";
+import { getActor } from "@/lib/access/access";
+import { canManageMembers } from "@/lib/access/member-access";
 import { PageHeader } from "@/components/console/page-header";
 import {
   SettingsNav,

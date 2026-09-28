@@ -2,7 +2,7 @@
 import { useId, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/auth-client";
 import { AuthAlert } from "./feedback";
 
 function GoogleMark() {

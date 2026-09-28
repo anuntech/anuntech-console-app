@@ -3,9 +3,9 @@ import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { companies, engagements } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access";
+import { getActor, canAccess } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
-import { boardTasks, projectPeople } from "@/lib/tasks";
+import { boardTasks, projectPeople } from "@/lib/projects/tasks";
 import { engagementLinks } from "@/lib/record-links";
 import { ProjectBoard } from "@/components/projetos/project-board";
 export const metadata: Metadata = {

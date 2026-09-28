@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { companyQuery, companyListHref } from "../src/lib/company-table";
+import { companyQuery, companyListHref } from "../src/lib/companies/company-table";
 
 test("company list defaults to active and rejects malformed query parameters", () => {
   assert.deepEqual(companyQuery({}), {

@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { processTicketNotices } from "@/lib/ticket-notifications";
+import { processTicketNotices } from "@/lib/tickets/ticket-notifications";
 export const maxDuration = 60;
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;

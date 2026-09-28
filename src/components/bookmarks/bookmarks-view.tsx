@@ -57,8 +57,8 @@ import {
 } from "@/components/console/list-view";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
-import { moveBookmark, deleteBookmark } from "@/lib/bookmark-actions";
-import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks";
+import { moveBookmark, deleteBookmark } from "@/lib/bookmarks/bookmark-actions";
+import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import { dateTimeLabel, fileSizeLabel, relativeLabel } from "@/lib/format";
 import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
 import { BookmarkSheet, type BookmarkEditor } from "./bookmark-sheet";

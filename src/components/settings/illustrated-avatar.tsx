@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/avatar-catalog";
+import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/account/avatar-catalog";
 
 /** One crop and colour everywhere: picker, account, navigation and members. */
 export function IllustratedAvatar({

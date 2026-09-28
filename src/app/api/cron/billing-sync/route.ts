@@ -3,8 +3,8 @@ import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, pool } from "@/lib/db";
 import { invoices } from "@/db/schema";
-import { interBase } from "@/lib/integrations";
-import { reconcileCharge } from "@/lib/billing-sync";
+import { interBase } from "@/lib/integrations/integrations";
+import { reconcileCharge } from "@/lib/billing/billing-sync";
 
 export const maxDuration = 300;
 export async function GET(request: Request) {

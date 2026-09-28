@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getActor } from "@/lib/access";
+import { getActor } from "@/lib/access/access";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { MembersSection } from "@/components/settings/members-section";
 export const metadata: Metadata = {

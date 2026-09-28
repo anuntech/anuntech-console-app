@@ -1,7 +1,7 @@
 import { cn } from "cn";
-import { formatDocument } from "@/lib/company-input";
+import { formatDocument } from "@/lib/companies/company-input";
 import { currency, dateLabel, longDateLabel } from "@/lib/format";
-import { hoursLabel, quoteTotals, taskCode, type QuoteContent } from "@/lib/quote-model";
+import { hoursLabel, quoteTotals, taskCode, type QuoteContent } from "@/lib/quotes/quote-model";
 
 export type QuoteDocumentData = QuoteContent & {
   title: string;

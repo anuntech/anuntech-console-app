@@ -11,7 +11,7 @@ import {
 import { FormField } from "@/components/console/form-field";
 import { FormSheet } from "@/components/console/form-sheet";
 import { MoneyField } from "@/components/console/money-field";
-import { saveCatalogItem } from "@/lib/catalog-actions";
+import { saveCatalogItem } from "@/lib/catalog/catalog-actions";
 
 export type CatalogItemValues = {
   id?: string;
