@@ -90,6 +90,7 @@ test("the children deleted with a company or its work are all accounted for", ()
   });
   assert.deepEqual(pointingAt(schema.tasks), {
     "console_task_assignees.task_id": "not null",
+    "console_task_comments.task_id": "not null",
     "console_attachments.task_id": "null",
   });
   assert.deepEqual(pointingAt(schema.tickets), {
@@ -109,6 +110,7 @@ test("the children deleted with a company or its work are all accounted for", ()
     schema.messages,
     schema.attachments,
     schema.taskAssignees,
+    schema.taskComments,
     schema.ticketNotices,
     schema.emailDeliveries,
     schema.bookmarks,

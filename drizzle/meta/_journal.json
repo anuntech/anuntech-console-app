@@ -225,6 +225,13 @@
       "when": 1790303852025,
       "tag": "0031_assistant_history",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790557794188,
+      "tag": "0032_task_comments",
+      "breakpoints": true
     }
   ]
 }

@@ -522,6 +522,27 @@ export const taskAssignees = pgTable(
     index("console_task_assignee_user_idx").on(t.userId),
   ],
 );
+/**
+ * The conversation on a task, oldest first. Everyone who can open the board
+ * (the Anuntech team and the client's people) reads and writes it.
+ */
+export const taskComments = pgTable(
+  "console_task_comments",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => tasks.id),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    body: text("body").notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("console_task_comment_task_idx").on(t.taskId, t.createdAt)],
+);
 export const tickets = pgTable(
   "console_tickets",
   {
