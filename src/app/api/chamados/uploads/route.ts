@@ -20,7 +20,7 @@ function sameOrigin(request: Request) {
 }
 export async function POST(request: Request) {
   if (!sameOrigin(request))
-    return respond({ error: "Solicitação não permitida." }, 403);
+    return respond({ error: "O envio foi recusado. Recarregue a página e tente de novo." }, 403);
   const actor = await getActor();
   if (!actor.admin && !allowedIds(actor, "support").length)
     return respond({ error: "Acesso negado." }, 403);
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 }
 export async function PATCH(request: Request) {
   if (!sameOrigin(request))
-    return respond({ error: "Solicitação não permitida." }, 403);
+    return respond({ error: "O envio foi recusado. Recarregue a página e tente de novo." }, 403);
   const actor = await getActor();
   if (!actor.admin && !allowedIds(actor, "support").length)
     return respond({ error: "Acesso negado." }, 403);
@@ -79,7 +79,7 @@ export async function PATCH(request: Request) {
     id = url.searchParams.get("id"),
     offset = Number(url.searchParams.get("offset"));
   if (!id || !Number.isSafeInteger(offset) || offset < 0)
-    return respond({ error: "Envio inválido." }, 400);
+    return respond({ error: "Não foi possível continuar o envio. Selecione o arquivo de novo." }, 400);
   const reader = request.body?.getReader();
   if (!reader) return respond({ error: "Arquivo vazio." }, 400);
   let length = 0;
@@ -132,7 +132,7 @@ export async function PATCH(request: Request) {
     return respond({ success: true });
   } catch (error) {
     return respond(
-      { error: error instanceof Error ? error.message : "Falha no envio." },
+      { error: error instanceof Error ? error.message : "O envio do anexo falhou. Tente de novo." },
       400,
     );
   } finally {

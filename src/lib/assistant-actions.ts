@@ -10,7 +10,7 @@ import { DEFAULT_ASSISTANT_MODEL } from "./assistant";
 import { openRouterModels } from "./openrouter-models";
 import { KNOWLEDGE_DOCUMENT, limitLabel } from "./attachment-rules";
 
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 const MAX_DOCUMENTS = 30;
 const MAX_DOCUMENT_BYTES = KNOWLEDGE_DOCUMENT.maxBytes;
 const tooLarge = `Cada documento pode ter até ${limitLabel(MAX_DOCUMENT_BYTES)}. Divida em partes.`;

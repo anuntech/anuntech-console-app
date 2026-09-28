@@ -440,8 +440,8 @@ export function CompanyDetail({
                     addressLabel(company.billingAddress)
                   ) : (
                     <span className="text-muted-foreground">
-                      Ainda não cadastrado — necessário para emitir cobranças e
-                      notas.
+                      Ainda não cadastrado. Sem ele, não dá para emitir cobranças
+                      e notas.
                     </span>
                   )}
                 </Fact>

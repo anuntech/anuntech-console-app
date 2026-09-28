@@ -14,7 +14,7 @@ import { companyLinks } from "@/lib/record-links";
 export const metadata: Metadata = {
   title: "Empresas",
   description:
-    "Consulte os clientes e gerencie cadastros e acessos por empresa.",
+    "Os clientes, os contatos financeiros e quem acessa o Console por eles.",
 };
 
 export default async function Companies({

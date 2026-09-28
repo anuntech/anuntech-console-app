@@ -23,7 +23,7 @@ const folderName = z
   .trim()
   .min(1, "Dê um nome à pasta.")
   .max(80, "O nome da pasta excede o tamanho permitido.");
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 const failure = (error: unknown): ActionState => ({
   error:
     error instanceof z.ZodError

@@ -498,7 +498,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   <Fact label="Endereço de cobrança" className="sm:col-span-2">
                     {company.address || (
                       <span className="text-warning">
-                        Não cadastrado — necessário para emitir no Inter.
+                        Não cadastrado. Sem ele, o Inter não emite a cobrança.
                       </span>
                     )}
                   </Fact>

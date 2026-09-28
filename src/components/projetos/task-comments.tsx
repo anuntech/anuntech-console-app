@@ -170,7 +170,7 @@ export function TaskComments({
           <EmptyState
             icon={<MessageSquareIcon />}
             title="Nenhum comentário ainda"
-            description="Dúvidas, decisões e o que falta: converse sobre a tarefa aqui."
+            description="O que for combinado sobre esta tarefa fica registrado aqui."
             className="h-full"
           />
         )}

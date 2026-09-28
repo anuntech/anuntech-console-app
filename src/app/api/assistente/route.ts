@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (!allowRequest(actor.user.id))
     return Response.json({ error: "Muitas mensagens em pouco tempo. Espere alguns minutos e tente de novo." }, { status: 429 });
   const parsed = body.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "Mensagem inválida." }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "Não foi possível ler a mensagem. Envie de novo." }, { status: 400 });
   const history = parsed.data.messages as ChatTurn[];
   if (history[history.length - 1].role !== "user") return Response.json({ error: "A última mensagem precisa ser sua." }, { status: 400 });
   const encoder = new TextEncoder();

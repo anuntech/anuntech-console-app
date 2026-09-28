@@ -5,7 +5,7 @@ import { MembersSection } from "@/components/settings/members-section";
 export const metadata: Metadata = {
   title: "Membros",
   description:
-    "Gerencie os membros e as permissões das empresas que você administra.",
+    "Quem acessa o Console e o que cada pessoa pode fazer.",
 };
 export default async function MembersPage() {
   // The list card has no heading of its own, so the page says whose people these are.

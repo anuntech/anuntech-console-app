@@ -69,6 +69,6 @@ test("WhatsApp button receives only public invoice ID and exact template fields"
     ...data,
     url: "https://console.example/pagar/id",
   });
-  assert.ok(email.text.includes("pendente há 8 dias"));
+  assert.ok(email.text.includes("em aberto há 8 dias"));
   assert.ok(email.text.includes("Valor atualizado"));
 });

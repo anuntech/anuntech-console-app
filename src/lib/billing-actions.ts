@@ -54,7 +54,7 @@ export async function issueCharge(
         .where(eq(subscriptions.id, invoice.subscriptionId))
         .for("update");
       if (!sub || sub.status === "paused" || sub.status === "cancelled")
-        throw new Error("Recorrência indisponível.");
+        throw new Error("Recorrência não encontrada.");
       if (invoice.status !== "draft" || invoice.bankRequest) return false;
       if (issueDate(invoice.dueDate, sub.leadDays) <= saoPauloDate())
         return false;
@@ -186,7 +186,7 @@ export async function reissueInvoice(
   try {
     terms = parseChargeTerms(form, amountCents);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Condições inválidas." };
+    return { error: error instanceof Error ? error.message : "Confira o desconto, a multa e os juros." };
   }
   const scope = parseTermsScope(form);
   const [i] = await db.select().from(invoices).where(eq(invoices.id, input.id));

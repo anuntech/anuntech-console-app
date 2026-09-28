@@ -258,7 +258,7 @@ export async function quotePdf(
         doc
           .fillColor(MUTED)
           .text(
-            `Identidade confirmada pelo acesso ao Anuntech Console (código enviado ao e-mail ou WhatsApp cadastrado)${input.decision.ip ? ` · IP ${input.decision.ip}` : ""}.`,
+            `Identidade confirmada pelo acesso ao Console da Anuntech (código enviado ao e-mail ou WhatsApp cadastrado)${input.decision.ip ? ` · IP ${input.decision.ip}` : ""}.`,
             { width },
           );
       if (input.decision.note) doc.fillColor(TEXT).text(`Observação: ${input.decision.note}`, { width });

@@ -27,7 +27,7 @@ import {
 } from "./task-model";
 
 const id = z.string().uuid();
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 const failure = (error: unknown): ActionState => ({
   error:
     error instanceof z.ZodError
@@ -132,14 +132,14 @@ export async function createTask(
     try {
       direct = await prepareTicketFiles(form.getAll("files"));
     } catch (error) {
-      return { error: message(error, "Anexos inválidos.") };
+      return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
     }
     const result = await db.transaction(async (tx): Promise<ActionState> => {
       let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
       try {
         uploaded = await takeTicketUploads(tx, actor.user.id, form);
       } catch (error) {
-        return { error: message(error, "Anexos inválidos.") };
+        return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
       }
       const files = [...direct, ...uploaded];
       if (files.length > MAX_FILES_AT_ONCE)
@@ -219,14 +219,14 @@ export async function updateTask(
     try {
       direct = await prepareTicketFiles(form.getAll("files"));
     } catch (error) {
-      return { error: message(error, "Anexos inválidos.") };
+      return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
     }
     const result = await db.transaction(async (tx): Promise<ActionState> => {
       let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
       try {
         uploaded = await takeTicketUploads(tx, actor.user.id, form);
       } catch (error) {
-        return { error: message(error, "Anexos inválidos.") };
+        return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
       }
       const files = [...direct, ...uploaded];
       if (files.length > MAX_FILES_AT_ONCE)
@@ -464,14 +464,14 @@ export async function addTaskComment(
     try {
       direct = await prepareTicketFiles(form.getAll("files"));
     } catch (error) {
-      return { error: message(error, "Anexos inválidos.") };
+      return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
     }
     const result = await db.transaction(async (tx): Promise<ActionState> => {
       let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
       try {
         uploaded = await takeTicketUploads(tx, actor.user.id, form);
       } catch (error) {
-        return { error: message(error, "Anexos inválidos.") };
+        return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
       }
       const files = [...direct, ...uploaded];
       if (!input.body && !files.length) return { error: "Escreva o comentário ou anexe um arquivo." };

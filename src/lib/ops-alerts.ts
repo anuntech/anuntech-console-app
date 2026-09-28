@@ -65,7 +65,7 @@ export async function alertRecurrencePaused(subscriptionId: string, error: strin
     if (!row) return;
     await sendOpsMail(
       `[Console] Recorrência pausada: ${row.company} · ${row.description}`,
-      `A emissão automática de ${row.description} para ${row.company} (vencimento ${dateLabel(row.nextDueDate)}) falhou e a recorrência foi pausada.\n\nMotivo: ${error}\n\nCorrija o cadastro e retome a recorrência pelo Console: ${consoleUrl()}/financeiro\n\nAnuntech Console`,
+      `A emissão automática de ${row.description} para ${row.company} (vencimento ${dateLabel(row.nextDueDate)}) falhou e a recorrência foi pausada.\n\nMotivo: ${error}\n\nCorrija o cadastro e retome a recorrência pelo Console: ${consoleUrl()}/financeiro\n\nConsole da Anuntech`,
     );
   } catch {
     /* Never let an alert break the billing run. */
@@ -93,7 +93,7 @@ export async function alertNoticeProblem(noticeId: string) {
     const channel = noticeChannelLabels[row.channel] ?? row.channel;
     await sendOpsMail(
       `[Console] Aviso ${(noticeStatusLabels[row.status] ?? row.status).toLowerCase()}: ${row.company} · ${row.description}`,
-      `O aviso "${noticeKindLabel(row.kind)}" por ${channel} da fatura ${row.description} (${row.company}) ficou como "${noticeStatusLabels[row.status] ?? row.status}" e não será reenviado sozinho.\n\n${row.error ?? ""}\n\nConfira o contato do cliente e reenvie pela fatura: ${consoleUrl()}/financeiro/${row.invoiceId}\n\nAnuntech Console`,
+      `O aviso "${noticeKindLabel(row.kind)}" por ${channel} da fatura ${row.description} (${row.company}) ficou como "${noticeStatusLabels[row.status] ?? row.status}" e não será reenviado sozinho.\n\n${row.error ?? ""}\n\nConfira o contato do cliente e reenvie pela fatura: ${consoleUrl()}/financeiro/${row.invoiceId}\n\nConsole da Anuntech`,
     );
   } catch {
     /* Best effort. */

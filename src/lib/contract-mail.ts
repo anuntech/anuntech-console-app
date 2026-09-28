@@ -34,7 +34,7 @@ export async function deliverContractNotice(
     to: email,
     tag: "contract",
     subject: `${input.kind === "amendment" ? "Aditivo" : "Contrato"} para assinatura: ${input.title}`,
-    text: `A Anuntech enviou o ${noun} "${input.title}" para ${input.companyName}.${again}\n\nLeia e assine pelo Console: ${input.url}\n\nA assinatura é feita com o seu acesso ao Console, que confirma sua identidade pelo e-mail ou WhatsApp cadastrado.\n\nAnuntech Console`,
+    text: `A Anuntech enviou o ${noun} "${input.title}" para ${input.companyName}.${again}\n\nLeia e assine pelo Console: ${input.url}\n\nVocê assina com o seu acesso ao Console, que confirma sua identidade pelo e-mail ou WhatsApp cadastrado.\n\nAnuntech`,
   });
 }
 
@@ -57,6 +57,6 @@ export async function deliverContractExpiryNotice(
     to: email,
     tag: "contract-expiry",
     subject: `${expired ? "Contrato vencido" : "Contrato vencendo"}: ${input.title}`,
-    text: `O contrato "${input.title}" com ${input.companyName} ${when} (${longDateLabel(input.endsAt)}).\n\n${expired ? "Se a relação continua, registre a renovação por aditivo ou crie um novo contrato." : "Para renovar, crie um aditivo de prorrogação ou um novo contrato antes do fim da vigência."}\n\nAbrir no Console: ${input.url}\n\nAnuntech Console`,
+    text: `O contrato "${input.title}" com ${input.companyName} ${when} (${longDateLabel(input.endsAt)}).\n\n${expired ? "Se a relação continua, registre a renovação por aditivo ou crie um novo contrato." : "Para renovar, crie um aditivo de prorrogação ou um novo contrato antes do fim da vigência."}\n\nAbrir no Console: ${input.url}\n\nConsole da Anuntech`,
   });
 }

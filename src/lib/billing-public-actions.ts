@@ -211,7 +211,7 @@ export async function changeSubscription(
         .where(eq(subscriptions.id, id))
         .for("update");
       if (!s || !["active", "paused"].includes(s.status))
-        throw Error("Publique a primeira fatura para ativar a assinatura.");
+        throw Error("Publique a primeira fatura para ativar a recorrência.");
       if (status === "active" && s.nextDueDate <= saoPauloDate())
         throw Error("Revise o próximo vencimento antes de reativar.");
       await tx
@@ -264,7 +264,7 @@ export async function updateSubscription(
         .where(eq(subscriptions.id, id))
         .for("update");
       if (!s || s.status === "cancelled")
-        throw Error("Assinatura indisponível.");
+        throw Error("Recorrência não encontrada.");
       const [i] = await tx
         .select()
         .from(invoices)
@@ -283,7 +283,7 @@ export async function updateSubscription(
         (i.bankRequest || i.providerId || i.status !== "draft")
       )
         throw Error(
-          "O período atual tem emissão ou cancelamento. Reconcilie a cobrança antes de alterar a assinatura.",
+          "O período atual tem emissão ou cancelamento. Reconcilie a cobrança antes de alterar a recorrência.",
         );
       if (i && !skipCancelled)
         await tx
@@ -325,7 +325,7 @@ export async function updateSubscription(
       error:
         e instanceof Error
           ? e.message
-          : "Não foi possível atualizar a assinatura.",
+          : "Não foi possível atualizar a recorrência.",
     };
   }
 }

@@ -44,7 +44,7 @@ export async function endAssistedSession(
   void _previous;
   void _form;
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return { error: "Sessão inválida." };
+  if (!session) return { error: "Sua sessão expirou. Entre de novo." };
   const companyId = (await cookies()).get(ASSIST_COOKIE)?.value;
   (await cookies()).delete(ASSIST_COOKIE);
   if (companyId)

@@ -31,7 +31,7 @@ const emailInput = z
   .max(254)
   .transform(normalizeEmail);
 const idInput = z.string().uuid("Acesso inválido.");
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 import { AccessChangeError, lockManagedCompany } from "./company-management";
 
 function failure(error: unknown): ActionState {
@@ -154,7 +154,7 @@ export async function saveConsoleStaffMember(
       await assertSingleEnvironment(tx, identity.emails, "console");
       if (ownsConsole(identity.emails))
         throw new AccessChangeError(
-          "O proprietário já possui administração permanente do Console.",
+          "O proprietário já administra o Console e não perde esse acesso.",
         );
       const [existing] = await tx
         .select({ id: consoleStaffMembers.id })
@@ -205,7 +205,7 @@ export async function saveConsoleStaffMember(
     return {
       success: changed
         ? "Administração liberada. Um e-mail de convite foi enviado."
-        : "Esta pessoa já possui administração do Console.",
+        : "Esta pessoa já administra o Console.",
     };
   } catch (error) {
     return failure(error);

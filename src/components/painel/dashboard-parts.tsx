@@ -88,7 +88,7 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
           <CheckCircle2Icon />
         </span>
         <p className="text-sm font-medium text-foreground">Tudo em dia</p>
-        <p className="text-xs text-muted-foreground">Nada vencido, parado ou esperando por você.</p>
+        <p className="text-xs text-muted-foreground">Quando algo vencer ou ficar esperando alguém, aparece aqui.</p>
       </div>
     );
   return (

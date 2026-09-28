@@ -241,7 +241,7 @@ export function TwoStepSettings({
         )}
         {message && <AuthAlert kind="info">{message}</AuthAlert>}
         <p className="sr-only" role="status">
-          {busy ? "Processando a verificação. Aguarde." : ""}
+          {busy ? "Conferindo o código." : ""}
         </p>
       </CardContent>
     </Card>

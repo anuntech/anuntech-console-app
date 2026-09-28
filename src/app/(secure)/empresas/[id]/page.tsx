@@ -20,7 +20,7 @@ import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
 export const metadata = {
   title: "Detalhes da empresa",
-  description: "Consulte os dados da empresa, contatos e permissões de acesso.",
+  description: "Cadastro, contatos e acessos de uma empresa.",
 };
 export default async function Company({
   params,

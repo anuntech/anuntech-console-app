@@ -15,7 +15,7 @@ import type { ActionState } from "./action-state";
 import { moneyToCents } from "./permissions";
 
 const id = z.string().uuid();
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 const failure = (error: unknown): ActionState => ({
   error:
     error instanceof z.ZodError

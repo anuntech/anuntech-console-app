@@ -209,15 +209,16 @@ export function PaymentView({
               <dd className="font-semibold text-foreground">Anuntech</dd>
             </div>
           </dl>
-          <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-            {paid
-              ? "O pagamento desta fatura foi confirmado pelo banco."
-              : cancelled
+          {/* Paid says it once, on the right. */}
+          {!paid && (
+            <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
+              {cancelled
                 ? "Esta cobrança foi cancelada pela Anuntech."
                 : display === "overdue"
                   ? "O vencimento passou, mas o boleto e o Pix continuam válidos para pagamento."
                   : "Confira os dados e escolha como prefere pagar."}
-          </p>
+            </p>
+          )}
         </section>
 
         <section
@@ -230,11 +231,7 @@ export function PaymentView({
               tone="success"
               title="Pagamento confirmado"
             >
-              <p>Esta fatura já foi paga. Obrigado!</p>
-              <p className="mt-4 inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs">
-                <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
-                Confirmado pelo Banco Inter
-              </p>
+              <p>O Banco Inter confirmou o pagamento. Obrigado.</p>
             </Outcome>
           ) : cancelled ? (
             <Outcome icon={<CircleSlashIcon />} tone="muted" title="Fatura cancelada">
@@ -249,8 +246,8 @@ export function PaymentView({
               >
                 <p>
                   O banco está processando esta cobrança. O Pix e o boleto
-                  aparecem aqui assim que ficarem prontos — não precisa
-                  recarregar.
+                  aparecem aqui assim que ficarem prontos, sem precisar
+                  recarregar a página.
                 </p>
               </Outcome>
               <PaymentRefresh />

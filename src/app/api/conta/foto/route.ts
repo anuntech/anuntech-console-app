@@ -115,7 +115,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return fail("Solicitação não permitida.", 403);
+  if (!sameOrigin(request)) return fail("A alteração foi recusada. Recarregue a página e tente de novo.", 403);
   const actor = await getAccountSession();
   if (!actor) return fail("Entre para alterar sua foto.", 401);
   const length = Number(request.headers.get("content-length") || 0);
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request)) return fail("Solicitação não permitida.", 403);
+  if (!sameOrigin(request)) return fail("A alteração foi recusada. Recarregue a página e tente de novo.", 403);
   const actor = await getAccountSession();
   if (!actor) return fail("Entre para alterar sua foto.", 401);
   try {
@@ -162,7 +162,7 @@ export async function DELETE(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  if (!sameOrigin(request)) return fail("Solicitação não permitida.", 403);
+  if (!sameOrigin(request)) return fail("A alteração foi recusada. Recarregue a página e tente de novo.", 403);
   const actor = await getAccountSession();
   if (!actor) return fail("Entre para alterar sua foto.", 401);
   try {

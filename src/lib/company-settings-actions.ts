@@ -19,7 +19,7 @@ import {
   preferenceKey,
   lockCompanyNotifications,
 } from "./notification-preferences";
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 function failure(error: unknown): ActionState {
   if (error instanceof z.ZodError) return { error: error.issues[0].message };
   if (error instanceof AccessChangeError) return blocked;

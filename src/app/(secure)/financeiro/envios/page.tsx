@@ -31,7 +31,7 @@ import {
 export const metadata: Metadata = {
   title: "Envios de cobrança",
   description:
-    "Acompanhe a entrega dos avisos de cobrança por e-mail e WhatsApp.",
+    "Os avisos de cobrança enviados por e-mail e WhatsApp, com a entrega de cada um.",
 };
 
 const ACTIVE = ["waiting", "pending", "sending", "accepted"];

@@ -32,7 +32,7 @@ export function opsDigestText(d: OpsDigestData): { subject: string; text: string
   const problems = d.paused.length + d.noticeProblems.length + d.overdue.length + d.contracts.length;
   const date = dateLabel(d.today);
   const sections: string[] = [
-    `Resumo do Console — ${date}`,
+    `Resumo do Console de ${date}`,
     `Emitidas nas últimas 24 h: ${d.issued24h} · Recebidas: ${d.paid24h}`,
   ];
   if (d.paused.length)

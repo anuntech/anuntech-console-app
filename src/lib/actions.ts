@@ -64,7 +64,7 @@ const failure = (error: unknown): ActionState => {
         : "Não foi possível salvar. Confira os dados e tente novamente.",
   };
 };
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 function refresh() {
   revalidatePath("/painel", "layout");
   revalidatePath("/empresas");
@@ -205,7 +205,7 @@ export async function createTicket(
     if (!canAccess(actor, input.companyId, "support")) return blocked;
     let files: Awaited<ReturnType<typeof prepareTicketFiles>>;
     try { files = await prepareTicketFiles(form.getAll("files")); }
-    catch (error) { return { error: error instanceof Error ? error.message : "Anexos inválidos." }; }
+    catch (error) { return { error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo." }; }
     const ticket = await db.transaction(async (tx) => {
       const uploaded = await takeTicketUploads(tx, actor.user.id, form);
       if (files.length + uploaded.length > DOCUMENT_ATTACHMENTS.max || files.reduce((n, f) => n + f.size, 0) + uploaded.reduce((n, f) => n + f.size, 0) > DOCUMENT_ATTACHMENTS.maxBytes) throw new Error("Limite de anexos excedido.");
@@ -297,7 +297,7 @@ export async function replyTicket(
       ]);
     } catch (error) {
       return {
-        error: error instanceof Error ? error.message : "Anexos inválidos.",
+        error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
       };
     }
     const result = await db.transaction(async (tx) => {
@@ -318,7 +318,7 @@ export async function replyTicket(
         uploaded = await takeTicketUploads(tx, actor.user.id, form);
       } catch (error) {
         return {
-          error: error instanceof Error ? error.message : "Anexos inválidos.",
+          error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
         };
       }
       const files = [...direct, ...uploaded];
@@ -510,7 +510,7 @@ export async function createInvoice(
     try {
       terms = parseChargeTerms(form, amountCents);
     } catch (error) {
-      return { error: error instanceof Error ? error.message : "Condições inválidas." };
+      return { error: error instanceof Error ? error.message : "Confira o desconto, a multa e os juros." };
     }
     const bank = resolveBankDueDate(
       { dueDate: input.dueDate, bankDueDate: input.bankDueDate, recurring: input.billingType === "recurring" },
@@ -646,7 +646,7 @@ export async function updateDraft(
     try {
       terms = parseChargeTerms(form, amountCents);
     } catch (error) {
-      return { error: error instanceof Error ? error.message : "Condições inválidas." };
+      return { error: error instanceof Error ? error.message : "Confira o desconto, a multa e os juros." };
     }
     const scope = parseTermsScope(form);
     const bank = resolveBankDueDate(
@@ -683,7 +683,7 @@ export async function updateDraft(
           .for("update");
         if (!sub || sub.status !== "draft")
           throw new Error(
-            "A assinatura já foi ativada. Use Editar próximas cobranças para rever os próximos períodos.",
+            "A recorrência já foi ativada. Use Editar próximas cobranças para mudar os próximos períodos.",
           );
         await tx
           .update(subscriptions)

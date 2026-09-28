@@ -24,7 +24,7 @@ import {
 export const metadata: Metadata = {
   title: "Chamado",
   description:
-    "Acompanhe a conversa, a situação e os arquivos de uma solicitação de atendimento.",
+    "A conversa, a situação e os anexos de um chamado.",
 };
 
 /**

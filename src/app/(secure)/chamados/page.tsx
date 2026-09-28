@@ -14,7 +14,7 @@ import { ticketFilterStatuses, ticketQuery } from "@/lib/ticket-table";
 export const metadata: Metadata = {
   title: "Chamados",
   description:
-    "Consulte as solicitações de atendimento e acompanhe as conversas com a equipe.",
+    "Os chamados e as conversas com a equipe da Anuntech.",
 };
 
 // `assignedTo` holds an e-mail; the list shows the name of the user who has it.

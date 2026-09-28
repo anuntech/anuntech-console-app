@@ -4,7 +4,7 @@ import { AccountSection } from "@/components/settings/account-section";
 export const metadata: Metadata = {
   title: "Minha conta",
   description:
-    "Consulte seus dados de acesso e gerencie o número de WhatsApp verificado.",
+    "Seu perfil e os contatos que você usa para entrar.",
 };
 export default function AccountPage() {
   return (

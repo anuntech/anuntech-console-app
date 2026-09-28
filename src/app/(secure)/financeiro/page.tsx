@@ -35,7 +35,7 @@ import { InvoicesTable } from "@/components/financeiro/invoices-table";
 export const metadata: Metadata = {
   title: "Financeiro",
   description:
-    "Consulte faturas, vencimentos e pagamentos das empresas com acesso autorizado.",
+    "Faturas, vencimentos e pagamentos de cada empresa.",
 };
 
 export default async function Finance({

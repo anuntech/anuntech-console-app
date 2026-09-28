@@ -6,7 +6,7 @@ import { getAccountEmails } from "./account-identity";
 import { db } from "./db";
 import { managedCompanyIds } from "./member-access";
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 export class AccessChangeError extends Error {}
 /** A company lock serializes grants, demotions and revocations before authorization. */
 export async function lockManagedCompany(

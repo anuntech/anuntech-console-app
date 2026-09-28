@@ -35,7 +35,7 @@ import { ClientDashboard } from "@/components/painel/client-dashboard";
 
 export const metadata: Metadata = {
   title: "Visão geral",
-  description: "Acompanhe empresas, chamados e faturas no Console da Anuntech.",
+  description: "O que está em andamento e o que precisa de atenção.",
 };
 
 const TZ = "America/Sao_Paulo";
@@ -385,7 +385,7 @@ export default async function Dashboard() {
                 ))}
               </ul>
             ) : (
-              <EmptyState icon={<HeadsetIcon />} title="Nenhum chamado por aqui" description="Os atendimentos aparecem neste espaço." className="py-10" />
+              <EmptyState icon={<HeadsetIcon />} title="Nenhum chamado por aqui" description="Quando um cliente abrir um chamado, ele aparece aqui." className="py-10" />
             )}
           </CardContent>
         </Card>
@@ -411,7 +411,7 @@ export default async function Dashboard() {
                 ))}
               </ul>
             ) : (
-              <EmptyState icon={<ReceiptTextIcon />} title="Nenhuma fatura por aqui" description="As faturas aparecem neste espaço." className="py-10" />
+              <EmptyState icon={<ReceiptTextIcon />} title="Nenhuma fatura por aqui" description="As cobranças emitidas aparecem aqui." className="py-10" />
             )}
           </CardContent>
         </Card>

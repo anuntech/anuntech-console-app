@@ -55,10 +55,10 @@ export async function processSubscriptions() {
           .from(companies)
           .where(eq(companies.id, current.companyId));
         if (!company || company.archived)
-          throw Error("Cliente arquivado. Pause ou revise a assinatura.");
+          throw Error("Cliente arquivado. Pause ou revise a recorrência.");
         if (current.nextDueDate <= today)
           throw Error(
-            "Vencimento ultrapassado sem emissão. Revise a assinatura antes de continuar.",
+            "Vencimento ultrapassado sem emissão. Revise a recorrência antes de continuar.",
           );
         const [existing] = await tx
           .select()
@@ -103,7 +103,7 @@ export async function processSubscriptions() {
         invoice.providerId
       )
         throw Error(
-          "A fatura deste período já possui emissão, tentativa ou cancelamento. Confira no detalhe antes de continuar.",
+          "A fatura deste período já tem emissão, tentativa ou cancelamento. Confira no detalhe antes de continuar.",
         );
       const result = await publishInvoice(
         invoice.id,

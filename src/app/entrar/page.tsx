@@ -15,9 +15,9 @@ export default async function SignIn({
   return (
     <main id="main-content" tabIndex={-1} className="contents">
       <AuthShell
-        eyebrow="Bem-vindo"
+        eyebrow="Boas-vindas"
         title="Entre no Console"
-        description="Use o e-mail que recebeu acesso à sua empresa."
+        description="Use o e-mail liberado para a sua empresa ou o WhatsApp da sua conta."
       >
         <div className="flex flex-col gap-5">
           {(query.erro || query.error) && (

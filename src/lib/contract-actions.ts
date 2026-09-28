@@ -33,7 +33,7 @@ import { currency, longDateLabel } from "./format";
 import { hasPermission } from "./permissions";
 
 const id = z.string().uuid();
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 const bodyText = z
   .string()
   .transform((v) => v.replace(/\r\n?/g, "\n"))

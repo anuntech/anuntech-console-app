@@ -188,7 +188,7 @@ export function SecurityChallenge() {
       )}
       <p className="sr-only" role="status">
         {busy
-          ? "Processando sua verificação. Aguarde."
+          ? "Conferindo o código."
           : !challenge && !expired
             ? "Preparando a verificação."
             : ""}

@@ -77,7 +77,7 @@ export async function takeTicketUploads(
   const ids = form.getAll("uploadId").map(String);
   if (!ids.length) return [];
   if (ids.length > MAX_TICKET_FILES || new Set(ids).size !== ids.length)
-    throw new Error("Anexos inválidos.");
+    throw new Error("Não foi possível ler os anexos. Selecione os arquivos de novo.");
   const rows = await tx
     .delete(ticketUploads)
     .where(

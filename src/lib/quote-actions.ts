@@ -24,7 +24,7 @@ import {
 } from "./quote-model";
 
 const id = z.string().uuid();
-const blocked = { error: "Você não tem permissão para realizar esta ação." };
+const blocked = { error: "Você não tem permissão para fazer isso." };
 const titleField = z.string().trim().min(1, "Dê um título ao orçamento.").max(160, "O título pode ter até 160 caracteres.");
 const civilDate = z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.")]).default("");
 /** The editor posts its state as one JSON field. */

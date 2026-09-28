@@ -25,7 +25,7 @@ import {
 } from "@/components/financeiro/invoice-detail";
 export const metadata: Metadata = {
   title: "Fatura",
-  description: "Consulte o pagamento, os avisos e as condições desta fatura.",
+  description: "O pagamento, os avisos e as condições de uma fatura.",
 };
 
 export default async function Invoice({

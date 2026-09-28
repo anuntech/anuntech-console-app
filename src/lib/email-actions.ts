@@ -18,7 +18,7 @@ export async function sendAccessNotice(
   const actor = await getActor();
   if (!actor.admin) return { error: "Acesso restrito à administração." };
   const input = z.string().uuid().safeParse(form.get("id"));
-  if (!input.success) return { error: "Acesso inválido." };
+  if (!input.success) return { error: "Este acesso não existe mais. Atualize a página." };
   const base = process.env.BETTER_AUTH_URL;
   if (
     !process.env.RESEND_API_KEY ||
@@ -40,8 +40,8 @@ export async function sendAccessNotice(
     const payload = {
       from: process.env.EMAIL_FROM,
       to: [entry.membership.email],
-      subject: "Seu acesso à Anuntech Console",
-      text: `Olá!\n\nSeu acesso à empresa ${entry.company} foi liberado na Anuntech Console.\n\nEntre com este e-mail usando um código de acesso ou Google: ${base}/entrar\n\nSe não reconhece este acesso, entre em contato com a Anuntech.\n\nEquipe Anuntech`,
+      subject: "Seu acesso ao Console da Anuntech",
+      text: `Seu acesso à empresa ${entry.company} no Console da Anuntech foi liberado.\n\nPara entrar, abra ${base}/entrar e use este e-mail. Um código chega na sua caixa de entrada, ou você entra com o Google.\n\nSe você não reconhece este acesso, fale com a Anuntech.\n\nAnuntech`,
     };
     await db
       .insert(emailDeliveries)

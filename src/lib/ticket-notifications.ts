@@ -87,7 +87,7 @@ export async function enqueueTicketNotice(
           from: process.env.EMAIL_FROM || "",
           to: email,
           subject: `${movement} · ${ticket.subject}`,
-          text: `${movement}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nResponsável pela movimentação: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
+          text: `${movement}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nConsole da Anuntech`,
         },
       });
     }
@@ -138,8 +138,8 @@ export async function enqueueTicketNotice(
         subject: `${movement} · ${ticket.subject}`,
         text:
           author?.kind === "movement"
-            ? `${movement}\n\nA equipe da Anuntech movimentou o seu chamado.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nResponsável pela movimentação: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`
-            : `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech Console`,
+            ? `${movement}\n\nA equipe da Anuntech atualizou o seu chamado.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`
+            : `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`,
       },
     });
   if (queued.length)

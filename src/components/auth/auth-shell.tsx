@@ -8,17 +8,17 @@ import {
 } from "lucide-react";
 
 const DEFAULT_INTRO = {
-  eyebrow: "Seu espaço na Anuntech",
+  eyebrow: "Console da Anuntech",
   headline: (
     <>
-      Tudo que conecta sua empresa à <span className="text-[#8fb3ff]">Anuntech.</span>
+      Onde sua empresa acompanha o trabalho da <span className="text-[#8fb3ff]">Anuntech.</span>
     </>
   ),
-  text: "Acompanhe seus serviços, converse com a equipe e organize seus pagamentos em um só lugar.",
+  text: "A equipe da Anuntech trabalha no mesmo Console. O que ela atualiza aparece para você na hora.",
   features: [
-    { icon: <Layers3Icon />, label: "Produtos e serviços da sua empresa" },
-    { icon: <HeadphonesIcon />, label: "Atendimento perto de você" },
-    { icon: <FileTextIcon />, label: "Faturas e contratos organizados" },
+    { icon: <Layers3Icon />, label: "Veja o andamento de cada projeto" },
+    { icon: <HeadphonesIcon />, label: "Abra chamados e converse com a equipe" },
+    { icon: <FileTextIcon />, label: "Assine contratos e pague faturas" },
   ],
 };
 
@@ -127,7 +127,7 @@ export function AuthShell({
         </div>
         <footer className="flex items-center justify-center gap-1.5 px-6 pb-6 text-xs text-muted-foreground">
           <LockKeyholeIcon className="size-3.5" aria-hidden="true" />
-          Seu acesso é pessoal e protegido.
+          Cada pessoa entra com o próprio e-mail ou WhatsApp.
         </footer>
       </section>
     </div>

@@ -42,6 +42,6 @@ export async function deliverQuoteNotice(
     to: email,
     tag: "quote",
     subject: `Orçamento ${input.number}: ${input.title}`,
-    text: `A Anuntech enviou o orçamento ${input.number} — "${input.title}" — para ${input.companyName}.${again}\n\nInvestimento: ${currency(input.totalCents)}.${validity}\n\nVeja o detalhamento e responda pelo Console: ${input.url}\n\nO aceite é feito com o seu acesso ao Console, que confirma sua identidade pelo e-mail ou WhatsApp cadastrado.\n\nAnuntech Console`,
+    text: `A Anuntech enviou o orçamento ${input.number}, "${input.title}", para ${input.companyName}.${again}\n\nValor total: ${currency(input.totalCents)}.${validity}\n\nVeja o detalhamento e responda pelo Console: ${input.url}\n\nVocê responde com o seu acesso ao Console, que confirma sua identidade pelo e-mail ou WhatsApp cadastrado.\n\nAnuntech`,
   });
 }

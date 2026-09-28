@@ -53,8 +53,8 @@ export async function deliverEmailOtp(email: string, otp: string) {
     body: JSON.stringify({
       from: process.env.EMAIL_FROM,
       to: [email],
-      subject: "Seu código de acesso à Anuntech Console",
-      text: `Seu código de acesso é: ${otp}\n\nEle expira em 5 minutos e só pode ser usado uma vez.\n\nSe você não solicitou este acesso, ignore esta mensagem. Não compartilhe o código.\n\nAnuntech Console`,
+      subject: "Seu código de acesso ao Console da Anuntech",
+      text: `Seu código de acesso: ${otp}\n\nEle vale por 5 minutos e só funciona uma vez. Não compartilhe com ninguém.\n\nSe você não pediu este código, ignore esta mensagem.\n\nAnuntech`,
     }),
     signal: AbortSignal.timeout(15000),
   });
@@ -69,8 +69,8 @@ export async function deliverInviteEmail(
   const loginUrl = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/entrar`;
   const accessLine =
     scope.kind === "console"
-      ? "Você agora tem acesso de administrador ao ambiente Anuntech."
-      : `Você agora tem acesso à empresa ${scope.companyName} na Anuntech Console.`;
+      ? "Você agora administra o Console da Anuntech."
+      : `Você agora tem acesso à empresa ${scope.companyName} no Console da Anuntech.`;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     redirect: "error",
@@ -82,8 +82,8 @@ export async function deliverInviteEmail(
     body: JSON.stringify({
       from: process.env.EMAIL_FROM,
       to: [email],
-      subject: "Você ganhou acesso à Anuntech Console",
-      text: `${accessLine}\n\nPara entrar, acesse ${loginUrl} e informe este e-mail (${email}). Você vai receber um código de acesso por e-mail para confirmar o login.\n\nSe você não esperava este e-mail, ignore esta mensagem.\n\nAnuntech Console`,
+      subject: "Seu acesso ao Console da Anuntech",
+      text: `${accessLine}\n\nPara entrar, abra ${loginUrl} e informe este e-mail (${email}). Um código chega por e-mail para confirmar.\n\nSe você não esperava este e-mail, pode ignorá-lo.\n\nAnuntech`,
     }),
     signal: AbortSignal.timeout(15000),
   });

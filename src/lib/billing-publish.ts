@@ -176,7 +176,7 @@ export async function publishInvoice(
 
     return {
       success:
-        "Solicitação aceita pelo Inter. Clique em consultar cobrança para obter boleto e Pix após o processamento.",
+        "O Inter aceitou a solicitação. Depois do processamento, use Consultar cobrança no Inter para trazer o boleto e o Pix.",
     };
   } catch (error) {
     if (lockedId) {

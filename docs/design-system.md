@@ -101,6 +101,19 @@ Nenhum dado demonstrativo dos blocos de registry é usado em produção. As font
 7. Chamadas destrutivas não competem visualmente com a ação de continuar. Condições de negócio e confirmações existentes continuam no servidor.
 8. O pagamento público mantém apenas as informações necessárias para o cliente pagar. A atualização automática permanece silenciosa; não introduzir indicador permanente de carregamento.
 
+## Escrita
+
+Os textos seguem o manual de voz da Anuntech (`project/voz.md` no repositório `anuntech/design-system`). No produto, o tom é o dos níveis 0 e 1: útil, curto e ligado ao que a pessoa está fazendo.
+
+- Cada texto diz o que acontece, com qual registro e o que a pessoa pode fazer. Descrições de página e de metadado são frases simples, sem "Consulte" ou "Gerencie" por hábito.
+- Erros dizem o que não deu certo e o próximo passo, sem "Ops" e sem culpar a pessoa. Evite mensagens vagas como "Dados inválidos" quando dá para dizer qual dado.
+- Estados vazios explicam quando algo vai aparecer ou oferecem a ação; não repetem o título.
+- Sem travessão para ligar frases (use ponto, vírgula ou dois-pontos), sem exclamação e sem contraste encenado. Travessão só em dado: célula vazia de tabela, intervalo de números, título gerado e texto jurídico.
+- O produto é "o Console" ou "o Console da Anuntech", sempre no masculino. "Anuntech Console" fica só em título de aba e nome técnico do app. A cobrança periódica é "recorrência"; "assinatura" é só a de contrato.
+- E-mails automáticos começam pelo fato ("A fatura de … vence hoje."), terminam na ação e assinam "Anuntech".
+- Modelos de contrato, cláusulas e declarações de assinatura não passam por essa revisão: texto jurídico precisa de revisão humana.
+- O assistente recebe as mesmas regras no prompt, na seção "Como escrever".
+
 ## Tabelas prioritárias
 
 A revisão prioriza listas operacionais em que a comparação entre registros é frequente. Cabeçalho, densidade de linhas, estados, links e ações usam os mesmos padrões. Busca e filtros aparecem somente onde já existem no produto; esta revisão não adiciona busca, filtro ou ordenação interativa a todas as tabelas.

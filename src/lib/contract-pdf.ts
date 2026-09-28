@@ -73,7 +73,7 @@ export async function contractPdf(
   doc.registerFont("Bold", path.join(fonts, "NotoSans-Bold.ttf"));
   const width = doc.page.width - 108;
   const eyebrow = input.superseded
-    ? `${noun} — VERSÃO ${input.version ?? ""} SUBSTITUÍDA, SEM EFEITO`.replace("  ", " ")
+    ? `${noun} · VERSÃO ${input.version ?? ""} SUBSTITUÍDA, SEM EFEITO`.replace("  ", " ")
     : input.status === "signed"
       ? `${noun} ASSINADO ELETRONICAMENTE`
       : input.status === "sent"
@@ -167,7 +167,7 @@ export async function contractPdf(
       .text(
         input.superseded
           ? "Esta versão foi substituída por um novo envio e não produz efeitos. As assinaturas abaixo, quando houver, referem-se apenas ao texto desta versão."
-          : "Cada parte assinou este documento pelo Anuntech Console, com identidade confirmada por código enviado ao e-mail ou WhatsApp cadastrado. O hash abaixo identifica exatamente o texto assinado.",
+          : "Cada parte assinou este documento pelo Console da Anuntech, com identidade confirmada por código enviado ao e-mail ou WhatsApp cadastrado. O hash abaixo identifica exatamente o texto assinado.",
         { width },
       );
     for (const party of ["client", "anuntech"] as const) {
