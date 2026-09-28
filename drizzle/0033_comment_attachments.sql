@@ -1,0 +1,3 @@
+ALTER TABLE "console_attachments" ADD COLUMN "comment_id" text;--> statement-breakpoint
+ALTER TABLE "console_attachments" ADD CONSTRAINT "console_attachments_comment_id_console_task_comments_id_fk" FOREIGN KEY ("comment_id") REFERENCES "public"."console_task_comments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "console_attachment_comment_idx" ON "console_attachments" USING btree ("comment_id");
