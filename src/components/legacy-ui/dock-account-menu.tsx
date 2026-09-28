@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import * as Menu from "@radix-ui/react-dropdown-menu";
+import { DropdownMenu as Menu } from "radix-ui";
 import { UserRound, Palette, Users, LogOut, MessageCircleQuestion } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { isCatalogAvatar } from "@/lib/avatar-catalog";
