@@ -1,0 +1,1 @@
+ALTER TABLE "console_task_comments" ADD COLUMN "edited_at" timestamp with time zone;
