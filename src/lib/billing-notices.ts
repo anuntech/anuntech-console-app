@@ -420,7 +420,10 @@ export async function processBillingNotice(
           attempts: notice.attempts + 1,
         })
         .where(eq(billingNotices.id, id))
-        .returning({ payload: billingNotices.payload });
+        .returning({
+          payload: billingNotices.payload,
+          round: billingNotices.firstAttemptAt,
+        });
       postingWhatsapp = notice.channel === "whatsapp";
       const response = await fetch(
         postingWhatsapp
@@ -434,8 +437,10 @@ export async function processBillingNotice(
             : {
                 Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
                 "Content-Type": "application/json",
-                // Per attempt: a manual resend must not reuse a cached result.
-                "Idempotency-Key": `invoice-${id}-${notice.attempts + 1}`,
+                // One key per round: automatic retries share it, so Resend
+                // drops a repeat of an attempt that timed out after sending.
+                // A manual resend clears firstAttemptAt and starts a new round.
+                "Idempotency-Key": `invoice-${id}-${attempt.round!.getTime()}`,
               },
           body: JSON.stringify(attempt.payload),
           signal: AbortSignal.timeout(10000),

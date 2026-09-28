@@ -333,7 +333,7 @@ try {
   );
   const freshEmail = address("invited-avatar");
   await db.query(
-    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'support')",
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'member')",
     [randomUUID(), companyId, freshEmail],
   );
   await limits();

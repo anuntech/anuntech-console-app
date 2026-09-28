@@ -5,7 +5,7 @@ import { BackButton } from "@/components/console/back-button";
 import { StatusPage } from "@/components/console/status-page";
 
 export const metadata = {
-  title: "Não encontrado",
+  title: "Página não encontrada",
   robots: { index: false, follow: false },
 };
 

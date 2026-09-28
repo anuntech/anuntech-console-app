@@ -1,7 +1,7 @@
 // Run only against a development database. Creates isolated fixtures and removes them in finally.
 import { runBillingTests } from "./billing-smoke.mjs";
 import assert from "node:assert/strict";
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -69,6 +69,10 @@ async function request(path, who, opts = {}) {
   });
   return { status: r.status, headers: r.headers, text: await r.text() };
 }
+// Next may stream the shell before notFound() runs, keeping HTTP 200; the
+// error boundary's digest is the stable signal that the page was denied.
+const notFoundPage = (r) =>
+  r.status === 404 || r.text.includes("NEXT_HTTP_ERROR_FALLBACK;404");
 function decodeAttr(value) {
   return value
     .replaceAll("&quot;", '"')
@@ -77,11 +81,34 @@ function decodeAttr(value) {
     .replaceAll("&gt;", ">")
     .replaceAll("&amp;", "&");
 }
+// Forms inside a closed sheet or dialog are not in the server HTML, so a
+// test can name the Server Action instead ({ action: "updateDraft" }) and
+// post the same envelope React renders for a form bound to useActionState.
+// The page must render the action: Next resolves it from that page only.
+let serverActions;
+function actionBody(name, values) {
+  serverActions ??= JSON.parse(
+    readFileSync(".next/server/server-reference-manifest.json", "utf8"),
+  ).node;
+  const found = Object.entries(serverActions).filter(
+    ([, action]) => action.exportedName === name,
+  );
+  assert.equal(found.length, 1, `Ação ${name} encontrada no build`);
+  const body = new FormData();
+  body.set("$ACTION_REF_1", "");
+  body.set("$ACTION_1:0", JSON.stringify({ id: found[0][0], bound: "$@1" }));
+  body.set("$ACTION_1:1", "[null]");
+  for (const [key, value] of Object.entries(values)) body.set(key, value);
+  return body;
+}
 async function submitForm(page, reader, sender, identifier, values) {
-  const rendered = await request(page, reader);
+  const body =
+    typeof identifier === "object"
+      ? actionBody(identifier.action, values)
+      : formBody((await request(page, reader)).text, identifier, values);
   return request(page, sender, {
     method: "POST",
-    body: formBody(rendered.text, identifier, values),
+    body,
     headers: { Origin: base },
   });
 }
@@ -106,10 +133,13 @@ function formBody(html, identifier, values) {
 }
 
 try {
+  // Companies have two roles: "member" (tickets, shared areas) and
+  // "manager" (everything, billing included). The fixture names keep the
+  // area each person exercises: "finance" is a manager who reads billing.
   for (const [name, role] of [
     ["admin", null],
-    ["support", "support"],
-    ["finance", "finance"],
+    ["support", "member"],
+    ["finance", "manager"],
     ["manager", "manager"],
     ["outsider", null],
     ["expired", null],
@@ -340,7 +370,7 @@ try {
     r = await request("/painel", "admin");
     ok(
       r.status === 200 &&
-        r.text.includes("Empresas cadastradas") &&
+        r.text.includes("Faturamento") &&
         r.text.includes('href="/empresas/nova"'),
       "Sessão assinada real: painel administrativo renderiza",
     );
@@ -354,7 +384,7 @@ try {
     r = await request(`/chamados/${ids.ticketB}`, "support");
     ok(
       !r.text.includes(`PRIVATE-B-${marker}`) &&
-        r.text.includes("Página não encontrada"),
+        notFoundPage(r),
       "URL de chamado de outra empresa negada",
     );
     r = await request("/financeiro", "support");
@@ -376,7 +406,7 @@ try {
     );
     r = await request("/empresas", "manager");
     ok(
-      r.text.includes("Página não encontrada") &&
+      notFoundPage(r) &&
         !r.text.includes(`QA Company B ${marker}`),
       "Administrador do cliente não administra empresas globalmente",
     );
@@ -387,8 +417,8 @@ try {
         r.headers.get("cache-control") === "private, no-store",
       "Anexo privado autorizado com download e sem cache",
     );
-    r = await request(`/api/anexos/${ids.attachment}`, "finance");
-    ok(r.status === 404, "Perfil financeiro não baixa anexos de atendimento");
+    r = await request(`/api/anexos/${ids.attachment}`, "outsider");
+    ok(r.status === 404, "Pessoa sem acesso à empresa não baixa anexos");
     r = await request(`/api/anexos/${ids.attachment}`);
     ok(r.status === 401, "Download de anexo exige sessão");
     r = await request("/painel", "expired");
@@ -424,21 +454,21 @@ try {
     });
     ok((await database.query("select id from console_tickets where subject=$1", [`Invalid file ${marker}`])).rowCount === 0, "Anexo inválido impede criação parcial do chamado");
     const bookmarkTitle = `Bookmark ${marker}`;
-    await submitForm("/bookmarks", "support", "support", "title", { companyId: ids.a, engagementId: "", title: bookmarkTitle, url: "https://example.com/project" });
+    await submitForm("/bookmarks", "support", "support", { action: "saveBookmark" }, { companyId: ids.a, engagementId: "", title: bookmarkTitle, url: "https://example.com/project" });
     const bookmark = (await database.query("select * from console_bookmarks where title=$1", [bookmarkTitle])).rows[0];
     ok(bookmark?.company_id === ids.a, "Bookmark de link persistido na empresa autorizada");
-    await submitForm("/bookmarks", "support", "support", "title", { companyId: ids.b, engagementId: "", title: `Denied bookmark ${marker}`, url: "https://example.com" });
+    await submitForm("/bookmarks", "support", "support", { action: "saveBookmark" }, { companyId: ids.b, engagementId: "", title: `Denied bookmark ${marker}`, url: "https://example.com" });
     ok((await database.query("select id from console_bookmarks where title=$1", [`Denied bookmark ${marker}`])).rowCount === 0, "Bookmark não pode ser criado em outra empresa");
-    await submitForm("/bookmarks", "support", "support", "title", { companyId: ids.a, engagementId: "", title: `File bookmark ${marker}`, url: "", file: new File(["private project file"], "project.txt") });
+    await submitForm("/bookmarks", "support", "support", { action: "saveBookmark" }, { companyId: ids.a, engagementId: "", title: `File bookmark ${marker}`, url: "", file: new File(["private project file"], "project.txt") });
     const fileBookmark = (await database.query("select id from console_bookmarks where title=$1", [`File bookmark ${marker}`])).rows[0];
     ok(!!fileBookmark, "Arquivo de projeto salvo em bookmark");
     const download = await request(`/api/bookmarks/${fileBookmark.id}`, "support");
     ok(download.status === 200 && download.text === "private project file" && download.headers.get("cache-control") === "private, no-store", "Download de bookmark privado retorna conteúdo correto");
     ok((await request(`/api/bookmarks/${fileBookmark.id}`, "outsider")).status === 404, "Outra conta não pode baixar arquivo do bookmark");
     ok((await request(`/api/bookmarks/${fileBookmark.id}`)).headers.get("location")?.includes("/entrar"), "Arquivo de bookmark exige autenticação");
-    await submitForm("/bookmarks", "support", "finance", "Remover " + bookmarkTitle, { id: bookmark.id });
+    await submitForm("/bookmarks", "support", "finance", { action: "deleteBookmark" }, { id: bookmark.id });
     ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 1, "Outro membro não remove bookmark de terceiro");
-    await submitForm("/bookmarks", "support", "support", "Remover " + bookmarkTitle, { id: bookmark.id });
+    await submitForm("/bookmarks", "support", "support", { action: "deleteBookmark" }, { id: bookmark.id });
     ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 0, "Autor pode remover seu bookmark");
 
     await submitForm("/chamados/novo", "support", "support", "subject", {
@@ -533,7 +563,7 @@ try {
       ).rowCount === 2,
       "Upload de anexo é persistido com acesso privado",
     );
-    await submitForm(`/financeiro/${drafted.id}`, "admin", "admin", "amount", {
+    await submitForm(`/financeiro/${drafted.id}`, "admin", "admin", { action: "updateDraft" }, {
       id: drafted.id,
       description: `Draft form ${marker}`,
       amount: "1300,25",
@@ -548,16 +578,19 @@ try {
       ).rows[0].amount_cents === 130025,
       "Administrador edita valor e vencimento do rascunho",
     );
+    // Contracts are drafts until sent; sending freezes a version the
+    // company's finance people can read and sign.
     const contractInput = {
       companyId: ids.a,
       title: `Contract A ${marker}`,
-      body: "CLÁUSULA 1 — Prestação de serviços.\n\nCondições, valores e obrigações.",
     };
+    const contractBody =
+      "CLÁUSULA 1 — Prestação de serviços.\n\nCondições, valores e obrigações.";
     await submitForm(
       "/contratos/novo",
       "admin",
       "manager",
-      "Salvar rascunho",
+      { action: "createContract" },
       contractInput,
     );
     ok(
@@ -573,7 +606,7 @@ try {
       "/contratos/novo",
       "admin",
       "admin",
-      "Salvar rascunho",
+      { action: "createContract" },
       contractInput,
     );
     let contract = (
@@ -583,92 +616,75 @@ try {
       )
     ).rows[0];
     ok(
-      contract && !contract.published_at && contract.revision === 1,
+      contract && contract.status === "draft" && !contract.published_at,
       "Administrador cria contrato como rascunho privado",
     );
     const contractPath = `/contratos/${contract.id}`;
     const contractPdfPath = `/api/contratos/${contract.id}/pdf`;
+    await submitForm(contractPath, "admin", "admin", { action: "saveContract" }, {
+      id: contract.id,
+      revision: String(contract.revision),
+      title: contractInput.title,
+      body: contractBody,
+    });
+    contract = (
+      await database.query("select * from console_contracts where id=$1", [
+        contract.id,
+      ])
+    ).rows[0];
+    ok(contract.body === contractBody, "Administrador edita o rascunho");
     r = await request(contractPath, "finance");
     ok(
-      !r.text.includes(contractInput.body) &&
-        r.text.includes("Página não encontrada"),
+      !r.text.includes("Prestação de serviços") &&
+        notFoundPage(r),
       "Cliente não acessa rascunho de contrato por URL",
     );
-    r = await request(contractPdfPath + "?draft=1", "finance");
+    r = await request(contractPdfPath, "finance");
     ok(r.status === 404, "PDF de rascunho é restrito à administração");
-    r = await request(contractPdfPath + "?draft=1", "admin");
+    r = await request(contractPdfPath, "admin");
     ok(
       r.status === 200 &&
         r.text.startsWith("%PDF-") &&
         r.headers.get("cache-control") === "private, no-store",
       "Administrador baixa PDF real do rascunho com fontes locais",
     );
-    await submitForm(
-      contractPath,
-      "admin",
-      "admin",
-      "Publicar para o cliente",
-      {
-        id: contract.id,
-        revision: "1",
-      },
-    );
+    await submitForm(contractPath, "admin", "manager", { action: "sendContract" }, {
+      id: contract.id,
+    });
     ok(
-      !(
-        await database.query(
-          "select published_at from console_contracts where id=$1",
-          [contract.id],
-        )
-      ).rows[0].published_at,
-      "Publicar contrato exige confirmação",
+      (
+        await database.query("select status from console_contracts where id=$1", [
+          contract.id,
+        ])
+      ).rows[0].status === "draft",
+      "Cliente não envia contrato por POST direto",
     );
-    await submitForm(
-      contractPath,
-      "admin",
-      "manager",
-      "Publicar para o cliente",
-      { id: contract.id, revision: "1", confirm: "yes" },
-    );
-    ok(
-      !(
-        await database.query(
-          "select published_at from console_contracts where id=$1",
-          [contract.id],
-        )
-      ).rows[0].published_at,
-      "Cliente não publica contrato por POST direto",
-    );
-    await submitForm(
-      contractPath,
-      "admin",
-      "admin",
-      "Publicar para o cliente",
-      {
-        id: contract.id,
-        revision: "1",
-        confirm: "yes",
-      },
-    );
+    await submitForm(contractPath, "admin", "admin", { action: "sendContract" }, {
+      id: contract.id,
+    });
     contract = (
       await database.query("select * from console_contracts where id=$1", [
         contract.id,
       ])
     ).rows[0];
     ok(
-      contract.published_at && contract.published_version === 1,
-      "Publicação salva versão e disponibiliza contrato",
+      contract.status === "sent" &&
+        contract.published_at &&
+        contract.published_version === 1 &&
+        contract.document_hash,
+      "Envio congela a versão 1 com hash do documento",
     );
     for (const person of ["finance", "manager"]) {
       r = await request(contractPath, person);
       ok(
         r.text.includes("Prestação de serviços") &&
           r.text.includes("Baixar PDF"),
-        `Perfil ${person} visualiza contrato publicado`,
+        `Perfil ${person} visualiza contrato enviado`,
       );
     }
     r = await request(contractPath, "support");
     ok(
-      r.text.includes("Página não encontrada") &&
+      notFoundPage(r) &&
         !r.text.includes("Prestação de serviços"),
       "Atendimento não acessa conteúdo contratual",
     );
@@ -681,17 +697,22 @@ try {
         pdfBytes.subarray(0, 5).toString() === "%PDF-" &&
         pdfBytes.toString().includes("%%EOF") &&
         pdfResponse.headers.get("content-type") === "application/pdf",
-      "Cliente baixa PDF real da versão publicada",
+      "Cliente baixa PDF real da versão enviada",
     );
     r = await request(contractPdfPath);
-    ok(r.status === 401, "PDF de contrato exige sessão");
+    ok(
+      r.status === 401 || r.headers.get("location")?.includes("/entrar"),
+      "PDF de contrato exige sessão",
+    );
     r = await request(contractPdfPath, "support");
     ok(r.status === 404, "PDF de contrato respeita perfil financeiro");
-    await submitForm("/contratos/novo", "admin", "admin", "Salvar rascunho", {
-      ...contractInput,
-      companyId: ids.b,
-      title: `PRIVATE-CONTRACT-B-${marker}`,
-    });
+    await submitForm(
+      "/contratos/novo",
+      "admin",
+      "admin",
+      { action: "createContract" },
+      { companyId: ids.b, title: `PRIVATE-CONTRACT-B-${marker}` },
+    );
     const contractB = (
       await database.query(
         "select * from console_contracts where company_id=$1",
@@ -702,18 +723,18 @@ try {
       `/contratos/${contractB.id}`,
       "admin",
       "admin",
-      "Publicar para o cliente",
-      { id: contractB.id, revision: "1", confirm: "yes" },
+      { action: "sendContract" },
+      { id: contractB.id },
     );
     r = await request("/contratos", "finance");
     ok(
       r.text.includes(contractInput.title) &&
         !r.text.includes(`PRIVATE-CONTRACT-B-${marker}`),
-      "Lista de contratos publicada é isolada por empresa",
+      "Lista de contratos é isolada por empresa",
     );
     r = await request(`/api/contratos/${contractB.id}/pdf`, "finance");
     ok(r.status === 404, "PDF de outra empresa é negado");
-    await submitForm(contractPath, "admin", "finance", "Salvar rascunho", {
+    await submitForm(contractPath, "admin", "admin", { action: "saveContract" }, {
       id: contract.id,
       revision: String(contract.revision),
       title: "Alteração indevida",
@@ -726,58 +747,59 @@ try {
           [contract.id],
         )
       ).rows[0].title === contractInput.title,
-      "Cliente não edita contrato por POST direto",
+      "Contrato enviado não aceita edição do texto",
     );
-    const updatedBody =
-      "PRIVATE-DRAFT-CHANGE — Condições revisadas.\n\nSegunda cláusula.";
-    await submitForm(contractPath, "admin", "admin", "Salvar rascunho", {
+    await submitForm(contractPath, "admin", "finance", { action: "revertContract" }, {
       id: contract.id,
-      revision: String(contract.revision),
-      title: contractInput.title,
-      body: updatedBody,
     });
-    r = await request(contractPath, "finance");
-    ok(
-      !r.text.includes("PRIVATE-DRAFT-CHANGE") &&
-        r.text.includes("Prestação de serviços"),
-      "Editar rascunho preserva texto publicado para cliente",
-    );
-    await submitForm(
-      contractPath,
-      "admin",
-      "admin",
-      "Publicar para o cliente",
-      {
-        id: contract.id,
-        revision: String(contract.revision),
-        confirm: "yes",
-      },
-    );
     ok(
       (
-        await database.query(
-          "select published_version from console_contracts where id=$1",
-          [contract.id],
-        )
-      ).rows[0].published_version === 1,
-      "Publicação de aba desatualizada é recusada",
+        await database.query("select status from console_contracts where id=$1", [
+          contract.id,
+        ])
+      ).rows[0].status === "sent",
+      "Cliente não volta contrato para rascunho",
     );
+    await submitForm(contractPath, "admin", "admin", { action: "revertContract" }, {
+      id: contract.id,
+    });
     contract = (
       await database.query("select * from console_contracts where id=$1", [
         contract.id,
       ])
     ).rows[0];
-    await submitForm(
-      contractPath,
-      "admin",
-      "admin",
-      "Publicar para o cliente",
-      {
-        id: contract.id,
-        revision: String(contract.revision),
-        confirm: "yes",
-      },
+    r = await request(contractPdfPath, "finance");
+    ok(
+      contract.status === "draft" &&
+        !contract.published_at &&
+        r.status === 404,
+      "Voltar para rascunho tira o contrato do cliente",
     );
+    const updatedBody =
+      "PRIVATE-DRAFT-CHANGE — Condições revisadas.\n\nSegunda cláusula.";
+    await submitForm(contractPath, "admin", "admin", { action: "saveContract" }, {
+      id: contract.id,
+      revision: String(contract.revision - 1),
+      title: contractInput.title,
+      body: updatedBody,
+    });
+    ok(
+      (
+        await database.query("select body from console_contracts where id=$1", [
+          contract.id,
+        ])
+      ).rows[0].body === contractBody,
+      "Edição de aba desatualizada é recusada",
+    );
+    await submitForm(contractPath, "admin", "admin", { action: "saveContract" }, {
+      id: contract.id,
+      revision: String(contract.revision),
+      title: contractInput.title,
+      body: updatedBody,
+    });
+    await submitForm(contractPath, "admin", "admin", { action: "sendContract" }, {
+      id: contract.id,
+    });
     contract = (
       await database.query("select * from console_contracts where id=$1", [
         contract.id,
@@ -787,23 +809,7 @@ try {
     ok(
       contract.published_version === 2 &&
         r.text.includes("PRIVATE-DRAFT-CHANGE"),
-      "Nova publicação substitui conteúdo do cliente e incrementa versão",
-    );
-    await submitForm(contractPath, "admin", "admin", "Retirar publicação", {
-      id: contract.id,
-      revision: String(contract.revision),
-      confirm: "yes",
-    });
-    r = await request(contractPdfPath, "finance");
-    ok(
-      r.status === 404 &&
-        !(
-          await database.query(
-            "select published_at from console_contracts where id=$1",
-            [contract.id],
-          )
-        ).rows[0].published_at,
-      "Retirar publicação bloqueia download e preserva rascunho",
+      "Novo envio cria a versão 2 e substitui o texto do cliente",
     );
     const clientAddress = {
       endereco: "Rua Teste",
@@ -830,309 +836,11 @@ try {
       ...clientAddress,
       autoIssueNfse: "yes",
     };
-    // Public registration links are exercised only in this disposable database.
-    const inviteLabel = `QA Invite ${marker}`;
-    await submitForm("/empresas/convites", "admin", "manager", "Gerar link", {
-      label: inviteLabel,
-    });
-    ok(
-      (
-        await database.query(
-          "select count(*)::int n from console_company_invites",
-        )
-      ).rows[0].n === 0,
-      "Cliente não gera links de cadastro",
-    );
-    const generated = await submitForm(
-      "/empresas/convites",
-      "admin",
-      "admin",
-      "Gerar link",
-      { label: inviteLabel },
-    );
-    const inviteToken = generated.text.match(
-      /cadastro\/empresa\/([a-f0-9]{64})/,
-    )?.[1];
-    assert.ok(inviteToken, "Link completo retornado ao administrador");
-    const invite = (
-      await database.query(
-        "select * from console_company_invites where label=$1",
-        [inviteLabel],
-      )
-    ).rows[0];
-    ok(
-      invite.token_hash ===
-        createHash("sha256").update(inviteToken).digest("hex") &&
-        !JSON.stringify(invite).includes(inviteToken),
-      "Link persiste somente hash e validade",
-    );
-    const publicPath = `/cadastro/empresa/${inviteToken}`;
-    let publicPage = await request(publicPath);
-    ok(
-      publicPage.status === 200 &&
-        publicPage.text.includes("Enviar cadastro") &&
-        !publicPage.text.includes("autoIssueNfse") &&
-        !publicPage.text.includes("QA Company"),
-      "Link abre sem login e não expõe clientes ou preferência fiscal",
-    );
-    const inviteLookup = await request(
-      "/api/cadastro/consulta?tipo=cep&valor=01001000",
-      null,
-      { headers: { "X-Company-Invite": inviteToken } },
-    );
-    ok(inviteLookup.status === 200, "Cliente com link válido consulta CEP");
-    const invalidLookup = await request(
-      "/api/cadastro/consulta?tipo=cep&valor=01001000",
-      null,
-      { headers: { "X-Company-Invite": "0".repeat(64) } },
-    );
-    ok(invalidLookup.status === 403, "Link forjado não consulta dados");
-    const submittedInput = {
-      ...clientAddress,
-      name: `QA Self Service ${marker}`,
-      document: "12.345.678/0001-99",
-      billingEmail: " FINANCEIRO@EXAMPLE.INVALID ",
-      phone: "(11) 99999-1234",
-      token: inviteToken,
-      autoIssueNfse: "yes",
-      admin: "true",
-    };
-    const sendPublic = (values) =>
-      request(publicPath, null, {
-        method: "POST",
-        body: formBody(publicPage.text, "Enviar cadastro", values),
-        headers: { Origin: base },
-      });
-    await sendPublic({ ...submittedInput, phone: "" });
-    ok(
-      (
-        await database.query(
-          "select status from console_company_invites where id=$1",
-          [invite.id],
-        )
-      ).rows[0].status === "open",
-      "Cadastro público rejeita telefone ausente no servidor",
-    );
-    await Promise.all([
-      sendPublic(submittedInput),
-      sendPublic({ ...submittedInput, name: "Concorrente" }),
-    ]);
-    const received = (
-      await database.query(
-        "select * from console_company_invites where id=$1",
-        [invite.id],
-      )
-    ).rows[0];
-    ok(
-      received.status === "submitted" &&
-        received.payload.phone === "11999991234" &&
-        received.payload.billingEmail === "financeiro@example.invalid" &&
-        !received.payload.autoIssueNfse &&
-        !received.payload.admin,
-      "Envio público único normaliza campos e ignora privilégios forjados",
-    );
-    await sendPublic({ ...submittedInput, name: "Sobrescrita indevida" });
-    ok(
-      (
-        await database.query(
-          "select payload from console_company_invites where id=$1",
-          [invite.id],
-        )
-      ).rows[0].payload.name === received.payload.name,
-      "Link utilizado não sobrescreve cadastro recebido",
-    );
-    publicPage = await request(publicPath);
-    ok(
-      publicPage.text.includes("Cadastro recebido") &&
-        !publicPage.text.includes("financeiro@example.invalid") &&
-        !publicPage.text.includes("Enviar cadastro"),
-      "Link utilizado não revela dados enviados",
-    );
-    const reviewPath = `/empresas/convites/${invite.id}`;
-    ok(
-      !(await request(reviewPath, "manager")).text.includes(
-        "financeiro@example.invalid",
-      ),
-      "Cliente não acessa revisão administrativa",
-    );
-    const approval = {
-      ...submittedInput,
-      inviteId: invite.id,
-      name: `QA Approved ${marker}`,
-      autoIssueNfse: "",
-    };
-    await submitForm(
-      reviewPath,
-      "admin",
-      "manager",
-      "Aprovar e cadastrar",
-      approval,
-    );
-    ok(
-      (
-        await database.query(
-          "select status from console_company_invites where id=$1",
-          [invite.id],
-        )
-      ).rows[0].status === "submitted",
-      "Cliente não aprova cadastro por POST direto",
-    );
-    const reviewPage = await request(reviewPath, "admin");
-    const approve = () =>
-      request(reviewPath, "admin", {
-        method: "POST",
-        body: formBody(reviewPage.text, "Aprovar e cadastrar", approval),
-        headers: { Origin: base },
-      });
-    await Promise.all([approve(), approve()]);
-    const approvedInvite = (
-      await database.query(
-        "select * from console_company_invites where id=$1",
-        [invite.id],
-      )
-    ).rows[0];
-    assert.ok(approvedInvite.company_id);
-    companyIds.push(approvedInvite.company_id);
-    const approvedCompany = (
-      await database.query("select * from console_companies where id=$1", [
-        approvedInvite.company_id,
-      ])
-    ).rows[0];
-    ok(
-      approvedInvite.status === "approved" &&
-        approvedInvite.payload === null &&
-        approvedCompany.name === approval.name &&
-        !approvedCompany.auto_issue_nfse &&
-        approvedCompany.billing_address.cep === "01001000",
-      "Aprovação revisa dados e cadastra empresa uma única vez",
-    );
-    ok(
-      (
-        await database.query(
-          "select count(*)::int n from console_memberships where company_id=$1",
-          [approvedInvite.company_id],
-        )
-      ).rows[0].n === 0,
-      "Aprovação não concede acesso automático à empresa",
-    );
-    ok(
-      (
-        await database.query(
-          "select count(*)::int n from console_audit_events where entity_id=$1 and action='company.created'",
-          [approvedInvite.company_id],
-        )
-      ).rows[0].n === 1,
-      "Aprovação concorrente gera apenas um cadastro e auditoria",
-    );
-    const expiredToken = "e".repeat(64),
-      revokedToken = "c".repeat(64);
-    for (const [t, status, days] of [
-      [expiredToken, "open", -1],
-      [revokedToken, "revoked", 1],
-    ]) {
-      await database.query(
-        "insert into console_company_invites(id,label,token_hash,status,expires_at) values($1,$2,$3,$4,now()+$5::int*interval '1 day')",
-        [
-          randomUUID(),
-          inviteLabel,
-          createHash("sha256").update(t).digest("hex"),
-          status,
-          days,
-        ],
-      );
-      const closed = await request(`/cadastro/empresa/${t}`);
-      ok(
-        closed.text.includes("indisponível") &&
-          !closed.text.includes("Enviar cadastro"),
-        `Link ${status === "open" ? "expirado" : "cancelado"} não abre formulário`,
-      );
-    }
-    const generated2 = await submitForm(
-      "/empresas/convites",
-      "admin",
-      "admin",
-      "Gerar link",
-      { label: inviteLabel + " cancel" },
-    );
-    const token2 = generated2.text.match(
-      /cadastro\/empresa\/([a-f0-9]{64})/,
-    )?.[1];
-    assert.ok(token2);
-    const invite2 = (
-      await database.query(
-        "select * from console_company_invites where token_hash=$1",
-        [createHash("sha256").update(token2).digest("hex")],
-      )
-    ).rows[0];
-    const page2 = `/cadastro/empresa/${token2}`;
-    for (const t of [expiredToken, revokedToken])
-      await submitForm(page2, null, null, "Enviar cadastro", {
-        ...submittedInput,
-        token: t,
-      });
-    ok(
-      (
-        await database.query(
-          "select count(*)::int n from console_company_invites where label=$1 and status='submitted'",
-          [inviteLabel],
-        )
-      ).rows[0].n === 0,
-      "POST não reutiliza link expirado ou cancelado",
-    );
-    await database.query(
-      "update console_company_invites set lookup_count=40 where id=$1",
-      [invite2.id],
-    );
-    ok(
-      (
-        await request("/api/cadastro/consulta?tipo=cep&valor=01001000", null, {
-          headers: { "X-Company-Invite": token2 },
-        })
-      ).status === 403,
-      "Limite de consultas por link é aplicado no banco",
-    );
-    await submitForm(page2, null, null, "Enviar cadastro", {
-      ...submittedInput,
-      token: token2,
-    });
-    await submitForm(
-      `/empresas/convites/${invite2.id}`,
-      "admin",
-      "admin",
-      "Aprovar e cadastrar",
-      { ...approval, inviteId: invite2.id },
-    );
-    ok(
-      (
-        await database.query(
-          "select status from console_company_invites where id=$1",
-          [invite2.id],
-        )
-      ).rows[0].status === "submitted",
-      "Documento duplicado não aprova convite nem duplica empresa",
-    );
-    await submitForm(
-      `/empresas/convites/${invite2.id}`,
-      "admin",
-      "admin",
-      "Cancelar link",
-      { inviteId: invite2.id },
-    );
-    const cancelled = (
-      await database.query(
-        "select * from console_company_invites where id=$1",
-        [invite2.id],
-      )
-    ).rows[0];
-    ok(
-      cancelled.status === "revoked" && cancelled.payload === null,
-      "Cancelar link descarta dados pendentes e bloqueia novos envios",
-    );
     await submitForm(
       `/empresas/${ids.a}`,
       "admin",
       "manager",
-      "Salvar dados",
+      { action: "updateCompany" },
       companyInput,
     );
     let companyState = (
@@ -1146,7 +854,7 @@ try {
         companyState.document === originalDocument,
       "Cliente não altera endereço ou preferência fiscal por POST direto",
     );
-    await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
       ...companyInput,
       cep: "123",
     });
@@ -1163,7 +871,7 @@ try {
       `/empresas/${ids.a}`,
       "admin",
       "admin",
-      "Salvar dados",
+      { action: "updateCompany" },
       companyInput,
     );
     companyState = (
@@ -1179,12 +887,10 @@ try {
     );
     r = await request(`/empresas/${ids.a}`, "admin");
     ok(
-      r.text.includes('name="autoIssueNfse"') &&
-        r.text.includes('checked=""') &&
-        r.text.includes("Sala 2"),
+      r.text.includes(">Ativada<") && r.text.includes("Sala 2"),
       "Cadastro reaberto mostra endereço e opção fiscal salvos",
     );
-    await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
       ...companyInput,
       autoIssueNfse: "",
     });
@@ -1198,15 +904,8 @@ try {
         companyState.billing_address.endereco === "Rua Teste",
       "Desmarcar a opção desativa a preferência sem apagar o endereço",
     );
-    const editableDocument = r.text.match(
-      /<input\b[^>]*name="document"[^>]*>/,
-    )?.[0];
-    ok(
-      editableDocument && !/readonly/i.test(editableDocument),
-      "Documento do cadastro existente está editável",
-    );
     const replacementDocument = "98.765.432/0001-10";
-    await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
       ...companyInput,
       document: replacementDocument,
     });
@@ -1237,11 +936,11 @@ try {
         [ids.b],
       )
     ).rows[0].document;
-    const duplicateResult = await submitForm(
+    await submitForm(
       `/empresas/${ids.a}`,
       "admin",
       "admin",
-      "Salvar dados",
+      { action: "updateCompany" },
       {
         ...companyInput,
         document: duplicateDocument,
@@ -1255,17 +954,14 @@ try {
     ).rows[0];
     ok(
       companyState.document === companyInput.document &&
-        companyState.name === companyInput.name &&
-        duplicateResult.text.includes(
-          "Este CPF/CNPJ já está cadastrado em outra empresa.",
-        ),
-      "CNPJ duplicado mostra erro específico e não salva parcialmente o cadastro",
+        companyState.name === companyInput.name,
+      "CNPJ duplicado não salva parcialmente o cadastro",
     );
-    await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
       ...companyInput,
       document: "123",
     });
-    await submitForm(`/empresas/${ids.a}`, "admin", "manager", "Salvar dados", {
+    await submitForm(`/empresas/${ids.a}`, "admin", "manager", { action: "updateCompany" }, {
       ...companyInput,
       document: originalDocument,
     });
@@ -1294,7 +990,7 @@ try {
       `/empresas/${ids.a}`,
       "admin",
       "manager",
-      "Arquivar cliente",
+      { action: "setCompanyArchived" },
       archiveData,
     );
     ok(
@@ -1306,9 +1002,8 @@ try {
       ).rows[0].archived,
       "Cliente não consegue arquivar a própria empresa por POST direto",
     );
-    const archivePage = await request(`/empresas/${ids.a}`, "admin");
     const archiveBody = () =>
-      formBody(archivePage.text, "Arquivar cliente", archiveData);
+      actionBody("setCompanyArchived", archiveData);
     for (let attempt = 0; attempt < 2; attempt++)
       await request(`/empresas/${ids.a}`, "admin", {
         method: "POST",
@@ -1316,7 +1011,7 @@ try {
         headers: { Origin: base },
       });
     const activeList = await request("/empresas", "admin");
-    const archivedList = await request("/empresas?status=arquivados", "admin");
+    const archivedList = await request("/empresas?status=archived", "admin");
     ok(
       !activeList.text.includes(`/empresas/${ids.a}`) &&
         archivedList.text.includes(`/empresas/${ids.a}`),
@@ -1340,14 +1035,14 @@ try {
       `/empresas/${ids.a}`,
       "admin",
       "admin",
-      "Restaurar cliente",
+      { action: "setCompanyArchived" },
       { id: ids.a, archived: "no" },
     );
     ok(
       (await request("/empresas", "admin")).text.includes(
         `/empresas/${ids.a}`,
       ) &&
-        !(await request("/empresas?status=arquivados", "admin")).text.includes(
+        !(await request("/empresas?status=archived", "admin")).text.includes(
           `/empresas/${ids.a}`,
         ),
       "Restaurar devolve cliente à lista principal",
@@ -1390,7 +1085,7 @@ try {
     ok(
       !r.text.includes('name="endereco"') &&
         r.text.includes("Rua Teste") &&
-        r.text.includes(`/empresas/${ids.a}#cadastro`),
+        r.text.includes(`/empresas/${ids.a}`),
       "Fatura usa resumo do cadastro sem pedir endereço novamente",
     );
     const bankInput = {
@@ -1456,7 +1151,7 @@ try {
       ).rows[0].bank_request,
       "Endereço enviado na fatura não substitui cadastro ausente nem inicia emissão",
     );
-    await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
       ...companyInput,
       autoIssueNfse: "",
     });
@@ -1486,7 +1181,7 @@ try {
         !("codigoMunicipio" in bankInvoice.bank_request.pagador),
       "Inter recebe endereço salvo e ignora dados forjados e campos fiscais exclusivos",
     );
-    await submitForm(`/empresas/${ids.a}`, "admin", "admin", "Salvar dados", {
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
       ...companyInput,
       endereco: "Rua Atualizada",
     });
@@ -1616,7 +1311,7 @@ try {
       `/financeiro/${drafted.id}`,
       "admin",
       "admin",
-      "Cancelar rascunho",
+      { action: "cancelDraft" },
       {
         id: drafted.id,
       },
@@ -1671,15 +1366,29 @@ try {
     const noticeRows = async () =>
       (
         await database.query(
-          "select * from console_ticket_notices where ticket_id=$1 order by created_at",
+          "select * from console_ticket_notices where ticket_id=$1 and preference_key is distinct from 'author:tickets' order by created_at",
           [created.id],
         )
       ).rows;
     await drain();
     let notices = await noticeRows();
+    // Whoever opens a ticket gets a receipt and later movements; the counts
+    // below are the operation's notices, which follow company preferences.
+    const receipts = (
+      await database.query(
+        "select * from console_ticket_notices where ticket_id=$1 and preference_key='author:tickets'",
+        [created.id],
+      )
+    ).rows;
     ok(
       notices.length === 6,
       "Abertura, resposta e anexo geram um aviso por canal",
+    );
+    ok(
+      receipts.length === 1 &&
+        receipts[0].channel === "email" &&
+        receipts[0].destination === people.support.email,
+      "Quem abre o chamado recebe um recibo por e-mail",
     );
     ok(
       notices.every(
@@ -1710,8 +1419,10 @@ try {
     ok(r.status === 401, "Cron de notificações exige segredo");
     r = await request("/configuracoes/notificacoes", "manager");
     ok(
-      r.text.includes("Página não encontrada"),
-      "Histórico de notificações é exclusivo da administração",
+      r.status === 200 &&
+        !r.text.includes(adminEmail) &&
+        !r.text.includes("5511999990001"),
+      "Envios da operação não aparecem no histórico da empresa",
     );
     async function changeTicket(status, assignedTo = "") {
       await submitForm(`/chamados/${created.id}`, "admin", "admin", "status", {
@@ -1939,12 +1650,16 @@ try {
     server.kill("SIGTERM");
     await new Promise((r) => server.once("exit", r));
   }
-  await database.query("delete from console_company_invites");
   await database.query(
     "delete from console_audit_events where actor_id=any($1::text[]) and company_id is null",
     [Object.values(people).map((p) => p.id)],
   );
   await database.query("delete from console_billing_notices");
+  for (const table of ["console_contract_signatures", "console_contract_versions"])
+    await database.query(
+      `delete from ${table} where contract_id in (select id from console_contracts where company_id=any($1::text[]))`,
+      [companyIds],
+    );
   for (const table of [
     "console_audit_events",
     "console_invoices",

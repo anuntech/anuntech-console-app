@@ -26,6 +26,7 @@ const people = {},
 const attachment = randomUUID(),
   ticket = randomUUID(),
   contract = randomUUID(),
+  draftContract = randomUUID(),
   ownerStaff = randomUUID();
 const dir = mkdtempSync(join(tmpdir(), "console-members-test-")),
   capture = join(dir, "otp.jsonl");
@@ -73,10 +74,34 @@ async function request(path, who, options = {}) {
 }
 // Next can stream the shell before notFound(), retaining HTTP 200 for the error UI.
 const deniedPage = (response) =>
-  (response.status === 404 ||
-    response.text.includes("NEXT_HTTP_ERROR_FALLBACK;404")) &&
-  response.text.includes("Página não encontrada");
+  response.status === 404 ||
+  response.text.includes("NEXT_HTTP_ERROR_FALLBACK;404");
+// Next only resolves a Server Action from a page that renders it, so each
+// captured form posts back to the path it came from.
+const formPaths = new Map();
+let actionManifest;
+const serverActions = () =>
+  (actionManifest ??= JSON.parse(
+    readFileSync(".next/server/server-reference-manifest.json", "utf8"),
+  ).node);
 async function capturedForm(identifier, reader = "owner", path = page) {
+  // Forms inside a closed sheet or dialog are not in the server HTML: name
+  // the Server Action and get the envelope React renders for useActionState.
+  if (typeof identifier === "object") {
+    const found = Object.entries(serverActions()).filter(
+      ([, action]) => action.exportedName === identifier.action,
+    );
+    assert.equal(found.length, 1, `Action ${identifier.action} is in the build`);
+    const meta = JSON.stringify({ id: found[0][0], bound: "$@1" });
+    const form = [
+      `<!-- ${identifier.action} ${path} -->`,
+      '<input type="hidden" name="$ACTION_REF_1" value=""/>',
+      `<input type="hidden" name="$ACTION_1:0" value="${meta.replaceAll('"', "&quot;")}"/>`,
+      '<input type="hidden" name="$ACTION_1:1" value="[null]"/>',
+    ].join("");
+    formPaths.set(form, path);
+    return form;
+  }
   const response = await request(path, reader);
   const forms = [
     ...response.text.matchAll(/<form\b[^>]*>([\s\S]*?)<\/form>/g),
@@ -86,6 +111,7 @@ async function capturedForm(identifier, reader = "owner", path = page) {
     found,
     `Form ${identifier} exists (status ${response.status}, ${response.text.includes("NEXT_HTTP_ERROR_FALLBACK;404") ? "not found" : "rendered"})`,
   );
+  formPaths.set(found, path);
   return found;
 }
 function formData(form, values) {
@@ -103,7 +129,7 @@ function formData(form, values) {
   return body;
 }
 const post = (form, who, values) =>
-  request(page, who, {
+  request(formPaths.get(form) ?? page, who, {
     method: "POST",
     body: formData(form, values),
     headers: { Origin: base },
@@ -180,14 +206,16 @@ try {
     "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')",
     [randomUUID(), companyIds[1], people.client.email],
   );
-  for (const role of ["support", "finance"])
+  // Companies have two roles, "manager" and "member". The "support" and
+  // "finance" people are both members; the names mark the old areas.
+  for (const who of ["support", "finance"])
     await db.query(
-      "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,$4)",
-      [randomUUID(), companyIds[1], people[role].email, role],
+      "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'member')",
+      [randomUUID(), companyIds[1], people[who].email],
     );
   const outsideGrant = randomUUID();
   await db.query(
-    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'support')",
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'member')",
     [outsideGrant, companyIds[0], email("outside-member")],
   );
   await db.query(
@@ -199,7 +227,7 @@ try {
     [attachment, ticket, people.owner.id, Buffer.from("%PDF-test")],
   );
   await db.query(
-    "insert into console_contracts(id,company_id,title,body,author_id,published_at,published_version,publication) values($1,$2,'Members contract','Isolated test',$3,now(),1,$4)",
+    "insert into console_contracts(id,company_id,title,body,author_id,status,published_at,published_version,publication) values($1,$2,'Members contract','Isolated test',$3,'sent',now(),1,$4)",
     [
       contract,
       companyIds[0],
@@ -211,6 +239,10 @@ try {
         companyDocument: "00000000000000",
       }),
     ],
+  );
+  await db.query(
+    "insert into console_contracts(id,company_id,title,body,author_id) values($1,$2,'Members draft','Isolated draft',$3)",
+    [draftContract, companyIds[0], people.owner.id],
   );
   server = spawn(
     process.execPath,
@@ -254,7 +286,7 @@ try {
   const settingsPath = "/configuracoes/empresa";
   const noticesPath = "/configuracoes/notificacoes";
   const companyForm = await capturedForm(
-    "Salvar dados da empresa",
+    'name="billingEmail"',
     "client",
     settingsPath,
   );
@@ -420,7 +452,7 @@ try {
     `Members company 1 ${marker}`,
   ]);
 
-  const grantStaff = await capturedForm("Adicionar");
+  const grantStaff = await capturedForm({ action: "saveConsoleStaffMember" });
   await post(grantStaff, "unverified", { email: email("blocked") });
   ok(
     (
@@ -490,7 +522,7 @@ try {
     "Company manager can reach Members from account settings",
   );
   ok(
-    deniedPage(await request("/configuracoes", "client")) &&
+    deniedPage(await request("/configuracoes/integracoes", "client")) &&
       (await request("/configuracoes/notificacoes", "client")).status === 200,
     "Company manager sees own notifications but cannot access Console integrations",
   );
@@ -509,26 +541,12 @@ try {
     [randomUUID(), people.support.id, supportAlias],
   );
   await db.query(
-    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'finance')",
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'member')",
     [randomUUID(), companyIds[1], supportAlias],
   );
   ok(
     deniedPage(await request(page, "support")),
-    "Combining support and finance through aliases does not grant member administration",
-  );
-  const combinedPermissionForm = await capturedForm(
-    `Salvar permissão de ${people.support.email} em Members company 1 ${marker}`,
-    "client",
-  );
-  const combinedPermissionSelect = combinedPermissionForm.match(
-    /<select\b[^>]*name="role"[^>]*>([\s\S]*?)<\/select>/,
-  )?.[1];
-  const selectedPermission = [
-    ...(combinedPermissionSelect || "").matchAll(/<option\b[^>]*>/g),
-  ].find(([tag]) => /\bselected(?:=|\s|>)/.test(tag))?.[0];
-  ok(
-    selectedPermission?.includes('value=""'),
-    "Editing combined legacy permissions requires a choice instead of defaulting to company administrator",
+    "Combining two member grants through aliases does not grant member administration",
   );
   await post(grantStaff, "staff", { email: email("escalation") });
   await post(grantStaff, "client", { email: email("client-escalation") });
@@ -546,7 +564,7 @@ try {
     "Dynamic administrator downloads support attachment",
   );
   ok(
-    (await request(`/api/contratos/${contract}/pdf?draft=1`, "staff"))
+    (await request(`/api/contratos/${draftContract}/pdf`, "staff"))
       .status === 200,
     "Dynamic administrator downloads draft contract PDF",
   );
@@ -561,7 +579,7 @@ try {
     "Client cannot call the administrative lookup API",
   );
 
-  const revokeStaff = await capturedForm(`Expulsar de ${staffEmail}`);
+  const revokeStaff = await capturedForm({ action: "revokeConsoleStaffMember" });
   await db.query(
     "insert into console_staff_members(id,email,active,created_by) values($1,$2,true,$3)",
     [ownerStaff, ownerEmail, people.owner.id],
@@ -590,8 +608,8 @@ try {
     "Owner protection survives a principal email change",
   );
 
-  const grantClient = await capturedForm("Adicionar", "client");
-  const managerGrant = await capturedForm("Adicionar", "client");
+  const grantClient = await capturedForm({ action: "saveCompanyMember" }, "client");
+  const managerGrant = await capturedForm({ action: "saveCompanyMember" }, "client");
   const crossEnvironmentEmail = email("cross-environment-race");
   await Promise.all(
     companyIds
@@ -600,7 +618,7 @@ try {
         post(grantClient, "staff", {
           email: crossEnvironmentEmail,
           companyId,
-          role: "support",
+          role: "member",
         }),
       ),
   );
@@ -619,7 +637,7 @@ try {
     post(grantClient, "staff", {
       email: staffRaceEmail,
       companyId: companyIds[0],
-      role: "support",
+      role: "member",
     }),
   ]);
   ok(
@@ -635,19 +653,19 @@ try {
   await post(managerGrant, "client", {
     email: managedEmail,
     companyId: companyIds[1],
-    role: "support",
+    role: "manager",
   });
   ok(
-    (await activeGrants([managedEmail], companyIds[1]))[0]?.role === "support",
+    (await activeGrants([managedEmail], companyIds[1]))[0]?.role === "manager",
     "Company manager grants access only to the chosen tenant",
   );
   await post(managerGrant, "client", {
     email: managedEmail,
     companyId: companyIds[1],
-    role: "finance",
+    role: "member",
   });
   ok(
-    (await activeGrants([managedEmail], companyIds[1]))[0]?.role === "finance",
+    (await activeGrants([managedEmail], companyIds[1]))[0]?.role === "member",
     "Company manager changes a tenant member's permission",
   );
   for (const role of ["support", "finance"])
@@ -684,13 +702,13 @@ try {
     await activeGrants([people.client.email], companyIds[1])
   )[0];
   const managerRevoke = await capturedForm(
-    `Cancelar convite de ${managedEmail}`,
+    { action: "revokeCompanyMember" },
     "client",
   );
   await post(managerGrant, "client", {
     email: managerAlias,
     companyId: companyIds[1],
-    role: "finance",
+    role: "member",
   });
   await post(managerRevoke, "client", { id: selfGrant.id });
   ok(
@@ -733,7 +751,7 @@ try {
   await post(grantClient, "staff", {
     email: people.client.email,
     companyId: companyIds[1],
-    role: "finance",
+    role: "member",
   });
   await post(managerRevoke, "staff", { id: selfGrant.id });
   ok(
@@ -786,7 +804,7 @@ try {
   await post(grantClient, "staff", {
     email: people.client.email,
     companyId: companyIds[0],
-    role: "finance",
+    role: "member",
   });
   ok(
     (await activeGrants([people.client.email], companyIds[0])).length === 0,
@@ -806,13 +824,13 @@ try {
   );
   const aliasGrant = randomUUID();
   await db.query(
-    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'support')",
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'member')",
     [aliasGrant, companyIds[0], alias],
   );
   await post(grantClient, "staff", {
     email: alias,
     companyId: companyIds[0],
-    role: "finance",
+    role: "member",
   });
   let active = await activeGrants(
     [alias, people["alias-client"].email],
@@ -821,17 +839,13 @@ try {
   ok(
     active.length === 1 &&
       active[0].email === people["alias-client"].email &&
-      active[0].role === "finance",
+      active[0].role === "member",
     "Permission update consolidates verified aliases into one effective role",
   );
   ok(
-    (await request(`/api/anexos/${attachment}`, "alias-client")).status === 404,
-    "Old alias cannot retain revoked support permission",
-  );
-  ok(
-    (await request(`/api/contratos/${contract}/pdf`, "alias-client")).status ===
+    (await request(`/api/anexos/${attachment}`, "alias-client")).status ===
       200,
-    "Consolidated finance permission permits the published contract PDF",
+    "Consolidated member permission permits the company's ticket attachments",
   );
   // Reuse the same tenant action captured as a manager; global admins retain
   // server authority while their Members screen no longer lists client access.
@@ -847,20 +861,19 @@ try {
     "Revoking another member preserves the original manager's environment",
   );
   ok(
-    (await request(`/api/contratos/${contract}/pdf`, "alias-client")).status ===
-      404,
+    (await request(`/api/anexos/${attachment}`, "alias-client")).status === 404,
     "Existing client session immediately loses the revoked download",
   );
   await Promise.all([
     post(grantClient, "staff", {
       email: alias,
       companyId: companyIds[0],
-      role: "support",
+      role: "member",
     }),
     post(grantClient, "staff", {
       email: people["alias-client"].email,
       companyId: companyIds[0],
-      role: "finance",
+      role: "manager",
     }),
   ]);
   active = await activeGrants(
@@ -868,7 +881,7 @@ try {
     companyIds[0],
   );
   ok(
-    active.length === 1 && ["finance", "support"].includes(active[0].role),
+    active.length === 1 && ["manager", "member"].includes(active[0].role),
     "Concurrent alias edits cannot leave multiple effective permissions",
   );
   const unknown = email("future-client");
@@ -914,7 +927,7 @@ try {
       post(grantClient, "staff", {
         email: people[who].email,
         companyId: raceCompany,
-        role: "finance",
+        role: "member",
       }),
     ),
   );
@@ -924,7 +937,7 @@ try {
   );
   ok(
     raceRows.filter((row) => row.role === "manager").length === 1 &&
-      raceRows.filter((row) => row.role === "finance").length === 1,
+      raceRows.filter((row) => row.role === "member").length === 1,
     "Concurrent demotions cannot remove every company administrator",
   );
   const winner =
@@ -938,7 +951,7 @@ try {
     companyId: raceCompany,
     role: "manager",
   });
-  const queuedForm = await capturedForm("Adicionar", winner);
+  const queuedForm = await capturedForm({ action: "saveCompanyMember" }, winner);
   const lock = await db.connect();
   let queuedRequest;
   try {
@@ -971,7 +984,7 @@ try {
       "Manager action waits on the company's serialization lock",
     );
     await lock.query(
-      "update console_memberships set role='finance' where company_id=$1 and email=$2",
+      "update console_memberships set role='member' where company_id=$1 and email=$2",
       [raceCompany, people[winner].email],
     );
     await lock.query("commit");
@@ -996,7 +1009,7 @@ try {
     [randomUUID(), staffCurrent, people.owner.id],
   );
   await db.query(
-    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'finance')",
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')",
     [randomUUID(), companyIds[0], staffCurrent],
   );
   await post(revokeStaff, "owner", { id: staff.id });
@@ -1014,25 +1027,25 @@ try {
     "Global revocation preserves explicitly granted client access",
   );
   ok(
-    (await request(`/api/anexos/${attachment}`, "staff")).status === 404,
-    "Revoked administrator immediately loses cross-area attachment access",
+    deniedPage(await request("/empresas", "staff")),
+    "Revoked administrator immediately loses the Console's admin screens",
   );
   ok(
-    (await request(`/api/contratos/${contract}/pdf?draft=1`, "staff"))
+    (await request(`/api/contratos/${draftContract}/pdf`, "staff"))
       .status === 404,
     "Revoked administrator cannot use the old session to download drafts",
   );
   ok(
     (await request(`/api/contratos/${contract}/pdf`, "staff")).status === 200,
-    "Revoked administrator retains only the published finance document grant",
+    "Revoked administrator keeps what the explicit company grant allows",
   );
   await post(grantClient, "staff", {
     email: email("after-revoke"),
-    companyId: companyIds[0],
+    companyId: companyIds[1],
     role: "manager",
   });
   ok(
-    (await activeGrants([email("after-revoke")], companyIds[0])).length === 0,
+    (await activeGrants([email("after-revoke")], companyIds[1])).length === 0,
     "Old administrator form cannot grant access after revocation",
   );
   const audit = await db.query(
@@ -1068,7 +1081,9 @@ try {
     );
     await db.query("delete from console_attachments where id=$1", [attachment]);
     await db.query("delete from console_tickets where id=$1", [ticket]);
-    await db.query("delete from console_contracts where id=$1", [contract]);
+    await db.query("delete from console_contracts where id=any($1::text[])", [
+      [contract, draftContract],
+    ]);
     await db.query(
       "delete from console_memberships where company_id=any($1::text[])",
       [companyIds],

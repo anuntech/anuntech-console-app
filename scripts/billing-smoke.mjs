@@ -143,12 +143,18 @@ export async function runBillingTests({
     (await request("/api/cron/recurring-billing")).status === 401,
     "Cron recorrente exige autenticação",
   );
-  await submitForm(page, "admin", "admin", "Salvar recorrência", {
-    id: sub.id,
-    description: recurring.description,
-    amount: "499,00",
-    dueDate: offset(5),
-  });
+  await submitForm(
+    page,
+    "admin",
+    "admin",
+    { action: "updateSubscription" },
+    {
+      id: sub.id,
+      description: recurring.description,
+      amount: "499,00",
+      dueDate: offset(5),
+    },
+  );
   await cron();
   await drain();
   let i = await invoice(recurring.id);
@@ -237,27 +243,45 @@ export async function runBillingTests({
       pdf.headers.get("cache-control") === "private, no-store",
     "Boleto público validado é entregue sem cache",
   );
-  await submitForm(page, "admin", "manager", "Desativar link público", {
-    id: i.id,
-    enabled: "no",
-  });
+  await submitForm(
+    page,
+    "admin",
+    "manager",
+    { action: "changePaymentLink" },
+    {
+      id: i.id,
+      enabled: "no",
+    },
+  );
   ok(
     (await invoice(i.id)).public_enabled,
     "Cliente não revoga link público por ação forjada",
   );
-  await submitForm(page, "admin", "admin", "Desativar link público", {
-    id: i.id,
-    enabled: "no",
-  });
+  await submitForm(
+    page,
+    "admin",
+    "admin",
+    { action: "changePaymentLink" },
+    {
+      id: i.id,
+      enabled: "no",
+    },
+  );
   ok(
     (await request(`/pagar/${i.public_id}`)).status === 404 &&
       (await request(`/pagar/${i.public_id}/boleto`)).status === 404,
     "Revogar link bloqueia a página e o PDF imediatamente",
   );
-  await submitForm(page, "admin", "admin", "Ativar link público", {
-    id: i.id,
-    enabled: "yes",
-  });
+  await submitForm(
+    page,
+    "admin",
+    "admin",
+    { action: "changePaymentLink" },
+    {
+      id: i.id,
+      enabled: "yes",
+    },
+  );
   flags({ approved: true, bankUnpaid: true, billingBankDue: offset(6) });
   await drain();
   rows = await notices(i.id);
@@ -268,8 +292,8 @@ export async function runBillingTests({
   const wa = sentNotices().find(
     (n) => n.key === rows.find((n) => n.channel === "whatsapp").id,
   );
-  const email = sentNotices().find(
-    (n) => n.key === `invoice-${rows.find((n) => n.channel === "email").id}`,
+  const email = sentNotices().find((n) =>
+    n.key.startsWith(`invoice-${rows.find((n) => n.channel === "email").id}-`),
   );
   ok(
     wa.payload.parameters["[id_fatura]"] === i.public_id &&
@@ -289,10 +313,16 @@ export async function runBillingTests({
     sentNotices().length === sentCount,
     "Reexecução dos envios não duplica mensagens aceitas",
   );
-  await submitForm(page, "admin", "admin", "Pausar recorrência", {
-    id: sub.id,
-    status: "paused",
-  });
+  await submitForm(
+    page,
+    "admin",
+    "admin",
+    { action: "changeSubscription" },
+    {
+      id: sub.id,
+      status: "paused",
+    },
+  );
   ok(
     (
       await one("select status from console_subscriptions where id=$1", [
@@ -301,12 +331,18 @@ export async function runBillingTests({
     ).status === "paused",
     "Administrador pausa as próximas emissões",
   );
-  await submitForm(page, "admin", "admin", "Salvar recorrência", {
-    id: sub.id,
-    description: "Synova",
-    amount: "599,00",
-    dueDate: offset(40),
-  });
+  await submitForm(
+    page,
+    "admin",
+    "admin",
+    { action: "updateSubscription" },
+    {
+      id: sub.id,
+      description: "Synova",
+      amount: "599,00",
+      dueDate: offset(40),
+    },
+  );
   ok(
     (await invoice(i.id)).amount_cents === 49900 &&
       (
@@ -389,10 +425,11 @@ export async function runBillingTests({
     if (days === 10) {
       const emailEvent = events.find((n) => n.channel === "email");
       const whatsappEvent = events.find((n) => n.channel === "whatsapp");
-      const emailAttempts = sentNotices().filter(
-        (n) => n.key === `invoice-${emailEvent.id}`,
+      const emailAttempts = sentNotices().filter((n) =>
+        n.key.startsWith(`invoice-${emailEvent.id}-`),
       );
       assert.equal(emailAttempts.length, 2);
+      assert.equal(emailAttempts[0].key, emailAttempts[1].key);
       assert.deepEqual(emailAttempts[0].payload, emailAttempts[1].payload);
       ok(true, "Repetição de e-mail conserva a chave idempotente e o conteúdo");
       ok(
@@ -492,7 +529,7 @@ export async function runBillingTests({
   ok(
     (await request("/financeiro/envios", "admin")).status === 200 &&
       (await request("/financeiro/envios", "manager")).text.includes(
-        "Página não encontrada",
+        "NEXT_HTTP_ERROR_FALLBACK;404",
       ),
     "Histórico de entrega é restrito ao administrador",
   );
@@ -585,7 +622,7 @@ export async function runBillingTests({
       `/financeiro/${i.id}`,
       "admin",
       "admin",
-      `Enviar cobrança por ${channel === "email" ? "e-mail" : "WhatsApp"}`,
+      { action: "sendInvoiceNotice" },
       { id: i.id, channel },
     );
   await drain();
