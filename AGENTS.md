@@ -8,9 +8,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Documentação do projeto
+
+Antes de mudar algo, leia o que se aplica em `docs/`: [prd.md](docs/prd.md) (produto), [architecture.md](docs/architecture.md) (onde fica cada coisa), [rules.md](docs/rules.md) (regras de trabalho), [design.md](docs/design.md) (visual e escrita), [memory.md](docs/memory.md) (decisões) e [task.md](docs/task.md) (pendências). Ao terminar, atualize os que mudaram.
+
 ## Regras do produto
 
-- Consultar a wiki Console e manter as decisões de negócio coerentes com o código.
+- Consultar `docs/prd.md` e `docs/memory.md` e manter as decisões de negócio coerentes com o código.
 - Cobranças são criadas manualmente. Não ativar recorrência, envio ou emissão automática sem solicitação.
 - Autenticação não concede acesso a empresas: validar autorização no servidor em toda operação.
 - Não simular sucesso de pagamento ou emissão fiscal quando o provedor não foi integrado.
