@@ -8,6 +8,7 @@ import {
   companies,
   engagements,
   taskAssignees,
+  taskComments,
   tasks,
   tickets,
 } from "@/db/schema";
@@ -64,6 +65,7 @@ export async function deleteEngagement(_: ActionState, form: FormData): Promise<
         .where(inArray(attachments.taskId, itsTasks))
         .returning({ id: attachments.id });
       await tx.delete(taskAssignees).where(inArray(taskAssignees.taskId, itsTasks));
+      await tx.delete(taskComments).where(inArray(taskComments.taskId, itsTasks));
       const removedTasks = await tx
         .delete(tasks)
         .where(eq(tasks.engagementId, row.id))

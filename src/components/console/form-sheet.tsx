@@ -13,6 +13,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import type { FormAction } from "@/lib/action-state";
 
@@ -32,7 +33,13 @@ const widths = {
  * Widths: `md` for four short fields or fewer, `xl` by default, `3xl` only
  * for long-text editors. The form closes the sheet on success unless the
  * action navigates (returns `href`), in which case the navigation replaces it.
+ *
+ * `tabs` adds sections next to the form (a task's comments): tabs sit under
+ * the title, the form stays mounted while another tab shows, so nothing typed
+ * is lost, and each extra tab brings its own body and footer.
  */
+export type SheetTab = { value: string; label: ReactNode; content: ReactNode };
+
 export function FormSheet({
   open,
   onOpenChange,
@@ -49,6 +56,8 @@ export function FormSheet({
   onDelete,
   deleteLabel = "Excluir",
   footerStart,
+  tabs,
+  formTabLabel = "Detalhes",
   children,
 }: {
   open: boolean;
@@ -71,49 +80,88 @@ export function FormSheet({
   deleteLabel?: string;
   /** Anything else for the left side of the footer, instead of or after Excluir. */
   footerStart?: ReactNode;
+  /** Sections beside the form; each brings its own body and footer. */
+  tabs?: SheetTab[];
+  formTabLabel?: string;
   children: ReactNode;
 }) {
+  const header = (
+    <SheetHeader className={cn("border-b px-6 py-5", tabs && "pb-0")}>
+      <SheetTitle>{title}</SheetTitle>
+      {description ? <SheetDescription>{description}</SheetDescription> : <SheetDescription className="sr-only">{title}</SheetDescription>}
+      {tabs && (
+        <TabsList variant="line" className="mt-3 -mb-px h-auto w-full justify-start gap-5 p-0">
+          {[{ value: "form", label: formTabLabel }, ...tabs].map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="h-auto flex-none px-0 pt-1 pb-3 group-data-[orientation=horizontal]/tabs:after:bottom-0"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      )}
+    </SheetHeader>
+  );
+  const form = (
+    <ServerForm
+      key={formKey}
+      action={action}
+      prepare={prepare}
+      onSuccess={(state) => {
+        if (onSuccess) return onSuccess();
+        // An action that returns `href` navigates to the new record; closing here
+        // would make a route sheet go back and undo that navigation.
+        if (!state.href) onOpenChange(false);
+      }}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+        <FormError className="mb-5" />
+        <div className="grid gap-5">{children}</div>
+      </div>
+      <SheetFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-4 sm:justify-end">
+        {onDelete && (
+          <Button type="button" variant="ghost" className="mr-auto text-destructive hover:text-destructive" onClick={onDelete}>
+            <Trash2Icon />
+            {deleteLabel}
+          </Button>
+        )}
+        {footerStart && <div className={cn("flex items-center gap-2", !onDelete && "mr-auto")}>{footerStart}</div>}
+        <SheetClose asChild>
+          <Button type="button" variant="outline">
+            Cancelar
+          </Button>
+        </SheetClose>
+        <SubmitButton pendingLabel={pendingLabel} disabled={submitDisabled}>
+          {submitLabel}
+        </SubmitButton>
+      </SheetFooter>
+    </ServerForm>
+  );
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className={cn("flex w-full flex-col gap-0 p-0", widths[size])}>
-        <ServerForm
-          key={formKey}
-          action={action}
-          prepare={prepare}
-          onSuccess={(state) => {
-            if (onSuccess) return onSuccess();
-            // An action that returns `href` navigates to the new record; closing here
-            // would make a route sheet go back and undo that navigation.
-            if (!state.href) onOpenChange(false);
-          }}
-          className="flex h-full min-h-0 flex-col"
-        >
-          <SheetHeader className="border-b px-6 py-5">
-            <SheetTitle>{title}</SheetTitle>
-            {description ? <SheetDescription>{description}</SheetDescription> : <SheetDescription className="sr-only">{title}</SheetDescription>}
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-            <FormError className="mb-5" />
-            <div className="grid gap-5">{children}</div>
-          </div>
-          <SheetFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-4 sm:justify-end">
-            {onDelete && (
-              <Button type="button" variant="ghost" className="mr-auto text-destructive hover:text-destructive" onClick={onDelete}>
-                <Trash2Icon />
-                {deleteLabel}
-              </Button>
-            )}
-            {footerStart && <div className={cn("flex items-center gap-2", !onDelete && "mr-auto")}>{footerStart}</div>}
-            <SheetClose asChild>
-              <Button type="button" variant="outline">
-                Cancelar
-              </Button>
-            </SheetClose>
-            <SubmitButton pendingLabel={pendingLabel} disabled={submitDisabled}>
-              {submitLabel}
-            </SubmitButton>
-          </SheetFooter>
-        </ServerForm>
+        {tabs ? (
+          // A new record starts on the form; the key resets the tab with it.
+          <Tabs key={formKey} defaultValue="form" className="flex min-h-0 flex-1 flex-col gap-0">
+            {header}
+            <TabsContent value="form" forceMount className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+              {form}
+            </TabsContent>
+            {tabs.map((tab) => (
+              <TabsContent key={tab.value} value={tab.value} className="flex min-h-0 flex-1 flex-col">
+                {tab.content}
+              </TabsContent>
+            ))}
+          </Tabs>
+        ) : (
+          <>
+            {header}
+            {form}
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );

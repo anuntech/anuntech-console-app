@@ -7,6 +7,7 @@ import {
   consoleStaffMembers,
   memberships,
   taskAssignees,
+  taskComments,
   tasks,
   user,
 } from "@/db/schema";
@@ -119,8 +120,9 @@ export async function taskSummary(engagementIds: string[]) {
 
 export type TaskFile = { id: string; name: string; size: number; mime: string; authorId: string };
 export type TaskPerson = { id: string; name: string; image: string | null };
+export type TaskComment = { id: string; body: string; createdAt: Date; author: TaskPerson };
 
-/** The board's cards, in column order, each with its files. */
+/** The board's cards, in column order, each with its files and comments. */
 export async function boardTasks(engagementId: string) {
   const creator = alias(user, "creator");
   const rows = await db
@@ -178,9 +180,32 @@ export async function boardTasks(engagementId: string) {
     if (!taskId) continue;
     byTask.set(taskId, [...(byTask.get(taskId) ?? []), file]);
   }
+  const said = rows.length
+    ? await db
+        .select({
+          id: taskComments.id,
+          taskId: taskComments.taskId,
+          body: taskComments.body,
+          createdAt: taskComments.createdAt,
+          authorId: user.id,
+          authorName: user.name,
+          authorImage: user.image,
+        })
+        .from(taskComments)
+        .innerJoin(user, eq(user.id, taskComments.authorId))
+        .where(inArray(taskComments.taskId, ids))
+        .orderBy(asc(taskComments.createdAt))
+    : [];
+  const commentsByTask = new Map<string, TaskComment[]>();
+  for (const c of said)
+    commentsByTask.set(c.taskId, [
+      ...(commentsByTask.get(c.taskId) ?? []),
+      { id: c.id, body: c.body, createdAt: c.createdAt, author: { id: c.authorId, name: c.authorName, image: c.authorImage } },
+    ]);
   return rows.map((row) => ({
     ...row,
     assignees: peopleByTask.get(row.id) ?? [],
     files: byTask.get(row.id) ?? [],
+    comments: commentsByTask.get(row.id) ?? [],
   }));
 }

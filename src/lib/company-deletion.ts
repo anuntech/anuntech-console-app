@@ -15,6 +15,7 @@ import {
   messages,
   notificationPreferences,
   taskAssignees,
+  taskComments,
   tasks,
   ticketNotices,
   tickets,
@@ -125,8 +126,9 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
         .where(eq(tickets.companyId, company.id))
         .returning({ id: tickets.id });
 
-      // Work: task people, tasks, then the projects/products/services.
+      // Work: task people and comments, tasks, then the projects/products/services.
       await tx.delete(taskAssignees).where(inArray(taskAssignees.taskId, itsTasks));
+      await tx.delete(taskComments).where(inArray(taskComments.taskId, itsTasks));
       const removedTasks = await tx
         .delete(tasks)
         .where(or(eq(tasks.companyId, company.id), inArray(tasks.engagementId, itsWork)))

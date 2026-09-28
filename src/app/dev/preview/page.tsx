@@ -723,6 +723,7 @@ export default async function Preview({
       mime: i ? "application/pdf" : "image/webp",
       authorId: "u1",
     })),
+    comments: [],
     createdBy: "u1",
     creator: "Kauan Ketner",
     updatedAt: ago(5),

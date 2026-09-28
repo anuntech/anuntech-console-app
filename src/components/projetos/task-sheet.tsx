@@ -25,6 +25,7 @@ import {
 } from "@/lib/task-model";
 import { relativeLabel } from "@/lib/format";
 import { LabelField } from "./label-field";
+import { TaskComments, type BoardComment } from "./task-comments";
 import { PeopleField, type PersonOption } from "@/components/console/people-field";
 
 export type TaskFile = {
@@ -45,6 +46,7 @@ export type BoardTask = {
   labels: string[];
   estimateMinutes: number | null;
   files: TaskFile[];
+  comments: BoardComment[];
   createdBy: string;
   creator: string | null;
   updatedAt: string;
@@ -144,6 +146,26 @@ export function TaskSheet({
         submitLabel={task ? "Salvar" : "Criar tarefa"}
         pendingLabel={task ? "Salvando…" : "Criando…"}
         onDelete={canDelete ? () => setDeleting(true) : undefined}
+        tabs={
+          task
+            ? [
+                {
+                  value: "comments",
+                  label: (
+                    <>
+                      Comentários
+                      {task.comments.length > 0 && (
+                        <span className="rounded-full bg-secondary px-1.5 text-[11px] leading-4 text-muted-foreground tabular-nums">
+                          {task.comments.length}
+                        </span>
+                      )}
+                    </>
+                  ),
+                  content: <TaskComments taskId={task.id} comments={task.comments} viewer={viewer} now={now} />,
+                },
+              ]
+            : undefined
+        }
       >
         {task ? (
           <input type="hidden" name="id" value={task.id} />

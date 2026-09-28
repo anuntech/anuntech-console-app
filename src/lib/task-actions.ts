@@ -9,6 +9,7 @@ import {
   invoices,
   subscriptions,
   taskAssignees,
+  taskComments,
   tasks,
 } from "@/db/schema";
 import { getActor, canAccess } from "./access";
@@ -422,6 +423,7 @@ export async function deleteTask(
     await db.transaction(async (tx) => {
       await tx.delete(attachments).where(eq(attachments.taskId, taskId));
       await tx.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId));
+      await tx.delete(taskComments).where(eq(taskComments.taskId, taskId));
       await tx.delete(tasks).where(eq(tasks.id, taskId));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
@@ -433,6 +435,85 @@ export async function deleteTask(
     });
     refresh(project.id);
     return { success: "Tarefa excluída." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+const commentInput = z.object({
+  taskId: id,
+  body: z
+    .string()
+    .trim()
+    .min(1, "Escreva o comentário.")
+    .max(5000, "O comentário excede o tamanho permitido."),
+});
+
+/** A comment on a task, by anyone who can open its board. */
+export async function addTaskComment(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  try {
+    const input = commentInput.parse({ taskId: form.get("taskId"), body: form.get("body") ?? "" });
+    const [task] = await db
+      .select({ id: tasks.id, title: tasks.title, engagementId: tasks.engagementId })
+      .from(tasks)
+      .where(eq(tasks.id, input.taskId));
+    if (!task) return blocked;
+    const context = await projectFor(task.engagementId);
+    if (!context) return blocked;
+    const { actor, project } = context;
+    await db.transaction(async (tx) => {
+      const [comment] = await tx
+        .insert(taskComments)
+        .values({ taskId: task.id, authorId: actor.user.id, body: input.body })
+        .returning({ id: taskComments.id });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: project.companyId,
+        action: "task.commented",
+        entityId: task.id,
+        details: { engagementId: project.id, title: task.title, commentId: comment.id },
+      });
+    });
+    refresh(project.id);
+    return { success: "Comentário publicado." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Whoever wrote it, or the team, can take a comment back. */
+export async function deleteTaskComment(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  try {
+    const commentId = id.parse(form.get("id"));
+    const [comment] = await db
+      .select({ id: taskComments.id, authorId: taskComments.authorId, taskId: tasks.id, title: tasks.title, engagementId: tasks.engagementId })
+      .from(taskComments)
+      .innerJoin(tasks, eq(tasks.id, taskComments.taskId))
+      .where(eq(taskComments.id, commentId));
+    if (!comment) return blocked;
+    const context = await projectFor(comment.engagementId);
+    if (!context) return blocked;
+    const { actor, project } = context;
+    if (!actor.admin && comment.authorId !== actor.user.id)
+      return { error: "Só quem escreveu o comentário ou a equipe pode excluí-lo." };
+    await db.transaction(async (tx) => {
+      await tx.delete(taskComments).where(eq(taskComments.id, comment.id));
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: project.companyId,
+        action: "task.comment_deleted",
+        entityId: comment.taskId,
+        details: { engagementId: project.id, title: comment.title },
+      });
+    });
+    refresh(project.id);
+    return { success: "Comentário excluído." };
   } catch (error) {
     return failure(error);
   }

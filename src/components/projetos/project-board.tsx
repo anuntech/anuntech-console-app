@@ -48,6 +48,7 @@ import {
   GripVerticalIcon,
   Loader2Icon,
   MoreHorizontalIcon,
+  MessageSquareIcon,
   PaperclipIcon,
   PauseIcon,
   PencilIcon,
@@ -190,7 +191,8 @@ function TaskCard({
     task.dueDate ||
     task.assignees.length > 0 ||
     task.estimateMinutes != null ||
-    task.files.length > 0;
+    task.files.length > 0 ||
+    task.comments.length > 0;
   const shownLabels = task.labels.slice(0, 3);
   return (
     <div
@@ -252,6 +254,15 @@ function TaskCard({
               >
                 <PaperclipIcon className="size-3" />
                 {task.files.length}
+              </span>
+            )}
+            {task.comments.length > 0 && (
+              <span
+                className="inline-flex items-center gap-1 tabular-nums"
+                title={`${task.comments.length} ${task.comments.length === 1 ? "comentário" : "comentários"}`}
+              >
+                <MessageSquareIcon className="size-3" />
+                {task.comments.length}
               </span>
             )}
             {task.assignees.length > 0 && (

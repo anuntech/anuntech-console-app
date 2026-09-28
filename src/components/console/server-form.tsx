@@ -44,6 +44,7 @@ export function ServerForm({
   onSuccess,
   prepare,
   reset = false,
+  quiet = false,
   className,
   children,
   ref,
@@ -55,6 +56,8 @@ export function ServerForm({
   prepare?: (form: FormData) => Promise<FormData>;
   /** Clear the fields after a successful submission (replies, uploads). */
   reset?: boolean;
+  /** No success toast: the result shows up on screen by itself (a comment in its list). */
+  quiet?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const [preparing, setPreparing] = useState(false);
@@ -65,12 +68,12 @@ export function ServerForm({
     if (handled.current === state) return;
     handled.current = state;
     if (state.error) toast.error(state.error);
-    if (state.success) toast.success(state.success);
+    if (state.success && !quiet) toast.success(state.success);
     if (state.success && reset) formRef.current?.reset();
     if (state.success || state.href) onSuccess?.(state);
     if (state.href) router.push(state.href);
     else if (state.success) router.refresh();
-  }, [state, router, onSuccess, reset]);
+  }, [state, router, onSuccess, reset, quiet]);
   return (
     <ErrorContext.Provider value={state.error}>
       <PreparingContext.Provider value={preparing}>
