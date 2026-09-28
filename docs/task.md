@@ -4,7 +4,6 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Depende do Kauan
 
-- [ ] Revisar e fazer merge do PR [anuntech/anuntech-console#1](https://github.com/anuntech/anuntech-console/pull/1): azul-marinho `#0d1d41` e amarelo `#e1e666` iguais às tintas do logotipo.
 - [ ] Apagar o repositório vazio `anuntech/anuntech-console-vazio`, que sobrou da transferência.
 - [ ] Trocar a chave do OpenRouter (foi colada numa conversa) e decidir entre créditos e modelo pago para o assistente.
 - [ ] Apagar pela interface os registros de teste criados em produção durante o QA.
@@ -25,6 +24,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 ## Feito
 
 - [x] 28/09/2026: fatura que o Inter cancelou pode ser excluída (aprovado pelo Kauan).
+- [x] 28/09/2026: azul-marinho `#0d1d41` e amarelo `#e1e666` iguais às tintas do logotipo ([anuntech/anuntech-console#1](https://github.com/anuntech/anuntech-console/pull/1)).
 - [x] 28/09/2026: suítes de integração atualizadas para o Console atual; CI verde localmente (388 verificações).
 - [x] 28/09/2026: chave de idempotência do e-mail de cobrança fixa por rodada, evitando e-mail duplicado depois de timeout.
 - [x] 28/09/2026: removidos arquivos, dependências e testes sem uso; `src/lib` organizado por domínio; `components/shell` para a moldura do app.
