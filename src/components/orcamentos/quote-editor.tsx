@@ -1,5 +1,6 @@
 "use client";
 import { useId, useState, type KeyboardEvent } from "react";
+import { flushSync } from "react-dom";
 import { ChevronDownIcon, ChevronUpIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -222,6 +223,19 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
     patch({ phases });
   };
   const totals = quoteTotals(content);
+  // Rarely used, so it stays folded behind a link until there is a discount.
+  const [discountOpen, setDiscountOpen] = useState((quote.content.discountCents ?? 0) > 0);
+  const openDiscount = () => {
+    flushSync(() => setDiscountOpen(true));
+    document.getElementById(`${uid}-discount`)?.focus();
+  };
+  const removeDiscount = () => {
+    flushSync(() => {
+      patch({ discountCents: 0 });
+      setDiscountOpen(false);
+    });
+    document.getElementById(`${uid}-add-discount`)?.focus();
+  };
   return (
     <ServerForm action={saveQuote} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
       <input type="hidden" name="id" value={quote.id} />
@@ -257,7 +271,7 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
                 placeholder="Uma ou duas frases sobre o que será construído."
               />
             </FormField>
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-3">
               <FormField label="Taxa/hora" htmlFor={`${uid}-rate`}>
                 <MoneyField
                   id={`${uid}-rate`}
@@ -265,25 +279,6 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
                   required={false}
                   defaultCents={quote.content.hourlyRateCents || undefined}
                   onCentsChange={(cents) => patch({ hourlyRateCents: cents })}
-                />
-              </FormField>
-              <FormField
-                label="Desconto"
-                htmlFor={`${uid}-discount`}
-                hint={
-                  (content.discountCents ?? 0) > totals.subtotalCents
-                    ? `Passa do valor das horas (${currency(totals.subtotalCents)}); ajuste antes de salvar.`
-                    : totals.discountCents
-                      ? `${discountShareLabel(totals)} do valor das horas.`
-                      : "Negociado com o cliente, sai do valor das horas."
-                }
-              >
-                <MoneyField
-                  id={`${uid}-discount`}
-                  name="discount"
-                  required={false}
-                  defaultCents={quote.content.discountCents || undefined}
-                  onCentsChange={(cents) => patch({ discountCents: cents })}
                 />
               </FormField>
               <FormField label="Entrada (%)" htmlFor={`${uid}-upfront`}>
@@ -300,6 +295,54 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
                 <DateField id={`${uid}-valid`} name="validUntil" defaultValue={quote.validUntil ?? ""} placeholder="Sem prazo" />
               </FormField>
             </div>
+            {discountOpen ? (
+              <div className="grid gap-5 sm:grid-cols-3">
+                <FormField
+                  label="Desconto"
+                  htmlFor={`${uid}-discount`}
+                  hint={
+                    (content.discountCents ?? 0) > totals.subtotalCents
+                      ? `Passa do valor das horas (${currency(totals.subtotalCents)}); ajuste antes de salvar.`
+                      : totals.discountCents
+                        ? `${discountShareLabel(totals)} do valor das horas.`
+                        : "Negociado com o cliente, sai do valor das horas."
+                  }
+                >
+                  <div className="flex items-center gap-1">
+                    <div className="min-w-0 flex-1">
+                      <MoneyField
+                        id={`${uid}-discount`}
+                        name="discount"
+                        required={false}
+                        defaultCents={content.discountCents || undefined}
+                        onCentsChange={(cents) => patch({ discountCents: cents })}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Remover desconto"
+                      title="Remover desconto"
+                      onClick={removeDiscount}
+                    >
+                      <XIcon />
+                    </Button>
+                  </div>
+                </FormField>
+              </div>
+            ) : (
+              <Button
+                id={`${uid}-add-discount`}
+                type="button"
+                variant="link"
+                className="-mt-2 h-auto justify-self-start p-0 text-sm"
+                onClick={openDiscount}
+              >
+                <PlusIcon />
+                Adicionar desconto
+              </Button>
+            )}
             <StackField value={content.stack} onChange={(stack) => patch({ stack })} />
             <FormField label="Observações" htmlFor={`${uid}-notes`} hint="Aparece no rodapé da proposta, abaixo do total.">
               <Textarea
