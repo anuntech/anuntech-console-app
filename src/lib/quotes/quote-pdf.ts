@@ -2,7 +2,7 @@ import PDFDocument from "pdfkit";
 import path from "node:path";
 import { APP_LOCALE, APP_TIME_ZONE } from "../dates";
 import { currency, longDateLabel } from "../format";
-import { hoursLabel, quoteTotals, taskCode, type QuotePublication, type QuoteStatus } from "./quote-model";
+import { discountShareLabel, hoursLabel, quoteTotals, taskCode, type QuotePublication, type QuoteStatus } from "./quote-model";
 
 export type QuoteDecisionLine = {
   status: "accepted" | "declined";
@@ -129,6 +129,18 @@ export async function quotePdf(
     [currency(totals.balanceCents), `Saldo (${100 - input.upfrontPercent}%)`],
   ].forEach(([value, label], i) => box(left + i * (finWidth + 8), y, finWidth, value, label, 15));
   doc.y = y + 52;
+  if (totals.discountCents > 0)
+    doc
+      .moveDown(0.6)
+      .font("Regular")
+      .fontSize(10)
+      .fillColor(TEXT)
+      .text(
+        `Valor das horas ${currency(totals.subtotalCents)}, com desconto negociado de ${currency(totals.discountCents)} (${discountShareLabel(totals)}).`,
+        left,
+        doc.y,
+        { width },
+      );
 
   /* ---------- stack ---------- */
   if (input.stack.length) {
@@ -224,7 +236,12 @@ export async function quotePdf(
     .font("Regular")
     .fontSize(8.5)
     .fillColor("#c8d2e0")
-    .text(`${totals.hoursMax}h × ${currency(input.hourlyRateCents)}/h`, left + width / 2, y + 12, { width: width / 2 - 16, align: "right" });
+    .text(
+      `${totals.hoursMax}h × ${currency(input.hourlyRateCents)}/h${totals.discountCents > 0 ? `, com ${currency(totals.discountCents)} de desconto` : ""}`,
+      left + width / 2,
+      y + 12,
+      { width: width / 2 - 16, align: "right" },
+    );
   doc.font("Bold").fontSize(18).fillColor("#ffffff").text(currency(totals.totalCents), left + width / 2, y + 26, { width: width / 2 - 16, align: "right" });
   doc.y = y + 64;
 

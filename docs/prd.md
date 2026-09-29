@@ -91,6 +91,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 ### Orçamentos
 
 - Propostas por fases, numeradas por ano, com PDF.
+- Valor = horas máximas × taxa/hora, menos o desconto negociado (em reais, nunca maior que o valor das horas). Entrada e saldo são calculados sobre o valor com desconto, e a proposta mostra o valor das horas e o desconto. Ao copiar um orçamento para outra empresa pelo assistente, o desconto não vai junto.
 - Enviar congela a versão e avisa os administradores da empresa, que aceitam ou recusam no Console. Rascunho pode ser duplicado; proposta enviada pode voltar para edição ou ser retirada.
 
 ### Bookmarks

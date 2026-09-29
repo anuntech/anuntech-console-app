@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  discountShareLabel,
   hoursLabel,
   quoteContentSchema,
   quoteExpired,
@@ -33,6 +34,8 @@ test("the proposal prices the top of the estimate and splits the up-front share"
     hoursMax: 60,
     phases: 6,
     tasks: 32,
+    subtotalCents: 240000,
+    discountCents: 0,
     totalCents: 240000,
     upfrontCents: 120000,
     balanceCents: 120000,
@@ -44,6 +47,27 @@ test("an uneven split rounds the up-front share and keeps the balance exact", ()
   assert.equal(totals.totalCents, 9999);
   assert.equal(totals.upfrontCents, 3000);
   assert.equal(totals.balanceCents, 6999);
+});
+
+test("the negotiated discount comes off the hours and the split follows the total", () => {
+  // 60h at R$ 40/h is R$ 2.400; R$ 240 off leaves R$ 2.160, half up front.
+  const totals = quoteTotals({ phases: [phase(48, 60, 0)], hourlyRateCents: 4000, discountCents: 24000, upfrontPercent: 50 });
+  assert.equal(totals.subtotalCents, 240000);
+  assert.equal(totals.discountCents, 24000);
+  assert.equal(totals.totalCents, 216000);
+  assert.equal(totals.upfrontCents, 108000);
+  assert.equal(totals.balanceCents, 108000);
+  assert.equal(discountShareLabel(totals), "10%");
+  assert.equal(discountShareLabel({ subtotalCents: 240000, discountCents: 18000 }), "7,5%");
+});
+
+test("a discount never takes the total below zero, and old proposals read as none", () => {
+  const over = quoteTotals({ phases: [phase(1, 1, 0)], hourlyRateCents: 1000, discountCents: 5000, upfrontPercent: 50 });
+  assert.equal(over.discountCents, 1000);
+  assert.equal(over.totalCents, 0);
+  const saved = quoteTotals({ phases: [phase(1, 1, 0)], hourlyRateCents: 1000, upfrontPercent: 50 });
+  assert.equal(saved.discountCents, 0);
+  assert.equal(saved.totalCents, 1000);
 });
 
 test("labels read like the proposal", () => {
@@ -80,6 +104,16 @@ test("the content schema rejects a phase whose range is reversed", () => {
     upfrontPercent: 50,
   });
   assert.equal(reversed.success, false);
+});
+
+test("the content schema keeps the discount within the hours' value", () => {
+  const base = { phases: [phase(8, 10, 1)], hourlyRateCents: 4000, upfrontPercent: 50 };
+  const parsed = quoteContentSchema.parse(base);
+  assert.equal(parsed.discountCents, 0);
+  assert.equal(quoteContentSchema.safeParse({ ...base, discountCents: 40000 }).success, true);
+  const above = quoteContentSchema.safeParse({ ...base, discountCents: 40001 });
+  assert.equal(above.success, false);
+  assert.equal(above.error?.issues[0].message, "O desconto não pode passar do valor das horas.");
 });
 
 test("the list query keeps only known situations and builds the same URL back", () => {

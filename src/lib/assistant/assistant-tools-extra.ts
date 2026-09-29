@@ -724,12 +724,13 @@ const contractTerm = tool({
 const editQuote = tool({
   name: "atualizar_orcamento",
   area: "orcamentos",
-  description: "Altera um orçamento em rascunho (só equipe): título, resumo, taxa/hora, entrada, validade, stack, observações ou as fases inteiras. Só o que for informado muda.",
+  description: "Altera um orçamento em rascunho (só equipe): título, resumo, taxa/hora, desconto negociado (em reais, sai do valor das horas; 0 tira o desconto), entrada, validade, stack, observações ou as fases inteiras. Só o que for informado muda.",
   input: z.object({
     orcamentoId: id,
     titulo: z.string().trim().min(1).max(160).optional(),
     resumo: z.string().trim().max(4000).optional(),
     taxaHoraReais: z.number().min(0).max(100000).optional(),
+    descontoReais: z.number().min(0).max(100000000).optional(),
     entradaPercentual: z.number().int().min(0).max(100).optional(),
     validoAte: civilDate.optional(),
     stack: z.array(z.string().trim().min(1).max(160)).max(40).optional(),
@@ -752,6 +753,7 @@ const editQuote = tool({
         ? input.fases.map((f) => ({ name: f.nome, description: f.descricao, hoursMin: Math.round(f.horasMin), hoursMax: Math.max(Math.round(f.horasMin), Math.round(f.horasMax)), tasks: f.tarefas.map((t) => ({ title: t.titulo, description: t.descricao })) }))
         : q.content.phases,
       hourlyRateCents: input.taxaHoraReais !== undefined ? Math.round(input.taxaHoraReais * 100) : q.content.hourlyRateCents,
+      discountCents: input.descontoReais !== undefined ? Math.round(input.descontoReais * 100) : (q.content.discountCents ?? 0),
       upfrontPercent: input.entradaPercentual ?? q.content.upfrontPercent,
       notes: input.observacoes ?? q.content.notes,
     };

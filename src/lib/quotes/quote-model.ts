@@ -17,6 +17,11 @@ export type QuoteContent = {
   stack: string[];
   phases: QuotePhase[];
   hourlyRateCents: number;
+  /**
+   * Discount agreed in the negotiation, taken off the hours' value. Absent in
+   * proposals saved before 2026-09-29, which read as no discount.
+   */
+  discountCents?: number;
   /** Share of the total charged up front, 0–100. */
   upfrontPercent: number;
   /** Small print under the total. */
@@ -40,6 +45,7 @@ export const emptyQuoteContent = (): QuoteContent => ({
   stack: [],
   phases: [],
   hourlyRateCents: 0,
+  discountCents: 0,
   upfrontPercent: 50,
   notes: DEFAULT_QUOTE_NOTES,
 });
@@ -51,38 +57,44 @@ const paragraph = z
   .pipe(z.string().trim().max(4000, "Use até 4 mil caracteres."));
 const hours = z.number().int("Horas inteiras.").min(0).max(100000);
 
-export const quoteContentSchema = z.object({
-  summary: paragraph.default(""),
-  stack: z.array(line.min(1)).max(40, "Até 40 tecnologias.").default([]),
-  phases: z
-    .array(
-      z
-        .object({
-          name: line.min(1, "Dê um nome a cada fase."),
-          description: paragraph.default(""),
-          hoursMin: hours,
-          hoursMax: hours,
-          tasks: z
-            .array(
-              z.object({
-                title: line.min(1, "Dê um título a cada tarefa."),
-                description: paragraph.default(""),
-              }),
-            )
-            .max(200)
-            .default([]),
-        })
-        .refine((phase) => phase.hoursMax >= phase.hoursMin, {
-          message: "Em cada fase, as horas máximas não podem ficar abaixo das mínimas.",
-          path: ["hoursMax"],
-        }),
-    )
-    .max(60, "Até 60 fases.")
-    .default([]),
-  hourlyRateCents: z.number().int().min(0).max(99999999),
-  upfrontPercent: z.number().int().min(0).max(100),
-  notes: paragraph.default(""),
-});
+export const quoteContentSchema = z
+  .object({
+    summary: paragraph.default(""),
+    stack: z.array(line.min(1)).max(40, "Até 40 tecnologias.").default([]),
+    phases: z
+      .array(
+        z
+          .object({
+            name: line.min(1, "Dê um nome a cada fase."),
+            description: paragraph.default(""),
+            hoursMin: hours,
+            hoursMax: hours,
+            tasks: z
+              .array(
+                z.object({
+                  title: line.min(1, "Dê um título a cada tarefa."),
+                  description: paragraph.default(""),
+                }),
+              )
+              .max(200)
+              .default([]),
+          })
+          .refine((phase) => phase.hoursMax >= phase.hoursMin, {
+            message: "Em cada fase, as horas máximas não podem ficar abaixo das mínimas.",
+            path: ["hoursMax"],
+          }),
+      )
+      .max(60, "Até 60 fases.")
+      .default([]),
+    hourlyRateCents: z.number().int().min(0).max(99999999),
+    discountCents: z.number().int().min(0).max(9999999999).default(0),
+    upfrontPercent: z.number().int().min(0).max(100),
+    notes: paragraph.default(""),
+  })
+  .refine((content) => content.discountCents <= quoteTotals(content).subtotalCents, {
+    message: "O desconto não pode passar do valor das horas.",
+    path: ["discountCents"],
+  });
 
 /* ---------- arithmetic ---------- */
 
@@ -91,33 +103,50 @@ export type QuoteTotals = {
   hoursMax: number;
   phases: number;
   tasks: number;
+  /** The hours' value before the discount. */
+  subtotalCents: number;
+  discountCents: number;
+  /** What the client pays: the hours' value minus the discount. */
   totalCents: number;
   upfrontCents: number;
   balanceCents: number;
 };
 
 /**
- * The numbers the proposal prints. The price is the top of the estimate
- * times the rate (a 48–60h project at R$ 40/h is R$ 2.400), split between
- * the up-front share and the balance.
+ * The numbers the proposal prints. The hours' value is the top of the
+ * estimate times the rate (a 48–60h project at R$ 40/h is R$ 2.400); the
+ * negotiated discount comes off it, and the total is split between the
+ * up-front share and the balance. A discount above the hours' value never
+ * makes the total negative.
  */
 export function quoteTotals(
-  content: Pick<QuoteContent, "phases" | "hourlyRateCents" | "upfrontPercent">,
+  content: Pick<QuoteContent, "phases" | "hourlyRateCents" | "upfrontPercent" | "discountCents">,
 ): QuoteTotals {
   const hoursMin = content.phases.reduce((sum, phase) => sum + phase.hoursMin, 0);
   const hoursMax = content.phases.reduce((sum, phase) => sum + phase.hoursMax, 0);
   const tasks = content.phases.reduce((sum, phase) => sum + phase.tasks.length, 0);
-  const totalCents = hoursMax * content.hourlyRateCents;
+  const subtotalCents = hoursMax * content.hourlyRateCents;
+  const discountCents = Math.min(Math.max(content.discountCents ?? 0, 0), subtotalCents);
+  const totalCents = subtotalCents - discountCents;
   const upfrontCents = Math.round((totalCents * content.upfrontPercent) / 100);
   return {
     hoursMin,
     hoursMax,
     phases: content.phases.length,
     tasks,
+    subtotalCents,
+    discountCents,
     totalCents,
     upfrontCents,
     balanceCents: totalCents - upfrontCents,
   };
+}
+
+/** "10%" or "7,5%": the discount's share of the hours' value, for labels. */
+export function discountShareLabel(totals: Pick<QuoteTotals, "subtotalCents" | "discountCents">) {
+  if (!totals.subtotalCents) return "";
+  const share = Math.round((totals.discountCents / totals.subtotalCents) * 1000) / 10;
+  return `${share.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 }
 
 /** "48–60h", or "10h" when the estimate is exact. */

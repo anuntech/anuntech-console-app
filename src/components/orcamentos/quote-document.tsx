@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { formatDocument } from "@/lib/companies/company-input";
 import { currency, dateLabel, longDateLabel } from "@/lib/format";
-import { hoursLabel, quoteTotals, taskCode, type QuoteContent } from "@/lib/quotes/quote-model";
+import { discountShareLabel, hoursLabel, quoteTotals, taskCode, type QuoteContent } from "@/lib/quotes/quote-model";
 
 export type QuoteDocumentData = QuoteContent & {
   title: string;
@@ -58,6 +58,12 @@ export function QuoteDocument({ data, className }: { data: QuoteDocumentData; cl
           <Stat value={currency(totals.upfrontCents)} label={`Entrada (${data.upfrontPercent}%)`} strong />
           <Stat value={currency(totals.balanceCents)} label={`Saldo (${100 - data.upfrontPercent}%)`} strong />
         </div>
+        {totals.discountCents > 0 && (
+          <p className="m-0 mt-3 text-sm text-muted-foreground">
+            Valor das horas <span className="tabular-nums text-foreground">{currency(totals.subtotalCents)}</span>, com desconto negociado de{" "}
+            <span className="font-medium tabular-nums text-foreground">{currency(totals.discountCents)}</span> ({discountShareLabel(totals)}).
+          </p>
+        )}
       </section>
 
       {data.stack.length > 0 && (
@@ -149,6 +155,7 @@ export function QuoteDocument({ data, className }: { data: QuoteDocumentData; cl
         <div className="w-full sm:w-auto sm:text-right">
           <p className="m-0 text-xs tabular-nums opacity-80">
             {totals.hoursMax}h × {currency(data.hourlyRateCents)}/h
+            {totals.discountCents > 0 && `, com ${currency(totals.discountCents)} de desconto`}
           </p>
           <p className="m-0 mt-1 text-2xl font-semibold tabular-nums">{currency(totals.totalCents)}</p>
         </div>

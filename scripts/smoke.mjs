@@ -811,6 +811,70 @@ try {
         r.text.includes("PRIVATE-DRAFT-CHANGE"),
       "Novo envio cria a versão 2 e substitui o texto do cliente",
     );
+    // Proposals: the negotiated discount comes off the hours' value and is
+    // frozen with the version the client answers.
+    const quoteContent = (discountCents) =>
+      JSON.stringify({
+        summary: "Sistema de teste",
+        stack: ["Next.js"],
+        phases: [
+          { name: "Fase 1", description: "", hoursMin: 48, hoursMax: 60, tasks: [{ title: "Tarefa", description: "" }] },
+        ],
+        hourlyRateCents: 4000,
+        discountCents,
+        upfrontPercent: 50,
+        notes: "",
+      });
+    const quoteTitle = `Quote A ${marker}`;
+    await submitForm("/orcamentos/novo", "admin", "admin", { action: "createQuote" }, {
+      companyId: ids.a,
+      title: quoteTitle,
+      validUntil: "",
+      content: quoteContent(0),
+    });
+    let quote = (await database.query("select * from console_quotes where title=$1", [quoteTitle])).rows[0];
+    ok(quote?.status === "draft", "Equipe cria orçamento em rascunho");
+    const quotePath = `/orcamentos/${quote.id}`;
+    const saveQuoteWith = (who, discountCents) =>
+      submitForm(quotePath, "admin", who, { action: "saveQuote" }, {
+        id: quote.id,
+        revision: String(quote.revision),
+        title: quoteTitle,
+        validUntil: "",
+        content: quoteContent(discountCents),
+      });
+    await saveQuoteWith("manager", 24000);
+    ok(
+      (await database.query("select content from console_quotes where id=$1", [quote.id])).rows[0].content.discountCents === 0,
+      "Cliente não altera orçamento por POST direto",
+    );
+    await saveQuoteWith("admin", 240001);
+    ok(
+      (await database.query("select content from console_quotes where id=$1", [quote.id])).rows[0].content.discountCents === 0,
+      "Desconto acima do valor das horas é recusado",
+    );
+    await saveQuoteWith("admin", 24000);
+    quote = (await database.query("select * from console_quotes where id=$1", [quote.id])).rows[0];
+    ok(quote.content.discountCents === 24000, "Equipe salva desconto negociado no orçamento");
+    await submitForm(quotePath, "admin", "admin", { action: "sendQuote" }, { id: quote.id });
+    quote = (await database.query("select * from console_quotes where id=$1", [quote.id])).rows[0];
+    ok(
+      quote.status === "sent" && quote.publication.discountCents === 24000 && !!quote.document_hash,
+      "Envio congela o desconto na versão do cliente",
+    );
+    r = await request(quotePath, "finance");
+    ok(
+      r.status === 200 && r.text.includes("R$\u00a02.160,00") && r.text.includes("desconto negociado"),
+      "Cliente vê o total com desconto na proposta",
+    );
+    const quotePdf = await fetch(`${base}/api/orcamentos/${quote.id}/pdf`, {
+      headers: { Cookie: people.finance.cookie },
+    });
+    ok(
+      quotePdf.status === 200 &&
+        Buffer.from(await quotePdf.arrayBuffer()).subarray(0, 5).toString() === "%PDF-",
+      "PDF do orçamento com desconto é gerado",
+    );
     const clientAddress = {
       endereco: "Rua Teste",
       numero: "10",
@@ -1719,6 +1783,10 @@ try {
     [Object.values(people).map((p) => p.id)],
   );
   await database.query("delete from console_billing_notices");
+  await database.query(
+    "delete from console_quote_versions where quote_id in (select id from console_quotes where company_id=any($1::text[]))",
+    [companyIds],
+  );
   for (const table of ["console_contract_signatures", "console_contract_versions"])
     await database.query(
       `delete from ${table} where contract_id in (select id from console_contracts where company_id=any($1::text[]))`,
@@ -1729,6 +1797,7 @@ try {
     "console_invoices",
     "console_subscriptions",
     "console_contracts",
+    "console_quotes",
     "console_bookmarks",
   ])
     await database.query(

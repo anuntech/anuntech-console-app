@@ -17,6 +17,7 @@ import { currency } from "@/lib/format";
 import {
   hoursLabel,
   quoteTotals,
+  discountShareLabel,
   taskCode,
   type QuoteContent,
   type QuotePhase,
@@ -256,7 +257,7 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
                 placeholder="Uma ou duas frases sobre o que será construído."
               />
             </FormField>
-            <div className="grid gap-5 sm:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2">
               <FormField label="Taxa/hora" htmlFor={`${uid}-rate`}>
                 <MoneyField
                   id={`${uid}-rate`}
@@ -264,6 +265,25 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
                   required={false}
                   defaultCents={quote.content.hourlyRateCents || undefined}
                   onCentsChange={(cents) => patch({ hourlyRateCents: cents })}
+                />
+              </FormField>
+              <FormField
+                label="Desconto"
+                htmlFor={`${uid}-discount`}
+                hint={
+                  (content.discountCents ?? 0) > totals.subtotalCents
+                    ? `Passa do valor das horas (${currency(totals.subtotalCents)}); ajuste antes de salvar.`
+                    : totals.discountCents
+                      ? `${discountShareLabel(totals)} do valor das horas.`
+                      : "Negociado com o cliente, sai do valor das horas."
+                }
+              >
+                <MoneyField
+                  id={`${uid}-discount`}
+                  name="discount"
+                  required={false}
+                  defaultCents={quote.content.discountCents || undefined}
+                  onCentsChange={(cents) => patch({ discountCents: cents })}
                 />
               </FormField>
               <FormField label="Entrada (%)" htmlFor={`${uid}-upfront`}>
@@ -334,6 +354,14 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
               <Fact label="Fases · tarefas">
                 {totals.phases} · {totals.tasks}
               </Fact>
+              {totals.discountCents > 0 && (
+                <>
+                  <Fact label="Valor das horas">{currency(totals.subtotalCents)}</Fact>
+                  <Fact label={`Desconto (${discountShareLabel(totals)})`}>
+                    <span className="tabular-nums">− {currency(totals.discountCents)}</span>
+                  </Fact>
+                </>
+              )}
               <Fact label="Valor total" className="col-span-2">
                 <span className="text-lg font-semibold tabular-nums">{currency(totals.totalCents)}</span>
               </Fact>
@@ -341,7 +369,9 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
               <Fact label={`Saldo (${100 - content.upfrontPercent}%)`}>{currency(totals.balanceCents)}</Fact>
             </dl>
             <p className="mt-4 text-xs text-muted-foreground">
-              Valor total = horas máximas × taxa/hora. {totals.hoursMax}h × {currency(content.hourlyRateCents)}.
+              Valor total = horas máximas × taxa/hora{totals.discountCents > 0 && " − desconto"}. {totals.hoursMax}h ×{" "}
+              {currency(content.hourlyRateCents)}
+              {totals.discountCents > 0 && ` − ${currency(totals.discountCents)}`}.
             </p>
           </CardContent>
           <CardFooter className="border-t">

@@ -609,6 +609,9 @@ const readQuote = tool({
         taxaHoraReais: content.hourlyRateCents / 100,
         entradaPercentual: content.upfrontPercent,
         observacoes: content.notes,
+        valorDasHoras: currency(totals.subtotalCents),
+        desconto: currency(totals.discountCents),
+        descontoReais: totals.discountCents / 100,
         fases: content.phases.map((f) => ({ nome: f.name, descricao: f.description, horasMin: f.hoursMin, horasMax: f.hoursMax, tarefas: f.tasks.map((t) => ({ titulo: t.title, descricao: t.description })) })),
         esforco: hoursLabel(totals.hoursMin, totals.hoursMax),
         valorTotal: currency(totals.totalCents),
@@ -658,13 +661,14 @@ const createQuoteTool = tool({
   name: "criar_orcamento",
   area: "orcamentos",
   description:
-    "Cria um orçamento em rascunho (só a equipe da Anuntech) a partir de título, resumo, taxa/hora, entrada, validade, stack e fases com faixa de horas e tarefas, no formato da proposta da Anuntech. Para fazer 'igual ao orçamento X' para outro cliente, passe copiarDeOrcamentoId (ache o id com listar_orcamentos): tudo é copiado e só o que você informar é trocado. O rascunho abre para revisão e o envio ao cliente é feito na tela. Sem copiarDe, se a taxa/hora não foi dita, pergunte antes de criar.",
+    "Cria um orçamento em rascunho (só a equipe da Anuntech) a partir de título, resumo, taxa/hora, desconto negociado (em reais, sai do valor das horas), entrada, validade, stack e fases com faixa de horas e tarefas, no formato da proposta da Anuntech. Para fazer 'igual ao orçamento X' para outro cliente, passe copiarDeOrcamentoId (ache o id com listar_orcamentos): tudo é copiado e só o que você informar é trocado, menos o desconto, que só vem junto quando a empresa é a mesma. O rascunho abre para revisão e o envio ao cliente é feito na tela. Sem copiarDe, se a taxa/hora não foi dita, pergunte antes de criar.",
   input: z.object({
     companyId: id,
     copiarDeOrcamentoId: id.optional(),
     titulo: z.string().trim().min(1).max(160).optional(),
     resumo: z.string().trim().max(4000).default(""),
     taxaHoraReais: z.number().min(0).max(100000).optional(),
+    descontoReais: z.number().min(0).max(100000000).optional(),
     entradaPercentual: z.number().int().min(0).max(100).optional(),
     validoAte: z.union([z.iso.date(), z.literal("")]).optional(),
     stack: z.array(z.string().trim().min(1).max(160)).max(40).optional(),
@@ -685,12 +689,12 @@ const createQuoteTool = tool({
   staffOnly: true,
   write: true,
   run: async ({ actor }, input) => {
-    let base: (QuoteContent & { title: string; validUntil: string | null }) | null = null;
+    let base: (QuoteContent & { title: string; validUntil: string | null; companyId: string }) | null = null;
     if (input.copiarDeOrcamentoId) {
       const [source] = await db.select().from(quotes).where(eq(quotes.id, input.copiarDeOrcamentoId));
       if (!source || !canAccess(actor, source.companyId, "finance")) throw new ToolError("Orçamento de origem não encontrado.");
       const from = source.status !== "draft" && source.publication ? source.publication : source.content;
-      base = { ...from, title: source.title, validUntil: null };
+      base = { ...from, title: source.title, validUntil: null, companyId: source.companyId };
     }
     const fases = input.fases?.length ? input.fases : null;
     if (!base && !fases) throw new ToolError("Informe as fases do orçamento, ou copiarDeOrcamentoId para partir de um existente.");
@@ -706,6 +710,13 @@ const createQuoteTool = tool({
           })
         : base!.phases,
       hourlyRateCents: input.taxaHoraReais !== undefined ? Math.round(input.taxaHoraReais * 100) : (base?.hourlyRateCents ?? 0),
+      // A discount belongs to one negotiation: it follows a copy only within the same company.
+      discountCents:
+        input.descontoReais !== undefined
+          ? Math.round(input.descontoReais * 100)
+          : base?.companyId === input.companyId
+            ? (base.discountCents ?? 0)
+            : 0,
       upfrontPercent: input.entradaPercentual ?? base?.upfrontPercent ?? 50,
       notes: input.observacoes ?? base?.notes ?? DEFAULT_QUOTE_NOTES,
     };
@@ -717,6 +728,7 @@ const createQuoteTool = tool({
         rascunho: true,
         link: state.href ?? "/orcamentos",
         esforco: hoursLabel(totals.hoursMin, totals.hoursMax),
+        desconto: currency(totals.discountCents),
         valorTotal: currency(totals.totalCents),
         entrada: currency(totals.upfrontCents),
         saldo: currency(totals.balanceCents),

@@ -190,6 +190,7 @@ export async function duplicateQuote(_: ActionState, form: FormData): Promise<Ac
       stack: source.stack,
       phases: source.phases,
       hourlyRateCents: source.hourlyRateCents,
+      discountCents: source.discountCents ?? 0,
       upfrontPercent: source.upfrontPercent,
       notes: source.notes,
     };
@@ -238,6 +239,8 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
       if (q.status !== "draft") throw Error("Este orçamento já foi enviado.");
       if (!q.content.phases.length) throw Error("Adicione ao menos uma fase antes de enviar.");
       if (q.content.hourlyRateCents <= 0) throw Error("Informe a taxa por hora antes de enviar.");
+      if ((q.content.discountCents ?? 0) > quoteTotals(q.content).subtotalCents)
+        throw Error("O desconto passou do valor das horas. Ajuste antes de enviar.");
       if (q.validUntil && q.validUntil < saoPauloDate()) throw Error("A validade já passou. Ajuste a data antes de enviar.");
       const [company] = await tx.select().from(companies).where(eq(companies.id, q.companyId));
       const version = q.publishedVersion + 1;
