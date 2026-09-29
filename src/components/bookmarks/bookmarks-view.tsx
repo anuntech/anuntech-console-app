@@ -11,6 +11,8 @@ import {
   FolderIcon,
   FolderInputIcon,
   FolderPlusIcon,
+  LayoutGridIcon,
+  ListIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
@@ -59,6 +61,7 @@ import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
 import { moveBookmark, deleteBookmark } from "@/lib/bookmarks/bookmark-actions";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
+import { BOOKMARK_VIEW_COOKIE, type BookmarkLayout } from "@/lib/bookmarks/bookmark-view";
 import { dateTimeLabel, fileSizeLabel, relativeLabel } from "@/lib/format";
 import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
 import { BookmarkSheet, type BookmarkEditor } from "./bookmark-sheet";
@@ -76,6 +79,8 @@ export type BookmarksViewData = {
   paging?: { page: number; pageSize: number; total: number; pageCount: number };
   /** ISO instant the page was rendered at, so relative times hydrate equal. */
   now?: string;
+  /** List or grid, as the viewer last chose (the page reads it from a cookie). */
+  view?: BookmarkLayout;
   /** Companies the viewer can file under; id "" is Anuntech's own space (staff). */
   companies: CompanyOption[];
   viewer: { id: string; admin: boolean };
@@ -96,11 +101,12 @@ function hostOf(url: string) {
   }
 }
 /** A letter tile stands in for the favicon, without calling anyone. */
-function Tile({ item }: { item: BookmarkView }) {
+function Tile({ item, large = false }: { item: BookmarkView; large?: boolean }) {
+  const size = large ? "size-10 rounded-lg" : "size-8 rounded-md";
   if (!item.url)
     return (
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
-        <FileIcon className="size-4" />
+      <span className={cn("flex shrink-0 items-center justify-center bg-secondary text-muted-foreground", size)}>
+        <FileIcon className={large ? "size-5" : "size-4"} />
       </span>
     );
   const host = hostOf(item.url);
@@ -110,13 +116,20 @@ function Tile({ item }: { item: BookmarkView }) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold uppercase",
+        "flex shrink-0 items-center justify-center font-semibold uppercase",
+        size,
+        large ? "text-sm" : "text-xs",
         tones[hash % tones.length],
       )}
     >
       {host.replace(/^[^a-z0-9]+/i, "").charAt(0) || "•"}
     </span>
   );
+}
+
+/** Kept for a year, like the theme and the dock position. */
+function rememberView(view: BookmarkLayout) {
+  document.cookie = `${BOOKMARK_VIEW_COOKIE}=${view}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
 }
 
 type ListState = BookmarkQuery & PageQuery;
@@ -207,6 +220,12 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   const [editor, setEditor] = useState<BookmarkEditor | null>(null);
   const [folderEditor, setFolderEditor] = useState<FolderEditor | null>(null);
   const [removing, setRemoving] = useState<BookmarkView | null>(null);
+  const [view, setView] = useState<BookmarkLayout>(data.view ?? "list");
+  // Switches at once; the cookie makes the next page (another folder, a reload) render the same way.
+  const chooseView = (next: BookmarkLayout) => {
+    setView(next);
+    rememberView(next);
+  };
   const { submit: move, form: moveForm } = useBookmarkMove();
   const folderById = new Map(folders.map((folder) => [folder.id, folder]));
   const companyName = new Map(companies.map((company) => [company.id, company.name]));
@@ -271,6 +290,73 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     </DropdownMenu>
   );
 
+  /** Link host or file name and size; the company too when the list spans several and has no column for it. */
+  const subtitleFor = (item: BookmarkView, withCompany: boolean) =>
+    [
+      item.url ? hostOf(item.url) : item.fileName,
+      !item.url && item.fileSize ? fileSizeLabel(item.fileSize) : null,
+      withCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  const download = (item: BookmarkView) =>
+    void downloadFile(`/api/bookmarks/${item.id}`, item.fileName ?? item.title);
+
+  /** The "…" menu of a bookmark, the same in the list and in the grid. */
+  const actionsFor = (item: BookmarkView) => (
+    <>
+      {item.url ? (
+        <DropdownMenuItem asChild>
+          <a href={item.url} target="_blank" rel="noopener noreferrer">
+            <ExternalLinkIcon />
+            Abrir link
+          </a>
+        </DropdownMenuItem>
+      ) : (
+        <DownloadMenuItem href={`/api/bookmarks/${item.id}`} filename={item.fileName ?? item.title}>
+          Baixar arquivo
+        </DownloadMenuItem>
+      )}
+      {canEdit(item) && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => later(() => setEditor({ mode: "edit", item }))}>
+            <PencilIcon />
+            Editar
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <FolderInputIcon />
+              Mover para
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-52">
+              <DropdownMenuItem disabled={!item.folderId} onSelect={() => move(item.id, "")}>
+                Sem pasta
+              </DropdownMenuItem>
+              {folders
+                .filter((folder) => (folder.companyId ?? "") === (item.companyId ?? ""))
+                .map((folder) => (
+                  <DropdownMenuItem
+                    key={folder.id}
+                    disabled={folder.id === item.folderId}
+                    onSelect={() => move(item.id, folder.id)}
+                  >
+                    <FolderIcon />
+                    <span className="truncate">{folder.name}</span>
+                  </DropdownMenuItem>
+                ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => later(() => setRemoving(item))}>
+            <Trash2Icon />
+            Excluir
+          </DropdownMenuItem>
+        </>
+      )}
+    </>
+  );
+
   const table = (
     <Table>
       <TableHeader>
@@ -288,24 +374,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         {items.map((item) => {
           const folder = item.folderId ? folderById.get(item.folderId) : undefined;
           const company = companyName.get(item.companyId ?? "") ?? null;
-          const subtitle = [
-            item.url ? hostOf(item.url) : item.fileName,
-            !item.url && item.fileSize ? fileSizeLabel(item.fileSize) : null,
-            showCompany && !companyColumn ? company : null,
-          ]
-            .filter(Boolean)
-            .join(" · ");
+          const subtitle = subtitleFor(item, showCompany && !companyColumn);
           return (
             <LinkRow
               key={item.id}
               href={item.url}
               external
-              onOpen={item.url ? undefined : () => void downloadFile(`/api/bookmarks/${item.id}`, item.fileName ?? item.title)}
+              onOpen={item.url ? undefined : () => download(item)}
             >
               <PrimaryCell
                 href={item.url}
                 external
-                onOpen={item.url ? undefined : () => void downloadFile(`/api/bookmarks/${item.id}`, item.fileName ?? item.title)}
+                onOpen={item.url ? undefined : () => download(item)}
                 leading={<Tile item={item} />}
                 title={item.title}
                 subtitle={subtitle || undefined}
@@ -326,61 +406,99 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 </time>
               </TableCell>
               <RowActions label={item.title}>
-                {item.url ? (
-                  <DropdownMenuItem asChild>
-                    <a href={item.url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLinkIcon />
-                      Abrir link
-                    </a>
-                  </DropdownMenuItem>
-                ) : (
-                  <DownloadMenuItem href={`/api/bookmarks/${item.id}`} filename={item.fileName ?? item.title}>
-                    Baixar arquivo
-                  </DownloadMenuItem>
-                )}
-                {canEdit(item) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => later(() => setEditor({ mode: "edit", item }))}>
-                      <PencilIcon />
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <FolderInputIcon />
-                        Mover para
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="w-52">
-                        <DropdownMenuItem disabled={!item.folderId} onSelect={() => move(item.id, "")}>
-                          Sem pasta
-                        </DropdownMenuItem>
-                        {folders
-                          .filter((folder) => (folder.companyId ?? "") === (item.companyId ?? ""))
-                          .map((folder) => (
-                            <DropdownMenuItem
-                              key={folder.id}
-                              disabled={folder.id === item.folderId}
-                              onSelect={() => move(item.id, folder.id)}
-                            >
-                              <FolderIcon />
-                              <span className="truncate">{folder.name}</span>
-                            </DropdownMenuItem>
-                          ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" onSelect={() => later(() => setRemoving(item))}>
-                      <Trash2Icon />
-                      Excluir
-                    </DropdownMenuItem>
-                  </>
-                )}
+                {actionsFor(item)}
               </RowActions>
             </LinkRow>
           );
         })}
       </TableBody>
     </Table>
+  );
+
+  const grid = (
+    <ul className="m-0 grid list-none gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+      {items.map((item) => {
+        const folder = item.folderId ? folderById.get(item.folderId) : undefined;
+        const subtitle = subtitleFor(item, showCompany);
+        // The title's link (or button) stretches over the card, so the whole card
+        // opens the bookmark; the menu sits above it and keeps its own clicks.
+        const cover =
+          "text-foreground no-underline outline-none group-hover/card:text-primary hover:no-underline after:absolute after:inset-0 after:rounded-lg after:content-['']";
+        return (
+          <li
+            key={item.id}
+            className="group/card relative flex min-w-0 flex-col rounded-lg border bg-card p-4 transition-colors hover:border-primary/30 hover:bg-accent/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50"
+          >
+            <div className="flex items-start gap-3">
+              <Tile item={item} large />
+              <div className="min-w-0 flex-1">
+                <p className="m-0 line-clamp-2 text-sm leading-5 font-medium break-words">
+                  {item.url ? (
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className={cover}>
+                      {item.title}
+                      <span className="sr-only"> (abre em nova aba)</span>
+                    </a>
+                  ) : (
+                    <button type="button" onClick={() => download(item)} className={cn("text-left", cover)}>
+                      {item.title}
+                    </button>
+                  )}
+                </p>
+                {subtitle && <p className="m-0 mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>}
+              </div>
+              <div className="relative z-10 -mt-1.5 -mr-2">
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${item.title}`}>
+                      <MoreHorizontalIcon />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    {actionsFor(item)}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            <div className="mt-auto flex items-center gap-3 pt-4 text-xs text-muted-foreground">
+              {folderColumn && (
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <FolderIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                  <span className="truncate">{folder ? folder.name : "Sem pasta"}</span>
+                </span>
+              )}
+              <time dateTime={item.createdAt} title={dateTimeLabel(item.createdAt)} className="ml-auto shrink-0">
+                {relativeLabel(item.createdAt, now)}
+              </time>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const viewToggle = (
+    <div role="group" aria-label="Visualização" className="ml-auto flex rounded-md border bg-background p-0.5">
+      {(
+        [
+          ["list", "Lista", <ListIcon key="list" />],
+          ["grid", "Grade", <LayoutGridIcon key="grid" />],
+        ] as const
+      ).map(([mode, label, icon]) => (
+        <Button
+          key={mode}
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={label}
+          title={label}
+          aria-pressed={view === mode}
+          onClick={() => chooseView(mode)}
+          className={cn("size-7", view === mode ? "bg-accent text-primary hover:bg-accent" : "text-muted-foreground")}
+        >
+          {icon}
+        </Button>
+      ))}
+    </div>
   );
 
   return (
@@ -501,11 +619,15 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           label="Lista de bookmarks"
           className="min-w-0"
           toolbar={
-            <SearchField
-              value={query.search}
-              onChange={(search) => go({ search })}
-              placeholder="Buscar por título ou link"
-            />
+            <>
+              <SearchField
+                value={query.search}
+                onChange={(search) => go({ search })}
+                placeholder="Buscar por título ou link"
+                className="min-w-0 flex-1"
+              />
+              {viewToggle}
+            </>
           }
           footer={
             <ListPagination
@@ -519,7 +641,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           }
         >
           {items.length ? (
-            table
+            view === "grid" ? grid : table
           ) : (
             <EmptyState
               icon={<BookmarkIcon />}

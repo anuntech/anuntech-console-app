@@ -470,6 +470,14 @@ try {
     ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 1, "Outro membro não remove bookmark de terceiro");
     await submitForm("/bookmarks", "support", "support", { action: "deleteBookmark" }, { id: bookmark.id });
     ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 0, "Autor pode remover seu bookmark");
+    const pressed = (html, label) =>
+      new RegExp(`<button[^>]*aria-label="${label}"[^>]*aria-pressed="true"|<button[^>]*aria-pressed="true"[^>]*aria-label="${label}"`).test(html);
+    r = await request("/bookmarks", "support");
+    ok(pressed(r.text, "Lista") && !pressed(r.text, "Grade"), "Bookmarks abrem em lista por padrão");
+    r = await request("/bookmarks", "support", {
+      headers: { Cookie: `${people.support.cookie}; console-bookmarks-view=grid` },
+    });
+    ok(pressed(r.text, "Grade") && r.text.includes(`File bookmark ${marker}`), "Bookmarks lembram a grade escolhida");
 
     await submitForm("/chamados/novo", "support", "support", "subject", {
       companyId: ids.b,

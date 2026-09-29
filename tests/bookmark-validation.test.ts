@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { bookmarkInput, safeFileName } from "../src/lib/bookmarks/bookmark-validation";
+import { parseBookmarkView } from "../src/lib/bookmarks/bookmark-view";
 import { prepareTicketFiles } from "../src/lib/tickets/ticket-files";
 const base = {
   companyId: "123e4567-e89b-42d3-a456-426614174000",
@@ -44,4 +45,11 @@ test("new ticket attachments validate content and aggregate size before persiste
   ]);
   assert.equal(file.mime, "application/pdf");
   assert.equal(file.name, "project.pdf");
+});
+
+test("the bookmarks layout is a known one, list by default", () => {
+  assert.equal(parseBookmarkView("grid"), "grid");
+  assert.equal(parseBookmarkView("list"), "list");
+  assert.equal(parseBookmarkView(undefined), "list");
+  assert.equal(parseBookmarkView("mosaic"), "list");
 });

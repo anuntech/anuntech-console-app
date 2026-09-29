@@ -90,6 +90,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 ## Padrões de tela
 
 - **Lista:** `PageHeader` com a ação principal à direita, depois `ListCard`. Filtros e página ficam na URL; mudar filtro volta à página 1. Paginação sempre no servidor.
+- **Lista ou grade:** onde os itens se reconhecem pelo título e pelo ícone (Bookmarks), um seletor Lista/Grade fica à direita da busca. A grade usa cartões com o título cobrindo o cartão inteiro e o menu "…" por cima; o rodapé de paginação é o mesmo. A escolha fica num cookie e é lida no servidor, sem piscar a outra visualização.
 - **Detalhe:** breadcrumb, título com situação (`Badge`), ações no cabeçalho; conteúdo principal à esquerda e cards de apoio à direita, uma coluna quando não houver espaço. Dados em `Fact`.
 - **Criar e editar:** `FormSheet` à direita. A partir de uma lista, a URL de criação abre o painel sobre a tela (rota interceptada em `@ticket`); acessada direto, vira página. Enquanto envia, o painel não fecha e o botão não repete.
 - **Confirmar:** `ConfirmDialog` só para o que é destrutivo ou sai do Console (emitir, enviar, excluir). Diz a consequência e começa em Cancelar.

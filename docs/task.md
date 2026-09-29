@@ -23,6 +23,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 29/09/2026: Bookmarks em lista ou grade, com a escolha salva; paginação nos dois modos.
 - [x] 29/09/2026: desconto negociado no orçamento (editor, proposta, PDF e assistente).
 - [x] 28/09/2026: fatura que o Inter cancelou pode ser excluída (aprovado pelo Kauan).
 - [x] 28/09/2026: azul-marinho `#0d1d41` e amarelo `#e1e666` iguais às tintas do logotipo ([anuntech/anuntech-console#1](https://github.com/anuntech/anuntech-console/pull/1)).

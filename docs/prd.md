@@ -97,6 +97,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 ### Bookmarks
 
 - Links e arquivos privados organizados em pastas pessoais. Uma pasta pode ser vista pela empresa inteira ou só por pessoas escolhidas.
+- Busca, paginação (10, 25, 50 ou 100 por página) e visualização em lista ou grade. A escolha de visualização fica salva para a pessoa.
 
 ### Assistente
 
