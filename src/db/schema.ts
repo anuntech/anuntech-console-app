@@ -237,7 +237,11 @@ export const contracts = pgTable(
     endsAt: date("ends_at"),
     expiryNoticeSentAt: timestamp("expiry_notice_sent_at", { withTimezone: true }),
     expiredNoticeSentAt: timestamp("expired_notice_sent_at", { withTimezone: true }),
-    /** draft → sent (frozen, awaiting signatures) → signed; or cancelled. */
+    /**
+     * draft → sent (frozen, awaiting signatures) → signed; or cancelled. A sent
+     * contract goes to in_review when the client asks for changes: the client
+     * keeps reading the sent version while the team edits the next one.
+     */
     status: text("status", { enum: ["draft", "sent", "signed", "cancelled"] })
       .notNull()
       .default("draft"),
@@ -276,6 +280,45 @@ export const contractVersions = pgTable(
     sentAt: created(),
   },
   (t) => [uniqueIndex("console_contract_version_unique").on(t.contractId, t.version)],
+);
+/**
+ * A change the client asks for in one block of a sent version: why, and
+ * optionally the text it should read. The client writes a round of them
+ * (draft) and sends it (pending); the team accepts or declines each one
+ * before sending the next version.
+ */
+export const contractChangeRequests = pgTable(
+  "console_contract_change_requests",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contractId: text("contract_id")
+      .notNull()
+      .references(() => contracts.id),
+    /** The sent version the client was reading. */
+    version: integer("version").notNull(),
+    /** Where in that version's text: the block's position, its name ("Cláusula 3.2") and how it read. */
+    blockIndex: integer("block_index").notNull(),
+    label: text("label").notNull(),
+    excerpt: text("excerpt").notNull(),
+    comment: text("comment").notNull(),
+    proposedText: text("proposed_text"),
+    status: text("status", { enum: ["draft", "pending", "accepted", "declined"] })
+      .notNull()
+      .default("draft"),
+    /** Accepted with a proposed text that went into the draft by itself. */
+    applied: boolean("applied").notNull().default(false),
+    response: text("response"),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    decidedBy: text("decided_by").references(() => user.id),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [index("console_contract_change_contract_idx").on(t.contractId, t.version)],
 );
 /** One row per party that signed, with the evidence that backs it. */
 export const contractSignatures = pgTable(
