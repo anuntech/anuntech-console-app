@@ -115,6 +115,7 @@ export default async function Dashboard() {
     [draftInvoices],
     [quotesSent],
     [contractsSent],
+    [contractsInReview],
     [contractsExpiring],
     [companyCount],
     recentTickets,
@@ -152,6 +153,7 @@ export default async function Dashboard() {
       .where(and(eq(invoices.status, "draft"), sql`${subscriptions.status} is distinct from 'active'`)),
     db.select({ n: count() }).from(quotes).where(and(eq(quotes.status, "sent"), sql`(${quotes.validUntil} is null or ${quotes.validUntil} >= ${today})`)),
     db.select({ n: count() }).from(contracts).where(eq(contracts.status, "sent")),
+    db.select({ n: count() }).from(contracts).where(eq(contracts.status, "in_review")),
     db
       .select({ n: count() })
       .from(contracts)
@@ -226,6 +228,15 @@ export default async function Dashboard() {
       title: "Orçamentos aguardando resposta",
       count: quotesSent.n,
       href: "/orcamentos?status=sent",
+    },
+    contractsInReview.n > 0 && {
+      key: "contract-reviews",
+      icon: <PenLineIcon />,
+      tone: "warning" as const,
+      title: "Contratos com pedidos de alteração",
+      detail: "O cliente espera uma nova versão",
+      count: contractsInReview.n,
+      href: "/contratos?status=in_review",
     },
     contractsSent.n > 0 && {
       key: "contracts",

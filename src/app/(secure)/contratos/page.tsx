@@ -8,7 +8,7 @@ import { companies, contractSignatures, contracts, engagements } from "@/db/sche
 import { getActor, allowedIds } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
-import { addDays, clientContractFilters, contractQuery, EXPIRY_WARNING_DAYS } from "@/lib/contracts/contract-table";
+import { addDays, CLIENT_CONTRACT_STATUSES, clientContractFilters, contractQuery, EXPIRY_WARNING_DAYS } from "@/lib/contracts/contract-table";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { ContractsTable } from "@/components/contratos/contracts-table";
@@ -40,7 +40,7 @@ export default async function Contracts({
       actor.admin
         ? undefined
         : ids.length
-          ? and(inArray(contracts.companyId, ids), inArray(contracts.status, ["sent", "signed"]))
+          ? and(inArray(contracts.companyId, ids), inArray(contracts.status, CLIENT_CONTRACT_STATUSES))
           : sql`false`,
       query.status === "all"
         ? undefined

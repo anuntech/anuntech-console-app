@@ -12,6 +12,7 @@ import {
   auditEvents,
   catalogItems,
   companies,
+  contractChangeRequests,
   contractSignatures,
   contractTemplates,
   contractVersions,
@@ -341,7 +342,9 @@ export async function saveContract(_: ActionState, form: FormData): Promise<Acti
     await db.transaction(async (tx) => {
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, input.id)).for("update");
       if (!c || c.revision !== input.revision) throw Error("stale");
-      if (c.status !== "draft") throw Error("Só rascunhos podem ser editados. Volte o contrato para rascunho ou crie um aditivo.");
+      // In review, the team edits the next version while the client reads the sent one.
+      if (c.status !== "draft" && c.status !== "in_review")
+        throw Error("Só rascunhos podem ser editados. Volte o contrato para rascunho ou crie um aditivo.");
       await tx
         .update(contracts)
         .set({
@@ -426,7 +429,28 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
     const sent = await db.transaction(async (tx) => {
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, contractId)).for("update");
       if (!c) throw Error("Contrato não encontrado.");
-      if (c.status !== "draft") throw Error("Este contrato já foi enviado.");
+      if (c.status !== "draft" && c.status !== "in_review") throw Error("Este contrato já foi enviado.");
+      // The client gets an answer to every request with the new version.
+      const [{ pending }] = await tx
+        .select({ pending: count() })
+        .from(contractChangeRequests)
+        .where(and(eq(contractChangeRequests.contractId, c.id), eq(contractChangeRequests.status, "pending")));
+      if (pending)
+        throw Error(
+          pending === 1
+            ? "Responda o pedido de alteração do cliente antes de enviar a nova versão."
+            : `Responda os ${pending} pedidos de alteração do cliente antes de enviar a nova versão.`,
+        );
+      const [{ answered }] = await tx
+        .select({ answered: count() })
+        .from(contractChangeRequests)
+        .where(
+          and(
+            eq(contractChangeRequests.contractId, c.id),
+            eq(contractChangeRequests.version, c.publishedVersion),
+            ne(contractChangeRequests.status, "draft"),
+          ),
+        );
       const [company] = await tx.select().from(companies).where(eq(companies.id, c.companyId));
       const parent = c.parentId
         ? (await tx.select({ title: contracts.title, hash: contracts.documentHash }).from(contracts).where(eq(contracts.id, c.parentId)))[0]
@@ -472,7 +496,7 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
         action: "contract.sent",
         details: { hash: documentHash, version },
       });
-      return { ...c, version, companyName: company.name };
+      return { ...c, version, companyName: company.name, answered: c.status === "in_review" ? answered : 0 };
     });
     const url = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${sent.id}`;
     const signers = await companySigners(sent.companyId);
@@ -485,6 +509,7 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
           url,
           kind: sent.kind,
           version: sent.version,
+          answered: sent.answered,
         });
         notified += 1;
       } catch {
@@ -517,6 +542,10 @@ export async function revertContract(_: ActionState, form: FormData): Promise<Ac
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, contractId)).for("update");
       if (!c) throw Error("Contrato não encontrado.");
       if (c.status !== "sent") throw Error("Só um contrato aguardando assinatura volta para rascunho.");
+      // The client stops seeing it; requests they had not sent have nothing to answer.
+      await tx
+        .delete(contractChangeRequests)
+        .where(and(eq(contractChangeRequests.contractId, c.id), eq(contractChangeRequests.status, "draft")));
       const [signed] = await tx
         .select({ n: count() })
         .from(contractSignatures)
@@ -614,6 +643,11 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
         action: "contract.signed",
         details: { party, ip, version: c.publishedVersion },
       });
+      // Signing settles it: change requests the client wrote but never sent go away.
+      if (party === "client")
+        await tx
+          .delete(contractChangeRequests)
+          .where(and(eq(contractChangeRequests.contractId, c.id), eq(contractChangeRequests.status, "draft")));
       const signatures = await tx
         .select()
         .from(contractSignatures)

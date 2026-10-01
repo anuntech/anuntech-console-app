@@ -86,6 +86,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - O contrato nasce rascunho, só a equipe vê. Enviar congela o texto numa versão com hash e avisa os administradores da empresa por e-mail.
 - Assinatura eletrônica no próprio Console, com registro de quem assinou, quando e em qual versão. Com as duas partes assinadas, o PDF final é guardado.
 - Voltar para rascunho mantém a versão enviada no histórico; o próximo envio é uma versão nova, assinada de novo.
+- **Rodadas de revisão:** enquanto o contrato espera assinatura, os administradores da empresa podem pedir alterações cláusula por cláusula, com o motivo e, se quiserem, o texto proposto. Os pedidos ficam guardados até o cliente enviar a rodada; aí o contrato vai para "Em revisão", a assinatura dessa versão é bloqueada e a equipe recebe um e-mail. A equipe aceita ou recusa cada pedido (recusar exige resposta); aceitar um texto proposto o aplica sozinho no rascunho quando a cláusula ainda está como o cliente leu. A próxima versão só sai com todos os pedidos respondidos; o cliente recebe um e-mail, vê o que mudou marcado na margem e a resposta a cada pedido, e assina ou abre outra rodada. Tudo fica no histórico, por versão.
 - Aditivos a contratos assinados, vigência com início e fim, aviso 30 dias antes do fim e no vencimento.
 
 ### Orçamentos

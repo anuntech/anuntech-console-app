@@ -6,6 +6,7 @@ import { allowedIds, canAccess } from "../access/access";
 import {
   assistantDocuments,
   companies,
+  contractChangeRequests,
   contracts,
   engagements,
   invoices,
@@ -21,7 +22,7 @@ import {
 import { createEngagement, createTicket, replyTicket } from "../actions";
 import { createTask, moveTask } from "../projects/task-actions";
 import { formatDocument } from "../companies/company-input";
-import { contractStatusLabels } from "../contracts/contract-table";
+import { CLIENT_CONTRACT_STATUSES, contractStatusLabels } from "../contracts/contract-table";
 import { currency, engagementLabels, priorityLabels, ticketLabels } from "../format";
 import { hasPermission, type Area } from "../access/permissions";
 import { createQuote } from "../quotes/quote-actions";
@@ -529,7 +530,7 @@ const listContracts = tool({
       .select({ id: contracts.id, title: contracts.title, status: contracts.status, startsAt: contracts.startsAt, endsAt: contracts.endsAt, kind: contracts.kind, company: companies.name })
       .from(contracts)
       .innerJoin(companies, eq(companies.id, contracts.companyId))
-      .where(and(within(contracts.companyId, ids), actor.admin ? undefined : inArray(contracts.status, ["sent", "signed"])))
+      .where(and(within(contracts.companyId, ids), actor.admin ? undefined : inArray(contracts.status, CLIENT_CONTRACT_STATUSES)))
       .orderBy(desc(contracts.updatedAt))
       .limit(40);
     return {
@@ -627,7 +628,7 @@ const readQuote = tool({
 const readContract = tool({
   name: "ler_contrato",
   area: "contratos",
-  description: "O texto de um contrato (a versão enviada ou assinada), com situação, vigência e assinaturas. Use para responder o que o contrato diz.",
+  description: "O texto de um contrato (a versão enviada ou assinada), com situação, vigência, assinaturas e os pedidos de alteração do cliente com a resposta da equipe. Use para responder o que o contrato diz ou o que está em revisão.",
   input: z.object({ contratoId: id }),
   run: async ({ actor }, { contratoId }) => {
     const [row] = await db
@@ -639,6 +640,18 @@ const readContract = tool({
     const c = row.contract;
     if (!actor.admin && (c.status === "draft" || c.status === "cancelled")) throw new ToolError("Contrato não encontrado.");
     const text = c.status !== "draft" && c.publication ? c.publication : { title: c.title, body: c.body };
+    // Staff never see what a client is still writing.
+    const requests = await db
+      .select()
+      .from(contractChangeRequests)
+      .where(
+        and(
+          eq(contractChangeRequests.contractId, c.id),
+          actor.admin ? ne(contractChangeRequests.status, "draft") : undefined,
+        ),
+      )
+      .orderBy(asc(contractChangeRequests.version), asc(contractChangeRequests.blockIndex));
+    const requestStatus = { draft: "não enviado", pending: "aguardando a Anuntech", accepted: "aceito", declined: "recusado" };
     return {
       result: {
         contratoId: c.id,
@@ -650,6 +663,15 @@ const readContract = tool({
         fim: c.endsAt,
         assinadoEm: c.signedAt?.toISOString() ?? null,
         texto: text.body.slice(0, 20000),
+        versao: c.publishedVersion,
+        pedidosDeAlteracao: requests.map((r) => ({
+          versao: r.version,
+          onde: r.label,
+          pedido: r.comment,
+          textoProposto: r.proposedText,
+          situacao: requestStatus[r.status],
+          resposta: r.response,
+        })),
         link: `/contratos/${c.id}`,
       },
       summary: `Li o contrato "${text.title}"`,

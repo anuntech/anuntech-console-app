@@ -5,16 +5,19 @@ import { db } from "@/lib/db";
 import {
   auditEvents,
   companies,
+  contractChangeRequests,
   contractSignatures,
   contractTemplates,
   contractVersions,
   contracts,
   engagements,
+  user,
 } from "@/db/schema";
 import { getActor, canAccess } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { hasPermission } from "@/lib/access/permissions";
 import { pendingContractVariables } from "@/lib/contracts/contract-templates";
+import { CLIENT_CONTRACT_STATUSES } from "@/lib/contracts/contract-table";
 import { ContractDetail } from "@/components/contratos/contract-detail";
 export const metadata: Metadata = {
   title: "Contrato",
@@ -39,8 +42,29 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
   if (!row || !canAccess(actor, row.contract.companyId, "finance")) notFound();
   const c = row.contract;
   if (!actor.admin && (c.status === "draft" || c.status === "cancelled")) notFound();
-  const visible = actor.admin ? undefined : inArray(contracts.status, ["sent", "signed"]);
-  const [signatures, versions, amendments, parent, events, amendmentCount] = await Promise.all([
+  const visible = actor.admin ? undefined : inArray(contracts.status, CLIENT_CONTRACT_STATUSES);
+  // Staff never see the requests a client is still writing; the client's side sees all of theirs.
+  const requestsQuery = db
+    .select({ request: contractChangeRequests, author: user.name, email: user.email })
+    .from(contractChangeRequests)
+    .innerJoin(user, eq(user.id, contractChangeRequests.authorId))
+    .where(
+      and(
+        eq(contractChangeRequests.contractId, id),
+        actor.admin ? ne(contractChangeRequests.status, "draft") : undefined,
+      ),
+    )
+    .orderBy(asc(contractChangeRequests.version), asc(contractChangeRequests.blockIndex), asc(contractChangeRequests.createdAt));
+  // The version before the one shown, so what changed can be marked.
+  const previousQuery =
+    c.publishedVersion > 1 && c.status !== "draft"
+      ? db
+          .select({ body: contractVersions.body })
+          .from(contractVersions)
+          .where(and(eq(contractVersions.contractId, id), eq(contractVersions.version, c.publishedVersion - 1)))
+          .then((r) => r[0]?.body ?? null)
+      : null;
+  const [signatures, versions, amendments, parent, events, amendmentCount, requests, previousBody] = await Promise.all([
     db
       .select()
       .from(contractSignatures)
@@ -89,10 +113,14 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           .where(eq(contracts.parentId, id))
           .then((r) => r[0]?.n ?? 0)
       : 0,
+    requestsQuery,
+    previousQuery,
   ]);
   const grant = actor.grants.find((g) => g.company.id === c.companyId);
   const party = actor.admin ? "anuntech" : grant && hasPermission(grant.role, "finance") ? "client" : null;
-  const text = c.status !== "draft" && c.publication ? c.publication : { title: c.title, body: c.body };
+  // Staff edit the next version during a review; everyone else reads what was sent.
+  const editing = actor.admin && (c.status === "draft" || c.status === "in_review");
+  const text = !editing && c.publication ? c.publication : { title: c.title, body: c.body };
   const current = signatures.filter((s) => s.documentHash === c.documentHash);
   return (
     <ContractDetail
@@ -116,7 +144,7 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           sentAt: c.publishedAt?.toISOString() ?? null,
           signedAt: c.signedAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
-          pendingVariables: c.status === "draft" ? pendingContractVariables(c.body) : [],
+          pendingVariables: editing ? pendingContractVariables(c.body) : [],
         },
         parent,
         amendments: amendments.map((a) => ({ ...a, signedAt: a.signedAt?.toISOString() ?? null })),
@@ -135,6 +163,25 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           ip: s.ip,
         })),
         viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email },
+        review: {
+          requests: requests.map(({ request: r, author, email }) => ({
+            id: r.id,
+            version: r.version,
+            blockIndex: r.blockIndex,
+            label: r.label,
+            excerpt: r.excerpt,
+            comment: r.comment,
+            proposedText: r.proposedText,
+            status: r.status,
+            applied: r.applied,
+            response: r.response,
+            author: author || email,
+            createdAt: r.createdAt.toISOString(),
+            submittedAt: r.submittedAt?.toISOString() ?? null,
+            decidedAt: r.decidedAt?.toISOString() ?? null,
+          })),
+          previousBody,
+        },
         events: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString() })),
         // Every signature on any version, not only the current one, counts against deleting.
         deletion: actor.admin ? { signatures: signatures.length, amendments: amendmentCount } : undefined,

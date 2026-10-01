@@ -33,7 +33,7 @@ export function termSentence(startsAt?: string | null, endsAt?: string | null) {
 export async function contractPdf(
   input: ContractPublication & {
     id: string;
-    status: "draft" | "sent" | "signed" | "cancelled";
+    status: "draft" | "sent" | "in_review" | "signed" | "cancelled";
     date: Date;
     hash: string | null;
     signatures: ContractSignatureLine[];
@@ -78,6 +78,8 @@ export async function contractPdf(
       ? `${noun} ASSINADO ELETRONICAMENTE`
       : input.status === "sent"
         ? `${noun} AGUARDANDO ASSINATURAS`
+        : input.status === "in_review"
+          ? `${noun} EM REVISÃO, SEM VALIDADE PARA ASSINATURA`
         : input.status === "cancelled"
           ? `${noun} CANCELADO`
           : "RASCUNHO — SEM VALIDADE";

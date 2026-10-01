@@ -26,10 +26,21 @@ async function send(input: { to: string; subject: string; text: string; tag: str
 /** Tells a client contact that a contract awaits their signature in the Console. */
 export async function deliverContractNotice(
   email: string,
-  input: { companyName: string; title: string; url: string; kind?: "contract" | "amendment"; version?: number },
+  input: {
+    companyName: string;
+    title: string;
+    url: string;
+    kind?: "contract" | "amendment";
+    version?: number;
+    /** Change requests from the previous version that this one answers. */
+    answered?: number;
+  },
 ) {
   const noun = input.kind === "amendment" ? "aditivo" : "contrato";
-  const again = (input.version ?? 1) > 1 ? ` Esta é uma nova versão (${input.version}); a anterior deixou de valer.` : "";
+  const answers = input.answered
+    ? ` Ela traz a resposta ${input.answered === 1 ? "ao pedido de alteração" : `aos ${input.answered} pedidos de alteração`} e mostra o que mudou.`
+    : "";
+  const again = (input.version ?? 1) > 1 ? ` Esta é uma nova versão (${input.version}); a anterior deixou de valer.${answers}` : "";
   await send({
     to: email,
     tag: "contract",

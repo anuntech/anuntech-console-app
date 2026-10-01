@@ -56,7 +56,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
 | `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela |
 | `billing/` | faturas, emissão no Inter, conciliação, recorrência, condições (desconto, multa, juros), link público, avisos de cobrança |
-| `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, PDF, e-mails |
+| `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails |
 | `tickets/` | situações, anexos, avisos de chamados, exclusão, tabela |
 | `projects/` | tarefas, quadro, comentários, exclusão de projetos e serviços |
@@ -84,7 +84,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
   - **Atendimento:** `tickets`, `messages`, `attachments`, `ticket_uploads`, `ticket_notices`.
   - **Projetos:** `tasks`, `task_assignees`, `task_comments` (anexos em `attachments.comment_id`).
   - **Financeiro:** `invoices`, `subscriptions` (recorrências), `billing_notices`, `email_deliveries`.
-  - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures`, `quotes`, `quote_versions`.
+  - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures`, `contract_change_requests` (pedidos de alteração por cláusula e versão), `quotes`, `quote_versions`.
   - **Outros:** `bookmarks`, `bookmark_folders`, `bookmark_folder_shares`, `notification_settings`, `notification_preferences`, `assistant_settings`, `assistant_documents`, `assistant_conversations`, `assistant_messages`, `audit_events`.
 - Valores em centavos (`integer`). Vencimentos são datas civis (`date`, `YYYY-MM-DD`), sem conversão de fuso; "hoje" é calculado em America/Sao_Paulo (`lib/dates.ts`).
 - Toda alteração relevante grava `audit_events` na mesma transação.

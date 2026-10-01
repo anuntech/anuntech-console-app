@@ -11,6 +11,7 @@ import {
 const tones: Record<ContractStatus, { pill: string; dot: string }> = {
   draft: { pill: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground/60" },
   sent: { pill: "bg-warning-soft text-warning", dot: "bg-warning" },
+  in_review: { pill: "bg-accent text-primary", dot: "bg-primary" },
   signed: { pill: "bg-success-soft text-success", dot: "bg-success" },
   cancelled: { pill: "bg-secondary text-muted-foreground", dot: "bg-muted-foreground/50" },
 };

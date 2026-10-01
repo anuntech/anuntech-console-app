@@ -819,6 +819,97 @@ try {
         r.text.includes("PRIVATE-DRAFT-CHANGE"),
       "Novo envio cria a versão 2 e substitui o texto do cliente",
     );
+    // Review rounds: the client asks for changes clause by clause, the team
+    // answers each one and sends the next version.
+    const changes = async () =>
+      (
+        await database.query(
+          "select * from console_contract_change_requests where contract_id=$1 order by block_index",
+          [contract.id],
+        )
+      ).rows;
+    const contractRow = async () =>
+      (await database.query("select * from console_contracts where id=$1", [contract.id])).rows[0];
+    const ask = (who, blockIndex, comment, proposedText = "") =>
+      submitForm(contractPath, "admin", who, { action: "saveChangeRequest" }, {
+        contractId: contract.id,
+        requestId: "",
+        blockIndex: String(blockIndex),
+        comment,
+        proposedText,
+      });
+    await ask("support", 1, `Forbidden request ${marker}`);
+    ok((await changes()).length === 0, "Membro sem acesso ao financeiro não pede alteração em contrato");
+    await ask("finance", 1, `PRIVATE-REQUEST-${marker}`, "Segunda cláusula, com prazo de 15 dias.");
+    await ask("finance", 0, `Explique melhor ${marker}`);
+    let requests = await changes();
+    ok(
+      requests.length === 2 &&
+        requests.every((q) => q.status === "draft" && q.version === 2) &&
+        requests[1].label === "Parágrafo" &&
+        requests[1].excerpt === "Segunda cláusula.",
+      "Cliente escreve pedidos presos à cláusula da versão que está lendo",
+    );
+    r = await request(contractPath, "admin");
+    ok(!r.text.includes(`PRIVATE-REQUEST-${marker}`), "Equipe não vê pedidos que o cliente ainda não enviou");
+    await submitForm(contractPath, "admin", "finance", { action: "submitChangeRequests" }, { contractId: contract.id });
+    requests = await changes();
+    ok(
+      (await contractRow()).status === "in_review" && requests.every((q) => q.status === "pending" && q.submitted_at),
+      "Enviar os pedidos põe o contrato em revisão",
+    );
+    await submitForm(contractPath, "admin", "finance", { action: "signContract" }, { id: contract.id, consent: "on" });
+    ok(
+      (await database.query("select id from console_contract_signatures where contract_id=$1 and party='client'", [contract.id]))
+        .rowCount === 0,
+      "Contrato em revisão não pode ser assinado",
+    );
+    r = await request(contractPath, "finance");
+    ok(r.status === 200 && r.text.includes("Em revisão"), "Cliente acompanha o contrato em revisão");
+    await submitForm(contractPath, "admin", "finance", { action: "decideChangeRequest" }, {
+      id: requests[1].id,
+      decision: "accept",
+      response: "",
+    });
+    ok((await changes())[1].status === "pending", "Cliente não decide os próprios pedidos");
+    await submitForm(contractPath, "admin", "admin", { action: "sendContract" }, { id: contract.id });
+    ok((await contractRow()).status === "in_review", "Nova versão só sai com todos os pedidos respondidos");
+    await submitForm(contractPath, "admin", "admin", { action: "decideChangeRequest" }, {
+      id: requests[1].id,
+      decision: "accept",
+      response: "Prazo ajustado.",
+    });
+    await submitForm(contractPath, "admin", "admin", { action: "decideChangeRequest" }, {
+      id: requests[0].id,
+      decision: "decline",
+      response: "",
+    });
+    requests = await changes();
+    ok(
+      requests[1].status === "accepted" &&
+        requests[1].applied &&
+        (await contractRow()).body.includes("Segunda cláusula, com prazo de 15 dias.") &&
+        requests[0].status === "pending",
+      "Aceitar aplica o texto proposto no rascunho e recusar exige resposta",
+    );
+    await submitForm(contractPath, "admin", "admin", { action: "decideChangeRequest" }, {
+      id: requests[0].id,
+      decision: "decline",
+      response: `PRIVATE-ANSWER-${marker}`,
+    });
+    await submitForm(contractPath, "admin", "admin", { action: "sendContract" }, { id: contract.id });
+    const reviewed = await contractRow();
+    ok(
+      reviewed.status === "sent" &&
+        reviewed.published_version === 3 &&
+        reviewed.publication.body.includes("Segunda cláusula, com prazo de 15 dias."),
+      "Respondidos os pedidos, a versão 3 sai com o texto aceito",
+    );
+    r = await request(contractPath, "finance");
+    ok(
+      r.text.includes(`PRIVATE-ANSWER-${marker}`) && r.text.includes("Revisões"),
+      "Cliente lê a resposta a cada pedido junto com a nova versão",
+    );
     // Proposals: the negotiated discount comes off the hours' value and is
     // frozen with the version the client answers.
     const quoteContent = (discountCents) =>
@@ -1780,6 +1871,7 @@ try {
   console.error("FAIL", error.stack);
   if (logs.includes("Error"))
     console.error("O servidor registrou erro; verificar logs locais.");
+  if (process.env.CONSOLE_TEST_DEBUG) console.error(logs.slice(-6000));
   process.exitCode = 1;
 } finally {
   if (server) {
@@ -1795,7 +1887,7 @@ try {
     "delete from console_quote_versions where quote_id in (select id from console_quotes where company_id=any($1::text[]))",
     [companyIds],
   );
-  for (const table of ["console_contract_signatures", "console_contract_versions"])
+  for (const table of ["console_contract_change_requests", "console_contract_signatures", "console_contract_versions"])
     await database.query(
       `delete from ${table} where contract_id in (select id from console_contracts where company_id=any($1::text[]))`,
       [companyIds],

@@ -167,6 +167,7 @@ export function contractDeletionBlock({ status, signatures, amendments, kind = "
   const noun = kind === "amendment" ? "aditivo" : "contrato";
   if (status === "signed") return `Um ${noun} assinado não pode ser excluído.`;
   if (status === "sent") return `Este ${noun} está aguardando assinatura; cancele-o antes de excluir.`;
+  if (status === "in_review") return `Este ${noun} está em revisão com o cliente; cancele-o antes de excluir.`;
   if (status !== "draft" && status !== "cancelled") return `Só rascunhos e ${noun}s cancelados podem ser excluídos.`;
   if (signatures > 0) return `Este ${noun} já recebeu assinatura, que fica como registro; ele não pode ser excluído.`;
   if (amendments > 0) return "Este contrato tem aditivos e não pode ser excluído.";

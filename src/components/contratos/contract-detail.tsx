@@ -71,6 +71,13 @@ import {
 } from "@/lib/contracts/contract-table";
 import { ContractKindChip, ContractStatusBadge, ContractTermBadge } from "./contract-badges";
 import { ContractText } from "./contract-text";
+import {
+  ClientRoundCard,
+  ReviewHistory,
+  TeamReviewPanel,
+  useClientReview,
+  type ChangeRequestView,
+} from "./contract-review";
 
 export type ContractDetailData = {
   contract: {
@@ -108,6 +115,11 @@ export type ContractDetailData = {
     ip: string | null;
   }[];
   viewer: { admin: boolean; party: "anuntech" | "client" | null; name: string };
+  /**
+   * Change requests (the client's side also sees the ones it has not sent)
+   * and the text of the version before the one shown, to mark what changed.
+   */
+  review?: { requests: ChangeRequestView[]; previousBody: string | null };
   events: { id: string; action: string; createdAt: string }[];
   /**
    * Staff only: every signature on any version and every amendment, cancelled
@@ -195,7 +207,32 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
   const [consent, setConsent] = useState(false);
   const signed = (party: "client" | "anuntech") => signatures.find((s) => s.party === party);
   const canSign = c.status === "sent" && viewer.party !== null && !signed(viewer.party);
-  const editable = viewer.admin && c.status === "draft";
+  // During a review the team edits the next version while the client reads the sent one.
+  const editable = viewer.admin && (c.status === "draft" || c.status === "in_review");
+  const review = data.review ?? { requests: [], previousBody: null };
+  const canRequest = c.status === "sent" && viewer.party === "client" && !signed("client");
+  const clientReview = useClientReview({
+    contractId: c.id,
+    version: c.version,
+    requests: review.requests,
+    canRequest,
+    now,
+  });
+  const pendingRequests = review.requests.filter((r) => r.version === c.version && r.status === "pending").length;
+  const roundCard = viewer.party === "client" && (canRequest || c.status === "in_review") && (
+    <ClientRoundCard
+      contractId={c.id}
+      status={c.status === "in_review" ? "in_review" : "sent"}
+      version={c.version}
+      requests={review.requests}
+      drafts={clientReview.drafts}
+      amendment={c.kind === "amendment"}
+    />
+  );
+  const [showChanges, setShowChanges] = useState(true);
+  // Accepting a proposed text rewrites the saved draft: unsaved edits in the editor would be lost.
+  const [dirtyRevision, setDirtyRevision] = useState<number | null>(null);
+  const editorDirty = dirtyRevision === c.revision;
   const amendment = c.kind === "amendment";
   const noun = amendment ? "aditivo" : "contrato";
   const pdfHref = `/api/contratos/${c.id}/pdf`;
@@ -256,6 +293,16 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                 Enviar para assinatura
               </Button>
             )}
+            {viewer.admin && c.status === "in_review" && (
+              <Button
+                onClick={() => setSending(true)}
+                disabled={pendingRequests > 0}
+                title={pendingRequests > 0 ? "Responda todos os pedidos do cliente antes de enviar." : undefined}
+              >
+                <SendIcon />
+                Enviar versão {c.version + 1}
+              </Button>
+            )}
             {viewer.admin && (c.status !== "cancelled" || deletable) && (
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
@@ -282,8 +329,10 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                       Voltar para rascunho
                     </DropdownMenuItem>
                   )}
-                  {(c.status === "draft" || c.status === "sent" || deletable) && <DropdownMenuSeparator />}
-                  {(c.status === "draft" || c.status === "sent") && (
+                  {(c.status === "draft" || c.status === "sent" || c.status === "in_review" || deletable) && (
+                    <DropdownMenuSeparator />
+                  )}
+                  {(c.status === "draft" || c.status === "sent" || c.status === "in_review") && (
                     <DropdownMenuItem variant="destructive" onSelect={() => setTimeout(() => setCancelling(true), 0)}>
                       <XCircleIcon />
                       {amendment ? "Cancelar aditivo" : "Cancelar contrato"}
@@ -304,9 +353,19 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-6">
+          {/* On a phone the round goes before the text, not after all of it. */}
+          {roundCard && <div className="lg:hidden">{roundCard}</div>}
+          {viewer.admin && c.status === "in_review" && (
+            <TeamReviewPanel version={c.version} requests={review.requests} editorDirty={editorDirty} now={now} />
+          )}
           {editable ? (
             <Card>
-              <ServerForm key={c.revision} action={saveContract} className="contents">
+              <ServerForm
+                key={c.revision}
+                action={saveContract}
+                className="contents"
+                onInput={() => setDirtyRevision(c.revision)}
+              >
                 <input type="hidden" name="id" value={c.id} />
                 <input type="hidden" name="revision" value={c.revision} />
                 <CardHeader>
@@ -374,22 +433,44 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                 <SectionTitle
                   title={amendment ? "Texto do aditivo" : "Texto do contrato"}
                   description={
-                    c.status === "signed"
-                      ? `Versão assinada${c.version > 1 ? ` (${c.version}ª)` : ""}. O hash abaixo identifica este texto.`
-                      : c.status === "sent"
-                        ? "Texto enviado para assinatura. Não muda mais."
-                        : undefined
+                    [
+                      c.status === "signed"
+                        ? `Versão assinada${c.version > 1 ? ` (${c.version}ª)` : ""}. O hash abaixo identifica este texto.`
+                        : c.status === "in_review"
+                          ? `Versão ${c.version}, como foi enviada. Os pedidos de alteração estão com a Anuntech.`
+                          : canRequest
+                            ? "Texto enviado para assinatura. Para pedir uma mudança, use o botão ao lado da cláusula."
+                            : c.status === "sent"
+                              ? "Texto enviado para assinatura. Não muda mais."
+                              : null,
+                      review.previousBody && showChanges ? `A barra na margem marca o que mudou desde a versão ${c.version - 1}.` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
+                  action={
+                    review.previousBody ? (
+                      <Button variant="ghost" size="sm" onClick={() => setShowChanges((value) => !value)}>
+                        {showChanges ? "Esconder mudanças" : "Marcar mudanças"}
+                      </Button>
+                    ) : undefined
                   }
                 />
               </CardHeader>
               <CardContent className="px-6 py-8 sm:px-12 sm:py-10">
-                <ContractText body={c.body} />
+                <ContractText
+                  body={c.body}
+                  previousBody={showChanges ? review.previousBody : null}
+                  extras={viewer.party === "client" ? clientReview.extras : undefined}
+                />
               </CardContent>
             </Card>
           )}
+          <ReviewHistory requests={review.requests} before={c.version} now={now} />
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">
+          {roundCard && <div className="hidden lg:block">{roundCard}</div>}
           <Card>
             <CardHeader>
               <SectionTitle
@@ -399,7 +480,9 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                     ? "Assinado pelas duas partes."
                     : c.status === "sent"
                       ? "Cada parte assina com o próprio acesso ao Console."
-                      : "Disponíveis depois do envio."
+                      : c.status === "in_review"
+                        ? "Disponíveis quando a nova versão chegar."
+                        : "Disponíveis depois do envio."
                 }
               />
             </CardHeader>
@@ -434,6 +517,8 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                   </SubmitButton>
                   <p className="text-xs text-muted-foreground">
                     Ficam registrados seu nome, e-mail, data, IP e o hash do texto.
+                    {clientReview.drafts > 0 &&
+                      ` Assinar descarta ${clientReview.drafts === 1 ? "o pedido de alteração não enviado" : `os ${clientReview.drafts} pedidos de alteração não enviados`}.`}
                   </p>
                 </ServerForm>
               )}
@@ -639,14 +724,17 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
         onOpenChange={setSending}
         action={sendContract}
         fields={{ id: c.id }}
-        title="Enviar para assinatura?"
+        title={c.status === "in_review" ? `Enviar a versão ${c.version + 1}?` : "Enviar para assinatura?"}
         description={
-          c.version > 0
-            ? `O texto vira a versão ${c.version + 1}. O cliente recebe um aviso por e-mail, e as assinaturas da versão anterior deixam de valer.`
-            : "O texto é congelado e o cliente recebe um aviso por e-mail para ler e assinar no Console. Depois disso, o texto não muda mais."
+          c.status === "in_review"
+            ? `O texto vira a versão ${c.version + 1}. O cliente recebe um aviso por e-mail, vê o que mudou e a resposta a cada pedido, e assina ou pede novas alterações.`
+            : c.version > 0
+              ? `O texto vira a versão ${c.version + 1}. O cliente recebe um aviso por e-mail, e as assinaturas da versão anterior deixam de valer.`
+              : "O texto é congelado e o cliente recebe um aviso por e-mail para ler e assinar no Console. Depois disso, o texto não muda mais."
         }
         confirmLabel="Enviar"
       />
+      {clientReview.dialogs}
       <ConfirmDialog
         open={reverting}
         onOpenChange={setReverting}

@@ -23,6 +23,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 01/10/2026: rodadas de revisão de contratos: pedidos por cláusula, decisão da equipe, nova versão com o que mudou marcado.
 - [x] 29/09/2026: Bookmarks em lista ou grade, com a escolha salva; paginação nos dois modos.
 - [x] 29/09/2026: desconto negociado no orçamento (editor, proposta, PDF e assistente).
 - [x] 28/09/2026: fatura que o Inter cancelou pode ser excluída (aprovado pelo Kauan).

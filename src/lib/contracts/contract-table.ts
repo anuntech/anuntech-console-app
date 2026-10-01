@@ -8,13 +8,14 @@ import {
   type SearchParams,
 } from "../list-query";
 
-export type ContractStatus = "draft" | "sent" | "signed" | "cancelled";
+export type ContractStatus = "draft" | "sent" | "in_review" | "signed" | "cancelled";
 export type ContractKind = "contract" | "amendment";
 /** The situation filters; "expiring" and "expired" derive from the end date. */
 export type ContractStatusFilter = "all" | ContractStatus | "expiring" | "expired";
 export const contractFilters: ContractStatusFilter[] = [
   "all",
   "sent",
+  "in_review",
   "signed",
   "expiring",
   "expired",
@@ -24,12 +25,14 @@ export const contractFilters: ContractStatusFilter[] = [
 export const contractStatusLabels: Record<ContractStatus, string> = {
   draft: "Rascunho",
   sent: "Aguardando assinatura",
+  in_review: "Em revisão",
   signed: "Assinado",
   cancelled: "Cancelado",
 };
 export const contractFilterLabels: Record<ContractStatusFilter, string> = {
   all: "Todas as situações",
   sent: "Aguardando assinatura",
+  in_review: "Em revisão",
   signed: "Assinados",
   expiring: "Vencendo em 30 dias",
   expired: "Vencidos",
@@ -37,7 +40,9 @@ export const contractFilterLabels: Record<ContractStatusFilter, string> = {
   cancelled: "Cancelados",
 };
 /** Clients never see drafts or cancellations. */
-export const clientContractFilters: ContractStatusFilter[] = ["all", "sent", "signed"];
+export const clientContractFilters: ContractStatusFilter[] = ["all", "sent", "in_review", "signed"];
+/** What a client sees: everything that went out, including what is back with the team for review. */
+export const CLIENT_CONTRACT_STATUSES: ContractStatus[] = ["sent", "in_review", "signed"];
 export const contractKindLabels: Record<ContractKind, string> = {
   contract: "Contrato",
   amendment: "Aditivo",

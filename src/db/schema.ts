@@ -242,7 +242,7 @@ export const contracts = pgTable(
      * contract goes to in_review when the client asks for changes: the client
      * keeps reading the sent version while the team edits the next one.
      */
-    status: text("status", { enum: ["draft", "sent", "signed", "cancelled"] })
+    status: text("status", { enum: ["draft", "sent", "in_review", "signed", "cancelled"] })
       .notNull()
       .default("draft"),
     publication: jsonb("publication").$type<ContractPublication>(),
