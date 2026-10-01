@@ -10,6 +10,7 @@ import { companyShortcuts, projectListQuery } from "@/lib/projects/project-table
 import { taskSummary } from "@/lib/projects/tasks";
 import { engagementLinks } from "@/lib/record-links";
 import { Button } from "@/components/ui/button";
+import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
 import { ProjectsList } from "@/components/projetos/projects-list";
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default async function Projects({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const actor = await getActor();
+  const view = await listLayoutFor("projects");
   const ids = actor.grants.map((g) => g.company.id);
   const query = projectListQuery(await searchParams);
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
@@ -102,6 +104,7 @@ export default async function Projects({
         count={total}
       />
       <ProjectsList
+        view={view}
         actions={
           actor.admin && (
             <Button asChild>

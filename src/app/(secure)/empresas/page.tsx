@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { and, asc, count, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { companies, memberships, tickets } from "@/db/schema";
 import { requireAdmin } from "@/lib/access/access";
+import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
 import { CompaniesTable } from "@/components/empresas/companies-table";
 import { NewCompanyButton } from "@/components/empresas/company-sheet";
@@ -23,6 +24,7 @@ export default async function Companies({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireAdmin();
+  const view = await listLayoutFor("companies");
   const query = companyQuery(await searchParams);
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const scope = and(
@@ -103,6 +105,7 @@ export default async function Companies({
         count={total}
       />
       <CompaniesTable
+        view={view}
         actions={
           <Suspense>
             <NewCompanyButton />

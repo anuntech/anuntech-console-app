@@ -36,7 +36,9 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/console/server-form";
+import { CardGrid, CardTile, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { EmptyState } from "@/components/console/page-header";
+import type { ListLayout } from "@/lib/list-layout";
 import {
   LinkRow,
   ListCard,
@@ -193,6 +195,7 @@ export function CompaniesTable({
   total,
   pageCount,
   actions,
+  view = "grid",
 }: {
   rows: CompanyRow[];
   query: CompanyQuery;
@@ -200,8 +203,11 @@ export function CompaniesTable({
   pageCount: number;
   /** The page's own buttons, at the right end of the toolbar. */
   actions?: ReactNode;
+  /** List or grid, as the viewer last chose (the page reads it from a cookie). */
+  view?: ListLayout;
 }) {
   const router = useRouter();
+  const [layout, chooseLayout] = useListLayout("companies", view);
   const [editing, setEditing] = useState<CompanyRow | null>(null);
   const href = (patch: Partial<CompanyQuery>) =>
     companyListHref({ ...query, ...patch });
@@ -215,6 +221,7 @@ export function CompaniesTable({
         fill
         actions={actions}
         label="Lista de empresas"
+        layout={<ViewToggle view={layout} onChange={chooseLayout} />}
         toolbar={
           <>
             <SearchField
@@ -252,7 +259,42 @@ export function CompaniesTable({
           />
         }
       >
-        {rows.length ? (
+        {rows.length && layout === "grid" ? (
+          <CardGrid>
+            {rows.map((company) => (
+              <GridCard
+                key={company.id}
+                href={`/empresas/${company.id}`}
+                leading={<CardTile>{companyInitials(company.name)}</CardTile>}
+                title={company.name}
+                subtitle={<span className="tabular-nums">{formatDocument(company.document)}</span>}
+                actions={<CompanyActions company={company} onEdit={setEditing} />}
+                footer={
+                  <>
+                    <StatusDot archived={company.archived} />
+                    <span className="truncate tabular-nums">
+                      {company.people
+                        ? `${company.people} ${company.people === 1 ? "pessoa" : "pessoas"}`
+                        : "Ninguém ainda"}
+                    </span>
+                    {company.openTickets > 0 && (
+                      <span className="ml-auto shrink-0 rounded-md bg-warning-soft px-2 py-0.5 font-medium text-warning tabular-nums">
+                        {company.openTickets} {company.openTickets === 1 ? "chamado aberto" : "chamados abertos"}
+                      </span>
+                    )}
+                  </>
+                }
+              >
+                <div className="min-w-0">
+                  <span className="block truncate text-foreground">{company.billingEmail}</span>
+                  <span className="block text-muted-foreground tabular-nums">
+                    {company.phone ? formatPhone(company.phone) : "Sem telefone"}
+                  </span>
+                </div>
+              </GridCard>
+            ))}
+          </CardGrid>
+        ) : rows.length ? (
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">

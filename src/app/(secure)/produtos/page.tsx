@@ -9,6 +9,7 @@ import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { companyShortcuts, projectListQuery } from "@/lib/projects/project-table";
 import { engagementLinks } from "@/lib/record-links";
 import { Button } from "@/components/ui/button";
+import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
 import { ProductsList } from "@/components/produtos/products-list";
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ export default async function Products({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const actor = await getActor();
+  const view = await listLayoutFor("products");
   const ids = actor.grants.map((g) => g.company.id);
   const query = projectListQuery(await searchParams);
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
@@ -94,6 +96,7 @@ export default async function Products({
         count={total}
       />
       <ProductsList
+        view={view}
         actions={
           actor.admin && (
             <Button asChild>

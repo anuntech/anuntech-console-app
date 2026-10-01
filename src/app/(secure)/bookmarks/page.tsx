@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { accessibleCompanies, getActor } from "@/lib/access/access";
 import { bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { pageCountOf, pageQuery } from "@/lib/list-query";
-import { BOOKMARK_VIEW_COOKIE, parseBookmarkView } from "@/lib/bookmarks/bookmark-view";
+import { listLayoutFor } from "@/lib/list-layout-server";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
 export const metadata: Metadata = {
   title: "Bookmarks",
@@ -20,8 +19,7 @@ export default async function Bookmarks({
   const params = await searchParams;
   const query = bookmarkQuery(params, scope);
   const paging = pageQuery(params);
-  // Read on the server so the chosen layout renders at once, without a flash of the other one.
-  const view = parseBookmarkView((await cookies()).get(BOOKMARK_VIEW_COOKIE)?.value);
+  const view = await listLayoutFor("bookmarks");
   const folders = await foldersFor(scope, query.company);
   if (
     query.folder !== "all" &&

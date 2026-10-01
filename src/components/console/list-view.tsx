@@ -1,6 +1,7 @@
 "use client";
 import { useRef, type MouseEvent, type ReactNode } from "react";
 import { useFillViewport } from "@/components/console/fill-viewport";
+import { useInCard } from "@/components/console/list-grid";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DownloadIcon, ExternalLinkIcon, MoreHorizontalIcon, XIcon } from "lucide-react";
@@ -32,6 +33,7 @@ const LIST_MIN_HEIGHT = 280;
 export function ListCard({
   label,
   toolbar,
+  layout,
   actions,
   footer,
   fill = false,
@@ -41,6 +43,8 @@ export function ListCard({
   /** Accessible name of the region, e.g. "Lista de contratos". */
   label: string;
   toolbar?: ReactNode;
+  /** The Lista · Grade switch (`ViewToggle`), just before the actions. */
+  layout?: ReactNode;
   /** The page's own buttons (create, export), at the right end of the toolbar. */
   actions?: ReactNode;
   footer?: ReactNode;
@@ -58,22 +62,36 @@ export function ListCard({
       ref={ref}
       aria-label={label}
       data-fill-viewport={fill ? "" : undefined}
-      style={fill && fit ? { maxHeight: fit.height, marginBottom: fit.clearance || undefined } : undefined}
+      style={
+        !fill
+          ? undefined
+          : fit
+            ? { maxHeight: fit.height, marginBottom: fit.clearance || undefined }
+            : // Until measured (the first paint of a full load): a header's height above,
+              // the dock below, so the card does not start out under the dock.
+              { maxHeight: `max(${LIST_MIN_HEIGHT}px, calc(100dvh - 172px))` }
+      }
       className={cn("overflow-hidden rounded-xl border bg-card shadow-card", fill && "flex flex-col", className)}
     >
-      {(toolbar || actions) && (
+      {(toolbar || layout || actions) && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-3">
           {toolbar}
-          {actions && (
-            <div
-              className={cn(
-                "ml-auto flex shrink-0 items-center gap-2",
-                // On a phone the buttons keep only their icon, so they fit
-                // beside the filters; the name stays for screen readers.
-                "max-sm:[&_[data-slot=button]]:w-9 max-sm:[&_[data-slot=button]]:gap-0 max-sm:[&_[data-slot=button]]:px-0 max-sm:[&_[data-slot=button]]:text-[0px]",
+          {(layout || actions) && (
+            // Together at the right end, so they wrap as one.
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {layout}
+              {actions && (
+                <div
+                  className={cn(
+                    "flex items-center gap-2",
+                    // On a phone the buttons keep only their icon, so they fit
+                    // beside the filters; the name stays for screen readers.
+                    "max-sm:[&_[data-slot=button]]:w-9 max-sm:[&_[data-slot=button]]:gap-0 max-sm:[&_[data-slot=button]]:px-0 max-sm:[&_[data-slot=button]]:text-[0px]",
+                  )}
+                >
+                  {actions}
+                </div>
               )}
-            >
-              {actions}
             </div>
           )}
         </div>
@@ -242,10 +260,14 @@ export function CompanyCell({ children }: { children: ReactNode }) {
   );
 }
 
-/** The "…" menu at the end of a row. Put DropdownMenuItems inside. */
+/**
+ * The "…" menu at the end of a row. Put DropdownMenuItems inside. Inside a
+ * GridCard it is the card's menu instead, without the table cell.
+ */
 export function RowActions({ label, children, extra }: { label: string; children: ReactNode; extra?: ReactNode }) {
-  return (
-    <TableCell className="w-12 pr-3 text-right" data-row-ignore>
+  const inCard = useInCard();
+  const menu = (
+    <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${label}`}>
@@ -257,6 +279,12 @@ export function RowActions({ label, children, extra }: { label: string; children
         </DropdownMenuContent>
       </DropdownMenu>
       {extra}
+    </>
+  );
+  if (inCard) return menu;
+  return (
+    <TableCell className="w-12 pr-3 text-right" data-row-ignore>
+      {menu}
     </TableCell>
   );
 }

@@ -473,11 +473,22 @@ try {
     const pressed = (html, label) =>
       new RegExp(`<button[^>]*aria-label="${label}"[^>]*aria-pressed="true"|<button[^>]*aria-pressed="true"[^>]*aria-label="${label}"`).test(html);
     r = await request("/bookmarks", "support");
-    ok(pressed(r.text, "Lista") && !pressed(r.text, "Grade"), "Bookmarks abrem em lista por padrão");
+    ok(pressed(r.text, "Grade") && !pressed(r.text, "Lista"), "Bookmarks abrem em grade por padrão");
     r = await request("/bookmarks", "support", {
-      headers: { Cookie: `${people.support.cookie}; console-bookmarks-view=grid` },
+      headers: { Cookie: `${people.support.cookie}; console-bookmarks-view=list` },
     });
-    ok(pressed(r.text, "Grade") && r.text.includes(`File bookmark ${marker}`), "Bookmarks lembram a grade escolhida");
+    ok(pressed(r.text, "Lista") && r.text.includes(`File bookmark ${marker}`), "Bookmarks lembram a lista escolhida");
+    for (const [path, cookie] of [
+      ["/projetos", "console-projects-view"],
+      ["/contratos", "console-contracts-view"],
+      ["/produtos", "console-products-view"],
+      ["/empresas", "console-companies-view"],
+    ]) {
+      r = await request(path, "admin");
+      ok(pressed(r.text, "Grade") && !pressed(r.text, "Lista"), `${path} abre em grade por padrão`);
+      r = await request(path, "admin", { headers: { Cookie: `${people.admin.cookie}; ${cookie}=list` } });
+      ok(pressed(r.text, "Lista") && !pressed(r.text, "Grade"), `${path} lembra a lista escolhida`);
+    }
 
     await submitForm("/chamados/novo", "support", "support", "subject", {
       companyId: ids.b,

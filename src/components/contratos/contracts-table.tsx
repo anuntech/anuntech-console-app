@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
   CalendarClockIcon,
+  FilePlusIcon,
   FileSignatureIcon,
   FileTextIcon,
   PenLineIcon,
@@ -26,7 +27,9 @@ import {
   PrimaryCell,
   RowActions,
 } from "@/components/console/list-view";
+import { CardGrid, CardTile, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { EmptyState } from "@/components/console/page-header";
+import type { ListLayout } from "@/lib/list-layout";
 import { SearchField } from "@/components/console/search-field";
 import { ConfirmDialog } from "@/components/console/server-form";
 import { deleteContract } from "@/lib/contracts/contract-deletion";
@@ -193,6 +196,7 @@ export function ContractsTable({
   now,
   today,
   actions,
+  view = "grid",
 }: {
   rows: ListedContract[];
   query: ContractQuery;
@@ -210,8 +214,11 @@ export function ContractsTable({
   today: string;
   /** The page's own buttons, at the right end of the toolbar. */
   actions?: ReactNode;
+  /** List or grid, as the viewer last chose (the page reads it from a cookie). */
+  view?: ListLayout;
 }) {
   const router = useRouter();
+  const [layout, chooseLayout] = useListLayout("contracts", view);
   const href = (patch: Partial<ContractQuery>) => contractListHref({ ...query, ...patch });
   const go = (patch: Partial<ContractQuery>) => router.push(href(patch), { scroll: false });
   const filtered = !!query.search || !!query.company || query.status !== "all";
@@ -226,6 +233,7 @@ export function ContractsTable({
       fill
       actions={actions}
       label="Lista de contratos"
+      layout={<ViewToggle view={layout} onChange={chooseLayout} />}
       toolbar={
         <>
           <SearchField
@@ -241,7 +249,7 @@ export function ContractsTable({
             />
           )}
           <Select value={query.status} onValueChange={(status) => go({ status: status as ContractStatusFilter, page: 1 })}>
-            <SelectTrigger aria-label="Filtrar por situação" className="w-[212px]">
+            <SelectTrigger aria-label="Filtrar por situação" className="w-[212px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1">
               <SelectValue>{contractFilterLabels[query.status]}</SelectValue>
             </SelectTrigger>
             <SelectContent align="end">
@@ -268,7 +276,7 @@ export function ContractsTable({
       {showAlerts && (
         <p
           role="status"
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-warning-soft/60 px-4 py-2 text-xs text-foreground"
+          className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1 border-b bg-warning-soft/60 px-4 py-2 text-xs text-foreground"
         >
           <CalendarClockIcon className="size-3.5 text-warning" />
           {alerts.expiring > 0 && (
@@ -286,7 +294,52 @@ export function ContractsTable({
           )}
         </p>
       )}
-      {rows.length ? (
+      {rows.length && layout === "grid" ? (
+        <CardGrid>
+          {rows.map((row) => (
+            <GridCard
+              key={row.id}
+              href={`/contratos/${row.id}`}
+              leading={<CardTile>{row.kind === "amendment" ? <FilePlusIcon /> : <FileSignatureIcon />}</CardTile>}
+              title={row.title}
+              // No company column in a card: it names the company while the list spans several.
+              subtitle={subtitle(row, spansCompanies)}
+              actions={<Actions row={row} admin={admin} party={party} />}
+              footer={
+                <>
+                  <ContractStatusBadge status={row.status} />
+                  <time
+                    dateTime={row.updatedAt}
+                    title={dateTimeLabel(row.updatedAt)}
+                    className="ml-auto shrink-0 tabular-nums"
+                  >
+                    {relativeLabel(row.updatedAt, now)}
+                  </time>
+                </>
+              }
+            >
+              <div className="tabular-nums">
+                <span className="block text-muted-foreground">Vigência</span>
+                <Term row={row} today={today} />
+              </div>
+              {row.status !== "draft" && row.status !== "cancelled" &&
+                (admin ? (
+                  <Signatures row={row} />
+                ) : (
+                  row.status === "sent" && (
+                    <span
+                      className={cn(
+                        row.signedBy.includes("client") ? "text-muted-foreground" : "font-medium text-warning",
+                      )}
+                    >
+                      {row.signedBy.includes("client") ? "Falta a assinatura da Anuntech" : "Falta a sua assinatura"}
+                    </span>
+                  )
+                ))}
+            </GridCard>
+          ))}
+        </CardGrid>
+      ) : rows.length ? (
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">

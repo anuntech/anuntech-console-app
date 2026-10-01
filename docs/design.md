@@ -71,6 +71,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 | --- | --- |
 | `PageHeader`, `SectionTitle`, `EmptyState` | Cabeçalho de página (breadcrumb, título, descrição, ações), título de seção e estado vazio |
 | `ListCard`, `FilterChip`, `LinkRow`, `PrimaryCell`, `CompanyCell`, `RowActions`, `ListPagination`, `TablePagination`, `SearchField` | A lista padrão: busca, filtros e ações da página em cima, tabela, rodapé com paginação; com `fill`, termina logo acima do dock |
+| `CardGrid`, `GridCard`, `CardTile`, `ViewToggle`, `useListLayout` | A mesma lista em cartões, e o seletor Lista/Grade que lembra a escolha |
 | `useFillViewport` | Altura que leva um elemento até 12 px acima do dock (ou da borda da janela), medida no lugar; usada pelo `ListCard` e pelo quadro de tarefas |
 | `FormSheet`, `useRouteSheet` | Criar ou editar um registro num painel lateral, com abas opcionais |
 | `ServerForm`, `SubmitButton`, `FormError`, `FormAlert`, `ConfirmDialog`, `ConfirmAction` | Formulário ligado a server action, envio, erro e confirmação |
@@ -92,7 +93,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 
 - **Lista:** cabeçalho só com título e contagem (sem descrição), depois `ListCard fill` com busca, filtros e as ações da página na mesma linha, ações à direita. O card termina 12 px acima do dock e as linhas rolam dentro dele, sob os nomes das colunas; a página não rola. Lista curta não estica o card. Em telas muito baixas o card fica com 280 px e a página rola, sem esconder o fim atrás do dock. No celular os botões de ação ficam só com o ícone (o nome continua para leitores de tela) e métricas vão em duas colunas. Filtros e página ficam na URL; mudar filtro volta à página 1. Paginação sempre no servidor.
 - **Quadro:** mesma lógica do projeto: título e situação numa linha, filtros com "Nova tarefa" e "…" na linha seguinte, colunas até 12 px acima do dock.
-- **Lista ou grade:** onde os itens se reconhecem pelo título e pelo ícone (Bookmarks), um seletor Lista/Grade fica à direita da busca. A grade usa cartões com o título cobrindo o cartão inteiro e o menu "…" por cima; o rodapé de paginação é o mesmo. A escolha fica num cookie e é lida no servidor, sem piscar a outra visualização.
+- **Lista ou grade:** Bookmarks, Projetos, Contratos, Produtos e Empresas têm o seletor Lista/Grade (`ViewToggle`, no `layout` do `ListCard`), junto das ações à direita. Abrem em grade; a escolha fica num cookie por área (`lib/list-layout.ts`) e é lida no servidor, sem piscar a outra visualização. Cada cartão (`GridCard`) tem ícone ou iniciais, título que cobre o cartão inteiro, o mesmo menu "…" da linha e um rodapé com a situação e uma data; o rodapé de paginação é o mesmo da lista.
 - **Detalhe:** breadcrumb, título com situação (`Badge`), ações no cabeçalho; conteúdo principal à esquerda e cards de apoio à direita, uma coluna quando não houver espaço. Dados em `Fact`.
 - **Criar e editar:** `FormSheet` à direita. A partir de uma lista, a URL de criação abre o painel sobre a tela (rota interceptada em `@ticket`); acessada direto, vira página. Enquanto envia, o painel não fecha e o botão não repete.
 - **Confirmar:** `ConfirmDialog` só para o que é destrutivo ou sai do Console (emitir, enviar, excluir). Diz a consequência e começa em Cancelar.

@@ -10,6 +10,7 @@ import { saoPauloDate } from "@/lib/dates";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { addDays, CLIENT_CONTRACT_STATUSES, clientContractFilters, contractQuery, EXPIRY_WARNING_DAYS } from "@/lib/contracts/contract-table";
 import { Button } from "@/components/ui/button";
+import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
 import { ContractsTable } from "@/components/contratos/contracts-table";
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default async function Contracts({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const actor = await getActor();
+  const view = await listLayoutFor("contracts");
   const ids = allowedIds(actor, "finance");
   const query = contractQuery(await searchParams);
   // Clients can only narrow within their own companies, and only by the
@@ -136,6 +138,7 @@ export default async function Contracts({
         count={total}
       />
       <ContractsTable
+        view={view}
         actions={
           actor.admin && (
             <Button asChild>

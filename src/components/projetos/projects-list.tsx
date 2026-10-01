@@ -14,6 +14,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
+import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenuItem,
@@ -44,7 +45,9 @@ import {
   PrimaryCell,
   RowActions,
 } from "@/components/console/list-view";
+import { CardGrid, CardTile, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { dateTimeLabel, relativeLabel } from "@/lib/format";
+import type { ListLayout } from "@/lib/list-layout";
 import {
   projectFilterLabels,
   projectFilters,
@@ -75,14 +78,14 @@ export type ProjectRow = {
 
 const firstLine = (text: string | null) => text?.trim().split("\n")[0].trim() || "";
 
-/** Done over total, as a thin bar and "5/12"; projects without tasks say so. */
-function TaskProgress({ done, total }: { done: number; total: number }) {
+/** Done over total, as a thin bar and "5/12"; projects without tasks say so. In a card the bar takes the width. */
+function TaskProgress({ done, total, wide = false }: { done: number; total: number; wide?: boolean }) {
   if (!total) return <span className="text-xs text-muted-foreground">Sem tarefas</span>;
   const percent = Math.round((done / total) * 100);
   return (
     <div className="flex items-center gap-2.5">
       <div
-        className="h-1.5 w-20 overflow-hidden rounded-full bg-secondary"
+        className={cn("h-1.5 overflow-hidden rounded-full bg-secondary", wide ? "flex-1" : "w-20")}
         role="progressbar"
         aria-valuenow={percent}
         aria-valuemin={0}
@@ -191,6 +194,7 @@ export function ProjectsList({
   companyFilter = null,
   companyShortcuts = [],
   actions,
+  view = "grid",
 }: {
   rows: ProjectRow[];
   query: ProjectListQuery;
@@ -206,8 +210,11 @@ export function ProjectsList({
   companyShortcuts?: { id: string; name: string }[];
   /** The page's own buttons, at the right end of the toolbar. */
   actions?: ReactNode;
+  /** List or grid, as the viewer last chose (the page reads it from a cookie). */
+  view?: ListLayout;
 }) {
   const router = useRouter();
+  const [layout, chooseLayout] = useListLayout("projects", view);
   const [editing, setEditing] = useState<ProjectFormValues | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const { change, form: statusForm } = useEngagementStatus();
@@ -217,6 +224,8 @@ export function ProjectsList({
   // Staff get the company as its own column while the list spans companies; a
   // client with several companies keeps it in the subtitle.
   const companyColumn = admin && showCompany && !query.company;
+  // A card has no company column: it names the company while the list spans several.
+  const companyInCard = showCompany && !query.company;
   const subtitle = (row: ProjectRow) =>
     [!admin && showCompany && !query.company ? row.company : "", firstLine(row.description) || "Sem descrição"]
       .filter(Boolean)
@@ -233,6 +242,7 @@ export function ProjectsList({
       fill
       actions={actions}
       label="Lista de projetos"
+      layout={<ViewToggle view={layout} onChange={chooseLayout} />}
       toolbar={
         <>
           <SearchField
@@ -263,7 +273,7 @@ export function ProjectsList({
             </SelectContent>
           </Select>
           {companyShortcuts.length > 0 && (
-            <div className="flex basis-full flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="order-last flex basis-full flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>Só desta empresa:</span>
               {companyShortcuts.map((company) => (
                 <Link
@@ -291,7 +301,35 @@ export function ProjectsList({
         />
       }
     >
-      {rows.length ? (
+      {rows.length && layout === "grid" ? (
+        <CardGrid>
+          {rows.map((row) => (
+            <GridCard
+              key={row.id}
+              href={`/projetos/${row.id}`}
+              leading={
+                <CardTile>
+                  <KanbanIcon />
+                </CardTile>
+              }
+              title={row.name}
+              subtitle={companyInCard ? row.company : undefined}
+              actions={<ProjectRowActions row={row} admin={admin} onEdit={edit} onStatus={change} />}
+              footer={
+                <>
+                  <EngagementStatusBadge status={row.status} />
+                  <time dateTime={row.updatedAt} title={dateTimeLabel(row.updatedAt)} className="ml-auto shrink-0">
+                    {relativeLabel(row.updatedAt, now)}
+                  </time>
+                </>
+              }
+            >
+              <p className="m-0 line-clamp-2 text-muted-foreground">{row.description?.trim() || "Sem descrição"}</p>
+              <TaskProgress {...row.tasks} wide />
+            </GridCard>
+          ))}
+        </CardGrid>
+      ) : rows.length ? (
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">

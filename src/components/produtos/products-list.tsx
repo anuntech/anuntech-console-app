@@ -35,7 +35,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CardGrid, CardTile, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { EmptyState } from "@/components/console/page-header";
+import type { ListLayout } from "@/lib/list-layout";
 import {
   CompanyCell,
   FilterChip,
@@ -220,6 +222,7 @@ export function ProductsList({
   companyFilter = null,
   companyShortcuts = [],
   actions,
+  view = "grid",
 }: {
   rows: ProductRow[];
   query: ProjectListQuery;
@@ -233,8 +236,11 @@ export function ProductsList({
   companyShortcuts?: { id: string; name: string }[];
   /** The page's own buttons, at the right end of the toolbar. */
   actions?: ReactNode;
+  /** List or grid, as the viewer last chose (the page reads it from a cookie). */
+  view?: ListLayout;
 }) {
   const router = useRouter();
+  const [layout, chooseLayout] = useListLayout("products", view);
   const [editing, setEditing] = useState<ProductFormValues | null>(null);
   const { change, form: statusForm } = useEngagementStatus();
   const href = (patch: Partial<ProjectListQuery>) => projectListHref({ ...query, ...patch }, "/produtos");
@@ -243,9 +249,10 @@ export function ProductsList({
   // Staff get the company as its own column while the list spans companies; a
   // client with several companies keeps it in the subtitle.
   const companyColumn = admin && showCompany && !query.company;
-  const subtitle = (row: ProductRow) =>
+  // A card has no company column: it names the company while the list spans several.
+  const subtitle = (row: ProductRow, inCard = false) =>
     [
-      !admin && showCompany && !query.company ? row.company : "",
+      (inCard || !admin) && showCompany && !query.company ? row.company : "",
       row.kind === "service" ? "Serviço" : "Produto",
       row.kind === "product" ? (row.url ? hostOf(row.url) : "Sem link cadastrado") : "",
     ]
@@ -257,6 +264,7 @@ export function ProductsList({
       fill
       actions={actions}
       label="Lista de produtos e serviços"
+      layout={<ViewToggle view={layout} onChange={chooseLayout} />}
       toolbar={
         <>
           <SearchField
@@ -287,7 +295,7 @@ export function ProductsList({
             </SelectContent>
           </Select>
           {companyShortcuts.length > 0 && (
-            <div className="flex basis-full flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="order-last flex basis-full flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>Só desta empresa:</span>
               {companyShortcuts.map((company) => (
                 <Link
@@ -315,7 +323,49 @@ export function ProductsList({
         />
       }
     >
-      {rows.length ? (
+      {rows.length && layout === "grid" ? (
+        <CardGrid>
+          {rows.map((row) => {
+            const servicePage = row.kind === "service" ? `/produtos/${row.id}` : null;
+            const link = row.kind === "product" ? webUrl(row.url) : null;
+            return (
+              <GridCard
+                key={row.id}
+                href={servicePage ?? link}
+                external={!servicePage}
+                leading={<CardTile>{row.kind === "service" ? <WrenchIcon /> : <PackageIcon />}</CardTile>}
+                title={row.name}
+                subtitle={subtitle(row, true)}
+                actions={
+                  <ProductRowActions
+                    row={row}
+                    admin={admin}
+                    servicePage={servicePage}
+                    link={link}
+                    onEdit={setEditing}
+                    onStatus={change}
+                  />
+                }
+                footer={
+                  <>
+                    <EngagementStatusBadge status={row.status} />
+                    {row.nextDueDate && (
+                      <span className="ml-auto shrink-0 tabular-nums">Vence em {dateLabel(row.nextDueDate)}</span>
+                    )}
+                  </>
+                }
+              >
+                {row.amountCents != null && (
+                  <p className="m-0 tabular-nums">
+                    <span className="text-base font-semibold text-foreground">{currency(row.amountCents)}</span>
+                    {row.interval && <span className="text-muted-foreground">{intervalLabel[row.interval]}</span>}
+                  </p>
+                )}
+              </GridCard>
+            );
+          })}
+        </CardGrid>
+      ) : rows.length ? (
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
