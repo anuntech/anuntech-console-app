@@ -410,10 +410,14 @@ function Column({
 /**
  * The board fills what is left of the viewport below the heading and the
  * filters, so the page never grows with the tasks: each column scrolls on
- * its own instead. Measured on the client, so it follows the dock position,
- * the safe area and whatever wraps above it.
+ * its own instead. It ends a small gap above the navigation at the bottom
+ * of the screen (the dock, or the tab bar on a phone), measured where it
+ * really is, so it follows the dock position, the safe area and whatever
+ * wraps above the board. The page drops its bottom padding while the board
+ * is on it (see `data-fill-viewport` in globals.css).
  */
 const BOARD_MIN_HEIGHT = 360;
+const BOARD_GAP = 12;
 function useBoardHeight(ref: RefObject<HTMLDivElement | null>) {
   const { position } = useAppearance();
   const [height, setHeight] = useState<number | null>(null);
@@ -422,12 +426,13 @@ function useBoardHeight(ref: RefObject<HTMLDivElement | null>) {
     if (!el) return;
     const measure = () => {
       const top = el.getBoundingClientRect().top + window.scrollY;
-      // What the shell keeps below the content: the page's bottom padding and the dock's strip.
-      const reserved = [el.closest(".workspace"), el.closest(".page-content")].reduce(
-        (sum, node) => sum + (node ? parseFloat(getComputedStyle(node).paddingBottom) || 0 : 0),
-        0,
-      );
-      setHeight(Math.max(BOARD_MIN_HEIGHT, Math.floor(window.innerHeight - top - reserved)));
+      let bottom = window.innerHeight - BOARD_GAP;
+      for (const nav of document.querySelectorAll<HTMLElement>('nav[aria-label="Navegação principal"]')) {
+        const rect = nav.getBoundingClientRect();
+        // Shown and along the bottom edge: the dock in its default place, or the phone's tab bar.
+        if (rect.height && rect.top > window.innerHeight / 2) bottom = Math.min(bottom, rect.top - BOARD_GAP);
+      }
+      setHeight(Math.max(BOARD_MIN_HEIGHT, Math.floor(bottom - top)));
     };
     measure();
     window.addEventListener("resize", measure);
@@ -779,6 +784,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
       >
         <div
           ref={boardRef}
+          data-fill-viewport=""
           aria-busy={saving || undefined}
           className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2"
           style={{ height: boardHeight ?? `max(${BOARD_MIN_HEIGHT}px, calc(100dvh - 340px))` }}

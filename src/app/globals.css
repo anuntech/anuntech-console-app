@@ -442,6 +442,12 @@ html:has(.console-shell) {
   flex-direction: column;
   min-height: 100dvh;
 }
+/* A board that fills the viewport (Projetos) ends just above the dock on its
+   own, so the page keeps no bottom padding under it and never scrolls. */
+.workspace:has([data-fill-viewport]),
+.page-content:has([data-fill-viewport]) {
+  padding-bottom: 0;
+}
 .breadcrumb {
   min-width: 0;
   font-size: 0.75rem;
