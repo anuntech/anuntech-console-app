@@ -598,105 +598,19 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
     isColumn(id)
       ? taskStatusLabels[id]
       : `${taskStatusLabels[columnOf(columnsRef.current, id) ?? "todo"]}, perto de ${titleOf(id)}`;
-  const total = tasks.length;
-  const done = columns.done.length;
-
   return (
     <>
+      {/* Small screens are most of the clients: the heading is only the path and
+          the name, and the actions share the line with the filters. */}
       <PageHeader
+        className="mb-4"
         crumbs={[{ label: "Projetos", href: "/projetos" }, { label: project.name }]}
-        title={project.name}
-        description={
+        title={
           <>
-            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <EngagementStatusBadge status={project.status} />
-              {viewer.admin ? (
-                <Link
-                  href={`/empresas/${project.companyId}`}
-                  className="text-foreground hover:text-primary"
-                >
-                  {project.company}
-                </Link>
-              ) : (
-                <span>{project.company}</span>
-              )}
-              {total > 0 && (
-                <>
-                  <span aria-hidden="true" className="hidden sm:inline">·</span>
-                  <span className="tabular-nums">
-                    {done} de {total} {total === 1 ? "tarefa concluída" : "tarefas concluídas"}
-                  </span>
-                </>
-              )}
-              {saving && (
-                <span className="inline-flex items-center gap-1 text-xs">
-                  <Loader2Icon className="size-3 animate-spin" />
-                  Salvando…
-                </span>
-              )}
-            </span>
-            {project.description && (
-              <span className="mt-1.5 line-clamp-2 block">{project.description}</span>
-            )}
-          </>
-        }
-        actions={
-          <>
-            <Button onClick={() => setEditor({ mode: "create", status: "todo" })}>
-              <PlusIcon />
-              Nova tarefa
-            </Button>
-            {viewer.admin && (
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" aria-label="Mais ações">
-                    <MoreHorizontalIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem onSelect={() => setTimeout(() => setEditingProject(true), 0)}>
-                    <PencilIcon />
-                    Editar projeto
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={`/empresas/${project.companyId}`}>
-                      <Building2Icon />
-                      Ver empresa
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {project.status !== "active" && (
-                    <DropdownMenuItem onSelect={() => changeStatus("active")}>
-                      <PlayIcon />
-                      {project.status === "paused" ? "Retomar" : "Reabrir"}
-                    </DropdownMenuItem>
-                  )}
-                  {project.status === "active" && (
-                    <DropdownMenuItem onSelect={() => changeStatus("paused")}>
-                      <PauseIcon />
-                      Pausar
-                    </DropdownMenuItem>
-                  )}
-                  {project.status !== "completed" && (
-                    <DropdownMenuItem onSelect={() => changeStatus("completed")}>
-                      <CircleCheckIcon />
-                      Marcar como concluído
-                    </DropdownMenuItem>
-                  )}
-                  {deletable && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => setTimeout(() => setDeletingProject(true), 0)}
-                      >
-                        <Trash2Icon />
-                        Excluir
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {project.name}
+            {/* Active is the normal state; only a paused or finished project says so. */}
+            {project.status !== "active" && (
+              <EngagementStatusBadge status={project.status} className="ml-2.5 align-middle" />
             )}
           </>
         }
@@ -770,6 +684,70 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
             Limpar
           </Button>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          {saving && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2Icon className="size-3 animate-spin" />
+              Salvando…
+            </span>
+          )}
+          <Button onClick={() => setEditor({ mode: "create", status: "todo" })}>
+            <PlusIcon />
+            Nova tarefa
+          </Button>
+          {viewer.admin && (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="Mais ações">
+                  <MoreHorizontalIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuItem onSelect={() => setTimeout(() => setEditingProject(true), 0)}>
+                  <PencilIcon />
+                  Editar projeto
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`/empresas/${project.companyId}`}>
+                    <Building2Icon />
+                    Ver empresa
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {project.status !== "active" && (
+                  <DropdownMenuItem onSelect={() => changeStatus("active")}>
+                    <PlayIcon />
+                    {project.status === "paused" ? "Retomar" : "Reabrir"}
+                  </DropdownMenuItem>
+                )}
+                {project.status === "active" && (
+                  <DropdownMenuItem onSelect={() => changeStatus("paused")}>
+                    <PauseIcon />
+                    Pausar
+                  </DropdownMenuItem>
+                )}
+                {project.status !== "completed" && (
+                  <DropdownMenuItem onSelect={() => changeStatus("completed")}>
+                    <CircleCheckIcon />
+                    Marcar como concluído
+                  </DropdownMenuItem>
+                )}
+                {deletable && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setTimeout(() => setDeletingProject(true), 0)}
+                    >
+                      <Trash2Icon />
+                      Excluir
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
 
       <DndContext
