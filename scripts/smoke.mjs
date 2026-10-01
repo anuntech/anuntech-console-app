@@ -907,7 +907,7 @@ try {
     );
     r = await request(contractPath, "finance");
     ok(
-      r.text.includes(`PRIVATE-ANSWER-${marker}`) && r.text.includes("Revisões"),
+      r.text.includes(`PRIVATE-ANSWER-${marker}`) && r.text.includes("O que você pediu em cada versão"),
       "Cliente lê a resposta a cada pedido junto com a nova versão",
     );
     // Proposals: the negotiated discount comes off the hours' value and is

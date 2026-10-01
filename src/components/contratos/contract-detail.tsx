@@ -466,7 +466,12 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
               </CardContent>
             </Card>
           )}
-          <ReviewHistory requests={review.requests} before={c.version} now={now} />
+          <ReviewHistory
+            requests={review.requests}
+            before={c.version}
+            now={now}
+            audience={viewer.admin ? "team" : "client"}
+          />
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">

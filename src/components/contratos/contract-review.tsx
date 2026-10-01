@@ -467,7 +467,18 @@ export function TeamReviewPanel({
 }
 
 /** Earlier rounds, newest first: what was asked on each version and how the team answered. */
-export function ReviewHistory({ requests, before, now }: { requests: ChangeRequestView[]; before: number; now: string }) {
+export function ReviewHistory({
+  requests,
+  before,
+  now,
+  audience,
+}: {
+  requests: ChangeRequestView[];
+  before: number;
+  now: string;
+  /** The client reads about its own requests; the team about the client's. */
+  audience: "client" | "team";
+}) {
   const rounds = new Map<number, ChangeRequestView[]>();
   for (const request of requests)
     if (request.version < before && request.status !== "draft")
@@ -476,7 +487,14 @@ export function ReviewHistory({ requests, before, now }: { requests: ChangeReque
   return (
     <Card>
       <CardHeader>
-        <SectionTitle title="Revisões" description="O que o cliente pediu em cada versão e a resposta da Anuntech." />
+        <SectionTitle
+          title="Revisões"
+          description={
+            audience === "client"
+              ? "O que você pediu em cada versão e a resposta da Anuntech."
+              : "O que o cliente pediu em cada versão e a resposta da Anuntech."
+          }
+        />
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {[...rounds.entries()]
