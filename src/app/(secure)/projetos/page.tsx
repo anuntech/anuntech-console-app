@@ -97,13 +97,11 @@ export default async function Projects({
   return (
     <>
       <PageHeader
+        className="mb-4"
         title="Projetos"
         count={total}
-        description={
-          actor.admin
-            ? "O que está em andamento com cada cliente, com o quadro de tarefas de cada projeto."
-            : "O que sua empresa constrói com a Anuntech e como cada projeto avança."
-        }
+      />
+      <ProjectsList
         actions={
           actor.admin && (
             <Button asChild>
@@ -114,8 +112,6 @@ export default async function Projects({
             </Button>
           )
         }
-      />
-      <ProjectsList
         rows={rows.map(({ createdAt, ...row }) => ({
           ...row,
           tasks: summary.get(row.id) ?? { total: 0, done: 0 },

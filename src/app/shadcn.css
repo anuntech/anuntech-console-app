@@ -114,4 +114,13 @@
   :where([data-slot="textarea"]) {
     line-height: 1.5;
   }
+  /* A list that fills the screen scrolls in its body (ListCard lets the
+     table's own box overflow), so the column names stay in view while the
+     rows go by, with their bottom rule. */
+  [data-list-body] thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
 }

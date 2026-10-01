@@ -95,13 +95,11 @@ export default async function Tickets({
   return (
     <>
       <PageHeader
+        className="mb-4"
         title="Chamados"
         count={total}
-        description={
-          actor.admin
-            ? "Solicitações dos clientes e o andamento de cada conversa."
-            : "Suas solicitações e as conversas com a equipe."
-        }
+      />
+      <TicketsTable
         actions={
           canCreate && (
             <Button asChild>
@@ -112,8 +110,6 @@ export default async function Tickets({
             </Button>
           )
         }
-      />
-      <TicketsTable
         rows={list.map(({ assignee, ...row }) => ({
           ...row,
           // Only staff see the "Responsável" column.

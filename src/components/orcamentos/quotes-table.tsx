@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Building2Icon, CalculatorIcon, CopyPlusIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -121,6 +121,7 @@ export function QuotesTable({
   companyFilter = null,
   now,
   today,
+  actions,
 }: {
   rows: QuoteRow[];
   query: QuoteTableQuery;
@@ -135,6 +136,8 @@ export function QuotesTable({
   now: string;
   /** São Paulo civil date, for validity. */
   today: string;
+  /** The page's own buttons, at the right end of the toolbar. */
+  actions?: ReactNode;
 }) {
   const router = useRouter();
   const href = (patch: Partial<QuoteTableQuery>) => quoteListHref({ ...query, ...patch });
@@ -147,6 +150,8 @@ export function QuotesTable({
 
   return (
     <ListCard
+      fill
+      actions={actions}
       label="Lista de orçamentos"
       toolbar={
         <>

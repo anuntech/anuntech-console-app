@@ -2,7 +2,7 @@
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
   CircleCheckIcon,
@@ -219,6 +219,7 @@ export function ProductsList({
   showCompany,
   companyFilter = null,
   companyShortcuts = [],
+  actions,
 }: {
   rows: ProductRow[];
   query: ProjectListQuery;
@@ -230,6 +231,8 @@ export function ProductsList({
   companyFilter?: { id: string; name: string } | null;
   /** Companies whose name matches the search, offered as a one-click filter. */
   companyShortcuts?: { id: string; name: string }[];
+  /** The page's own buttons, at the right end of the toolbar. */
+  actions?: ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<ProductFormValues | null>(null);
@@ -251,6 +254,8 @@ export function ProductsList({
 
   return (
     <ListCard
+      fill
+      actions={actions}
       label="Lista de produtos e serviços"
       toolbar={
         <>

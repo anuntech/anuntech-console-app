@@ -89,13 +89,11 @@ export default async function Products({
   return (
     <>
       <PageHeader
+        className="mb-4"
         title="Produtos e serviços"
         count={total}
-        description={
-          actor.admin
-            ? "O que cada cliente contratou. Produtos abrem pelo link; serviços têm uma página de detalhes."
-            : "O que sua empresa tem com a Anuntech."
-        }
+      />
+      <ProductsList
         actions={
           actor.admin && (
             <Button asChild>
@@ -106,8 +104,6 @@ export default async function Products({
             </Button>
           )
         }
-      />
-      <ProductsList
         rows={rows.map((row) => ({
           ...row,
           kind: row.kind === "service" ? "service" : "product",

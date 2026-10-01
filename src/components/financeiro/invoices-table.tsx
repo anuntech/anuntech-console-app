@@ -3,7 +3,7 @@ import { SearchField } from "@/components/console/search-field";
 import type { ChargeTerms } from "@/lib/billing/billing-terms";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BanIcon,
   Building2Icon,
@@ -269,6 +269,7 @@ export function InvoicesTable({
   admin,
   showCompany,
   companyFilter = null,
+  actions,
 }: {
   rows: InvoiceRow[];
   query: InvoiceQuery;
@@ -279,6 +280,8 @@ export function InvoicesTable({
   admin: boolean;
   showCompany: boolean;
   companyFilter?: { id: string; name: string } | null;
+  /** The page's own buttons, at the right end of the toolbar. */
+  actions?: ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<InvoiceRow | null>(null);
@@ -303,6 +306,8 @@ export function InvoicesTable({
   return (
     <>
       <ListCard
+        fill
+        actions={actions}
         label="Lista de faturas"
         toolbar={
           <>

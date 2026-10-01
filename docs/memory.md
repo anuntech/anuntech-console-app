@@ -33,6 +33,7 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 - **Exclusão de faturas** (28/09): além dos rascunhos que nunca foram ao Inter, a equipe exclui cobranças que o próprio Inter encerrou (`CANCELADO`, `EXPIRADO`, `FALHA_EMISSAO`, já aplicados pela conciliação). Paga ou com nota fiscal, nunca.
 - **Desconto no orçamento** (29/09, pedido do Kauan): desconto negociado em reais, tirado do valor das horas antes de dividir entrada e saldo. Fica no conteúdo JSON do orçamento (`discountCents`), sem migração; orçamentos anteriores leem como sem desconto.
 - **Revisão de contratos** (01/10, decidido pelo Kauan): o cliente pede alterações na própria cláusula, no Console (não por arquivo anexado), e o texto proposto que a equipe aceita entra sozinho no rascunho. Situação nova `in_review` no contrato; pedidos em `console_contract_change_requests`, presos à versão e à posição do bloco no texto.
+- **Telas compactas** (01/10, pedido do Kauan, que diz que 90% dos clientes usam tela pequena): listas e quadro sem descrição no cabeçalho, ações na linha dos filtros e conteúdo até logo acima do dock, sem rolar a página.
 - **Nota fiscal fica para depois.** A preferência por empresa existe; a emissão depende dos parâmetros fiscais da contabilidade.
 - **Datas:** o calendário próprio (`DateField`, react-day-picker) voltou no redesenho de 23/09 e substituiu o `<input type="date">` nativo de 20/09. Seleções simples continuam com `<select>` nativo (`NativeSelect`).
 - **Visual:** shadcn e shadcn.io como base, com a marca Anuntech. O CSS antigo continua numa camada própria até cada tela ser refeita.
@@ -47,4 +48,5 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 - A suíte de integração ficou uma semana vermelha (21 a 28/09) porque procurava textos de botão. Hoje posta pelo nome da action; mantenha assim.
 - Migração em produção: rota temporária com token, dois deploys (ver [rules.md](rules.md#migrações-em-produção)). Selecionar colunas novas antes da migração derruba as telas.
 - Publicar com a árvore suja já levou arquivos não commitados à produção uma vez. Commit primeiro, deploy depois.
+- Regra em `@layer components` perde para qualquer utility do Tailwind, seja qual for a especificidade (o `overflow-x-auto` da tabela anulava o cabeçalho fixo). Para vencer uma utility, use outra utility mais específica.
 - No zsh, `$VAR:r` é um modificador e não "a variável seguida de :r"; use `${VAR}`. E `for f in $LISTA` não separa por espaço.

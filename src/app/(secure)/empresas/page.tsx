@@ -98,16 +98,16 @@ export default async function Companies({
   return (
     <>
       <PageHeader
+        className="mb-4"
         title="Empresas"
         count={total}
-        description="Clientes, contatos financeiros e quem acessa o Console por eles."
+      />
+      <CompaniesTable
         actions={
           <Suspense>
             <NewCompanyButton />
           </Suspense>
         }
-      />
-      <CompaniesTable
         rows={rows}
         query={{ ...query, page }}
         total={total}

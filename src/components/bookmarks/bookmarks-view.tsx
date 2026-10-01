@@ -477,7 +477,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   );
 
   const viewToggle = (
-    <div role="group" aria-label="Visualização" className="ml-auto flex rounded-md border bg-background p-0.5">
+    <div role="group" aria-label="Visualização" className="flex rounded-md border bg-background p-0.5">
       {(
         [
           ["list", "Lista", <ListIcon key="list" />],
@@ -504,6 +504,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   return (
     <>
       <PageHeader
+        className="mb-4"
         title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Bookmarks"}
         count={paging.total}
         description={
@@ -525,22 +526,6 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               )}
             </span>
           ) : undefined
-        }
-        actions={
-          <>
-            <Button variant="outline" onClick={() => setFolderEditor({ mode: "create" })}>
-              <FolderPlusIcon />
-              Nova pasta
-            </Button>
-            <Button
-              onClick={() =>
-                setEditor({ mode: "create", companyId: createCompany, folderId: createIn })
-              }
-            >
-              <PlusIcon />
-              Adicionar
-            </Button>
-          </>
         }
       />
 
@@ -616,15 +601,35 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         </aside>
 
         <ListCard
+          fill
           label="Lista de bookmarks"
           className="min-w-0"
+          actions={
+            <>
+              {/* On a large screen the rail has it, under the folders. */}
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Nova pasta"
+                title="Nova pasta"
+                className="lg:hidden"
+                onClick={() => setFolderEditor({ mode: "create" })}
+              >
+                <FolderPlusIcon />
+              </Button>
+              <Button onClick={() => setEditor({ mode: "create", companyId: createCompany, folderId: createIn })}>
+                <PlusIcon />
+                Adicionar
+              </Button>
+            </>
+          }
           toolbar={
             <>
               <SearchField
                 value={query.search}
                 onChange={(search) => go({ search })}
                 placeholder="Buscar por título ou link"
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-1 max-sm:basis-full"
               />
               {viewToggle}
             </>

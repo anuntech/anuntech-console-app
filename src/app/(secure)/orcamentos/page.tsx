@@ -109,13 +109,11 @@ export default async function Quotes({
   return (
     <>
       <PageHeader
+        className="mb-4"
         title="Orçamentos"
         count={total}
-        description={
-          actor.admin
-            ? "Propostas por fases e horas, com taxa, entrada e saldo. O cliente aceita pelo Console."
-            : "As propostas da Anuntech para a sua empresa: leia, baixe o PDF e responda."
-        }
+      />
+      <QuotesTable
         actions={
           actor.admin && (
             <Button asChild>
@@ -126,8 +124,6 @@ export default async function Quotes({
             </Button>
           )
         }
-      />
-      <QuotesTable
         rows={list}
         query={paged}
         total={total}

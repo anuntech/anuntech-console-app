@@ -5,13 +5,11 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
   type ReactNode,
-  type RefObject,
 } from "react";
 import {
   DndContext,
@@ -61,9 +59,9 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { useAppearance } from "@/components/shell/appearance-provider";
 import { Input } from "@/components/ui/input";
 import { MultiSelect } from "@/components/console/multi-select";
+import { useFillViewport } from "@/components/console/fill-viewport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -407,49 +405,15 @@ function Column({
   );
 }
 
-/**
- * The board fills what is left of the viewport below the heading and the
- * filters, so the page never grows with the tasks: each column scrolls on
- * its own instead. It ends a small gap above the navigation at the bottom
- * of the screen (the dock, or the tab bar on a phone), measured where it
- * really is, so it follows the dock position, the safe area and whatever
- * wraps above the board. The page drops its bottom padding while the board
- * is on it (see `data-fill-viewport` in globals.css).
- */
+/** Columns never get shorter than this; below it the page scrolls instead. */
 const BOARD_MIN_HEIGHT = 360;
-const BOARD_GAP = 12;
-function useBoardHeight(ref: RefObject<HTMLDivElement | null>) {
-  const { position } = useAppearance();
-  const [height, setHeight] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => {
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      let bottom = window.innerHeight - BOARD_GAP;
-      for (const nav of document.querySelectorAll<HTMLElement>('nav[aria-label="Navegação principal"]')) {
-        const rect = nav.getBoundingClientRect();
-        // Shown and along the bottom edge: the dock in its default place, or the phone's tab bar.
-        if (rect.height && rect.top > window.innerHeight / 2) bottom = Math.min(bottom, rect.top - BOARD_GAP);
-      }
-      setHeight(Math.max(BOARD_MIN_HEIGHT, Math.floor(bottom - top)));
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    const observer = new ResizeObserver(measure);
-    if (el.parentElement) observer.observe(el.parentElement);
-    return () => {
-      window.removeEventListener("resize", measure);
-      observer.disconnect();
-    };
-  }, [ref, position]);
-  return height;
-}
 
 export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   const { project, tasks, people, viewer, today, now } = data;
   const boardRef = useRef<HTMLDivElement>(null);
-  const boardHeight = useBoardHeight(boardRef);
+  // The board fills the screen down to the dock, so the page never grows with
+  // the tasks: each column scrolls on its own.
+  const boardFit = useFillViewport(boardRef, { min: BOARD_MIN_HEIGHT });
   const router = useRouter();
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
   const [columns, setColumnsState] = useState<Columns>(() => group(tasks));
@@ -787,7 +751,10 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
           data-fill-viewport=""
           aria-busy={saving || undefined}
           className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2"
-          style={{ height: boardHeight ?? `max(${BOARD_MIN_HEIGHT}px, calc(100dvh - 340px))` }}
+          style={{
+            height: boardFit?.height ?? `max(${BOARD_MIN_HEIGHT}px, calc(100dvh - 340px))`,
+            marginBottom: boardFit?.clearance || undefined,
+          }}
         >
           {TASK_STATUSES.map((status) => (
             <Column

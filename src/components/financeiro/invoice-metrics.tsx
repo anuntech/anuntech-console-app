@@ -35,7 +35,7 @@ export function InvoiceMetrics({
   hrefFor: (status: InvoiceStatusFilter) => string;
 }) {
   return (
-    <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
       {metrics.map((metric) => {
         const tone = metric.tone ?? "default";
         const current = active === metric.status;
@@ -67,7 +67,7 @@ export function InvoiceMetrics({
             </span>
             <span
               className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
+                "flex size-9 shrink-0 items-center justify-center rounded-lg max-sm:hidden [&_svg]:size-4",
                 iconTones[tone],
               )}
             >

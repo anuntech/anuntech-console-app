@@ -1,5 +1,6 @@
 "use client";
 import { useRef, type MouseEvent, type ReactNode } from "react";
+import { useFillViewport } from "@/components/console/fill-viewport";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DownloadIcon, ExternalLinkIcon, MoreHorizontalIcon, XIcon } from "lucide-react";
@@ -13,32 +14,81 @@ import { TablePagination } from "@/components/console/table-pagination";
 /**
  * The one list layout of the Console:
  *
- *   ┌ toolbar: search · filter chips · filters ─────────────┐
+ *   ┌ toolbar: search · filter chips · filters ···· actions ┐
  *   │ table (or an EmptyState)                              │
  *   └ footer: per page · "1–25 de 80 x" · ‹ page › ──────────┘
  *
  * Every list (chamados, faturas, empresas, contratos, orçamentos, projetos,
  * produtos…) renders inside this card, with the same toolbar and footer.
+ *
+ * With `fill`, the card grows down to just above the dock at most, so the
+ * page does not scroll: the rows scroll inside, under the column names,
+ * while the toolbar and the footer stay in view. Small screens are most of
+ * the clients, and the page actions (`actions`) share the toolbar's line
+ * instead of taking one of their own.
  */
+const LIST_MIN_HEIGHT = 280;
+
 export function ListCard({
   label,
   toolbar,
+  actions,
   footer,
+  fill = false,
   children,
   className,
 }: {
   /** Accessible name of the region, e.g. "Lista de contratos". */
   label: string;
   toolbar?: ReactNode;
+  /** The page's own buttons (create, export), at the right end of the toolbar. */
+  actions?: ReactNode;
   footer?: ReactNode;
+  fill?: boolean;
   children: ReactNode;
   className?: string;
 }) {
+  const ref = useRef<HTMLElement>(null);
+  // Lower than the board's floor: the toolbar, the column names and the
+  // footer still leave a few rows, and on a short notebook screen the page
+  // keeps from scrolling.
+  const fit = useFillViewport(ref, { enabled: fill, min: LIST_MIN_HEIGHT });
   return (
-    <section aria-label={label} className={cn("overflow-hidden rounded-xl border bg-card shadow-card", className)}>
-      {toolbar && <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">{toolbar}</div>}
-      {children}
-      {footer}
+    <section
+      ref={ref}
+      aria-label={label}
+      data-fill-viewport={fill ? "" : undefined}
+      style={fill && fit ? { maxHeight: fit.height, marginBottom: fit.clearance || undefined } : undefined}
+      className={cn("overflow-hidden rounded-xl border bg-card shadow-card", fill && "flex flex-col", className)}
+    >
+      {(toolbar || actions) && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-3">
+          {toolbar}
+          {actions && (
+            <div
+              className={cn(
+                "ml-auto flex shrink-0 items-center gap-2",
+                // On a phone the buttons keep only their icon, so they fit
+                // beside the filters; the name stays for screen readers.
+                "max-sm:[&_[data-slot=button]]:w-9 max-sm:[&_[data-slot=button]]:gap-0 max-sm:[&_[data-slot=button]]:px-0 max-sm:[&_[data-slot=button]]:text-[0px]",
+              )}
+            >
+              {actions}
+            </div>
+          )}
+        </div>
+      )}
+      {fill ? (
+        <div
+          data-list-body
+          className="min-h-0 flex-1 overflow-auto [&>[data-slot=table-container]]:overflow-visible"
+        >
+          {children}
+        </div>
+      ) : (
+        children
+      )}
+      {fill && footer ? <div className="shrink-0">{footer}</div> : footer}
     </section>
   );
 }

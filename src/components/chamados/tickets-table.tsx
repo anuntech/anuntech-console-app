@@ -2,7 +2,7 @@
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
   CheckIcon,
@@ -176,6 +176,7 @@ export function TicketsTable({
   showCompany,
   canCreate,
   companyFilter = null,
+  actions,
 }: {
   rows: TicketRow[];
   query: TicketQuery;
@@ -188,6 +189,8 @@ export function TicketsTable({
   showCompany: boolean;
   canCreate: boolean;
   companyFilter?: { id: string; name: string } | null;
+  /** The page's own buttons, at the right end of the toolbar. */
+  actions?: ReactNode;
 }) {
   const router = useRouter();
   const href = (patch: Partial<TicketQuery>) =>
@@ -211,6 +214,8 @@ export function TicketsTable({
 
   return (
     <ListCard
+      fill
+      actions={actions}
       label="Lista de chamados"
       toolbar={
         <>

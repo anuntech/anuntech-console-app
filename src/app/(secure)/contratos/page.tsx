@@ -131,13 +131,11 @@ export default async function Contracts({
   return (
     <>
       <PageHeader
+        className="mb-4"
         title="Contratos"
         count={total}
-        description={
-          actor.admin
-            ? "Do modelo à assinatura das duas partes, com aditivos, versões e alerta de vencimento."
-            : "Leia, assine e baixe os contratos da sua empresa com a Anuntech."
-        }
+      />
+      <ContractsTable
         actions={
           actor.admin && (
             <Button asChild>
@@ -148,8 +146,6 @@ export default async function Contracts({
             </Button>
           )
         }
-      />
-      <ContractsTable
         rows={list}
         query={{ ...query, page: page.page }}
         total={total}

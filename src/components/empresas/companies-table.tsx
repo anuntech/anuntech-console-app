@@ -3,7 +3,7 @@ import { companyInitials } from "@/components/console/company-mark";
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -192,11 +192,14 @@ export function CompaniesTable({
   query,
   total,
   pageCount,
+  actions,
 }: {
   rows: CompanyRow[];
   query: CompanyQuery;
   total: number;
   pageCount: number;
+  /** The page's own buttons, at the right end of the toolbar. */
+  actions?: ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<CompanyRow | null>(null);
@@ -209,6 +212,8 @@ export function CompaniesTable({
   return (
     <>
       <ListCard
+        fill
+        actions={actions}
         label="Lista de empresas"
         toolbar={
           <>

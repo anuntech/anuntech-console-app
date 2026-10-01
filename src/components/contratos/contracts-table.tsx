@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
   CalendarClockIcon,
@@ -192,6 +192,7 @@ export function ContractsTable({
   companyFilter = null,
   now,
   today,
+  actions,
 }: {
   rows: ListedContract[];
   query: ContractQuery;
@@ -207,6 +208,8 @@ export function ContractsTable({
   now: string;
   /** São Paulo civil date, for the validity warnings. */
   today: string;
+  /** The page's own buttons, at the right end of the toolbar. */
+  actions?: ReactNode;
 }) {
   const router = useRouter();
   const href = (patch: Partial<ContractQuery>) => contractListHref({ ...query, ...patch });
@@ -220,6 +223,8 @@ export function ContractsTable({
     admin && (alerts.expiring > 0 || alerts.expired > 0) && query.status !== "expiring" && query.status !== "expired";
   return (
     <ListCard
+      fill
+      actions={actions}
       label="Lista de contratos"
       toolbar={
         <>

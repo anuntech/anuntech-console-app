@@ -202,13 +202,16 @@ export default async function Finance({
   return (
     <>
       <PageHeader
+        className="mb-4"
         title="Faturas"
         count={total}
-        description={
-          actor.admin
-            ? "Cobranças de cada cliente: emissão no Inter, avisos e pagamento."
-            : "As cobranças da sua empresa e os dados para pagamento."
-        }
+      />
+      <InvoiceMetrics
+        metrics={metrics}
+        active={query.status}
+        hrefFor={(status) => invoiceListHref({ ...query, status, page: 1 })}
+      />
+      <InvoicesTable
         actions={
           actor.admin && (
             <>
@@ -227,13 +230,6 @@ export default async function Finance({
             </>
           )
         }
-      />
-      <InvoiceMetrics
-        metrics={metrics}
-        active={query.status}
-        hrefFor={(status) => invoiceListHref({ ...query, status, page: 1 })}
-      />
-      <InvoicesTable
         rows={list.map((row) => ({
           id: row.id,
           description: row.description,

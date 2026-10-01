@@ -18,6 +18,7 @@ import {
   noticeKindLabel,
 } from "@/lib/billing/billing-notice-rules";
 import { dateTimeLabel } from "@/lib/format";
+import { ListCard } from "@/components/console/list-view";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { NoticeStatusBadge } from "@/components/financeiro/invoice-badges";
 import {
@@ -93,9 +94,9 @@ export default async function BillingDeliveries() {
         crumbs={[{ label: "Financeiro", href: "/financeiro" }, { label: "Envios" }]}
         title="Envios de cobrança"
         count={rows.length}
-        description="Entrega dos avisos por e-mail e WhatsApp, consultada nos provedores. Entrega de e-mail confirma o recebimento pelo servidor, não a leitura."
+        className="mb-4"
       />
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Stat
           label="Entregues"
           value={by(["delivered"])}
@@ -110,9 +111,15 @@ export default async function BillingDeliveries() {
           tone="warning"
         />
       </div>
-      <section
-        aria-label="Histórico de envios"
-        className="overflow-hidden rounded-xl border bg-card shadow-card"
+      <ListCard
+        fill
+        label="Histórico de envios"
+        footer={
+          <p className="border-t px-4 py-3 text-xs text-muted-foreground">
+            {rows.length === 200 && "Exibindo os 200 avisos mais recentes. "}
+            Entrega de e-mail confirma o recebimento pelo servidor, não a leitura.
+          </p>
+        }
       >
         {rows.length ? (
           <Table>
@@ -177,12 +184,7 @@ export default async function BillingDeliveries() {
             description="As mensagens aparecem aqui depois que uma cobrança é publicada."
           />
         )}
-        {rows.length === 200 && (
-          <p className="border-t px-4 py-3 text-xs text-muted-foreground">
-            Exibindo os 200 avisos mais recentes.
-          </p>
-        )}
-      </section>
+      </ListCard>
     </>
   );
 }
