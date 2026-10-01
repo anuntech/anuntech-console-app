@@ -14,6 +14,7 @@ A base visual, os componentes e os padrões de tela do Console. Toda tela nova o
 
 - **Tailwind CSS v4** com tokens em CSS. `src/app/globals.css` declara as cores da marca e o tema escuro; `src/app/shadcn.css` mapeia essas variáveis para os nomes do Tailwind (`bg-primary`, `text-muted-foreground`, `border-border`…).
 - **Camadas:** `theme, base, legacy, components, utilities`. O CSS antigo vive em `@layer legacy`: fica acima do preflight (telas antigas não mudam) e abaixo das utilities (componentes shadcn saem como desenhados). CSS Modules só restam em `components/shell` (dock e telas públicas antigas).
+- **Margens:** `p`, `h1` e `h2` não têm margem própria (o CSS antigo dava 16, 8 e 12 px e isso vazava para as telas novas). Espaçamento sempre por classe (`mt-*`, `gap-*`).
 - **Tema escuro** por `data-theme="dark"` no `<html>`, ou `data-theme="system"` seguindo o sistema. Nunca a classe `.dark`. A variante `dark:` do Tailwind já entende os dois.
 - Preferências de tema e posição do dock ficam em cookie e são aplicadas no HTML inicial, sem piscar.
 
@@ -94,6 +95,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 - **Lista:** cabeçalho só com título e contagem (sem descrição), depois `ListCard fill` com busca, filtros e as ações da página na mesma linha, ações à direita. O card termina 12 px acima do dock e as linhas rolam dentro dele, sob os nomes das colunas; a página não rola. Lista curta não estica o card. Em telas muito baixas o card fica com 280 px e a página rola, sem esconder o fim atrás do dock. No celular os botões de ação ficam só com o ícone (o nome continua para leitores de tela) e métricas vão em duas colunas. Filtros e página ficam na URL; mudar filtro volta à página 1. Paginação sempre no servidor.
 - **Quadro:** mesma lógica do projeto: título e situação numa linha, filtros com "Nova tarefa" e "…" na linha seguinte, colunas até 12 px acima do dock.
 - **Lista ou grade:** Bookmarks, Projetos, Contratos, Produtos e Empresas têm o seletor Lista/Grade (`ViewToggle`, no `layout` do `ListCard`), junto das ações à direita. Abrem em grade; a escolha fica num cookie por área (`lib/list-layout.ts`) e é lida no servidor, sem piscar a outra visualização. Cada cartão (`GridCard`) tem ícone ou iniciais, título que cobre o cartão inteiro, o mesmo menu "…" da linha e um rodapé com a situação e uma data; o rodapé de paginação é o mesmo da lista.
+- **Visão geral:** widgets em `Card` compacto (`gap-4 py-5`), só com título e "Ver todos"; sem frase de descrição.
 - **Detalhe:** breadcrumb, título com situação (`Badge`), ações no cabeçalho; conteúdo principal à esquerda e cards de apoio à direita, uma coluna quando não houver espaço. Dados em `Fact`.
 - **Criar e editar:** `FormSheet` à direita. A partir de uma lista, a URL de criação abre o painel sobre a tela (rota interceptada em `@ticket`); acessada direto, vira página. Enquanto envia, o painel não fecha e o botão não repete.
 - **Confirmar:** `ConfirmDialog` só para o que é destrutivo ou sai do Console (emitir, enviar, excluir). Diz a consequência e começa em Cancelar.

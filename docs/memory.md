@@ -49,5 +49,6 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 - A suíte de integração ficou uma semana vermelha (21 a 28/09) porque procurava textos de botão. Hoje posta pelo nome da action; mantenha assim.
 - Migração em produção: rota temporária com token, dois deploys (ver [rules.md](rules.md#migrações-em-produção)). Selecionar colunas novas antes da migração derruba as telas.
 - Publicar com a árvore suja já levou arquivos não commitados à produção uma vez. Commit primeiro, deploy depois.
+- Os vãos grandes no painel vinham do CSS antigo: `p { margin-bottom: 16px }` e `h2 { margin-bottom: 12px }` em `@layer legacy` atingem qualquer `<p>` sem classe de margem. Removidos em 01/10; a única tela antiga com `<p>` (acesso pendente) já define as próprias margens.
 - Regra em `@layer components` perde para qualquer utility do Tailwind, seja qual for a especificidade (o `overflow-x-auto` da tabela anulava o cabeçalho fixo). Para vencer uma utility, use outra utility mais específica.
 - No zsh, `$VAR:r` é um modificador e não "a variável seguida de :r"; use `${VAR}`. E `for f in $LISTA` não separa por espaço.

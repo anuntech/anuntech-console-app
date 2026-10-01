@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { cn } from "cn";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   AlertTriangleIcon,
@@ -78,7 +79,7 @@ function Widget({
   className?: string;
 }) {
   return (
-    <Card className={className ?? "min-w-0"}>
+    <Card className={cn("gap-4 py-5", className ?? "min-w-0")}>
       <CardHeader>
         {/* the link stays on the title's line; the description wraps beside it */}
         <div className="flex items-start justify-between gap-3">
@@ -358,7 +359,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
 
       <div className="mb-6 grid items-start gap-6 lg:grid-cols-2">
         {canFinance && (
-          <Widget title="A pagar" description="Faturas em aberto, por vencimento." action={<SeeAll href="/financeiro" label="Ver todas as faturas" />}>
+          <Widget title="A pagar" action={<SeeAll href="/financeiro" label="Ver todas as faturas" />}>
             {openInvoices.length ? (
               <ul className="divide-y border-t">
                 {openInvoices.map(({ invoice, company }) => {
@@ -396,13 +397,13 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             )}
           </Widget>
         )}
-        <Widget title="Precisa de atenção" description={attention.length ? "O que está esperando você." : "O que depender de você aparece aqui."} className={canFinance ? "min-w-0" : "min-w-0 lg:col-span-2"}>
+        <Widget title="Precisa de atenção" className={canFinance ? "min-w-0" : "min-w-0 lg:col-span-2"}>
           <AttentionList items={attention} />
         </Widget>
       </div>
 
       <div className="mb-6 grid items-start gap-6 lg:grid-cols-2">
-        <Widget title="Projetos" description="O andamento de cada quadro." action={<SeeAll href="/projetos" label="Ver todos os projetos" />}>
+        <Widget title="Projetos" action={<SeeAll href="/projetos" label="Ver todos os projetos" />}>
           {projects.length ? (
             <ul className="divide-y border-t">
               {projects.map((project) => {
@@ -438,7 +439,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             <EmptyState icon={<FolderKanbanIcon />} title="Nenhum projeto em andamento" description="Quando a Anuntech iniciar um projeto com você, o quadro aparece aqui." className="py-10" />
           )}
         </Widget>
-        <Widget title="Produtos e serviços" description="O que você contratou." action={<SeeAll href="/produtos" label="Ver todos os produtos e serviços" />}>
+        <Widget title="Produtos e serviços" action={<SeeAll href="/produtos" label="Ver todos os produtos e serviços" />}>
           {products.length ? (
             <ul className="divide-y border-t">
               {products.map((product) => {
@@ -463,7 +464,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         {canSupport && (
-          <Widget title="Últimos chamados" description="Atualizados recentemente." action={<SeeAll href="/chamados" label="Ver todos os chamados" />}>
+          <Widget title="Últimos chamados" action={<SeeAll href="/chamados" label="Ver todos os chamados" />}>
             {recentTickets.length ? (
               <ul className="divide-y border-t">
                 {recentTickets.map(({ ticket, company }) => (
@@ -482,7 +483,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             )}
           </Widget>
         )}
-        <Widget title="Bookmarks" description="Links e arquivos guardados." action={<SeeAll href="/bookmarks" label="Ver todos os bookmarks" />}>
+        <Widget title="Bookmarks" action={<SeeAll href="/bookmarks" label="Ver todos os bookmarks" />}>
           {bookmarkPage.items.length ? (
             <ul className="divide-y border-t">
               {bookmarkPage.items.map((item) => {

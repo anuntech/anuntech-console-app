@@ -357,11 +357,10 @@ export default async function Dashboard() {
 
       {/* billing + attention */}
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
-        <Card className="min-w-0 lg:col-span-2">
+        <Card className="min-w-0 gap-4 py-5 lg:col-span-2">
           <CardHeader>
             <SectionTitle
               title="Faturamento"
-              description={`Por mês de vencimento, nos últimos ${MONTHS} meses.`}
               action={<SeeAll href="/financeiro" label="Ver o financeiro" />}
             />
           </CardHeader>
@@ -369,11 +368,10 @@ export default async function Dashboard() {
             <BillingChart months={chart} />
           </CardContent>
         </Card>
-        <Card className="min-w-0">
+        <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
             <SectionTitle
               title="Precisa de atenção"
-              description={attention.length ? `${plural(attention.reduce((n, i) => n + i.count, 0), "item", "itens")} esperando alguém.` : "O que está parado aparece aqui."}
             />
           </CardHeader>
           <CardContent className="px-0">
@@ -384,9 +382,9 @@ export default async function Dashboard() {
 
       {/* recent work */}
       <div className="grid items-start gap-6 lg:grid-cols-3">
-        <Card className="min-w-0">
+        <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
-            <SectionTitle title="Últimos chamados" description="Atualizados recentemente." action={<SeeAll href="/chamados" label="Ver todos os chamados" />} />
+            <SectionTitle title="Últimos chamados" action={<SeeAll href="/chamados" label="Ver todos os chamados" />} />
           </CardHeader>
           <CardContent className="px-0">
             {recentTickets.length ? (
@@ -400,9 +398,9 @@ export default async function Dashboard() {
             )}
           </CardContent>
         </Card>
-        <Card className="min-w-0">
+        <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
-            <SectionTitle title="Últimas faturas" description="Cobranças mais recentes." action={<SeeAll href="/financeiro" label="Ver todas as faturas" />} />
+            <SectionTitle title="Últimas faturas" action={<SeeAll href="/financeiro" label="Ver todas as faturas" />} />
           </CardHeader>
           <CardContent className="px-0">
             {recentInvoices.length ? (
@@ -426,9 +424,9 @@ export default async function Dashboard() {
             )}
           </CardContent>
         </Card>
-        <Card className="min-w-0">
+        <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
-            <SectionTitle title="Atividade" description="O que aconteceu por último no Console." />
+            <SectionTitle title="Atividade" />
           </CardHeader>
           <CardContent>
             <ActivityFeed entries={feed} />

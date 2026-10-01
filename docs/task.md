@@ -23,6 +23,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 01/10/2026: widgets da Visão geral (equipe e cliente) sem descrição e mais compactos; fim da margem antiga em `p`, `h1` e `h2` que abria vãos em todo o Console.
 - [x] 01/10/2026: Projetos, Contratos, Produtos e Empresas em lista ou grade, como Bookmarks; grade é o padrão nas cinco.
 - [x] 01/10/2026: telas de lista e quadro mais compactas para telas pequenas: cabeçalho sem descrição, ações na linha dos filtros, conteúdo até logo acima do dock com cabeçalho de colunas fixo.
 - [x] 01/10/2026: rodadas de revisão de contratos: pedidos por cláusula, decisão da equipe, nova versão com o que mudou marcado.
