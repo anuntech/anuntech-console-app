@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getActor } from "@/lib/access/access";
 import { SettingsShell } from "@/components/settings/settings-shell";
 import { MembersSection } from "@/components/settings/members-section";
+import { MarkFirstStep } from "@/components/guide/first-steps-card";
 export const metadata: Metadata = {
   title: "Membros",
   description:
@@ -21,6 +22,7 @@ export default async function MembersPage() {
       }
     >
       <MembersSection />
+      {!actor.admin && actor.grants.length > 0 && <MarkFirstStep companyId={actor.grants[0].company.id} step="members_reviewed" />}
     </SettingsShell>
   );
 }

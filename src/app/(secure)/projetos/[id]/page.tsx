@@ -8,6 +8,10 @@ import { saoPauloDate } from "@/lib/dates";
 import { boardTasks, projectPeople } from "@/lib/projects/tasks";
 import { engagementLinks } from "@/lib/record-links";
 import { ProjectBoard } from "@/components/projetos/project-board";
+import { governingTerms, loadCalendar, snapshotOf } from "@/lib/service-terms/terms";
+import { visibleToClient } from "@/lib/service-terms/ticket-clock";
+import { addBusinessMinutes } from "@/lib/service-terms/business-calendar";
+import { BUSINESS_DAY_MINUTES } from "@/lib/service-terms/terms-model";
 export const metadata: Metadata = {
   title: "Projeto",
   description: "O quadro de tarefas de um produto ou projeto.",
@@ -34,6 +38,10 @@ export default async function Project({
     actor.admin ? engagementLinks([id]) : null,
   ]);
   const now = new Date();
+  // A delivery in Revisão has a test window only where the contract sets one (SUP 4.3, Serviço 3.2).
+  const terms = snapshotOf(await governingTerms(row.project.companyId, id));
+  const testDays = terms && !terms.personClient && (actor.admin || visibleToClient(terms, now)) ? terms.policy.testDays : null;
+  const cal = testDays ? await loadCalendar() : null;
   return (
     <ProjectBoard
       data={{
@@ -47,8 +55,13 @@ export default async function Project({
           company: row.company,
           links: links?.get(id),
         },
-        tasks: tasks.map((task) => ({
+        tasks: tasks.map(({ reviewSince, approvedAt, ...task }) => ({
           ...task,
+          reviewDue:
+            task.status === "review" && reviewSince && testDays && cal
+              ? addBusinessMinutes(reviewSince, testDays * BUSINESS_DAY_MINUTES, cal).toISOString()
+              : null,
+          approvedAt: approvedAt?.toISOString() ?? null,
           updatedAt: task.updatedAt.toISOString(),
           comments: task.comments.map((comment) => ({
             ...comment,
@@ -61,7 +74,12 @@ export default async function Project({
           name: person.name,
           image: person.image,
         })),
-        viewer: { id: actor.user.id, admin: actor.admin },
+        viewer: {
+          id: actor.user.id,
+          admin: actor.admin,
+          // Administradores answer for the company: they approve deliveries.
+          approver: actor.admin || canAccess(actor, row.project.companyId, "finance"),
+        },
         today: saoPauloDate(now),
         now: now.toISOString(),
       }}

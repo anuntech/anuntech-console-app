@@ -1,4 +1,8 @@
 import "server-only";
+import { guideSections } from "../guide/guide-content";
+import { companyTerms, snapshotOf } from "../service-terms/terms";
+import { visibleToClient } from "../service-terms/ticket-clock";
+import { termsSummary } from "../service-terms/terms-text";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import type { Actor } from "../access/access";
@@ -64,6 +68,43 @@ export function trimHistory(turns: ChatTurn[]): ChatTurn[] {
     .filter((t) => (t.role === "user" || t.role === "assistant") && typeof t.content === "string" && t.content.trim())
     .slice(-MAX_HISTORY)
     .map((t) => ({ role: t.role, content: t.content.slice(0, MAX_MESSAGE_CHARS) }));
+}
+
+/** The guide, flattened to text: the same words the client reads on the page. */
+function guideText() {
+  return guideSections
+    .map((s) => {
+      const body = s.blocks
+        .map((b) =>
+          b.kind === "p"
+            ? b.text
+            : b.kind === "pairs"
+              ? b.items.map((i) => `- ${i.term}: ${i.text}`).join("\n")
+              : b.items.map((item, n) => `${b.kind === "steps" ? `${n + 1}.` : "-"} ${item}`).join("\n"),
+        )
+        .join("\n");
+      return `### ${s.title}\n${s.lead}\n${body}`;
+    })
+    .join("\n\n");
+}
+
+/** Each company's published conditions, as its people may read them (the team reads them all on the company page). */
+async function termsText(actor: Actor) {
+  if (actor.admin) return "Condições de cada empresa: ficam no card Condições de atendimento da página da empresa. Para a equipe, consulte lá antes de citar um prazo.";
+  const now = new Date();
+  const blocks: string[] = [];
+  for (const grant of actor.grants) {
+    const rows = await companyTerms(grant.company.id);
+    for (const row of rows) {
+      const snapshot = snapshotOf(row);
+      if (!snapshot || !visibleToClient(snapshot, now)) continue;
+      const { promises, asks } = termsSummary(snapshot);
+      blocks.push(
+        `### ${grant.company.name} · ${row.label}${row.engagementId ? " (um produto ou serviço)" : ""}\n${[...promises, ...asks].map((f) => `- ${f.text}`).join("\n")}`,
+      );
+    }
+  }
+  return blocks.length ? `Condições de cada empresa:\n${blocks.join("\n\n")}` : "Condições de cada empresa: nenhuma cadastrada no Console.";
 }
 
 async function knowledge() {
@@ -133,6 +174,12 @@ export async function systemPrompt(actor: Actor, custom: string, page?: PageSnap
     actor.admin
       ? "- Para a equipe da Anuntech, consultas sem empresa definida valem para todas as empresas: chame a ferramenta sem companyId em vez de perguntar qual. Você também organiza trabalho: pode montar um projeto inteiro (criar_projeto e depois uma criar_tarefa por tarefa, com prioridade, prazo, estimativa e responsáveis) a partir de uma descrição, alterar tarefas em lote com atualizar_tarefa, criar orçamentos em rascunho com criar_orcamento (fases com horas, tarefas, taxa/hora, entrada e validade; o envio ao cliente é na tela) e responder chamados em nome da equipe. Apresente o plano antes de criar e execute quando a pessoa aprovar."
       : "",
+    "",
+    "Como a Anuntech trabalha (página Como trabalhamos, /como-trabalhamos; é o processo de todos os clientes):",
+    guideText(),
+    "- Prazos: nunca diga um prazo de resposta, de solução ou de teste que não esteja em 'Condições de cada empresa' abaixo. Sem condições, diga só o horário (dias úteis, das 9h às 18h, Brasília) e que os prazos são os do contrato da empresa.",
+    "- Para abrir chamado, escolha o tipo com a pessoa (problem, question, change, access, new_project) e, se for problem, o impacto. Pedido de app, sistema ou função nova vira new_project: a equipe conversa e prepara um orçamento.",
+    await termsText(actor),
     "",
     "Base de conhecimento da Anuntech:",
     await knowledge(),

@@ -115,11 +115,19 @@ export default async function Quotes({
       />
       <QuotesTable
         actions={
-          actor.admin && (
+          actor.admin ? (
             <Button asChild>
               <Link href="/orcamentos/novo">
                 <PlusIcon />
                 Novo orçamento
+              </Link>
+            </Button>
+          ) : (
+            // A client asks through a ticket of its own kind; the team answers with a quote here.
+            <Button asChild>
+              <Link href="/chamados/novo?tipo=novo-projeto">
+                <PlusIcon />
+                Pedir orçamento
               </Link>
             </Button>
           )

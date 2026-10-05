@@ -60,6 +60,9 @@ export type TermsSnapshot = {
   label: string;
   preset: string;
   policy: ServicePolicy;
+  /** From when the client sees these terms; before that only the team does. */
+  publishAt: string | null;
+  personClient: boolean;
 };
 
 export type TermsBasis = "console_contract" | "external_contract" | "none";

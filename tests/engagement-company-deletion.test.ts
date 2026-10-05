@@ -72,6 +72,9 @@ test("company deletion knows every table that points at a company", () => {
     "console_bookmark_folders.company_id": "null",
     "console_bookmarks.company_id": "null",
     "console_notification_preferences.company_id": "null",
+    "console_service_terms.company_id": "not null",
+    "console_time_entries.company_id": "not null",
+    "console_hours_months.company_id": "not null",
     // Kept, set to null: the history outlives the company.
     "console_audit_events.company_id": "null",
   });
@@ -85,8 +88,10 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_contracts.engagement_id": "null",
     // Deleted with it.
     "console_tasks.engagement_id": "not null",
+    "console_service_terms.engagement_id": "null",
     // Kept, unlinked.
     "console_tickets.engagement_id": "null",
+    "console_time_entries.engagement_id": "null",
   });
   assert.deepEqual(pointingAt(schema.tasks), {
     "console_task_assignees.task_id": "not null",
@@ -101,6 +106,8 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_messages.ticket_id": "not null",
     "console_attachments.ticket_id": "null",
     "console_ticket_notices.ticket_id": "not null",
+    // Hours stay in the bank, unlinked.
+    "console_time_entries.ticket_id": "null",
   });
   assert.deepEqual(pointingAt(schema.memberships), {
     "console_email_deliveries.membership_id": "not null",

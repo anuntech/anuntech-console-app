@@ -27,7 +27,13 @@ import {
   enqueueTicketNotice,
   scheduleTicketNotices,
 } from "./tickets/ticket-notifications";
-import { priorityLabels, ticketLabels } from "./format";
+import { dueLabel, priorityLabels, ticketLabels } from "./format";
+import { suggestPriority, ticketChannels, ticketImpacts, ticketKinds } from "./tickets/ticket-intake";
+import { governingTerms, loadCalendar, snapshotOf } from "./service-terms/terms";
+import { pauseToAdd, ticketDues, visibleToClient } from "./service-terms/ticket-clock";
+import { addBusinessMinutes } from "./service-terms/business-calendar";
+import { BUSINESS_DAY_MINUTES } from "./service-terms/terms-model";
+import { sendOpsMail } from "./notifications/ops-alerts";
 import { teamMemberName } from "./account/account-identity";
 import { companyIdentity } from "./companies/company-input";
 import { companyBillingInput } from "./companies/company-billing";
@@ -200,13 +206,19 @@ export async function createTicket(
         engagementId: z.union([id, z.literal("")]).default(""),
         subject: str(160),
         body: str(10000),
-        priority: z.enum(["normal", "high"]).default("normal"),
+        // Only the team sets it by hand; otherwise the Console suggests it from the impact.
+        priority: z.enum(["critical", "high", "normal"]).optional(),
+        kind: z.enum(ticketKinds).optional(),
+        impact: z.enum(ticketImpacts).optional(),
+        channel: z.enum(ticketChannels).default("console"),
       })
       .parse(Object.fromEntries(form));
     if (!canAccess(actor, input.companyId, "support")) return blocked;
+    const impact = input.kind === "problem" ? (input.impact ?? "other") : null;
     let files: Awaited<ReturnType<typeof prepareTicketFiles>>;
     try { files = await prepareTicketFiles(form.getAll("files")); }
     catch (error) { return { error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo." }; }
+    const now = new Date();
     const ticket = await db.transaction(async (tx) => {
       const uploaded = await takeTicketUploads(tx, actor.user.id, form);
       if (files.length + uploaded.length > DOCUMENT_ATTACHMENTS.max || files.reduce((n, f) => n + f.size, 0) + uploaded.reduce((n, f) => n + f.size, 0) > DOCUMENT_ATTACHMENTS.maxBytes) throw new Error("Limite de anexos excedido.");
@@ -222,15 +234,27 @@ export async function createTicket(
           );
         if (!eng) throw Error();
       }
+      // The conditions in force now stay with the ticket, so a later change never moves a deadline already given.
+      const terms = snapshotOf(await governingTerms(input.companyId, input.engagementId || null, tx));
+      // The priority is Anuntech's call (support contract 5.1): the team may set it, the Console only suggests.
+      const priority = (actor.admin && input.priority) || suggestPriority(input.kind, impact, terms?.policy.levels);
+      const dues = ticketDues({ createdAt: now, priority, kind: input.kind, impact, terms }, await loadCalendar(tx));
       const [row] = await tx
         .insert(tickets)
         .values({
           companyId: input.companyId,
           engagementId: input.engagementId || null,
           subject: input.subject,
-          // The priority is Anuntech's call (support contract 5.1): only the team sets it.
-          priority: actor.admin ? input.priority : "normal",
+          priority,
+          kind: input.kind ?? null,
+          impact,
+          channel: actor.admin ? input.channel : "console",
+          terms,
+          responseDueAt: dues.responseDueAt,
+          resolutionDueAt: dues.resolutionDueAt,
           authorId: actor.user.id,
+          createdAt: now,
+          updatedAt: now,
         })
         .returning();
       await tx.insert(messages).values({
@@ -255,9 +279,18 @@ export async function createTicket(
         actor.user.name,
         "Chamado aberto",
         { email: actor.user.email },
+        row.responseDueAt && visibleToClient(terms, now)
+          ? `A primeira resposta vem até ${dueLabel(row.responseDueAt, now)}.`
+          : null,
       );
       return row;
     });
+    // Something stopped with no way around it: the whole team hears now, not at the next read of the list.
+    if (ticket.impact === "down")
+      await sendOpsMail(
+        `Parou tudo: ${ticket.subject}`,
+        `Um chamado chegou com o impacto "Parou tudo e não dá para contornar".\n\nChamado: ${ticket.subject}\nPrioridade sugerida: ${priorityLabels[ticket.priority]}\nAbrir no Console: ${process.env.BETTER_AUTH_URL || "https://console.anuntech.com"}/chamados/${ticket.id}\n\nConsole da Anuntech`,
+      ).catch(() => undefined);
     refresh();
     scheduleTicketNotices();
     return { success: "Chamado aberto.", href: `/chamados/${ticket.id}` };
@@ -274,6 +307,21 @@ async function ticketOpener(
   const [opener] = await tx.select({ email: user.email }).from(user).where(eq(user.id, ticket.authorId));
   if (!opener?.email || opener.email.toLowerCase() === actorEmail.toLowerCase()) return null;
   return { email: opener.email, kind: "movement" };
+}
+/**
+ * The ticket leaves "waiting for the client": the wait joins the pause where
+ * the conditions pause the clock (SUP 5.3), and the deadlines move by it.
+ */
+async function resumeClock(
+  ticket: typeof tickets.$inferSelect,
+  now: Date,
+  tx: Pick<typeof db, "select">,
+) {
+  const cleared = { waitingFor: null, waitingSince: null };
+  if (!ticket.terms || !ticket.waitingSince) return cleared;
+  const cal = await loadCalendar(tx);
+  const pausedMinutes = ticket.pausedMinutes + pauseToAdd(ticket.terms, ticket.waitingSince, now, cal);
+  return { ...cleared, pausedMinutes, ...ticketDues({ ...ticket, pausedMinutes }, cal) };
 }
 export async function replyTicket(
   _: ActionState,
@@ -353,13 +401,17 @@ export async function replyTicket(
             authorId: actor.user.id,
           })),
         );
+      const now = new Date();
+      // A client's answer takes a waiting ticket back to the team, and reopens a resolved one.
+      const back = !actor.admin && (ticket.status === "waiting_customer" || ticket.status === "resolved");
+      const clock = back ? await resumeClock(ticket, now, tx) : {};
       await tx
         .update(tickets)
         .set({
-          updatedAt: new Date(),
-          ...(!actor.admin && ticket.status === "waiting_customer"
-            ? { status: "open" as const }
-            : {}),
+          updatedAt: now,
+          ...(back ? { status: "open" as const, ...clock } : {}),
+          // The team's first written answer is the first response the contract counts.
+          ...(actor.admin && input.body && !ticket.firstResponseAt ? { firstResponseAt: now } : {}),
         })
         .where(eq(tickets.id, ticket.id));
       const [event] = await tx
@@ -403,11 +455,14 @@ export async function updateTicket(
         status: z
           .enum(["open", "in_progress", "waiting_customer", "resolved", "closed"])
           .optional(),
-        priority: z.enum(["normal", "high"]).optional(),
+        priority: z.enum(["critical", "high", "normal"]).optional(),
         assignedTo: z.union([mail, z.literal("")]).optional(),
+        /** What the team needs from the client; required to wait for them. */
+        waitingFor: z.string().trim().max(500, "Use até 500 caracteres para o que falta.").optional(),
       })
       .parse(Object.fromEntries(form));
-    await db.transaction(async (tx) => {
+    const now = new Date();
+    const failed = await db.transaction(async (tx) => {
       const [previous] = await tx
         .select()
         .from(tickets)
@@ -422,15 +477,40 @@ export async function updateTicket(
             ? previous.assignedTo
             : input.assignedTo || null,
       };
+      const waiting = next.status === "waiting_customer";
+      const waitingFor = waiting ? (input.waitingFor ?? previous.waitingFor ?? "").trim() || null : null;
+      // Asked when the wait starts; a ticket already waiting keeps moving from the menus.
+      if (waiting && !waitingFor && previous.status !== "waiting_customer")
+        return "Diga ao cliente o que falta para a equipe continuar.";
       if (
         previous.status === next.status &&
         previous.priority === next.priority &&
-        previous.assignedTo === next.assignedTo
+        previous.assignedTo === next.assignedTo &&
+        (!waiting || waitingFor === previous.waitingFor)
       )
         return;
+      const cal = previous.terms ? await loadCalendar(tx) : null;
+      // Leaving the wait adds it to the pause; a new priority moves the deadlines; entering it starts the wait.
+      const leaving = previous.status === "waiting_customer" && !waiting;
+      const pausedMinutes =
+        leaving && cal ? previous.pausedMinutes + pauseToAdd(previous.terms, previous.waitingSince, now, cal) : previous.pausedMinutes;
+      const dues =
+        cal && (leaving || previous.priority !== next.priority)
+          ? ticketDues({ ...previous, priority: next.priority, pausedMinutes }, cal)
+          : {};
       const [row] = await tx
         .update(tickets)
-        .set({ ...next, updatedAt: new Date() })
+        .set({
+          ...next,
+          waitingFor,
+          waitingSince: waiting ? (previous.status === "waiting_customer" ? previous.waitingSince : now) : null,
+          pausedMinutes,
+          ...dues,
+          // Asking the client, resolving or closing answers the ticket too.
+          firstResponseAt:
+            previous.firstResponseAt ?? (["waiting_customer", "resolved", "closed"].includes(next.status) && next.status !== previous.status ? now : null),
+          updatedAt: now,
+        })
         .where(eq(tickets.id, input.ticketId))
         .returning();
       if (!row) throw Error();
@@ -448,8 +528,10 @@ export async function updateTicket(
           },
         })
         .returning({ id: auditEvents.id });
+      const asking = row.status === "waiting_customer" && (previous.status !== row.status || row.waitingFor !== previous.waitingFor);
       const changes = [
-        ...(previous.status !== row.status
+        ...(asking ? ["A equipe precisa de você"] : []),
+        ...(previous.status !== row.status && !asking
           ? [
               row.status === "closed"
                 ? "Chamado encerrado"
@@ -467,6 +549,7 @@ export async function updateTicket(
           ? [`Responsável: ${(await teamMemberName(row.assignedTo, tx)) ?? "não atribuído"}`]
           : []),
       ];
+      const terms = row.terms && visibleToClient(row.terms, now) ? row.terms : null;
       await enqueueTicketNotice(
         tx,
         event.id,
@@ -474,8 +557,20 @@ export async function updateTicket(
         actor.user.name,
         changes.join(" · "),
         await ticketOpener(tx, row, actor.user.email),
+        asking
+          ? [
+              `O que falta: ${row.waitingFor}`,
+              terms?.policy.pausesWhileWaiting ? "O prazo da Anuntech fica pausado até você responder." : null,
+              terms?.policy.clientResponseDays && !terms.personClient && cal
+                ? `Responda até ${dueLabel(addBusinessMinutes(now, terms.policy.clientResponseDays * BUSINESS_DAY_MINUTES, cal), now)}.`
+                : null,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : null,
       );
     });
+    if (failed) return { error: failed };
     revalidatePath(`/chamados/${input.ticketId}`);
     refresh();
     scheduleTicketNotices();

@@ -58,8 +58,10 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `billing/` | faturas, emissão no Inter, conciliação, recorrência, condições (desconto, multa, juros), link público, avisos de cobrança |
 | `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails |
-| `tickets/` | situações, anexos, avisos de chamados, exclusão, tabela |
-| `projects/` | tarefas, quadro, comentários, exclusão de projetos e serviços |
+| `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela |
+| `projects/` | tarefas, quadro, comentários, revisão de entregas (`reviewTask`), exclusão de projetos e serviços |
+| `service-terms/` | calendário de dias úteis (`business-calendar.ts`), fichas dos modelos (`presets.ts`), condições (`terms.ts`, `terms-actions.ts`), relógio do chamado (`ticket-clock.ts`), textos para o cliente (`terms-text.ts`), banco de horas (`hours-bank.ts`, `hours-actions.ts`), feriados da sede |
+| `guide/` | conteúdo de Como trabalhamos (`guide-content.ts`, versionado), marcos por pessoa e primeiros passos |
 | `catalog/` | catálogo de produtos e serviços |
 | `bookmarks/` | pastas, compartilhamento, links e arquivos |
 | `assistant/` | loop do assistente, ferramentas, consentimento, histórico, Jev, modelos do OpenRouter |
@@ -81,7 +83,8 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
   - **Identidade:** `user`, `session`, `account`, `verification` (Better Auth), `account_emails`, `two_factor`, `otp_limits`, `rate_limit`.
   - **Acesso:** `staff_members` (equipe Anuntech), `memberships` (pessoa × empresa × papel), `environment_profile` (cadastro da própria Anuntech).
   - **Clientes:** `companies`, `engagements` (produto, projeto ou serviço vinculado), `catalog_items`.
-  - **Atendimento:** `tickets`, `messages`, `attachments`, `ticket_uploads`, `ticket_notices`.
+  - **Atendimento:** `tickets` (com tipo, impacto, canal, o que falta, relógio e o retrato das condições em `terms`), `messages`, `attachments`, `ticket_uploads`, `ticket_notices`.
+  - **Condições e banco de horas:** `service_terms` (condições de atendimento por empresa ou por vínculo, com versão, publicação e conferência), `time_entries` (horas da equipe), `hours_months` (aprovação além do banco e relatório do mês), `user_milestones` (guia lido, primeiros passos).
   - **Projetos:** `tasks`, `task_assignees`, `task_comments` (anexos em `attachments.comment_id`).
   - **Financeiro:** `invoices`, `subscriptions` (recorrências), `billing_notices`, `email_deliveries`.
   - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures`, `contract_change_requests` (pedidos de alteração por cláusula e versão), `quotes`, `quote_versions`.

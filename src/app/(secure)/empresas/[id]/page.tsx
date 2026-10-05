@@ -18,6 +18,10 @@ import { companyLinks } from "@/lib/record-links";
 import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
+import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
+import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
+import { bankCard } from "@/lib/service-terms/hours-bank";
+import { serviceTerms } from "@/db/schema";
 export const metadata = {
   title: "Detalhes da empresa",
   description: "Cadastro, contatos e acessos de uma empresa.",
@@ -117,8 +121,47 @@ export default async function Company({
     seen.add(key);
     return true;
   });
+  // What the company's contracts promise, kept by the team (Condições de atendimento).
+  const [termRows, termEngagements, termContracts] = await Promise.all([
+    db.select().from(serviceTerms).where(and(eq(serviceTerms.companyId, id), eq(serviceTerms.active, true))).orderBy(desc(serviceTerms.updatedAt)),
+    db.select({ id: engagements.id, name: engagements.name }).from(engagements).where(eq(engagements.companyId, id)).orderBy(engagements.name),
+    db
+      .select({ id: contracts.id, title: contracts.title })
+      .from(contracts)
+      .where(and(eq(contracts.companyId, id), inArray(contracts.status, ["signed", "sent", "in_review"])))
+      .orderBy(desc(contracts.updatedAt)),
+  ]);
+  const bank = await bankCard(id, company.name);
+  const termsCard = (
+    <>
+    <ServiceTermsCard
+      companyId={id}
+      items={termRows.map((t) => ({
+        id: t.id,
+        label: t.label,
+        basis: t.basis,
+        preset: t.preset,
+        engagementId: t.engagementId,
+        contractId: t.contractId,
+        policy: t.policy,
+        personClient: t.personClient,
+        publishAt: t.publishAt?.toISOString() ?? null,
+        verifiedAt: t.verifiedAt?.toISOString() ?? null,
+        verifiedBy: t.verifiedBy,
+        version: t.version,
+      }))}
+      engagements={termEngagements}
+      contracts={termContracts}
+      now={new Date().toISOString()}
+    />
+    {bank && (
+      <HoursBankCard viewer="team" bank={bank} />
+    )}
+    </>
+  );
   return (
     <CompanyDetail
+      termsCard={termsCard}
       editorOpen={typeof query.editar === "string"}
       data={{
         company: {

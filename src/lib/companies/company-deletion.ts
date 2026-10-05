@@ -19,6 +19,10 @@ import {
   tasks,
   ticketNotices,
   tickets,
+  hoursMonths,
+  serviceTerms,
+  timeEntries,
+  userMilestones,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -103,6 +107,13 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
 
       // Tickets: notices, files, messages, then the tickets. A ticket of another
       // company pointing at this company's work only loses the link.
+      // Its hours bank and conditions go first: they point at its tickets and work.
+      await tx.delete(timeEntries).where(eq(timeEntries.companyId, company.id));
+      await tx.update(timeEntries).set({ ticketId: null }).where(inArray(timeEntries.ticketId, itsTickets));
+      await tx.update(timeEntries).set({ engagementId: null }).where(inArray(timeEntries.engagementId, itsWork));
+      await tx.delete(hoursMonths).where(eq(hoursMonths.companyId, company.id));
+      await tx.delete(serviceTerms).where(eq(serviceTerms.companyId, company.id));
+      await tx.delete(userMilestones).where(eq(userMilestones.companyId, company.id));
       const notices = await tx
         .delete(ticketNotices)
         .where(inArray(ticketNotices.ticketId, itsTickets))

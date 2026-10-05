@@ -13,15 +13,16 @@ export default async function NewTicket({
 }: {
   searchParams: NewTicketSearchParams;
 }) {
-  const { companies, companyId } = await newTicketContext(searchParams);
+  const context = await newTicketContext(searchParams);
+  const quote = context.kind === "new_project";
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Chamados", href: "/chamados" }, { label: "Novo" }]}
-        title="Novo chamado"
-        description="Como podemos ajudar?"
+        crumbs={[{ label: "Chamados", href: "/chamados" }, { label: quote ? "Pedir orçamento" : "Novo" }]}
+        title={quote ? "Pedir orçamento" : "Novo chamado"}
+        description={quote ? "Conte o que você precisa. A equipe conversa com você e prepara um orçamento." : "Como podemos ajudar?"}
       />
-      <NewTicketForm companies={companies} companyId={companyId} />
+      <NewTicketForm context={context} />
     </>
   );
 }

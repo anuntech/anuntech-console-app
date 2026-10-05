@@ -375,7 +375,7 @@ export function ProjectsList({
               ? "Tente outro termo ou mude os filtros."
               : admin
                 ? "Crie um projeto para um cliente e organize as tarefas no quadro."
-                : "Os projetos da sua empresa com a Anuntech aparecem aqui."
+                : "Os projetos aparecem aqui quando um trabalho com a Anuntech começa, depois do orçamento aceito e do contrato assinado. Precisa de um app ou sistema novo? Peça um orçamento."
           }
           action={
             filtered ? (
@@ -394,7 +394,14 @@ export function ProjectsList({
                   Novo projeto
                 </Link>
               </Button>
-            ) : undefined
+            ) : (
+              <Button asChild>
+                <Link href="/chamados/novo?tipo=novo-projeto">
+                  <PlusIcon />
+                  Pedir orçamento
+                </Link>
+              </Button>
+            )
           }
         />
       )}

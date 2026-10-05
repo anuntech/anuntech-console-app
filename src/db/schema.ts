@@ -538,6 +538,12 @@ export const tasks = pgTable(
     createdBy: text("created_by")
       .notNull()
       .references(() => user.id),
+    /** Created by the client: a request until the team takes it into the work. */
+    requested: boolean("requested").notNull().default(false),
+    /** When it reached Revisão, so the client's test window has a start. */
+    reviewSince: timestamp("review_since", { withTimezone: true }),
+    approvedBy: text("approved_by").references(() => user.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -604,13 +610,36 @@ export const tickets = pgTable(
     })
       .notNull()
       .default("open"),
-    priority: text("priority", { enum: ["normal", "high"] })
+    priority: text("priority", { enum: ["critical", "high", "normal"] })
       .notNull()
       .default("normal"),
     authorId: text("author_id")
       .notNull()
       .references(() => user.id),
     assignedTo: text("assigned_to"),
+    /** What the client needs, picked when opening; null on tickets from before. */
+    kind: text("kind", { enum: ["problem", "question", "change", "access", "new_project"] }),
+    /** For problems: how badly it hurts. The team sets the priority from it. */
+    impact: text("impact", { enum: ["down", "workaround", "other"] }),
+    /** Where the request first came in; anything but the Console was logged by the team. */
+    channel: text("channel", { enum: ["console", "whatsapp", "phone", "chat", "email"] })
+      .notNull()
+      .default("console"),
+    /** While waiting for the client: what is missing, and since when. */
+    waitingFor: text("waiting_for"),
+    waitingSince: timestamp("waiting_since", { withTimezone: true }),
+    /** Business minutes the clock stood still while waiting for the client. */
+    pausedMinutes: integer("paused_minutes").notNull().default(0),
+    firstResponseAt: timestamp("first_response_at", { withTimezone: true }),
+    responseDueAt: timestamp("response_due_at", { withTimezone: true }),
+    resolutionDueAt: timestamp("resolution_due_at", { withTimezone: true }),
+    /** The company's conditions in force when the ticket was opened (none: no deadline). */
+    terms: jsonb("terms").$type<import("@/lib/service-terms/terms-model").TermsSnapshot>(),
+    /** An improvement's estimate, approved by the client before it uses the hours bank. */
+    estimateMinutes: integer("estimate_minutes"),
+    estimateStatus: text("estimate_status", { enum: ["proposed", "approved", "declined"] }),
+    estimateDecidedBy: text("estimate_decided_by").references(() => user.id),
+    estimateDecidedAt: timestamp("estimate_decided_at", { withTimezone: true }),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -930,6 +959,11 @@ export const environmentProfile = pgTable("console_environment_profile", {
     jsonb("billing_address").$type<
       import("@/lib/companies/company-billing").CompanyAddress
     >(),
+  /** The holidays of Anuntech's seat beyond the national ones, for business-day counts. */
+  holidays: jsonb("holidays")
+    .$type<import("@/lib/service-terms/business-calendar").LocalHolidays>()
+    .notNull()
+    .default({}),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -1002,3 +1036,85 @@ export const ticketUploads = pgTable("console_ticket_uploads", {
   ready: boolean("ready").notNull().default(false),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [index("console_ticket_upload_author_idx").on(t.authorId)]);
+
+/**
+ * A company's "Condições de atendimento": what its contract promises and
+ * asks, copied by the team from the signed text with the clause of each
+ * value. Scoped to one product or service, or to the whole company when
+ * `engagementId` is null. Clients see it only from `publishAt`.
+ */
+export const serviceTerms = pgTable(
+  "console_service_terms",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id").notNull().references(() => companies.id),
+    engagementId: text("engagement_id").references(() => engagements.id),
+    basis: text("basis", { enum: ["console_contract", "external_contract", "none"] }).notNull(),
+    preset: text("preset").notNull(),
+    label: text("label").notNull(),
+    contractId: text("contract_id").references(() => contracts.id),
+    policy: jsonb("policy").$type<import("@/lib/service-terms/terms-model").ServicePolicy>().notNull(),
+    /** Client is a person (CPF): rules of silence stay hidden until the lawyer decides. */
+    personClient: boolean("person_client").notNull().default(false),
+    publishAt: timestamp("publish_at", { withTimezone: true }),
+    verifiedBy: text("verified_by").references(() => user.id),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    version: integer("version").notNull().default(1),
+    active: boolean("active").notNull().default(true),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("console_service_terms_company_idx").on(t.companyId)],
+);
+
+/** Things a person did once (read the guide, finished a first step, hid the card), per company when it matters. */
+export const userMilestones = pgTable(
+  "console_user_milestones",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id").notNull().references(() => user.id),
+    companyId: text("company_id").notNull().default(""),
+    key: text("key").notNull(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("console_user_milestone_unique").on(t.userId, t.companyId, t.key)],
+);
+
+/** Hours the team logs against a company's hours bank, per ticket or project. */
+export const timeEntries = pgTable(
+  "console_time_entries",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id").notNull().references(() => companies.id),
+    ticketId: text("ticket_id").references(() => tickets.id),
+    engagementId: text("engagement_id").references(() => engagements.id),
+    authorId: text("author_id").notNull().references(() => user.id),
+    minutes: integer("minutes").notNull(),
+    note: text("note").notNull(),
+    workedOn: date("worked_on").notNull(),
+    /** bank: counts against the month; warranty: free fix (SUP 4.4); critical: done before approval (SUP 3.3). */
+    kind: text("kind", { enum: ["bank", "warranty", "critical"] }).notNull().default("bank"),
+    createdAt: created(),
+  },
+  (t) => [index("console_time_entry_company_idx").on(t.companyId, t.workedOn)],
+);
+
+/** One month of a company's hours bank: approved overage and the monthly report. */
+export const hoursMonths = pgTable(
+  "console_hours_months",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id").notNull().references(() => companies.id),
+    month: text("month").notNull(),
+    overageApprovedMinutes: integer("overage_approved_minutes").notNull().default(0),
+    overageApprovedBy: text("overage_approved_by").references(() => user.id),
+    overageApprovedAt: timestamp("overage_approved_at", { withTimezone: true }),
+    reportSentAt: timestamp("report_sent_at", { withTimezone: true }),
+    reportSentBy: text("report_sent_by").references(() => user.id),
+    contestedAt: timestamp("contested_at", { withTimezone: true }),
+    contestedBy: text("contested_by").references(() => user.id),
+    contestNote: text("contest_note"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("console_hours_month_unique").on(t.companyId, t.month)],
+);

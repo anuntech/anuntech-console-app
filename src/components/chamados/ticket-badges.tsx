@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { priorityLabels, ticketLabels } from "@/lib/format";
+import { clientTicketLabels, priorityLabels, ticketLabels } from "@/lib/format";
 import type { TicketPriority, TicketStatus } from "@/lib/tickets/ticket-table";
 
 /* One tone per situation, used identically in lists, headers and cards:
@@ -21,9 +21,12 @@ const statusTone: Record<TicketStatus, { pill: string; dot: string }> = {
 
 export function TicketStatusBadge({
   status,
+  client = false,
   className,
 }: {
   status: TicketStatus;
+  /** The client's words: "Aguardando você". */
+  client?: boolean;
   className?: string;
 }) {
   const tone = statusTone[status] ?? statusTone.closed;
@@ -36,7 +39,7 @@ export function TicketStatusBadge({
       )}
     >
       <span aria-hidden="true" className={cn("size-1.5 rounded-full", tone.dot)} />
-      {ticketLabels[status] ?? status}
+      {(client ? clientTicketLabels : ticketLabels)[status] ?? status}
     </span>
   );
 }

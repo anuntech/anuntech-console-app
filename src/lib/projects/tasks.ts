@@ -139,6 +139,9 @@ export async function boardTasks(engagementId: string) {
       createdBy: tasks.createdBy,
       creator: creator.name,
       updatedAt: tasks.updatedAt,
+      requested: tasks.requested,
+      reviewSince: tasks.reviewSince,
+      approvedAt: tasks.approvedAt,
     })
     .from(tasks)
     .leftJoin(creator, eq(creator.id, tasks.createdBy))

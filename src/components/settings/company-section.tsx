@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { companies, environmentProfile } from "@/db/schema";
 import { db } from "@/lib/db";
 import { settingsEnvironment } from "@/lib/access/environment";
+import { HolidaysCard } from "./holidays-card";
+import type { LocalHolidays } from "@/lib/service-terms/business-calendar";
 import { saveCompanySettings } from "@/lib/companies/company-settings-actions";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
@@ -30,7 +32,7 @@ export async function CompanySection() {
     phone: "",
     billingAddress: null,
   };
-  return (
+  const card = (
     <Card>
       <CardHeader>
         <SectionTitle
@@ -64,5 +66,13 @@ export async function CompanySection() {
         </CardFooter>
       </ServerForm>
     </Card>
+  );
+  // Anuntech's own settings also hold the seat's holidays, for business-day deadlines.
+  if (companyId) return card;
+  return (
+    <div className="flex flex-col gap-6">
+      {card}
+      <HolidaysCard holidays={(company as { holidays?: LocalHolidays } | undefined)?.holidays ?? {}} />
+    </div>
   );
 }

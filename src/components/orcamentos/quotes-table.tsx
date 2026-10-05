@@ -263,7 +263,7 @@ export function QuotesTable({
               ? "Tente outro termo ou mude os filtros."
               : admin
                 ? "Monte a proposta por fases e horas, envie ao cliente e receba o aceite pelo Console."
-                : "As propostas da Anuntech para a sua empresa aparecem aqui, para leitura e resposta."
+                : "Os orçamentos da Anuntech para a sua empresa aparecem aqui, para ler, baixar o PDF e responder. Precisa de um app, um sistema ou uma função nova? Peça um orçamento."
           }
           action={
             filtered ? (
@@ -279,7 +279,14 @@ export function QuotesTable({
                   Novo orçamento
                 </Link>
               </Button>
-            ) : undefined
+            ) : (
+              <Button asChild>
+                <Link href="/chamados/novo?tipo=novo-projeto">
+                  <PlusIcon />
+                  Pedir orçamento
+                </Link>
+              </Button>
+            )
           }
         />
       )}

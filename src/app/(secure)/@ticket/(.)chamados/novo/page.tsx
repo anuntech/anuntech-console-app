@@ -9,6 +9,5 @@ export default async function Page({
 }: {
   searchParams: NewTicketSearchParams;
 }) {
-  const { companies, companyId } = await newTicketContext(searchParams);
-  return <NewTicketSheet companies={companies} companyId={companyId} />;
+  return <NewTicketSheet context={await newTicketContext(searchParams)} />;
 }

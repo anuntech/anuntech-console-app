@@ -72,7 +72,7 @@ import {
 import { PageHeader } from "@/components/console/page-header";
 import { toast } from "@/components/shell/notifications";
 import { moveTask } from "@/lib/projects/task-actions";
-import { shortDateLabel } from "@/lib/format";
+import { dueLabel, shortDateLabel } from "@/lib/format";
 import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
 import { AvatarStack, PersonAvatar } from "@/components/console/person-avatar";
 import {
@@ -92,6 +92,8 @@ import {
 } from "./project-badges";
 import { useEngagementStatus } from "./engagement-status";
 import { ProjectSheet } from "./project-form";
+import { ProjectAbout } from "./project-about";
+import { TaskReviewDialog } from "./task-review-dialog";
 import { DeleteEngagementDialog } from "./delete-engagement-dialog";
 import { TaskSheet, type BoardPerson, type BoardTask, type TaskEditor } from "./task-sheet";
 
@@ -109,7 +111,7 @@ export type ProjectBoardData = {
   };
   tasks: BoardTask[];
   people: BoardPerson[];
-  viewer: { id: string; admin: boolean };
+  viewer: { id: string; admin: boolean; approver?: boolean };
   today: string;
   now: string;
 };
@@ -170,6 +172,8 @@ function dueTone(due: string, today: string, done: boolean) {
 
 /** The card as drawn in a column and in the drag overlay. */
 function TaskCard({
+  onReview,
+  now,
   task,
   done,
   today,
@@ -183,6 +187,9 @@ function TaskCard({
   onOpen?: () => void;
   handle?: ReactNode;
   dragging?: boolean;
+  /** Opens the client's review of a delivery in Revisão. */
+  onReview?: () => void;
+  now?: string;
 }) {
   const meta =
     task.priority !== "normal" ||
@@ -212,6 +219,11 @@ function TaskCard({
         >
           {task.title}
         </span>
+        {task.requested && (
+          <span className="inline-flex w-fit items-center rounded-md bg-warning-soft px-1.5 py-px text-[11px] font-medium text-warning">
+            Pedido do cliente
+          </span>
+        )}
         {shownLabels.length > 0 && (
           <span className="flex w-full flex-wrap items-center gap-1">
             {shownLabels.map((label) => (
@@ -269,6 +281,18 @@ function TaskCard({
           </span>
         )}
       </button>
+      {task.status === "review" && (task.reviewDue || onReview) && (
+        <div className="flex items-center gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate">
+            {task.reviewDue && now ? `Teste até ${dueLabel(task.reviewDue, now)}` : "Pronta para testar"}
+          </span>
+          {onReview && (
+            <Button type="button" size="sm" className="h-7 px-2.5 text-xs" onClick={onReview}>
+              Revisar
+            </Button>
+          )}
+        </div>
+      )}
       {handle}
     </div>
   );
@@ -279,11 +303,15 @@ function SortableCard({
   status,
   today,
   onOpen,
+  onReview,
+  now,
 }: {
   task: BoardTask;
   status: TaskStatus;
   today: string;
   onOpen: (task: BoardTask) => void;
+  onReview?: (task: BoardTask) => void;
+  now: string;
 }) {
   const {
     attributes,
@@ -310,6 +338,8 @@ function SortableCard({
         done={status === "done"}
         today={today}
         onOpen={() => onOpen(task)}
+        onReview={onReview && status === "review" ? () => onReview(task) : undefined}
+        now={now}
         handle={
           <button
             ref={setActivatorNodeRef}
@@ -335,6 +365,8 @@ function Column({
   filtered,
   onOpen,
   onAdd,
+  onReview,
+  now,
 }: {
   status: TaskStatus;
   ids: string[];
@@ -343,6 +375,8 @@ function Column({
   filtered: boolean;
   onOpen: (task: BoardTask) => void;
   onAdd: (status: TaskStatus) => void;
+  onReview?: (task: BoardTask) => void;
+  now: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: "column" } });
   const label = taskStatusLabels[status];
@@ -391,7 +425,7 @@ function Column({
           {ids.map((id) => {
             const task = tasks.get(id);
             return task ? (
-              <SortableCard key={id} task={task} status={status} today={today} onOpen={onOpen} />
+              <SortableCard key={id} task={task} status={status} today={today} onOpen={onOpen} onReview={onReview} now={now} />
             ) : null;
           })}
           {ids.length === 0 && (
@@ -431,6 +465,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
   const lastOver = useRef<UniqueIdentifier | null>(null);
   const [saving, startSaving] = useTransition();
   const [editor, setEditor] = useState<TaskEditor | null>(null);
+  const [reviewing, setReviewing] = useState<BoardTask | null>(null);
   const [editingProject, setEditingProject] = useState(false);
   const [deletingProject, setDeletingProject] = useState(false);
   const deletable = viewer.admin && canDeleteEngagement(project.links);
@@ -660,6 +695,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
               Salvando…
             </span>
           )}
+          <ProjectAbout name={project.name} description={project.description} />
           <Button onClick={() => setEditor({ mode: "create", status: "todo" })}>
             <PlusIcon />
             Nova tarefa
@@ -766,6 +802,8 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
               filtered={filtering}
               onOpen={(task) => setEditor({ mode: "edit", task })}
               onAdd={(column) => setEditor({ mode: "create", status: column })}
+              onReview={viewer.approver && !viewer.admin ? setReviewing : undefined}
+              now={now}
             />
           ))}
         </div>
@@ -787,6 +825,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
         </DragOverlay>
       </DndContext>
 
+      <TaskReviewDialog task={reviewing} onClose={() => setReviewing(null)} now={now} />
       <TaskSheet
         editor={currentEditor}
         onClose={() => setEditor(null)}

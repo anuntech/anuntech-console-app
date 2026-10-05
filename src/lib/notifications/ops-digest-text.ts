@@ -1,4 +1,4 @@
-import { currency, dateLabel } from "../format";
+import { currency, dateLabel, dueLabel } from "../format";
 import { noticeChannelLabels, noticeKindLabel, noticeStatusLabels } from "../billing/billing-notice-rules";
 
 /** Everything the morning summary reports; pure data so the text can be tested. */
@@ -17,6 +17,8 @@ export type OpsDigestData = {
   }[];
   overdue: { company: string; description: string; amountCents: number; days: number }[];
   contracts: { company: string; title: string; label: string }[];
+  /** Unanswered tickets whose first response is due by tonight or already late. */
+  tickets?: { id: string; company: string; subject: string; dueAt: string }[];
   url: string;
 };
 
@@ -29,12 +31,17 @@ const list = <T,>(items: T[], line: (item: T) => string, limit = 25) =>
 
 /** The subject says at a glance whether there is anything to act on. */
 export function opsDigestText(d: OpsDigestData): { subject: string; text: string } {
-  const problems = d.paused.length + d.noticeProblems.length + d.overdue.length + d.contracts.length;
+  const tickets = d.tickets ?? [];
+  const problems = d.paused.length + d.noticeProblems.length + d.overdue.length + d.contracts.length + tickets.length;
   const date = dateLabel(d.today);
   const sections: string[] = [
     `Resumo do Console de ${date}`,
     `Emitidas nas últimas 24 h: ${d.issued24h} · Recebidas: ${d.paid24h}`,
   ];
+  if (tickets.length)
+    sections.push(
+      `Chamados sem primeira resposta, com prazo até hoje (${tickets.length}):\n${list(tickets, (t) => `${t.company} · ${t.subject} · ${new Date(t.dueAt) < new Date() ? "atrasado desde" : "até"} ${dueLabel(t.dueAt)} · ${d.url}/chamados/${t.id}`)}`,
+    );
   if (d.paused.length)
     sections.push(
       `Recorrências pausadas (${d.paused.length}):\n${list(d.paused, (p) => `${p.company} · ${p.description} · próximo ${dateLabel(p.nextDueDate)} · ${p.error ?? "sem motivo registrado"}`)}`,
@@ -52,7 +59,7 @@ export function opsDigestText(d: OpsDigestData): { subject: string; text: string
       `Contratos vencendo ou vencidos (${d.contracts.length}):\n${list(d.contracts, (c) => `${c.company} · ${c.title} · ${c.label}`)}`,
     );
   if (!problems)
-    sections.push("Tudo em dia: nenhuma recorrência pausada, nenhum aviso com problema, nenhuma fatura vencida.");
+    sections.push("Tudo em dia: nenhuma recorrência pausada, nenhum aviso com problema, nenhuma fatura vencida, nenhum chamado perto do prazo.");
   sections.push(`Abrir o Console: ${d.url}/financeiro`);
   return {
     subject: problems

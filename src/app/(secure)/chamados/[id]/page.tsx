@@ -19,8 +19,18 @@ import { normalizeEmail } from "@/lib/access/permissions";
 import {
   TicketDetail,
   type TicketAssignee,
+  type TicketClock,
   type TicketEntry,
 } from "@/components/chamados/ticket-detail";
+import { loadCalendar } from "@/lib/service-terms/terms";
+import { businessMinutesBetween } from "@/lib/service-terms/business-calendar";
+import { businessSpanLabel, visibleToClient } from "@/lib/service-terms/ticket-clock";
+import { commitmentLine } from "@/lib/service-terms/terms-text";
+import { bankTerms } from "@/lib/service-terms/hours-bank";
+import { saoPauloDate } from "@/lib/dates";
+import type { TicketHoursData } from "@/components/chamados/ticket-hours";
+import { timeEntries } from "@/db/schema";
+import { desc } from "drizzle-orm";
 export const metadata: Metadata = {
   title: "Chamado",
   description:
@@ -174,6 +184,49 @@ export default async function Ticket({
     })),
   ].sort((a, b) => a.at - b.at || a.order - b.order);
   const t = row.ticket;
+  const now = new Date();
+  // The deadlines a viewer may see: the team always, the client once the conditions are published.
+  let clock: TicketClock | null = null;
+  if (t.terms && (t.responseDueAt || t.resolutionDueAt) && (actor.admin || visibleToClient(t.terms, now))) {
+    const cal = await loadCalendar();
+    clock = {
+      label: t.terms.label,
+      responseDueAt: t.responseDueAt?.toISOString() ?? null,
+      resolutionDueAt: t.resolutionDueAt?.toISOString() ?? null,
+      firstResponseAt: t.firstResponseAt?.toISOString() ?? null,
+      respondedIn: t.firstResponseAt
+        ? businessSpanLabel(Math.max(1, businessMinutesBetween(t.createdAt, t.firstResponseAt, cal)))
+        : null,
+      pausedSince: t.status === "waiting_customer" && t.terms.policy.pausesWhileWaiting ? t.waitingSince?.toISOString() ?? null : null,
+      commitment: commitmentLine(t.terms),
+      clientFrom: actor.admin && !visibleToClient(t.terms, now) ? t.terms.publishAt : null,
+    };
+  }
+  // Hours bank and improvement estimate, where the company's conditions have them (SUP 3 and 4).
+  const bank = await bankTerms(t.companyId, { client: !actor.admin, now });
+  const improvementLimit = t.terms?.policy.improvementBankLimitMinutes ?? bank?.policy.improvementBankLimitMinutes ?? null;
+  const hours: TicketHoursData | null =
+    bank || improvementLimit || t.estimateStatus
+      ? {
+          companyId: t.companyId,
+          bank: !!bank,
+          entries: actor.admin
+            ? (
+                await db
+                  .select({ id: timeEntries.id, minutes: timeEntries.minutes, note: timeEntries.note, workedOn: timeEntries.workedOn, kind: timeEntries.kind })
+                  .from(timeEntries)
+                  .where(eq(timeEntries.ticketId, t.id))
+                  .orderBy(desc(timeEntries.workedOn))
+              )
+            : [],
+          estimate: { minutes: t.estimateMinutes, status: t.estimateStatus },
+          improvementLimitMinutes: improvementLimit,
+          canApprove: !actor.admin && canAccess(actor, t.companyId, "finance"),
+          today: saoPauloDate(now),
+        }
+      : null;
+  // A client never sees a team member's e-mail.
+  const authorIsTeam = !actor.admin && (await hasConsoleStaffAccess(row.authorEmail));
   return (
     <TicketDetail
       data={{
@@ -184,12 +237,16 @@ export default async function Ticket({
           priority: t.priority,
           assignedTo: actor.admin ? t.assignedTo : null,
           assigneeName,
+          kind: t.kind,
+          impact: t.impact,
+          channel: t.channel,
+          waitingFor: t.status === "waiting_customer" ? t.waitingFor : null,
           createdAt: t.createdAt.toISOString(),
           updatedAt: t.updatedAt.toISOString(),
           companyId: t.companyId,
           company: row.company,
           engagement: row.engagement,
-          author: { name: row.authorName, email: row.authorEmail },
+          author: { name: row.authorName, email: authorIsTeam ? "Equipe Anuntech" : row.authorEmail },
         },
         entries: timeline.map((item) => item.entry),
         files: files.map((f) => ({
@@ -202,7 +259,9 @@ export default async function Ticket({
         })),
         viewer: { admin: actor.admin },
         assignees,
-        now: new Date().toISOString(),
+        clock,
+        hours,
+        now: now.toISOString(),
       }}
     />
   );

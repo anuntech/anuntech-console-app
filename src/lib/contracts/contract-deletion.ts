@@ -1,7 +1,15 @@
 "use server";
 import { count, eq } from "drizzle-orm";
 import { z } from "zod";
-import { auditEvents, companies, contractChangeRequests, contractSignatures, contractVersions, contracts } from "@/db/schema";
+import {
+  auditEvents,
+  companies,
+  contractChangeRequests,
+  contractSignatures,
+  contractVersions,
+  contracts,
+  serviceTerms,
+} from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
@@ -44,6 +52,7 @@ export async function deleteContract(_: ActionState, form: FormData): Promise<Ac
         .select({ versions: count() })
         .from(contractVersions)
         .where(eq(contractVersions.contractId, c.id));
+      await tx.update(serviceTerms).set({ contractId: null }).where(eq(serviceTerms.contractId, c.id));
       await tx.delete(contractChangeRequests).where(eq(contractChangeRequests.contractId, c.id));
       await tx.delete(contractVersions).where(eq(contractVersions.contractId, c.id));
       await tx.delete(contracts).where(eq(contracts.id, c.id));

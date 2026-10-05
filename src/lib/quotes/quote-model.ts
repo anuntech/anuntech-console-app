@@ -9,6 +9,8 @@ export type QuotePhase = {
   description: string;
   hoursMin: number;
   hoursMax: number;
+  /** How long the phase takes, in weeks, so the client knows the timeline. Absent before 2026-10. */
+  weeks?: number | null;
   tasks: QuoteTask[];
 };
 /** What the editor produces and the proposal is built from. */
@@ -69,6 +71,7 @@ export const quoteContentSchema = z
             description: paragraph.default(""),
             hoursMin: hours,
             hoursMax: hours,
+            weeks: z.number().int("Semanas inteiras.").min(0).max(520).nullable().optional(),
             tasks: z
               .array(
                 z.object({
@@ -235,4 +238,12 @@ export function quoteListHref({ status, search, company, page = 1, pageSize = DE
   if (company) params.set("company", company);
   if (search) params.set("q", search);
   return listHref("/orcamentos", setPageParams(params, { page, pageSize }));
+}
+
+/** "3 semanas" for a phase's duration; empty when the phase has none. */
+export const weeksLabel = (weeks?: number | null) => (weeks ? (weeks === 1 ? "1 semana" : `${weeks} semanas`) : "");
+
+/** The proposal's timeline: the sum of the phases' weeks, when every phase has one. */
+export function totalWeeks(phases: QuotePhase[]) {
+  return phases.length && phases.every((p) => p.weeks) ? phases.reduce((sum, p) => sum + (p.weeks ?? 0), 0) : null;
 }

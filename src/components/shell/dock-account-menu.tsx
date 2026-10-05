@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DropdownMenu as Menu } from "radix-ui";
-import { UserRound, Palette, Users, LogOut, MessageCircleQuestion } from "lucide-react";
+import { UserRound, Palette, Users, LogOut, MessageCircleQuestion, BookOpen } from "lucide-react";
 import { authClient } from "@/lib/auth/auth-client";
 import { isCatalogAvatar } from "@/lib/account/avatar-catalog";
 import {
@@ -44,12 +44,13 @@ export function DockAccountMenu({ name, image, canManageMembers }: {
           { href: "/conta", label: "Meu perfil", icon: UserRound, allowed: true },
           { href: "/configuracoes/aparencia", label: "Aparência", icon: Palette, allowed: true },
           { href: "/configuracoes/membros", label: "Membros", icon: Users, allowed: canManageMembers },
+          { href: "/como-trabalhamos", label: "Como trabalhamos", icon: BookOpen, allowed: true },
         ].filter(item => item.allowed).map(({href, label, icon: Icon}) =>
           <Menu.Item key={href} asChild disabled={pending} onSelect={() => { navigating.current = true; }}>
             <Link href={href} className={styles.panelLink}><Icon size={18} aria-hidden="true" />{label}</Link>
           </Menu.Item>)}
         <Menu.Item className={styles.panelLink} disabled={pending} onSelect={() => setTimeout(openSupportWidget, 0)}>
-          <MessageCircleQuestion size={18} aria-hidden="true" />Falar com o suporte
+          <MessageCircleQuestion size={18} aria-hidden="true" />Conversar com a equipe
         </Menu.Item>
         <Menu.Separator className={styles.accountSeparator} />
         <Menu.Item className={`${styles.panelLink} ${styles.accountSignOut}`} disabled={pending} onSelect={async event => {

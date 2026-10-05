@@ -1,4 +1,5 @@
 "use client";
+import { cn } from "cn";
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -61,6 +62,7 @@ import {
   useTicketMove,
 } from "./ticket-actions";
 import { TicketPriorityMark, TicketStatusBadge } from "./ticket-badges";
+import { ticketKindShort, type TicketKind } from "@/lib/tickets/ticket-intake";
 
 export type TicketRow = {
   id: string;
@@ -77,6 +79,9 @@ export type TicketRow = {
   assignee?: string | null;
   /** ISO instant. */
   updatedAt: string;
+  kind?: TicketKind | null;
+  /** The deadline the row shows, already in words; `late` only for the team. */
+  due?: { label: string; late: boolean } | null;
 };
 
 const isActive = (status: TicketStatus) =>
@@ -192,6 +197,8 @@ export function TicketsTable({
   /** The page's own buttons, at the right end of the toolbar. */
   actions?: ReactNode;
 }) {
+  // The client reads that a ticket waits for them, in the filter too.
+  const filterLabels = admin ? ticketFilterLabels : { ...ticketFilterLabels, waiting_customer: "Aguardando você" };
   const router = useRouter();
   const href = (patch: Partial<TicketQuery>) =>
     ticketListHref({ ...query, ...patch });
@@ -206,6 +213,7 @@ export function TicketsTable({
   const companyColumn = admin && spansCompanies;
   const subtitle = (ticket: TicketRow) =>
     [
+      ticket.kind ? ticketKindShort[ticket.kind] : null,
       !admin && spansCompanies ? ticket.company : `Aberto por ${ticket.author}`,
       ticket.engagement,
     ]
@@ -238,12 +246,12 @@ export function TicketsTable({
             }
           >
             <SelectTrigger aria-label="Filtrar por situação" className="w-[188px]">
-              <SelectValue>{ticketFilterLabels[query.status]}</SelectValue>
+              <SelectValue>{filterLabels[query.status]}</SelectValue>
             </SelectTrigger>
             <SelectContent align="end">
               {ticketFilters.map((status) => (
                 <SelectItem key={status} value={status}>
-                  {ticketFilterLabels[status]}
+                  {filterLabels[status]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -292,7 +300,12 @@ export function TicketsTable({
                   <CompanyCell>{ticket.company}</CompanyCell>
                 )}
                 <TableCell>
-                  <TicketStatusBadge status={ticket.status} />
+                  <TicketStatusBadge status={ticket.status} client={!admin} />
+                  {ticket.due && (
+                    <span className={cn("mt-1 block text-xs whitespace-nowrap", ticket.due.late ? "font-medium text-destructive" : "text-muted-foreground")}>
+                      {ticket.due.label}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
                   <TicketPriorityMark priority={ticket.priority} />
@@ -333,7 +346,7 @@ export function TicketsTable({
               ? "Tente outro termo ou mude os filtros."
               : admin
                 ? "Tudo em dia. Novos chamados dos clientes aparecem aqui."
-                : "Quando precisar de ajuda, abra um chamado e acompanhe a conversa por aqui."
+                : "Abra um chamado quando algo der erro, quando tiver uma dúvida ou quando quiser um ajuste. A conversa e os arquivos ficam registrados aqui."
           }
           action={
             filtered ? (

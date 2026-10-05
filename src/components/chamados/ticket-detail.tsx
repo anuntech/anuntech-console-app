@@ -3,7 +3,10 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
+  CalculatorIcon,
+  ClockIcon,
   HeadsetIcon,
+  HourglassIcon,
   LockIcon,
   MoreHorizontalIcon,
   PaperclipIcon,
@@ -38,10 +41,19 @@ import { replyTicket, updateTicket } from "@/lib/actions";
 import {
   dateLabel,
   dateTimeLabel,
+  dueLabel,
   priorityLabels,
   relativeLabel,
   ticketLabels,
 } from "@/lib/format";
+import {
+  ticketChannelLabels,
+  ticketImpactLabels,
+  ticketKindLabels,
+  type TicketChannel,
+  type TicketImpact,
+  type TicketKind,
+} from "@/lib/tickets/ticket-intake";
 import type { TicketPriority, TicketStatus } from "@/lib/tickets/ticket-table";
 import { AttachmentField } from "@/components/console/attachment-field";
 import { FileChip, FileRow } from "@/components/console/file-chip";
@@ -53,6 +65,7 @@ import {
 } from "./ticket-actions";
 import { TicketPriorityMark, TicketStatusBadge } from "./ticket-badges";
 import { useTicketUploads } from "./ticket-uploads";
+import { EstimateCard, TicketHoursCard, type TicketHoursData } from "./ticket-hours";
 
 export type TicketFile = {
   id: string;
@@ -77,6 +90,19 @@ export type TicketEntry =
 /** `email` is what `updateTicket` stores in `assignedTo`. */
 /** `aliases` are other e-mails of the same person (a staff alias), so an older assignment still matches. */
 export type TicketAssignee = { name: string; email: string; aliases?: string[] };
+/** The ticket's deadlines under its company's conditions, as this viewer may see them. */
+export type TicketClock = {
+  label: string;
+  responseDueAt: string | null;
+  resolutionDueAt: string | null;
+  firstResponseAt: string | null;
+  respondedIn: string | null;
+  /** While the clock stands still waiting for the client. */
+  pausedSince: string | null;
+  commitment: string | null;
+  /** Team only: the client sees these dates from this instant. */
+  clientFrom: string | null;
+};
 export type TicketDetailData = {
   ticket: {
     id: string;
@@ -86,6 +112,11 @@ export type TicketDetailData = {
     assignedTo: string | null;
     /** For clients: the assignee's name (or "Equipe Anuntech"), never the e-mail. */
     assigneeName?: string | null;
+    kind?: TicketKind | null;
+    impact?: TicketImpact | null;
+    channel?: TicketChannel;
+    /** While waiting for the client: what the team needs. */
+    waitingFor?: string | null;
     createdAt: string;
     updatedAt: string;
     companyId: string;
@@ -99,6 +130,8 @@ export type TicketDetailData = {
   viewer: { admin: boolean };
   /** Staff who can take the ticket; loaded only for admins. */
   assignees?: TicketAssignee[];
+  clock?: TicketClock | null;
+  hours?: TicketHoursData | null;
   now: string;
 };
 
@@ -230,6 +263,114 @@ function Count({ children }: { children: ReactNode }) {
   );
 }
 
+/** What the team needs from the client to go on, in their words. */
+function WaitingNotice({ waitingFor, paused, admin }: { waitingFor?: string | null; paused: boolean; admin: boolean }) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning-soft/60 px-4 py-3 text-sm">
+      <HourglassIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
+      <div className="min-w-0 space-y-1">
+        <p className="m-0 font-medium text-foreground">
+          {admin ? "Aguardando o cliente" : "A equipe precisa de você para continuar"}
+        </p>
+        {waitingFor && <p className="m-0 whitespace-pre-wrap text-foreground">{waitingFor}</p>}
+        {paused && (
+          <p className="m-0 text-xs text-muted-foreground">
+            {admin ? "O prazo está pausado até o cliente responder." : "O prazo da Anuntech fica pausado até você responder."}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Status, with "what is missing" asked for as soon as the ticket is set to wait for the client. */
+function StatusField({ ticket }: { ticket: TicketDetailData["ticket"] }) {
+  const [status, setStatus] = useState<TicketStatus>(ticket.status);
+  return (
+    <>
+      <FormField label="Situação" htmlFor="ticket-status">
+        <NativeSelect id="ticket-status" name="status" value={status} onChange={(e) => setStatus(e.target.value as TicketStatus)}>
+          {STATUSES.map((value) => (
+            <NativeSelectOption key={value} value={value}>
+              {ticketLabels[value]}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </FormField>
+      {status === "waiting_customer" && (
+        <FormField label="O que falta" htmlFor="ticket-waiting" hint="O cliente lê este texto no chamado e no e-mail.">
+          <Textarea
+            id="ticket-waiting"
+            name="waitingFor"
+            required
+            maxLength={500}
+            rows={3}
+            defaultValue={ticket.waitingFor ?? ""}
+            placeholder="Ex.: o acesso ao painel da hospedagem e um print do erro."
+          />
+        </FormField>
+      )}
+    </>
+  );
+}
+
+/** First response and goal under the company's conditions; the team also sees lateness. */
+function ClockCard({ clock, status, admin, now }: { clock: TicketClock; status: TicketStatus; admin: boolean; now: string }) {
+  const done = status === "resolved" || status === "closed";
+  const late = (iso: string | null) => admin && !!iso && new Date(iso) < new Date(now);
+  return (
+    <Card>
+      <CardHeader>
+        <SectionTitle title="Prazos" description={clock.label} />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <dl className="grid gap-4">
+          <Fact label="Primeira resposta">
+            {clock.firstResponseAt ? (
+              <>
+                Respondido em {clock.respondedIn}
+                <span className="block text-xs text-muted-foreground">{dateTimeLabel(clock.firstResponseAt)}</span>
+              </>
+            ) : clock.responseDueAt ? (
+              <span className="flex flex-wrap items-center gap-2">
+                Até {dueLabel(clock.responseDueAt, now)}
+                {late(clock.responseDueAt) && !clock.pausedSince && <LateMark />}
+              </span>
+            ) : (
+              "Sem prazo"
+            )}
+          </Fact>
+          {clock.resolutionDueAt && !done && (
+            <Fact label="Meta de solução">
+              <span className="flex flex-wrap items-center gap-2">
+                Até {dueLabel(clock.resolutionDueAt, now)}
+                {late(clock.resolutionDueAt) && !clock.pausedSince && <LateMark />}
+              </span>
+            </Fact>
+          )}
+        </dl>
+        {clock.pausedSince && (
+          <p className="m-0 flex items-start gap-2 text-xs text-muted-foreground">
+            <ClockIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+            Prazo pausado desde {dateTimeLabel(clock.pausedSince)}: aguardando {admin ? "o cliente" : "você"}.
+          </p>
+        )}
+        {clock.commitment && <p className="m-0 text-xs leading-5 text-muted-foreground">{clock.commitment}</p>}
+        {clock.clientFrom && (
+          <p className="m-0 text-xs text-muted-foreground">O cliente vê estes prazos a partir de {dateLabel(new Date(clock.clientFrom))}.</p>
+        )}
+        <Link href="/como-trabalhamos#tempo" className="text-xs font-medium text-primary hover:underline">
+          Como contamos o tempo
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LateMark() {
+  return <span className="rounded-md bg-destructive-soft px-1.5 py-px text-[11px] font-medium text-destructive">Atrasado</span>;
+}
+
 export function TicketDetail({ data }: { data: TicketDetailData }) {
   const { ticket, entries, files, viewer, now } = data;
   const admin = viewer.admin;
@@ -247,8 +388,8 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
         title={ticket.subject}
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <TicketStatusBadge status={ticket.status} />
-            {ticket.priority === "high" && (
+            <TicketStatusBadge status={ticket.status} client={!admin} />
+            {(ticket.priority === "high" || ticket.priority === "critical") && (
               <TicketPriorityMark priority={ticket.priority} />
             )}
             <span aria-hidden="true" className="hidden sm:inline">·</span>
@@ -291,6 +432,14 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                     Novo chamado para esta empresa
                   </Link>
                 </DropdownMenuItem>
+                {(ticket.kind === "change" || ticket.kind === "new_project") && (
+                  <DropdownMenuItem asChild>
+                    <Link href={`/orcamentos/novo?companyId=${ticket.companyId}&titulo=${encodeURIComponent(ticket.subject)}`}>
+                      <CalculatorIcon />
+                      Criar orçamento deste pedido
+                    </Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 {ticket.status === "closed" ? (
                   <DropdownMenuItem onSelect={() => move("open")}>
@@ -334,14 +483,13 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                   <Count>{messages}</Count>
                 </span>
               }
-              description={
-                ticket.status === "waiting_customer" && !admin
-                  ? "A equipe aguarda sua resposta para continuar."
-                  : "Mensagens e arquivos trocados neste chamado."
-              }
+              description="Mensagens e arquivos trocados neste chamado."
             />
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
+            {ticket.status === "waiting_customer" && (
+              <WaitingNotice waitingFor={ticket.waitingFor} paused={!!data.clock?.pausedSince} admin={admin} />
+            )}
             <ol className="flex flex-col gap-6">
               {entries.map((entry) =>
                 entry.kind === "message" ? (
@@ -419,25 +567,13 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
             <CardContent>
               {admin ? (
                 <ServerForm
-                  key={`${ticket.status}-${ticket.priority}-${ticket.assignedTo ?? ""}`}
+                  key={`${ticket.status}-${ticket.priority}-${ticket.assignedTo ?? ""}-${ticket.waitingFor ?? ""}`}
                   action={updateTicket}
                   className="flex flex-col gap-5"
                 >
                   <input type="hidden" name="ticketId" value={ticket.id} />
                   <FormError />
-                  <FormField label="Situação" htmlFor="ticket-status">
-                    <NativeSelect
-                      id="ticket-status"
-                      name="status"
-                      defaultValue={ticket.status}
-                    >
-                      {STATUSES.map((status) => (
-                        <NativeSelectOption key={status} value={status}>
-                          {ticketLabels[status]}
-                        </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </FormField>
+                  <StatusField ticket={ticket} />
                   <FormField label="Prioridade" htmlFor="ticket-priority">
                     <NativeSelect
                       id="ticket-priority"
@@ -449,6 +585,9 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                       </NativeSelectOption>
                       <NativeSelectOption value="high">
                         {priorityLabels.high}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="critical">
+                        {priorityLabels.critical}
                       </NativeSelectOption>
                     </NativeSelect>
                   </FormField>
@@ -475,7 +614,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
               ) : (
                 <dl className="grid gap-4">
                   <Fact label="Situação">
-                    <TicketStatusBadge status={ticket.status} />
+                    <TicketStatusBadge status={ticket.status} client />
                   </Fact>
                   <Fact label="Prioridade">
                     <TicketPriorityMark priority={ticket.priority} />
@@ -503,8 +642,19 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                     ticket.company
                   )}
                 </Fact>
+                {ticket.kind && (
+                  <Fact label="Tipo">
+                    {ticketKindLabels[ticket.kind]}
+                    {ticket.impact && (
+                      <span className="block text-xs text-muted-foreground">{ticketImpactLabels[ticket.impact]}</span>
+                    )}
+                  </Fact>
+                )}
                 {ticket.engagement && (
                   <Fact label="Produto ou projeto">{ticket.engagement}</Fact>
+                )}
+                {admin && ticket.channel && ticket.channel !== "console" && (
+                  <Fact label="Recebido por">{ticketChannelLabels[ticket.channel]}</Fact>
                 )}
                 <Fact label="Aberto por">
                   {ticket.author.name}
@@ -519,6 +669,9 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
               </dl>
             </CardContent>
           </Card>
+
+          {data.clock && <ClockCard clock={data.clock} status={ticket.status} admin={admin} now={now} />}
+          {data.hours && (admin ? <TicketHoursCard ticketId={ticket.id} data={data.hours} /> : <EstimateCard ticketId={ticket.id} data={data.hours} />)}
 
           <Card>
             <CardHeader>

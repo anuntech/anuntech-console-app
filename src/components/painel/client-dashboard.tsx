@@ -15,10 +15,11 @@ import {
   PlusIcon,
   ReceiptTextIcon,
   WalletIcon,
+  Clock3Icon,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { companies, contractSignatures, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
-import { allowedIds, type Actor } from "@/lib/access/access";
+import { allowedIds, canAccess, type Actor } from "@/lib/access/access";
 import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { currency, dateLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
@@ -26,6 +27,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { TicketStatusBadge } from "@/components/chamados/ticket-badges";
+import { FirstStepsCard } from "@/components/guide/first-steps-card";
+import { firstStepsFor } from "@/lib/guide/first-steps";
+import { bankCard, type BankCard } from "@/lib/service-terms/hours-bank";
+import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
 import { AttentionList, KpiTile, type AttentionItem } from "@/components/painel/dashboard-parts";
@@ -310,6 +315,32 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   ];
   const attention = candidates.filter((item): item is AttentionItem => item !== false);
 
+  const firstSteps = await firstStepsFor(actor);
+  // Each company's hours bank, once its conditions are published, and estimates waiting for an Administrador.
+  const banks = (
+    await Promise.all(actor.grants.map((g) => bankCard(g.company.id, g.company.name, { client: true, now })))
+  ).filter((b): b is BankCard => !!b);
+  const [estimates] = canFinance
+    ? await db
+        .select({ n: count() })
+        .from(tickets)
+        .where(and(inArray(tickets.companyId, financeIds), eq(tickets.estimateStatus, "proposed")))
+    : [{ n: 0 }];
+  for (const bank of banks) {
+    const percent = bank.includedMinutes ? Math.round((bank.usedMinutes / bank.includedMinutes) * 100) : 0;
+    if (percent < bank.alertPercent) continue;
+    attention.push({
+      key: `bank-${bank.companyId}`,
+      icon: <Clock3Icon />,
+      tone: "warning",
+      title: banks.length > 1 ? `Banco de horas de ${bank.companyName} em ${percent}%` : `Banco de horas em ${percent}%`,
+      detail: "Fora defeito crítico, nada passa do banco sem a aprovação de um Administrador",
+      count: Math.round(bank.usedMinutes / 60),
+      href: `#banco-de-horas-${bank.companyId}`,
+    });
+  }
+  if (estimates.n > 0)
+    attention.push({ key: "estimates", icon: <Clock3Icon />, title: "Estimativas de melhoria para aprovar", count: estimates.n, href: "/chamados" });
   const firstName = (actor.user.name || "").trim().split(/\s+/)[0];
   const dateLine = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(now);
   const next = openInvoices[0]?.invoice;
@@ -330,6 +361,12 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           )
         }
       />
+      {firstSteps && <FirstStepsCard data={firstSteps} />}
+      {banks.map((bank) => (
+        <div key={bank.companyId} id={`banco-de-horas-${bank.companyId}`} className="mb-6 scroll-mt-6">
+          <HoursBankCard viewer={canAccess(actor, bank.companyId, "finance") ? "approver" : "member"} bank={bank} showCompany={banks.length > 1} />
+        </div>
+      ))}
 
       <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {canFinance && (
@@ -486,7 +523,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                     leading={<Tile icon={<HeadsetIcon />} />}
                     title={ticket.subject}
                     detail={manyCompanies ? company : undefined}
-                    trailing={<TicketStatusBadge status={ticket.status} />}
+                    trailing={<TicketStatusBadge status={ticket.status} client />}
                   />
                 ))}
               </ul>

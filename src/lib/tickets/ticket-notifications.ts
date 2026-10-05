@@ -35,7 +35,10 @@ export async function enqueueTicketNotice(
    * the Anuntech side moved it. Preferences address the company's contacts.
    */
   author?: { email: string; kind?: "receipt" | "movement" } | null,
+  /** Lines that follow the movement: what the team needs, when the first response is due. */
+  detail?: string | null,
 ) {
+  const extra = detail ? `\n\n${detail}` : "";
   await lockTicketNotifications(tx);
   const operationalEnabled = await ticketNotificationsEnabled(tx);
   const [company] = await tx
@@ -87,7 +90,7 @@ export async function enqueueTicketNotice(
           from: process.env.EMAIL_FROM || "",
           to: email,
           subject: `${movement} · ${ticket.subject}`,
-          text: `${movement}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nConsole da Anuntech`,
+          text: `${movement}${extra}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nConsole da Anuntech`,
         },
       });
     }
@@ -138,8 +141,8 @@ export async function enqueueTicketNotice(
         subject: `${movement} · ${ticket.subject}`,
         text:
           author?.kind === "movement"
-            ? `${movement}\n\nA equipe da Anuntech atualizou o seu chamado.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`
-            : `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`,
+            ? `${movement}${extra}\n\nA equipe da Anuntech atualizou o seu chamado.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`
+            : `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.${extra}\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`,
       },
     });
   if (queued.length)

@@ -528,17 +528,18 @@ const editProject = tool({
 const editTicket = tool({
   name: "atualizar_chamado",
   area: "chamados",
-  description: "Muda a situação (open, in_progress, waiting_customer, resolved, closed), a prioridade (normal, high) ou o responsável (e-mail da equipe) de um chamado. Só equipe.",
+  description: "Muda a situação (open, in_progress, waiting_customer, resolved, closed), a prioridade (critical, high, normal) ou o responsável (e-mail da equipe) de um chamado. Para waiting_customer, diga em oQueFalta o que a equipe precisa do cliente; o cliente lê esse texto. Só equipe.",
   input: z.object({
     chamadoId: id,
     situacao: z.enum(["open", "in_progress", "waiting_customer", "resolved", "closed"]).optional(),
-    prioridade: z.enum(["normal", "high"]).optional(),
+    prioridade: z.enum(["critical", "high", "normal"]).optional(),
     responsavelEmail: z.string().trim().email().optional(),
+    oQueFalta: z.string().trim().max(500).optional(),
   }),
   staffOnly: true,
   write: true,
   run: async (_ctx, input) => {
-    await submit(updateTicket, { ticketId: input.chamadoId, status: input.situacao, priority: input.prioridade, assignedTo: input.responsavelEmail });
+    await submit(updateTicket, { ticketId: input.chamadoId, status: input.situacao, priority: input.prioridade, assignedTo: input.responsavelEmail, waitingFor: input.oQueFalta });
     return {
       result: { atualizado: true, situacao: input.situacao ? ticketLabels[input.situacao] : undefined, prioridade: input.prioridade ? priorityLabels[input.prioridade] : undefined, link: `/chamados/${input.chamadoId}` },
       summary: "Atualizei o chamado",

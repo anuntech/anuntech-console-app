@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import {
   auditEvents,
   billingNotices,
@@ -9,6 +9,7 @@ import {
   contracts,
   invoices,
   subscriptions,
+  tickets,
 } from "@/db/schema";
 import { db } from "../db";
 import { dateLabel } from "../format";
@@ -104,7 +105,7 @@ export async function alertNoticeProblem(noticeId: string) {
 export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDigestData> {
   const since = new Date(Date.now() - 24 * 3600 * 1000);
   const horizon = addDays(today, EXPIRY_WARNING_DAYS);
-  const [issued, paid, paused, problems, overdue, ending] = await Promise.all([
+  const [issued, paid, paused, problems, overdue, ending, ticketsDue] = await Promise.all([
     db
       .select({ id: auditEvents.id })
       .from(auditEvents)
@@ -166,6 +167,19 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
         ),
       )
       .orderBy(contracts.endsAt),
+    // Unanswered tickets past their first-response deadline or due before the end of today.
+    db
+      .select({ id: tickets.id, company: companies.name, subject: tickets.subject, dueAt: tickets.responseDueAt })
+      .from(tickets)
+      .innerJoin(companies, eq(companies.id, tickets.companyId))
+      .where(
+        and(
+          isNull(tickets.firstResponseAt),
+          inArray(tickets.status, ["open", "in_progress"]),
+          sql`${tickets.responseDueAt} < (date_trunc('day', now() at time zone 'America/Sao_Paulo') + interval '1 day') at time zone 'America/Sao_Paulo'`,
+        ),
+      )
+      .orderBy(asc(tickets.responseDueAt)),
   ]);
   return {
     today,
@@ -177,6 +191,7 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
     contracts: ending
       .map((c) => ({ company: c.company, title: c.title, label: contractTermLabel(contractTerm(c, today)) }))
       .filter((c): c is { company: string; title: string; label: string } => !!c.label),
+    tickets: ticketsDue.map((t) => ({ company: t.company, subject: t.subject, dueAt: t.dueAt!.toISOString(), id: t.id })),
     url: consoleUrl(),
   };
 }
@@ -186,6 +201,6 @@ export async function sendOpsDigest() {
   const data = await collectOpsDigest();
   const { subject, text } = opsDigestText(data);
   const delivered = await sendOpsMail(subject, text);
-  return { delivered, problems: data.paused.length + data.noticeProblems.length + data.overdue.length + data.contracts.length };
+  return { delivered, problems: data.paused.length + data.noticeProblems.length + data.overdue.length + data.contracts.length + (data.tickets?.length ?? 0) };
 }
 

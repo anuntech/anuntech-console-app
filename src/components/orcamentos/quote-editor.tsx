@@ -99,7 +99,7 @@ function PhaseEditor({
       <div className="flex items-start gap-3">
         <span className="mt-2 w-6 shrink-0 text-xs font-semibold text-muted-foreground tabular-nums">P{index + 1}</span>
         <div className="grid min-w-0 flex-1 gap-3">
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px_96px]">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_88px_88px_88px]">
             <FormField label="Fase" htmlFor={`${uid}-name`}>
               <Input
                 id={`${uid}-name`}
@@ -128,6 +128,17 @@ function PhaseEditor({
                 placeholder="0"
                 value={phase.hoursMax || ""}
                 onChange={(event) => onChange({ ...phase, hoursMax: whole(event.target.value) })}
+                className="tabular-nums"
+              />
+            </FormField>
+            <FormField label="Semanas" htmlFor={`${uid}-weeks`}>
+              <Input
+                id={`${uid}-weeks`}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="—"
+                value={phase.weeks || ""}
+                onChange={(event) => onChange({ ...phase, weeks: whole(event.target.value) || null })}
                 className="tabular-nums"
               />
             </FormField>

@@ -1,18 +1,17 @@
 "use client";
 import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import { createTicket } from "@/lib/actions";
-import { TicketFields, type TicketCompanyOption } from "./ticket-form";
+import { TicketFields } from "./ticket-form";
+import type { TicketFormContext } from "./new-ticket-context";
 import { useTicketUploads } from "./ticket-uploads";
 
 /** Opens a ticket in a side sheet, the same surface Empresas uses to create. */
 export function TicketSheet({
-  companies,
-  companyId,
+  context,
   open,
   onOpenChange,
 }: {
-  companies: TicketCompanyOption[];
-  companyId?: string;
+  context: TicketFormContext;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -21,14 +20,14 @@ export function TicketSheet({
     <FormSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Novo chamado"
-      description="Como podemos ajudar?"
+      title={context.kind === "new_project" ? "Pedir orçamento" : "Novo chamado"}
+      description={context.kind === "new_project" ? "Conte o que você precisa. A equipe conversa com você e prepara um orçamento." : "Como podemos ajudar?"}
       action={createTicket}
       prepare={uploads}
-      submitLabel="Abrir chamado"
+      submitLabel={context.kind === "new_project" ? "Enviar pedido" : "Abrir chamado"}
       pendingLabel="Abrindo…"
     >
-      <TicketFields companies={companies} companyId={companyId} autoFocus />
+      <TicketFields context={context} autoFocus />
     </FormSheet>
   );
 }
@@ -37,13 +36,7 @@ export function TicketSheet({
  * /chamados/novo reached by navigation: the sheet slides over the current
  * page and closing returns to it. Success navigates to the new ticket.
  */
-export function NewTicketSheet({
-  companies,
-  companyId,
-}: {
-  companies: TicketCompanyOption[];
-  companyId?: string;
-}) {
+export function NewTicketSheet({ context }: { context: TicketFormContext }) {
   const sheet = useRouteSheet();
-  return <TicketSheet companies={companies} companyId={companyId} {...sheet} />;
+  return <TicketSheet context={context} {...sheet} />;
 }

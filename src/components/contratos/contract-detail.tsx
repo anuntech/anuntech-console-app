@@ -476,6 +476,29 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
 
         <aside className="flex min-w-0 flex-col gap-6">
           {roundCard && <div className="hidden lg:block">{roundCard}</div>}
+          {viewer.party === "client" && c.status === "signed" && !amendment && (
+            <Card className="gap-4 py-5">
+              <CardHeader>
+                <SectionTitle title="Próximos passos" description="O que acontece com o contrato assinado." />
+              </CardHeader>
+              <CardContent>
+                <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-sm leading-6 text-foreground marker:text-muted-foreground">
+                  <li>
+                    As cobranças aparecem em <Link href="/financeiro" className="font-medium hover:text-primary">Financeiro</Link>.
+                  </li>
+                  <li>
+                    Acessos, dúvidas e pedidos seguem por <Link href="/chamados" className="font-medium hover:text-primary">chamado</Link>.
+                  </li>
+                  <li>
+                    O andamento de um projeto fica em <Link href="/projetos" className="font-medium hover:text-primary">Projetos</Link>.
+                  </li>
+                  <li>
+                    <Link href="/como-trabalhamos" className="font-medium hover:text-primary">Como trabalhamos</Link> mostra os prazos e o que ajuda a equipe.
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <SectionTitle

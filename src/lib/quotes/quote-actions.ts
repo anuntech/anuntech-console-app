@@ -306,7 +306,7 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
     return {
       success: notified
         ? `Orçamento enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
-        : "Orçamento enviado. Ninguém da empresa tem acesso de gestor para avisar; libere o acesso em Empresas.",
+        : "Orçamento enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.",
     };
   } catch (e) {
     return failure(e);
@@ -376,7 +376,7 @@ export async function answerQuote(_: ActionState, form: FormData): Promise<Actio
     const [q] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
     if (!q || !canAccess(actor, q.companyId, "finance")) return blocked;
     const party = partyFor(actor, q.companyId);
-    if (!party) return { error: "Só gestores da empresa podem responder ao orçamento." };
+    if (!party) return { error: "Só um Administrador da empresa pode responder ao orçamento." };
     if (q.status !== "sent" || !q.publication || !q.documentHash) return { error: "Este orçamento não está aguardando resposta." };
     if (quoteExpired(q.status, q.validUntil, saoPauloDate()))
       return {

@@ -16,9 +16,12 @@ import {
   PlusIcon,
   ReceiptTextIcon,
   WalletIcon,
+  ScaleIcon,
+  ClockIcon,
 } from "lucide-react";
 import { db } from "@/lib/db";
-import { auditEvents, companies, contracts, invoices, quotes, subscriptions, tickets, user } from "@/db/schema";
+import { banksAtAlert } from "@/lib/service-terms/hours-bank";
+import { auditEvents, companies, contracts, invoices, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
 import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
@@ -121,6 +124,8 @@ export default async function Dashboard() {
     recentTickets,
     recentInvoices,
     activity,
+    [ticketsDue],
+    [unsetTerms],
   ] = await Promise.all([
     db
       .select({
@@ -188,6 +193,30 @@ export default async function Dashboard() {
       .where(sql`${auditEvents.action} not like 'account.%'`)
       .orderBy(desc(auditEvents.createdAt))
       .limit(6),
+    // Unanswered tickets whose first response is due within a business hour, or late.
+    db
+      .select({
+        n: count(),
+        late: sql<number>`count(*) filter (where ${tickets.responseDueAt} < now())::int`,
+      })
+      .from(tickets)
+      .where(
+        and(
+          sql`${tickets.firstResponseAt} is null`,
+          inArray(tickets.status, ["open", "in_progress"]),
+          sql`${tickets.responseDueAt} < now() + interval '1 hour'`,
+        ),
+      ),
+    // Companies with a signed contract and no verified conditions: their tickets have no deadline.
+    db
+      .select({ n: sql<number>`count(distinct ${contracts.companyId})::int` })
+      .from(contracts)
+      .where(
+        and(
+          eq(contracts.status, "signed"),
+          sql`not exists (select 1 from ${serviceTerms} where ${serviceTerms.companyId} = ${contracts.companyId} and ${serviceTerms.active} and ${serviceTerms.verifiedAt} is not null)`,
+        ),
+      )
   ]);
 
   const byMonth = new Map(billing.map((row) => [row.month, row]));
@@ -212,6 +241,15 @@ export default async function Dashboard() {
       detail: `${currency(cents(overdue.total))} em atraso`,
       count: overdue.n,
       href: "/financeiro?status=overdue",
+    },
+    ticketsDue.n > 0 && {
+      key: "tickets-due",
+      icon: <ClockIcon />,
+      tone: "critical" as const,
+      title: "Chamados perto do prazo de resposta",
+      detail: ticketsDue.late ? `${plural(ticketsDue.late, "já atrasado", "já atrasados")}` : "Vencem na próxima hora útil",
+      count: ticketsDue.n,
+      href: "/chamados?status=active",
     },
     ticketsWaitingTeam.n > 0 && {
       key: "tickets",
@@ -262,6 +300,26 @@ export default async function Dashboard() {
       href: "/financeiro?status=draft",
     },
   ];
+  const banks = await banksAtAlert();
+  if (banks.length)
+    candidates.push({
+      key: "banks",
+      icon: <ClockIcon />,
+      tone: "warning",
+      title: "Bancos de horas no limite de aviso",
+      detail: "Avise o cliente e peça aprovação antes de passar do banco",
+      count: banks.length,
+      href: banks.length === 1 ? `/empresas/${banks[0].companyId}` : "/empresas",
+    });
+  if (unsetTerms.n > 0)
+    candidates.push({
+      key: "terms",
+      icon: <ScaleIcon />,
+      title: "Contratos assinados sem condições",
+      detail: "Os chamados dessas empresas ficam sem prazo",
+      count: unsetTerms.n,
+      href: "/empresas",
+    });
   const attention = candidates.filter((item): item is AttentionItem => item !== false);
 
   const feed: ActivityEntry[] = activity.map((event) => ({

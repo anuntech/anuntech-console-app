@@ -128,6 +128,8 @@ export async function createTask(
     if (!context) return blocked;
     const { actor, project } = context;
     const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project.companyId);
+    // A task the client creates is a request: it waits in the Backlog until the team takes it into the work.
+    if (!actor.admin) input.status = "backlog";
     let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
     try {
       direct = await prepareTicketFiles(form.getAll("files"));
@@ -162,6 +164,8 @@ export async function createTask(
           estimateMinutes,
           position: (last ?? 0) + STEP,
           createdBy: actor.user.id,
+          requested: !actor.admin,
+          reviewSince: input.status === "review" ? new Date() : null,
         })
         .returning({ id: tasks.id });
       if (assigneeIds.length)
@@ -179,7 +183,7 @@ export async function createTask(
         entityId: row.id,
         details: { engagementId: project.id, title: input.title },
       });
-      return { success: "Tarefa criada." };
+      return { success: actor.admin ? "Tarefa criada." : "Pedido criado no Backlog. A equipe confirma se ele faz parte do combinado." };
     });
     if (result.success) refresh(project.id);
     return result;
@@ -202,6 +206,8 @@ export async function updateTask(
     if (!context) return blocked;
     const { actor, project } = context;
     const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project.companyId);
+    const refused = statusRefusal(actor.admin, current, input.status);
+    if (refused) return { error: refused };
     // Saved files the sheet marked for removal go only when the task saves.
     const removeIds = [...new Set(form.getAll("removeFileId").map(String))];
     if (removeIds.length > MAX_FILES_PER_TASK || removeIds.some((value) => !id.safeParse(value).success))
@@ -263,6 +269,7 @@ export async function updateTask(
           labels,
           estimateMinutes,
           position,
+          ...statusSideEffects(actor.admin, current, input.status),
           updatedAt: new Date(),
         })
         .where(eq(tasks.id, input.id));
@@ -358,6 +365,8 @@ export async function moveTask(input: {
     const context = await projectFor(current.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
+    const refused = statusRefusal(actor.admin, current, status);
+    if (refused) return { error: refused };
     await db.transaction(async (tx) => {
       const column = (
         await tx
@@ -389,7 +398,7 @@ export async function moveTask(input: {
       }
       await tx
         .update(tasks)
-        .set({ status, position, updatedAt: new Date() })
+        .set({ status, position, ...statusSideEffects(actor.admin, current, status), updatedAt: new Date() })
         .where(eq(tasks.id, taskId));
       if (current.status !== status)
         await tx.insert(auditEvents).values({
@@ -404,6 +413,98 @@ export async function moveTask(input: {
     return { success: "" };
   } catch {
     return { error: "Não foi possível mover a tarefa. Recarregue a página e tente de novo." };
+  }
+}
+
+/**
+ * The board's rules for the client (D16): only the team concludes a task,
+ * and a client's request stays in the Backlog until the team takes it in.
+ * In Revisão, the client approves or reports a problem (reviewTask).
+ */
+function statusRefusal(admin: boolean, current: typeof tasks.$inferSelect, next: TaskStatus) {
+  if (admin || next === current.status) return null;
+  if (next === "done")
+    return current.status === "review"
+      ? "Para concluir, use Aprovar na tarefa em Revisão."
+      : "Só a equipe conclui tarefas. Quando a entrega estiver pronta, ela aparece em Revisão para você aprovar.";
+  // Only the team says a delivery is ready; in Revisão the client answers through Revisar.
+  if (next === "review") return "Só a equipe coloca uma entrega em Revisão.";
+  if (current.status === "review") return "Esta entrega está em Revisão: use Revisar para aprovar ou apontar um problema.";
+  if (current.requested && current.status === "backlog")
+    return "Este pedido fica no Backlog até a equipe confirmar se ele faz parte do combinado.";
+  return null;
+}
+
+/** Entering Revisão starts the client's test window; the team moving a request takes it into the work. */
+function statusSideEffects(admin: boolean, current: typeof tasks.$inferSelect, next: TaskStatus) {
+  if (next === current.status) return {};
+  return {
+    reviewSince: next === "review" ? new Date() : null,
+    ...(admin && current.requested && next !== "backlog" ? { requested: false } : {}),
+    ...(next !== "done" ? { approvedBy: null, approvedAt: null } : {}),
+  };
+}
+
+/**
+ * The client's answer to a delivery in Revisão: approve it (the task is
+ * done, with who and when on record) or report a problem (it goes back to
+ * the team with the report as a comment). Administradores answer for the
+ * company, as with quotes and contracts.
+ */
+export async function reviewTask(_: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const input = z
+      .object({
+        id,
+        decision: z.enum(["approve", "problem"]),
+        note: z.string().trim().max(5000, "Use até 5 mil caracteres.").default(""),
+      })
+      .parse(Object.fromEntries(form));
+    const [current] = await db.select().from(tasks).where(eq(tasks.id, input.id));
+    if (!current) return blocked;
+    const context = await projectFor(current.engagementId);
+    if (!context) return blocked;
+    const { actor, project } = context;
+    if (!actor.admin && !canAccess(actor, project.companyId, "finance"))
+      return { error: "Só um Administrador da empresa aprova entregas." };
+    if (current.status !== "review") return { error: "Esta tarefa não está mais em Revisão." };
+    if (input.decision === "problem" && !input.note) return { error: "Conte o que não funcionou como esperado." };
+    await db.transaction(async (tx) => {
+      const status: TaskStatus = input.decision === "approve" ? "done" : "in_progress";
+      const [{ last }] = await tx
+        .select({ last: max(tasks.position) })
+        .from(tasks)
+        .where(and(eq(tasks.engagementId, project.id), eq(tasks.status, status)));
+      const now = new Date();
+      await tx
+        .update(tasks)
+        .set({
+          status,
+          position: (last ?? 0) + STEP,
+          reviewSince: null,
+          approvedBy: input.decision === "approve" ? actor.user.id : null,
+          approvedAt: input.decision === "approve" ? now : null,
+          updatedAt: now,
+        })
+        .where(eq(tasks.id, current.id));
+      if (input.note)
+        await tx.insert(taskComments).values({
+          taskId: current.id,
+          authorId: actor.user.id,
+          body: input.decision === "approve" ? input.note : `Encontrei um problema: ${input.note}`,
+        });
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: project.companyId,
+        action: input.decision === "approve" ? "task.approved" : "task.review_failed",
+        entityId: current.id,
+        details: { engagementId: project.id },
+      });
+    });
+    refresh(project.id);
+    return { success: input.decision === "approve" ? "Entrega aprovada." : "Problema enviado à equipe." };
+  } catch (error) {
+    return failure(error);
   }
 }
 

@@ -15,6 +15,8 @@ export type NewQuoteData = {
   companies: CompanyOption[];
   /** Preselected when the flow starts from a company. */
   companyId?: string;
+  /** Prefilled when the flow starts from a client's request. */
+  title?: string;
 };
 
 const DESCRIPTION = "Nasce como rascunho; em seguida você monta fases, horas e valores.";
@@ -22,7 +24,7 @@ const DESCRIPTION = "Nasce como rascunho; em seguida você monta fases, horas e 
  * Who the proposal is for, its title and validity. Phases, rate and the rest
  * are edited on the draft itself, so the content starts empty.
  */
-export function NewQuoteFields({ companies, companyId }: NewQuoteData) {
+export function NewQuoteFields({ companies, companyId, title }: NewQuoteData) {
   const decided = companies.length === 1 || !!companyId;
   return (
     <>
@@ -48,6 +50,7 @@ export function NewQuoteFields({ companies, companyId }: NewQuoteData) {
           required
           maxLength={160}
           placeholder="Ex.: Sistema de controle de OS/OR"
+          defaultValue={title}
           autoFocus={decided}
         />
       </FormField>

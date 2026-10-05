@@ -32,6 +32,11 @@ export const ticketLabels: Record<string, string> = {
   resolved: "Resolvido",
   closed: "Encerrado",
 };
+/** What the client reads: the ticket waits for "você", not for "cliente". */
+export const clientTicketLabels: Record<string, string> = {
+  ...ticketLabels,
+  waiting_customer: "Aguardando você",
+};
 export const priorityLabels: Record<string, string> = {
   critical: "Crítica",
   high: "Alta",
@@ -171,3 +176,24 @@ export const auditLabels: Record<string, string> = {
   "assisted.started": "Acesso assistido iniciado por um administrador",
   "assisted.ended": "Acesso assistido encerrado",
 };
+
+/**
+ * A deadline as people say it: "ter., 13/10, 12h" or "ter., 13/10, 12h30",
+ * with "hoje" and "amanhã" when close. São Paulo time.
+ */
+export function dueLabel(date: Date | string, now: Date | string = new Date()) {
+  const at = typeof date === "string" ? new Date(date) : date;
+  const day = (d: Date) => new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(at)
+      .map((p) => [p.type, p.value]),
+  );
+  const hour = `${Number(parts.hour)}h${parts.minute === "00" ? "" : parts.minute}`;
+  const today = typeof now === "string" ? new Date(now) : now;
+  if (day(at) === day(today)) return `hoje, ${hour}`;
+  if (day(at) === day(new Date(today.getTime() + 86400000))) return `amanhã, ${hour}`;
+  const weekday = new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, weekday: "short" }).format(at);
+  const date2 = new Intl.DateTimeFormat(APP_LOCALE, { timeZone: APP_TIME_ZONE, day: "2-digit", month: "2-digit" }).format(at);
+  return `${weekday} ${date2}, ${hour}`;
+}

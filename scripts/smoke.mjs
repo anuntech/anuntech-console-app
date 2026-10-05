@@ -428,7 +428,10 @@ try {
     );
 
     const ticketForm = await request("/chamados/novo", "support");
-    ok(ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="engagementId"'), "Novo chamado só pede assunto, descrição e anexos");
+    ok(
+      ticketForm.text.includes('name="kind"') && ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="channel"') && ticketForm.text.includes("/como-trabalhamos"),
+      "Novo chamado pergunta o tipo, não deixa o cliente escolher prioridade nem canal e aponta Como trabalhamos",
+    );
     const contextual = await request(`/chamados/novo?from=${encodeURIComponent(`/chamados/${ids.ticketB}`)}`, "admin");
     ok(contextual.text.includes(`value="${ids.b}"`), "Equipe usa empresa do chamado em contexto");
     const forbiddenContext = await request(`/chamados/novo?companyId=${ids.b}`, "support");
@@ -453,6 +456,101 @@ try {
       companyId: ids.a, subject: `Invalid file ${marker}`, body: "Invalid attachment", files: new File(["invalid"], "fake.pdf"),
     });
     ok((await database.query("select id from console_tickets where subject=$1", [`Invalid file ${marker}`])).rowCount === 0, "Anexo inválido impede criação parcial do chamado");
+
+    // Como trabalhamos: the guided form, priorities by the team, the company's conditions and the ticket clock.
+    r = await request("/como-trabalhamos", "support");
+    ok(r.status === 200 && r.text.includes("Quando abrir um chamado") && r.text.includes("Contratar algo novo"), "Como trabalhamos abre para o cliente");
+    const ticketRow = async (subject) =>
+      (await database.query("select * from console_tickets where subject=$1", [subject])).rows[0];
+    await submitForm("/chamados/novo", "support", "support", { action: "createTicket" }, {
+      companyId: ids.a, subject: `Guided down ${marker}`, body: "Parou tudo", kind: "problem", impact: "down", priority: "critical", channel: "whatsapp",
+    });
+    let guided = await ticketRow(`Guided down ${marker}`);
+    ok(
+      guided?.kind === "problem" && guided.impact === "down" && guided.priority === "high" && guided.channel === "console" && guided.response_due_at === null,
+      "Cliente não escolhe prioridade nem canal; sem condições, o impacto sugere Alta e não há prazo",
+    );
+    const termsFields = {
+      companyId: ids.a, basis: "external_contract", preset: "support", label: `Suporte ${marker}`, levels: "on",
+      criticalResponse: "4", criticalGoal: "9", highResponse: "9", highGoal: "27", normalResponse: "18", normalGoal: "90",
+      responseClause: "SUP 5.1", pausesWhileWaiting: "on", pauseClause: "SUP 5.3", clientResponseDays: "5", testDays: "5",
+      tacitAcceptance: "on", bankHours: "2", bankAlertPercent: "80", reportContestDays: "5", improvementBankLimit: "8",
+      improvementWarrantyDays: "60", outOfHours: "not_included", includesDevelopment: "on", suspensionDays: "15",
+      suspensionNotice: "on", publishAt: "", verified: "on",
+    };
+    await submitForm(`/empresas/${ids.a}`, "admin", "finance", { action: "saveServiceTerms" }, { ...termsFields, label: `Client terms ${marker}` });
+    ok((await database.query("select id from console_service_terms where label=$1", [`Client terms ${marker}`])).rowCount === 0, "Cliente não grava condições de atendimento");
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "saveServiceTerms" }, termsFields);
+    const savedTerms = (await database.query("select verified_at, policy from console_service_terms where company_id=$1 and active", [ids.a])).rows[0];
+    ok(
+      !!savedTerms?.verified_at && savedTerms.policy.response.critical.firstResponseMinutes === 240 && savedTerms.policy.response.normal.goalMinutes === 5400 && savedTerms.policy.hoursBank.monthlyMinutes === 120,
+      "Equipe registra condições conferidas, em minutos úteis, com o banco de horas",
+    );
+    await submitForm("/chamados/novo", "support", "support", { action: "createTicket" }, {
+      companyId: ids.a, subject: `Guided critical ${marker}`, body: "Parou de novo", kind: "problem", impact: "down",
+    });
+    guided = await ticketRow(`Guided critical ${marker}`);
+    ok(
+      guided?.priority === "critical" && !!guided.response_due_at && !!guided.resolution_due_at && guided.terms?.label === `Suporte ${marker}`,
+      "Com condições, Parou tudo vira Crítica e o chamado guarda o contrato e os prazos",
+    );
+    await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "updateTicket" }, { ticketId: guided.id, status: "waiting_customer" });
+    ok((await ticketRow(`Guided critical ${marker}`)).status === "open", "Equipe não deixa o chamado esperando o cliente sem dizer o que falta");
+    await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "updateTicket" }, { ticketId: guided.id, status: "waiting_customer", waitingFor: `O print do erro ${marker}` });
+    guided = await ticketRow(`Guided critical ${marker}`);
+    ok(guided.status === "waiting_customer" && guided.waiting_for === `O print do erro ${marker}` && !!guided.waiting_since, "Aguardando o cliente guarda o que falta e desde quando");
+    const askedAt = guided.first_response_at;
+    ok(!!askedAt, "Pedir algo ao cliente conta como a primeira resposta da equipe");
+    r = await request(`/chamados/${guided.id}`, "support");
+    ok(r.text.includes("A equipe precisa de você para continuar") && r.text.includes(`O print do erro ${marker}`) && r.text.includes("Aguardando você") && r.text.includes("Prazos"), "Cliente vê o que falta, Aguardando você e os prazos");
+    await submitForm(`/chamados/${guided.id}`, "support", "support", { action: "replyTicket" }, { ticketId: guided.id, body: "Segue o print" });
+    guided = await ticketRow(`Guided critical ${marker}`);
+    ok(guided.status === "open" && guided.waiting_for === null && guided.waiting_since === null, "A resposta do cliente devolve o chamado à equipe e retoma o prazo");
+    await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "replyTicket" }, { ticketId: guided.id, body: "Estamos olhando." });
+    ok(String((await ticketRow(`Guided critical ${marker}`)).first_response_at) === String(askedAt), "A primeira resposta fica a primeira, mesmo com novas respostas");
+
+    // Hours bank and improvement estimates (SUP 3 and 4).
+    const bankMinutes = async () =>
+      (await database.query("select coalesce(sum(minutes),0)::int n from console_time_entries where company_id=$1", [ids.a])).rows[0].n;
+    await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "logTime" }, { companyId: ids.a, ticketId: guided.id, hours: "1,5", note: "Diagnóstico", kind: "bank" });
+    ok((await bankMinutes()) === 90, "Equipe registra horas no banco");
+    await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "logTime" }, { companyId: ids.a, ticketId: guided.id, hours: "1", note: "Correção", kind: "bank" });
+    ok((await bankMinutes()) === 90, "Horas além do banco precisam de aprovação do cliente");
+    await submitForm("/painel", "support", "support", { action: "approveOverage" }, { companyId: ids.a, hours: "50" });
+    ok((await database.query("select id from console_hours_months where company_id=$1", [ids.a])).rowCount === 0, "Membro não aprova horas além do banco");
+    await submitForm("/painel", "finance", "finance", { action: "approveOverage" }, { companyId: ids.a, hours: "2" });
+    ok((await database.query("select overage_approved_minutes n from console_hours_months where company_id=$1", [ids.a])).rows[0]?.n === 120, "Administrador aprova horas além do banco");
+    await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "logTime" }, { companyId: ids.a, ticketId: guided.id, hours: "1", note: "Correção", kind: "bank" });
+    ok((await bankMinutes()) === 150, "Com a aprovação, a equipe registra além do banco");
+    await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "proposeEstimate" }, { ticketId: guided.id, hours: "3" });
+    ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "proposed", "Equipe envia a estimativa de uma melhoria");
+    await submitForm(`/chamados/${guided.id}`, "support", "support", { action: "decideEstimate" }, { ticketId: guided.id, decision: "approve", minutes: "180" });
+    ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "proposed", "Membro não aprova estimativa");
+    await submitForm(`/chamados/${guided.id}`, "finance", "finance", { action: "decideEstimate" }, { ticketId: guided.id, decision: "approve", minutes: "120" });
+    ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "proposed", "Aprovar uma estimativa que mudou não vale");
+    await submitForm(`/chamados/${guided.id}`, "finance", "finance", { action: "decideEstimate" }, { ticketId: guided.id, decision: "approve", minutes: "180" });
+    ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "approved", "Administrador aprova a estimativa");
+
+    // The board's rules: a client task is a request, only the team concludes, the client approves in Revisão.
+    const projectId = randomUUID();
+    await database.query("insert into console_engagements(id,company_id,name,kind) values($1,$2,$3,'project')", [projectId, ids.a, `Guided project ${marker}`]);
+    const taskFields = { engagementId: projectId, title: `Client task ${marker}`, description: "", status: "done", priority: "normal", dueDate: "", estimate: "" };
+    await submitForm(`/projetos/${projectId}`, "support", "support", { action: "createTask" }, taskFields);
+    let task = (await database.query("select * from console_tasks where title=$1", [`Client task ${marker}`])).rows[0];
+    ok(task?.status === "backlog" && task.requested === true, "Tarefa criada pelo cliente entra no Backlog como pedido");
+    await submitForm(`/projetos/${projectId}`, "support", "support", { action: "updateTask" }, { ...taskFields, id: task.id, status: "todo" });
+    ok((await database.query("select status from console_tasks where id=$1", [task.id])).rows[0].status === "backlog", "Pedido fica no Backlog até a equipe aceitar");
+    await submitForm(`/projetos/${projectId}`, "admin", "admin", { action: "updateTask" }, { ...taskFields, id: task.id, status: "review" });
+    task = (await database.query("select * from console_tasks where id=$1", [task.id])).rows[0];
+    ok(task.status === "review" && task.requested === false && !!task.review_since, "A equipe aceita o pedido e manda para Revisão");
+    await submitForm(`/projetos/${projectId}`, "support", "support", { action: "updateTask" }, { ...taskFields, id: task.id, status: "done" });
+    ok((await database.query("select status from console_tasks where id=$1", [task.id])).rows[0].status === "review", "Só a equipe conclui; o cliente aprova na Revisão");
+    await submitForm(`/projetos/${projectId}`, "support", "support", { action: "reviewTask" }, { id: task.id, decision: "approve" });
+    ok((await database.query("select status from console_tasks where id=$1", [task.id])).rows[0].status === "review", "Membro não aprova entrega");
+    await submitForm(`/projetos/${projectId}`, "finance", "finance", { action: "reviewTask" }, { id: task.id, decision: "approve" });
+    task = (await database.query("select * from console_tasks where id=$1", [task.id])).rows[0];
+    ok(task.status === "done" && task.approved_by === people.finance.id && !!task.approved_at, "Administrador aprova a entrega, com quem e quando");
+
     const bookmarkTitle = `Bookmark ${marker}`;
     await submitForm("/bookmarks", "support", "support", { action: "saveBookmark" }, { companyId: ids.a, engagementId: "", title: bookmarkTitle, url: "https://example.com/project" });
     const bookmark = (await database.query("select * from console_bookmarks where title=$1", [bookmarkTitle])).rows[0];
@@ -1915,6 +2013,14 @@ try {
       `delete from ${table} where company_id=any($1::text[])`,
       [companyIds],
     );
+  for (const table of ["console_time_entries", "console_hours_months", "console_service_terms"])
+    await database.query(`delete from ${table} where company_id=any($1::text[])`, [companyIds]);
+  await database.query("delete from console_user_milestones where user_id=any($1::text[])", [Object.values(people).map((p) => p.id)]);
+  await database.query(
+    "delete from console_task_comments where task_id in (select id from console_tasks where company_id=any($1::text[]))",
+    [companyIds],
+  );
+  await database.query("delete from console_tasks where company_id=any($1::text[])", [companyIds]);
   for (const table of ["console_attachments", "console_messages"])
     await database.query(
       `delete from ${table} where ticket_id in (select id from console_tickets where company_id=any($1::text[]))`,

@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { formatDocument } from "@/lib/companies/company-input";
 import { currency, dateLabel, longDateLabel } from "@/lib/format";
-import { discountShareLabel, hoursLabel, quoteTotals, taskCode, type QuoteContent } from "@/lib/quotes/quote-model";
+import { discountShareLabel, hoursLabel, quoteTotals, taskCode, type QuoteContent, weeksLabel } from "@/lib/quotes/quote-model";
 
 export type QuoteDocumentData = QuoteContent & {
   title: string;
@@ -120,6 +120,7 @@ export function QuoteDocument({ data, className }: { data: QuoteDocumentData; cl
                   <h3 className="m-0 text-base font-semibold text-foreground">{phase.name}</h3>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {phase.tasks.length} {phase.tasks.length === 1 ? "tarefa" : "tarefas"} · {hoursLabel(phase.hoursMin, phase.hoursMax)}
+                    {phase.weeks ? ` · ${weeksLabel(phase.weeks)}` : ""}
                   </span>
                 </div>
                 {phase.description && <p className="m-0 mt-1 text-sm text-muted-foreground">{phase.description}</p>}

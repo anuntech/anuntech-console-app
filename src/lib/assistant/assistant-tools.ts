@@ -24,6 +24,7 @@ import { createTask, moveTask } from "../projects/task-actions";
 import { formatDocument } from "../companies/company-input";
 import { CLIENT_CONTRACT_STATUSES, contractStatusLabels } from "../contracts/contract-table";
 import { currency, engagementLabels, priorityLabels, ticketLabels } from "../format";
+import { ticketImpacts, ticketKinds } from "../tickets/ticket-intake";
 import { hasPermission, type Area } from "../access/permissions";
 import { createQuote } from "../quotes/quote-actions";
 import { DEFAULT_QUOTE_NOTES, hoursLabel, quoteNumberLabel, quoteStatusLabels, quoteTotals, type QuoteContent } from "../quotes/quote-model";
@@ -332,12 +333,15 @@ const openTicket = tool({
   name: "abrir_chamado",
   area: "chamados",
   description:
-    "Abre um chamado de suporte para a empresa com assunto e descrição. Confirme o assunto e a descrição com a pessoa antes de chamar, a não ser que o pedido já esteja completo e claro.",
+    "Abre um chamado para a empresa com tipo, assunto e descrição. Tipos: problem (parou ou deu erro), question (dúvida), change (ajuste ou algo novo), access (liberar, remover ou recuperar acesso), new_project (app ou projeto novo, vira conversa e orçamento). Para problem, pergunte o impacto: down (parou tudo, sem contorno), workaround (falha com contorno ou que afeta muita gente) ou other. A prioridade é da equipe: não prometa prazo nem prioridade. Confirme tipo, assunto e descrição com a pessoa antes de chamar, a não ser que o pedido já esteja completo e claro.",
   input: z.object({
     companyId: id,
+    tipo: z.enum(ticketKinds),
+    impacto: z.enum(ticketImpacts).optional(),
     assunto: z.string().trim().min(3).max(160),
     descricao: z.string().trim().min(3).max(10000),
-    prioridade: z.enum(["normal", "high"]).default("normal"),
+    /** Só a equipe: ignorada para clientes. */
+    prioridade: z.enum(["critical", "high", "normal"]).optional(),
   }),
   write: true,
   run: async ({ actor }, input) => {
@@ -346,7 +350,9 @@ const openTicket = tool({
       companyId: input.companyId,
       subject: input.assunto,
       body: input.descricao,
-      priority: input.prioridade,
+      kind: input.tipo,
+      impact: input.tipo === "problem" ? input.impacto : undefined,
+      priority: actor.admin ? input.prioridade : undefined,
     });
     let href = state.href ?? null;
     if (!href) {

@@ -58,14 +58,24 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 
 ### Chamados
 
-- Assunto, descrição, produto ou projeto opcional e até 5 anexos (PDF, PNG, JPEG ou WebP; 20 MB no total). Fotos são reduzidas antes do envio.
-- Situações: aberto, em atendimento, aguardando cliente, resolvido e encerrado. Prioridade normal ou alta. Responsável da equipe.
+- O cliente escolhe o tipo (Parou ou deu erro, Dúvida, Ajuste ou algo novo, Acesso, App ou projeto novo) e, para erro, o impacto. Depois assunto, descrição, produto ou projeto quando a empresa tem mais de um e até 5 anexos (PDF, PNG, JPEG ou WebP; 20 MB no total). O formulário mostra o que esperar: o horário para todos e o prazo de primeira resposta só onde a empresa tem condições publicadas.
+- Situações: aberto, em atendimento, aguardando cliente (o cliente lê "Aguardando você"), resolvido e encerrado. Prioridade Normal, Alta ou Crítica, sempre definida pela equipe; o Console só sugere pelo impacto. Responsável da equipe. Pedidos que chegam por WhatsApp, telefone ou chat a equipe registra num chamado, com o canal de origem.
+- Aguardando cliente exige dizer o que falta; o cliente vê no chamado e no e-mail. A resposta do cliente devolve o chamado à equipe (e reabre um resolvido).
+- Condições de atendimento: a equipe copia de cada contrato os prazos e regras (primeira resposta e meta por nível, pausa enquanto espera o cliente, prazos do cliente, banco de horas, garantia, suspensão), com a cláusula de cada valor, a partir da ficha de cada modelo. Só condições conferidas valem; o cliente as vê a partir da data de publicação, a equipe antes. Cada chamado guarda as condições do momento em que foi aberto. Sem condições, nenhum prazo aparece.
+- Dias úteis: segunda a sexta, menos feriados nacionais, Sexta-feira Santa e os feriados da sede (Configurações → Dados da empresa). 1 dia útil = 9 horas úteis (9h às 18h, Brasília).
+- Banco de horas (quando o contrato tem): a equipe registra horas por chamado; além do banco só com aprovação de um Administrador da empresa (defeito crítico pode ir antes); aviso aos 80% no Console e por e-mail quando a equipe clica; relatório do mês enviado por clique e contestável no Console. Melhoria pequena sai do banco depois que o Administrador aprova a estimativa; acima do limite, orçamento.
 - Quem abre recebe um recibo por e-mail e é avisado das movimentações. A operação Anuntech recebe avisos por e-mail e WhatsApp de toda movimentação (liga e desliga em Configurações → Notificações). A empresa pode escolher contatos para receber os avisos dela.
+
+### Como trabalhamos
+
+- Página /como-trabalhamos (menu da conta e folha Mais): quando abrir chamado, prazos e como o tempo conta, o que ajuda a equipe, projetos e como contratar algo novo. Para o cliente, mostra "Seus prazos" e "O que o seu contrato pede" das condições publicadas. Nenhum número fica escrito no texto: os prazos vêm das condições.
+- Primeiros passos na Visão geral do cliente (Administrador: revisar acessos, escolher quem recebe avisos, ler o guia; Membro: completar nome e WhatsApp, ler o guia). Sai quando termina ou é ocultado.
+- Pedir orçamento abre um chamado do tipo "App ou projeto novo" (fora do relógio de suporte). Depois do aceite e da assinatura, o cliente vê os próximos passos.
 
 ### Projetos, produtos e serviços
 
 - Cada empresa tem vínculos do tipo produto, projeto ou serviço, com situação ativa, pausada ou concluída.
-- Projetos têm quadro Kanban: backlog, a fazer, em andamento, revisão e concluído. Tarefas com prioridade, prazo, etiquetas, estimativa, responsáveis (membros da empresa e equipe), anexos e comentários (com anexos, edição e exclusão pelo autor).
+- Projetos têm quadro Kanban: backlog, a fazer, em andamento, revisão e concluído. Tarefa criada pelo cliente entra no Backlog como pedido até a equipe aceitar; só a equipe conclui; em Revisão, um Administrador da empresa aprova ou aponta um problema, com o prazo de teste do contrato quando houver. "Sobre este projeto" mostra o objetivo e as regras do quadro. Tarefas com prioridade, prazo, etiquetas, estimativa, responsáveis (membros da empresa e equipe), anexos e comentários (com anexos, edição e exclusão pelo autor).
 - O catálogo da equipe define produtos e serviços com preço e periodicidade. Vincular um item a uma empresa cria o vínculo e, se for o caso, a cobrança.
 
 ### Financeiro

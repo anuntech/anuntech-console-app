@@ -38,3 +38,21 @@ test("problems are counted in the subject and listed by section", () => {
   assert.match(text, /Contratos vencendo ou vencidos \(1\):\n- Maxipark · Prestação de serviços · Vence em 12 dias/);
   assert.doesNotMatch(text, /Tudo em dia/);
 });
+
+test("tickets close to their first-response deadline are in the summary", () => {
+  const { text, subject } = opsDigestText({
+    today: "2026-10-05",
+    issued24h: 0,
+    paid24h: 0,
+    paused: [],
+    noticeProblems: [],
+    overdue: [],
+    contracts: [],
+    tickets: [{ id: "t1", company: "Cliente", subject: "Sistema fora do ar", dueAt: "2026-10-05T15:00:00.000Z" }],
+    url: "https://console.example",
+  });
+  assert.match(text, /Chamados sem primeira resposta, com prazo até hoje \(1\)/);
+  assert.match(text, /Cliente · Sistema fora do ar/);
+  assert.match(text, /https:\/\/console\.example\/chamados\/t1/);
+  assert.match(subject, /1 ponto/);
+});

@@ -11,6 +11,8 @@ import {
   taskComments,
   tasks,
   tickets,
+  serviceTerms,
+  timeEntries,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -75,6 +77,9 @@ export async function deleteEngagement(_: ActionState, form: FormData): Promise<
         .set({ engagementId: null })
         .where(eq(tickets.engagementId, row.id))
         .returning({ id: tickets.id });
+      // Conditions about this item end with it; logged hours stay in the company's bank.
+      await tx.delete(serviceTerms).where(eq(serviceTerms.engagementId, row.id));
+      await tx.update(timeEntries).set({ engagementId: null }).where(eq(timeEntries.engagementId, row.id));
       await tx.delete(engagements).where(eq(engagements.id, row.id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,

@@ -335,7 +335,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                             ? "Aguardando a sua resposta. Leia a proposta e responda abaixo."
                             : viewer.admin
                               ? "Se a resposta vier por outro canal, registre no menu de ações."
-                              : "Só gestores da empresa respondem pelo Console."}
+                              : "Só um Administrador da sua empresa aceita ou recusa orçamentos."}
                     </p>
                   </div>
                 )}
@@ -364,6 +364,42 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                 )}
               </CardContent>
             </Card>
+
+            {!viewer.admin && q.status === "accepted" && (
+              <Card>
+                <CardHeader>
+                  <SectionTitle title="Próximos passos" description="O que acontece depois do aceite." />
+                </CardHeader>
+                <CardContent>
+                  <ol className="m-0 flex list-none flex-col gap-3 p-0">
+                    {[
+                      { title: "Contrato", text: "A Anuntech prepara e envia para assinatura. Você pode pedir alterações em cada cláusula.", href: "/contratos" },
+                      totals.upfrontCents > 0 && { title: "Entrada", text: "A cobrança aparece em Financeiro.", href: "/financeiro" },
+                      { title: "Acessos", text: "A equipe pede o que precisa por chamado.", href: "/chamados" },
+                      {
+                        title: "Início",
+                        text: `A reunião de início é marcada depois ${totals.upfrontCents > 0 ? "dos três passos" : "do contrato assinado e dos acessos"}. O andamento fica em Projetos.`,
+                        href: "/projetos",
+                      },
+                    ]
+                      .filter((step) => !!step)
+                      .map((step, i) => (
+                      <li key={step.title} className="flex gap-3 text-sm">
+                        <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-primary tabular-nums">
+                          {i + 1}
+                        </span>
+                        <span className="min-w-0">
+                          <Link href={step.href} className="font-medium text-foreground hover:text-primary">
+                            {step.title}
+                          </Link>
+                          <span className="block text-muted-foreground">{step.text}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </CardContent>
+              </Card>
+            )}
 
             {viewer.admin && q.status === "accepted" && (
               <Card>
@@ -494,8 +530,8 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         title="Enviar ao cliente?"
         description={
           q.version > 0
-            ? `A proposta vira a versão ${q.version + 1}. Os gestores da empresa recebem um aviso por e-mail, e a versão anterior deixa de valer.`
-            : "A proposta é congelada e os gestores da empresa recebem um aviso por e-mail para ler e responder no Console. Depois disso, o conteúdo não muda mais."
+            ? `A proposta vira a versão ${q.version + 1}. Os Administradores da empresa recebem um aviso por e-mail, e a versão anterior deixa de valer.`
+            : "A proposta é congelada e os Administradores da empresa recebem um aviso por e-mail para ler e responder no Console. Depois disso, o conteúdo não muda mais."
         }
         confirmLabel="Enviar"
       />

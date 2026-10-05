@@ -50,6 +50,11 @@ export type BoardTask = {
   createdBy: string;
   creator: string | null;
   updatedAt: string;
+  /** Created by the client and not yet taken into the work by the team. */
+  requested?: boolean;
+  /** In Revisão: until when the client tests it, when the contract sets a window. */
+  reviewDue?: string | null;
+  approvedAt?: string | null;
 };
 export type BoardPerson = PersonOption;
 export type TaskEditor =
@@ -137,7 +142,9 @@ export function TaskSheet({
         description={
           task
             ? `${task.creator ? `Criada por ${task.creator} · ` : ""}atualizada ${relativeLabel(task.updatedAt, now)}`
-            : `Entra na coluna ${taskStatusLabels[status]}.`
+            : viewer.admin
+              ? `Entra na coluna ${taskStatusLabels[status]}.`
+              : "Entra no Backlog como pedido. A equipe confirma se ele faz parte do combinado."
         }
         action={task ? updateTask : createTask}
         prepare={uploads}
@@ -195,15 +202,20 @@ export function TaskSheet({
           />
         </FormField>
         <div className="grid gap-5 sm:grid-cols-2">
-          <FormField label="Coluna" htmlFor="task-status">
-            <NativeSelect id="task-status" name="status" defaultValue={status}>
-              {TASK_STATUSES.map((value) => (
-                <NativeSelectOption key={value} value={value}>
-                  {taskStatusLabels[value]}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </FormField>
+          {!task && !viewer.admin ? (
+            <input type="hidden" name="status" value="backlog" />
+          ) : (
+            <FormField label="Coluna" htmlFor="task-status">
+              <NativeSelect id="task-status" name="status" defaultValue={status}>
+                {/* Only the team concludes; in Revisão the client approves instead. */}
+                {TASK_STATUSES.filter((value) => viewer.admin || value === status || (value !== "done" && value !== "review" && status !== "review")).map((value) => (
+                  <NativeSelectOption key={value} value={value}>
+                    {taskStatusLabels[value]}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </FormField>
+          )}
           <FormField label="Prioridade" htmlFor="task-priority">
             <NativeSelect id="task-priority" name="priority" defaultValue={task?.priority ?? "normal"}>
               {TASK_PRIORITIES.map((value) => (

@@ -11,8 +11,7 @@ import {
   SparklesIcon,
   UserRoundIcon,
   UsersIcon,
-  type LucideIcon,
-} from "lucide-react";
+  type LucideIcon, BookOpenIcon } from "lucide-react";
 import { cn } from "cn";
 import {
   Sheet,
@@ -233,6 +232,9 @@ export function MobileTabBar({
                   Membros
                 </Row>
               )}
+              <Row href="/como-trabalhamos" icon={BookOpenIcon} onClick={close}>
+                Como trabalhamos
+              </Row>
               <Row
                 icon={MessageCircleQuestionIcon}
                 onClick={() => {
@@ -240,7 +242,7 @@ export function MobileTabBar({
                   setTimeout(openSupportWidget, 250);
                 }}
               >
-                Falar com o suporte
+                Conversar com a equipe
               </Row>
               <Row icon={LogOutIcon} onClick={signOut} disabled={signingOut} className="text-destructive">
                 {signingOut ? "Saindo…" : "Sair"}

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { dueLabel } from "@/lib/format";
+import { visibleToClient } from "@/lib/service-terms/ticket-clock";
 import { PlusIcon } from "lucide-react";
 import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -20,12 +22,34 @@ export const metadata: Metadata = {
 // `assignedTo` holds an e-mail; the list shows the name of the user who has it.
 const assignee = alias(user, "assignee");
 
+/** The one deadline a row shows: the first response while pending, else the goal; paused while waiting. */
+function listDue(
+  t: {
+    status: string;
+    terms: (typeof tickets.$inferSelect)["terms"];
+    waitingSince: Date | null;
+    firstResponseAt: Date | null;
+    responseDueAt: Date | null;
+    resolutionDueAt: Date | null;
+  },
+  admin: boolean,
+  now: Date,
+) {
+  if (!t.terms || t.status === "resolved" || t.status === "closed") return null;
+  if (!admin && !visibleToClient(t.terms, now)) return null;
+  if (t.status === "waiting_customer" && t.terms.policy.pausesWhileWaiting) return { label: "Prazo pausado", late: false };
+  const [what, at] = !t.firstResponseAt && t.responseDueAt ? ["Resposta", t.responseDueAt] : ["Meta", t.resolutionDueAt];
+  if (!at) return null;
+  return { label: `${what} até ${dueLabel(at, now)}`, late: admin && at < now };
+}
+
 export default async function Tickets({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const actor = await getActor();
+  const now = new Date();
   const ids = allowedIds(actor, "support");
   const query = ticketQuery(await searchParams);
   // Clients can only narrow within their own companies.
@@ -71,6 +95,12 @@ export default async function Tickets({
         assignedTo: tickets.assignedTo,
         assignee: assignee.name,
         updatedAt: tickets.updatedAt,
+        kind: tickets.kind,
+        terms: tickets.terms,
+        waitingSince: tickets.waitingSince,
+        firstResponseAt: tickets.firstResponseAt,
+        responseDueAt: tickets.responseDueAt,
+        resolutionDueAt: tickets.resolutionDueAt,
       })
       .from(tickets)
       .innerJoin(companies, eq(companies.id, tickets.companyId))
@@ -79,8 +109,18 @@ export default async function Tickets({
       // e-mail is unique, so this adds at most one row per ticket.
       .leftJoin(assignee, eq(assignee.email, tickets.assignedTo))
       .where(where)
+      // The team works the nearest unanswered deadline first; then the latest activity.
       // The id breaks ties, so a row never shows on two pages or on none.
-      .orderBy(desc(tickets.updatedAt), desc(tickets.id))
+      .orderBy(
+        ...(actor.admin
+          ? [
+              sql`case when ${tickets.firstResponseAt} is null and ${tickets.responseDueAt} is not null and ${tickets.status} in ('open', 'in_progress') then 0 else 1 end`,
+              sql`case when ${tickets.firstResponseAt} is null and ${tickets.status} in ('open', 'in_progress') then ${tickets.responseDueAt} end asc nulls last`,
+            ]
+          : []),
+        desc(tickets.updatedAt),
+        desc(tickets.id),
+      )
       .limit(query.pageSize)
       .offset(offsetOf({ ...query, page })),
     query.company
@@ -110,16 +150,18 @@ export default async function Tickets({
             </Button>
           )
         }
-        rows={list.map(({ assignee, ...row }) => ({
+        rows={list.map(({ assignee, terms, waitingSince, firstResponseAt, responseDueAt, resolutionDueAt, ...row }) => ({
           ...row,
-          // Only staff see the "Responsável" column.
+          // Only staff see the "Responsável" column; clients never see a team e-mail.
           assignee: actor.admin ? assignee : null,
+          assignedTo: actor.admin ? row.assignedTo : null,
           updatedAt: row.updatedAt.toISOString(),
+          due: listDue({ status: row.status, terms, waitingSince, firstResponseAt, responseDueAt, resolutionDueAt }, actor.admin, now),
         }))}
         query={{ ...query, page }}
         total={total}
         pageCount={pageCount}
-        now={new Date().toISOString()}
+        now={now.toISOString()}
         admin={actor.admin}
         showCompany={actor.admin || ids.length > 1}
         canCreate={canCreate}

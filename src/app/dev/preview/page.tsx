@@ -1054,7 +1054,7 @@ export default async function Preview({
             title="Abrir chamado"
             description="Como podemos ajudar?"
           />
-          <NewTicketForm companies={companies} />
+          <NewTicketForm context={{ companies, engagements: [], terms: {}, holidays: {}, staff: false }} />
         </>
       ) : tela.startsWith("chamados") ? (
         <>

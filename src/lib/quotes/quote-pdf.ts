@@ -2,7 +2,7 @@ import PDFDocument from "pdfkit";
 import path from "node:path";
 import { APP_LOCALE, APP_TIME_ZONE } from "../dates";
 import { currency, longDateLabel } from "../format";
-import { discountShareLabel, hoursLabel, quoteTotals, taskCode, type QuotePublication, type QuoteStatus } from "./quote-model";
+import { discountShareLabel, hoursLabel, quoteTotals, taskCode, weeksLabel, type QuotePublication, type QuoteStatus } from "./quote-model";
 
 export type QuoteDecisionLine = {
   status: "accepted" | "declined";
@@ -196,7 +196,7 @@ export async function quotePdf(
         .fontSize(9)
         .fillColor(MUTED)
         .text(
-          `${phase.tasks.length} ${phase.tasks.length === 1 ? "tarefa" : "tarefas"} · ${hoursLabel(phase.hoursMin, phase.hoursMax)}`,
+          `${phase.tasks.length} ${phase.tasks.length === 1 ? "tarefa" : "tarefas"} · ${hoursLabel(phase.hoursMin, phase.hoursMax)}${phase.weeks ? ` · ${weeksLabel(phase.weeks)}` : ""}`,
           left + width - 150,
           doc.y - doc.currentLineHeight() - 2,
           { width: 150, align: "right" },

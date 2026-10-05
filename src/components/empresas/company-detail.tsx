@@ -273,9 +273,12 @@ function MemberMenu({
 export function CompanyDetail({
   data,
   editorOpen = false,
+  termsCard,
 }: {
   data: CompanyDetailData;
   editorOpen?: boolean;
+  /** "Condições de atendimento", rendered by the page. */
+  termsCard?: ReactNode;
 }) {
   const { company, members, events, relations, links, deleteLinks } = data;
   const router = useRouter();
@@ -584,6 +587,7 @@ export function CompanyDetail({
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">
+          {termsCard}
           <Card>
             <CardHeader>
               <SectionTitle

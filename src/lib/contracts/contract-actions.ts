@@ -521,7 +521,7 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
     return {
       success: notified
         ? `${noun} enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
-        : `${noun} enviado. Ninguém da empresa tem acesso de gestor para avisar; libere o acesso em Empresas.`,
+        : `${noun} enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.`,
     };
   } catch (e) {
     return failure(e);
@@ -603,7 +603,7 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
     const [c] = await db.select().from(contracts).where(eq(contracts.id, contractId));
     if (!c || !canAccess(actor, c.companyId, "finance")) return blocked;
     const party = partyFor(actor, c.companyId);
-    if (!party) return { error: "Só gestores da empresa podem assinar." };
+    if (!party) return { error: "Só um Administrador da empresa pode assinar." };
     if (c.status !== "sent" || !c.publication || !c.documentHash)
       return { error: "Este contrato não está aguardando assinatura." };
     if (!hashMatches(c.publication, c.documentHash))
