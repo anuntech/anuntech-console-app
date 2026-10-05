@@ -85,7 +85,7 @@ export async function systemPrompt(actor: Actor, custom: string, page?: PageSnap
     : `Quem fala com você é ${actor.user.name || actor.user.email}, cliente da Anuntech, com acesso a: ${actor.grants
         .map(
           (g) =>
-            `${g.company.name} (companyId ${g.company.id}; ${g.role === "manager" ? "gestor" : "membro"}; pode ver ${[
+            `${g.company.name} (companyId ${g.company.id}; ${g.role === "manager" ? "Administrador" : "Membro"}; pode ver ${[
               "visão geral",
               hasPermission(g.role, "support") ? "chamados" : null,
               hasPermission(g.role, "finance") ? "financeiro, contratos e orçamentos" : null,

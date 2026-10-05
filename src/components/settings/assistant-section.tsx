@@ -86,7 +86,7 @@ export async function AssistantSection() {
                 rows={10}
                 maxLength={20000}
                 defaultValue={config.prompt}
-                placeholder={"Ex.: Trate o cliente por você. Horário de atendimento: dias úteis, 9h às 18h. Prazos de suporte: até 1 dia útil para responder chamados…"}
+                placeholder={"Ex.: Trate o cliente por você. O atendimento é em dias úteis, das 9h às 18h. Prazos só os do contrato de cada empresa, nunca um número de cabeça…"}
               />
               <p className="mt-1.5 text-xs text-muted-foreground">Tom de voz, horários, políticas e o que dizer em cada situação. Entra em toda conversa.</p>
             </div>

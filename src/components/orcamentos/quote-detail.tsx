@@ -347,7 +347,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                     <label className="flex cursor-pointer items-start gap-3 text-sm">
                       <Checkbox name="consent" checked={consent} onCheckedChange={(value) => setConsent(value === true)} className="mt-0.5" />
                       <span>
-                        Li a proposta e aceito o escopo, o prazo estimado e o valor de{" "}
+                        Li a proposta e aceito o escopo, as condições e o valor de{" "}
                         <span className="font-medium tabular-nums">{currency(totals.totalCents)}</span>, como{" "}
                         <span className="font-medium">{viewer.name}</span> por {q.company}.
                       </span>

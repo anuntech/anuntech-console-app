@@ -33,8 +33,9 @@ export const ticketLabels: Record<string, string> = {
   closed: "Encerrado",
 };
 export const priorityLabels: Record<string, string> = {
-  normal: "Normal",
+  critical: "Crítica",
   high: "Alta",
+  normal: "Normal",
 };
 // Instants (timestamps), unlike dateLabel's civil dates.
 const instant = (date: Date | string) =>

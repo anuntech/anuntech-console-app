@@ -41,7 +41,7 @@ export function TicketStatusBadge({
   );
 }
 
-/** Only "Alta" asks for attention; normal priority stays quiet text. */
+/** Alta and Crítica ask for attention (Crítica in solid red); normal priority stays quiet text. */
 export function TicketPriorityMark({
   priority,
   className,
@@ -49,7 +49,7 @@ export function TicketPriorityMark({
   priority: TicketPriority;
   className?: string;
 }) {
-  if (priority !== "high")
+  if (priority !== "high" && priority !== "critical")
     return (
       <span className={cn("text-xs text-muted-foreground", className)}>
         {priorityLabels.normal}
@@ -58,12 +58,13 @@ export function TicketPriorityMark({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md bg-destructive-soft px-2 py-0.5 text-xs font-medium text-destructive",
+        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium",
+        priority === "critical" ? "bg-destructive text-white" : "bg-destructive-soft text-destructive",
         className,
       )}
     >
-      <span aria-hidden="true" className="size-1.5 rounded-full bg-destructive" />
-      {priorityLabels.high}
+      <span aria-hidden="true" className={cn("size-1.5 rounded-full", priority === "critical" ? "bg-white" : "bg-destructive")} />
+      {priorityLabels[priority]}
     </span>
   );
 }

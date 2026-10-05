@@ -56,7 +56,7 @@ const managerOf = (actor: Actor, companyId: string) => actor.admin || actor.gran
 const readCompany = tool({
   name: "ler_empresa",
   area: "empresas",
-  description: "Os dados de uma empresa: razão social, CNPJ, e-mail de cobrança, telefone, endereço, situação e as pessoas com acesso (para gestores e equipe).",
+  description: "Os dados de uma empresa: razão social, CNPJ, e-mail de cobrança, telefone, endereço, situação e as pessoas com acesso (para Administradores da empresa e equipe).",
   input: z.object({ companyId: id }),
   run: async ({ actor }, { companyId }) => {
     if (!canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
@@ -779,11 +779,11 @@ const cloneQuote = tool({
 const inviteMember = tool({
   name: "convidar_membro",
   area: "empresas",
-  description: "Dá acesso a uma pessoa numa empresa, como gestor (tudo, inclusive financeiro) ou membro (visão geral e chamados). Para gestores da empresa e equipe. Confirme e-mail e papel antes.",
+  description: "Dá acesso a uma pessoa numa empresa, como Administrador (tudo, inclusive financeiro, contratos e orçamentos) ou Membro (visão geral, chamados e projetos, sem financeiro, contratos e orçamentos). Para Administradores da empresa e equipe. Confirme e-mail e papel antes.",
   input: z.object({ companyId: id, email: z.string().trim().email(), papel: z.enum(["manager", "member"]) }),
   write: true,
   run: async ({ actor }, input) => {
-    if (!managerOf(actor, input.companyId)) throw new ToolError("Só gestores da empresa ou a equipe da Anuntech dão acesso.");
+    if (!managerOf(actor, input.companyId)) throw new ToolError("Só Administradores da empresa ou a equipe da Anuntech dão acesso.");
     await submit(saveCompanyMember, { companyId: input.companyId, email: input.email, role: input.papel });
     return { result: { convidado: true, link: "/configuracoes/membros" }, summary: `Dei acesso a ${input.email} como ${roleLabels[input.papel] ?? input.papel}` };
   },

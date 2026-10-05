@@ -58,3 +58,16 @@ export async function resolveAccountIdentity(
     };
   return { userId: null, primaryEmail: email, emails: [email], isAlias: false };
 }
+
+/**
+ * The name a client sees for a team member stored by e-mail (a ticket's
+ * assignee): the account's name, or "Equipe Anuntech" when the e-mail has no
+ * account or no name. Never the e-mail itself.
+ */
+export async function teamMemberName(email: string | null | undefined, executor: Executor = db) {
+  if (!email) return null;
+  const identity = await resolveAccountIdentity(email, executor);
+  if (!identity.userId) return "Equipe Anuntech";
+  const [row] = await executor.select({ name: user.name }).from(user).where(eq(user.id, identity.userId)).limit(1);
+  return row?.name?.trim() || "Equipe Anuntech";
+}

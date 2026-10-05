@@ -13,7 +13,7 @@ import {
   user,
 } from "@/db/schema";
 import { getActor, canAccess } from "@/lib/access/access";
-import { resolveAccountIdentity } from "@/lib/account/account-identity";
+import { resolveAccountIdentity, teamMemberName } from "@/lib/account/account-identity";
 import { hasConsoleStaffAccess } from "@/lib/access/console-members";
 import { normalizeEmail } from "@/lib/access/permissions";
 import {
@@ -130,6 +130,8 @@ export default async function Ticket({
       .orderBy(asc(attachments.createdAt)),
     actor.admin ? ticketAssignees() : undefined,
   ]);
+  // Clients see who took the ticket by name, never by e-mail.
+  const assigneeName = actor.admin ? null : await teamMemberName(row.ticket.assignedTo);
   // Who speaks for Anuntech in the thread.
   const staff = new Map(
     await Promise.all(
@@ -180,7 +182,8 @@ export default async function Ticket({
           subject: t.subject,
           status: t.status,
           priority: t.priority,
-          assignedTo: t.assignedTo,
+          assignedTo: actor.admin ? t.assignedTo : null,
+          assigneeName,
           createdAt: t.createdAt.toISOString(),
           updatedAt: t.updatedAt.toISOString(),
           companyId: t.companyId,

@@ -71,7 +71,7 @@ export function scopeOf(actor: Actor, area: Area, companyId?: string) {
   }
   if (actor.admin) return null;
   const ids = allowedIds(actor, area);
-  if (!ids.length) throw new ToolError("Seu acesso não inclui esta área. Peça ao gestor da empresa.");
+  if (!ids.length) throw new ToolError("Seu acesso não inclui esta área. Peça a um Administrador da empresa.");
   return ids;
 }
 export const within = <T extends { companyId: unknown }>(column: T["companyId"], ids: string[] | null) =>

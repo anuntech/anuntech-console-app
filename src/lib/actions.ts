@@ -28,6 +28,7 @@ import {
   scheduleTicketNotices,
 } from "./tickets/ticket-notifications";
 import { priorityLabels, ticketLabels } from "./format";
+import { teamMemberName } from "./account/account-identity";
 import { companyIdentity } from "./companies/company-input";
 import { companyBillingInput } from "./companies/company-billing";
 const id = z.string().uuid();
@@ -227,7 +228,8 @@ export async function createTicket(
           companyId: input.companyId,
           engagementId: input.engagementId || null,
           subject: input.subject,
-          priority: input.priority,
+          // The priority is Anuntech's call (support contract 5.1): only the team sets it.
+          priority: actor.admin ? input.priority : "normal",
           authorId: actor.user.id,
         })
         .returning();
@@ -462,7 +464,7 @@ export async function updateTicket(
           ? [`Prioridade: ${priorityLabels[row.priority]}`]
           : []),
         ...(previous.assignedTo !== row.assignedTo
-          ? [`Responsável: ${row.assignedTo || "não atribuído"}`]
+          ? [`Responsável: ${(await teamMemberName(row.assignedTo, tx)) ?? "não atribuído"}`]
           : []),
       ];
       await enqueueTicketNotice(

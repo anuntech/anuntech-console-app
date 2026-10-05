@@ -253,6 +253,13 @@
       "when": 1790868480553,
       "tag": "0035_contract_change_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791162968916,
+      "tag": "0036_service_terms",
+      "breakpoints": true
     }
   ]
 }

@@ -17,7 +17,7 @@ import {
   WalletIcon,
 } from "lucide-react";
 import { db } from "@/lib/db";
-import { companies, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
+import { companies, contractSignatures, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
 import { allowedIds, type Actor } from "@/lib/access/access";
 import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { currency, dateLabel } from "@/lib/format";
@@ -209,7 +209,19 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           .from(quotes)
           .where(and(inArray(quotes.companyId, financeIds), eq(quotes.status, "sent"), sql`(${quotes.validUntil} is null or ${quotes.validUntil} >= ${today})`))
       : [{ n: 0 }],
-    canFinance ? db.select({ n: count() }).from(contracts).where(and(inArray(contracts.companyId, financeIds), eq(contracts.status, "sent"))) : [{ n: 0 }],
+    // Only what still waits for the client's signature, not what waits for Anuntech's.
+    canFinance
+      ? db
+          .select({ n: count() })
+          .from(contracts)
+          .where(
+            and(
+              inArray(contracts.companyId, financeIds),
+              eq(contracts.status, "sent"),
+              sql`not exists (select 1 from ${contractSignatures} where ${contractSignatures.contractId} = ${contracts.id} and ${contractSignatures.party} = 'client')`,
+            ),
+          )
+      : [{ n: 0 }],
     db
       .select({ id: engagements.id, name: engagements.name, status: engagements.status, company: companies.name })
       .from(engagements)

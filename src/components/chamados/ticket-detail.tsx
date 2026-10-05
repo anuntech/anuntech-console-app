@@ -84,6 +84,8 @@ export type TicketDetailData = {
     status: TicketStatus;
     priority: TicketPriority;
     assignedTo: string | null;
+    /** For clients: the assignee's name (or "Equipe Anuntech"), never the e-mail. */
+    assigneeName?: string | null;
     createdAt: string;
     updatedAt: string;
     companyId: string;
@@ -479,7 +481,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                     <TicketPriorityMark priority={ticket.priority} />
                   </Fact>
                   <Fact label="Responsável">
-                    {ticket.assignedTo || (
+                    {ticket.assigneeName || ticket.assignedTo || (
                       <span className="text-muted-foreground">
                         Ainda não atribuído
                       </span>

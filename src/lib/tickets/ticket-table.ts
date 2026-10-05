@@ -13,7 +13,7 @@ export type TicketStatus =
   | "waiting_customer"
   | "resolved"
   | "closed";
-export type TicketPriority = "normal" | "high";
+export type TicketPriority = "critical" | "high" | "normal";
 /** "active" groups everything that still needs attention; it is the default. */
 export type TicketStatusFilter = "active" | "all" | TicketStatus;
 export const ticketFilters: TicketStatusFilter[] = [
