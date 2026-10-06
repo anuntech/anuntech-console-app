@@ -260,6 +260,13 @@
       "when": 1791162968916,
       "tag": "0036_service_terms",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791304327115,
+      "tag": "0037_issue_on_payment",
+      "breakpoints": true
     }
   ]
 }

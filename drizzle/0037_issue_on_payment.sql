@@ -1,0 +1,1 @@
+ALTER TABLE "console_subscriptions" ADD COLUMN "issue_on_payment" boolean DEFAULT true NOT NULL;
