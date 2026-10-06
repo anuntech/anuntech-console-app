@@ -8,6 +8,7 @@ import { companyTerms, snapshotOf } from "@/lib/service-terms/terms";
 import { visibleToClient } from "@/lib/service-terms/ticket-clock";
 import { ticketKindSlugs, type TicketKind } from "@/lib/tickets/ticket-intake";
 import type { LocalHolidays } from "@/lib/service-terms/business-calendar";
+import { voiceEnabled } from "@/lib/voice/voice-server";
 import type { TermsSnapshot } from "@/lib/service-terms/terms-model";
 import type { TicketCompanyOption } from "./ticket-form";
 
@@ -31,6 +32,8 @@ export type TicketFormContext = {
   terms: Record<string, TermsSnapshot | null>;
   holidays: LocalHolidays;
   staff: boolean;
+  /** Dictation by microphone in the description (lib/voice). */
+  voice?: boolean;
 };
 
 /**
@@ -109,5 +112,6 @@ export async function newTicketContext(
     terms,
     holidays: profile?.holidays ?? {},
     staff: actor.admin,
+    voice: voiceEnabled(),
   };
 }

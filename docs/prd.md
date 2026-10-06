@@ -60,6 +60,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 
 - O cliente escolhe o tipo (Parou ou deu erro, Dúvida, Ajuste ou algo novo, Acesso, App ou projeto novo) e, para erro, o impacto. Depois assunto, descrição, produto ou projeto quando a empresa tem mais de um e até 5 anexos (PDF, PNG, JPEG ou WebP; 20 MB no total). O formulário mostra o que esperar: o horário para todos e o prazo de primeira resposta só onde a empresa tem condições publicadas.
 - Situações: aberto, em atendimento, aguardando cliente (o cliente lê "Aguardando você"), resolvido e encerrado. Prioridade Normal, Alta ou Crítica, sempre definida pela equipe; o Console só sugere pelo impacto. Responsável da equipe. Pedidos que chegam por WhatsApp, telefone ou chat a equipe registra num chamado, com o canal de origem.
+- A descrição aceita ditado: o botão Falar grava até 2 minutos, transcreve e põe o texto no campo para a pessoa revisar. Nada é enviado sozinho.
 - Aguardando cliente exige dizer o que falta; o cliente vê no chamado e no e-mail. A resposta do cliente devolve o chamado à equipe (e reabre um resolvido).
 - Condições de atendimento: a equipe copia de cada contrato os prazos e regras (primeira resposta e meta por nível, pausa enquanto espera o cliente, prazos do cliente, banco de horas, garantia, suspensão), com a cláusula de cada valor, a partir da ficha de cada modelo. Só condições conferidas valem; o cliente as vê a partir da data de publicação, a equipe antes. Cada chamado guarda as condições do momento em que foi aberto. Sem condições, nenhum prazo aparece.
 - Dias úteis: segunda a sexta, menos feriados nacionais, Sexta-feira Santa e os feriados da sede (Configurações → Dados da empresa). 1 dia útil = 9 horas úteis (9h às 18h, Brasília).
@@ -115,6 +116,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Chat em todas as telas, aberto pelo botão do dock. Em telas largas fica ao lado do conteúdo.
 - Responde e age com o acesso da pessoa: consulta empresas, faturas, chamados, projetos, contratos e orçamentos; abre chamados, cria tarefas, comenta, rascunha cobranças, contratos e orçamentos; preenche a tela atual.
 - Antes de alterar qualquer dado, pergunta. Um "sim" direto aprova; respostas com condição passam por uma segunda leitura (Jev).
+- Microfone no campo de mensagem: a pessoa fala, o texto aparece no campo e ela envia quando quiser. Depois de enviado, vale como mensagem digitada (o Jev lê a intenção).
 - A equipe escolhe o modelo, escreve instruções extras e sobe documentos de conhecimento em Configurações → Assistente.
 
 ### Notificações e rotinas da equipe
@@ -129,6 +131,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Nada de sucesso simulado: pagamento só com confirmação do Inter; nota fiscal só quando a integração existir.
 - Idempotência em tudo que sai do Console: emissão bancária, e-mails e WhatsApp.
 - Auditoria de toda alteração relevante.
+- Voz: o áudio do ditado vai para transcrição no OpenRouter, só com provedores de retenção zero, e não é guardado em lugar nenhum. Fica no Console apenas o texto que a pessoa envia. Limites: 2 minutos por gravação e 30 transcrições por pessoa por hora.
 - Acessibilidade WCAG 2.2 AA como referência (ver [design.md](design.md)).
 
 ## Fora do escopo agora

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ClockIcon,
   KeyRoundIcon,
@@ -20,6 +20,7 @@ import { CompanyField, type CompanyOption } from "@/components/console/company-f
 import { FormField } from "@/components/console/form-field";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { AttachmentField } from "@/components/console/attachment-field";
+import { DictationButton } from "@/components/console/dictation-button";
 import { createTicket } from "@/lib/actions";
 import { calendar } from "@/lib/service-terms/business-calendar";
 import { changeGuidance, expectation, outOfHoursLine } from "@/lib/service-terms/terms-text";
@@ -71,6 +72,7 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
   const [kind, setKind] = useState<TicketKind | "">(context.kind ?? "");
   const [impact, setImpact] = useState<TicketImpact>("other");
   const [engagementId, setEngagementId] = useState("");
+  const body = useRef<HTMLTextAreaElement>(null);
   const cal = useMemo(() => calendar(context.holidays), [context.holidays]);
   // Fixed when the form opens, so the preview does not tick while someone types.
   const [now] = useState(() => new Date());
@@ -201,12 +203,12 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
         hint={
           <span className="flex items-start gap-1.5">
             <ShieldCheckIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-            Não escreva senhas nem dados reais dos seus clientes. Se a equipe precisar de um acesso, ela combina com você um
-            jeito seguro.
+            {`${context.voice ? "Não escreva nem fale" : "Não escreva"} senhas nem dados reais dos seus clientes. Se a equipe precisar de um acesso, ela combina com você um jeito seguro.`}
           </span>
         }
       >
         <Textarea
+          ref={body}
           id="ticket-body"
           name="body"
           required
@@ -215,6 +217,7 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
           placeholder={kind ? ticketDescriptionHints[kind] : "Descreva o que precisa."}
           className="min-h-36"
         />
+        {context.voice && <DictationButton target={body} maxLength={10000} />}
       </FormField>
       <FormField label="Anexos" htmlFor="ticket-files">
         <AttachmentField id="ticket-files" />

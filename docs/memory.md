@@ -9,7 +9,7 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 - **Código:** github.com/anuntech/anuntech-console (transferido de `kauanketner/anuntech-console` em 26/09/2026). Branch de trabalho `codex/bookmarks-ticket-modal`; `main` publica.
 - **Identidade visual e voz:** repositório `anuntech/design-system`.
 - **Histórico de decisões anterior a este documento:** wiki local em `anuntech-wiki/Console/` (00 a 05). É um registro por rodada; várias entradas foram superadas (ver abaixo).
-- **Integrações ativas:** Inter (boleto e Pix, produção), Resend, Synova/FLW para WhatsApp (canal (11) 5107-3435), OpenRouter, Vercel Blob. Focus NFe só autenticado.
+- **Integrações ativas:** Inter (boleto e Pix, produção), Resend, Synova/FLW para WhatsApp (canal (11) 5107-3435), OpenRouter (assistente, Jev e transcrição de voz), Vercel Blob. Focus NFe só autenticado.
 
 ## Linha do tempo
 
@@ -40,6 +40,7 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 - **Datas:** o calendário próprio (`DateField`, react-day-picker) voltou no redesenho de 23/09 e substituiu o `<input type="date">` nativo de 20/09. Seleções simples continuam com `<select>` nativo (`NativeSelect`).
 - **Visual:** shadcn e shadcn.io como base, com a marca Anuntech. O CSS antigo continua numa camada própria até cada tela ser refeita.
 - **Escrita:** todos os textos seguem o manual de voz (revisão completa em 27/09).
+- **Ditado por microfone** (06/10/2026, sugestão de um cliente): microfone no assistente e na descrição de Abrir chamado. O Kauan pediu o Jev para transcrever, mas o Jev só lê texto e responde com decisões (TypeSafe: áudio não é aceito). A transcrição usa a mesma conta do OpenRouter: MAI-Transcribe-2 (Microsoft) e, se falhar, Voxtral Mini (Mistral), os dois com retenção zero. O texto só vai quando a pessoa envia; o áudio não é guardado. Liga com a chave do OpenRouter; `VOICE_INPUT=off` desliga. O preço do MAI-Transcribe-2 (US$ 0,10 por hora) é promocional até 31/12/2026.
 - **Assistente:** age com o acesso da pessoa e sempre pergunta antes de alterar. Um "sim" simples depois da pergunta aprova sem segunda opinião (decidido depois de o Jev recusar confirmações claras).
 - **Chave de idempotência do e-mail de cobrança** fixa por rodada de envio (28/09). Por tentativa, uma repetição depois de timeout poderia mandar o mesmo e-mail duas vezes; por aviso, um reenvio manual cairia no resultado antigo.
 

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { canManageMembers } from "@/lib/access/member-access";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";
 import { endAssistedSession } from "@/lib/access/assisted-actions";
+import { voiceEnabled } from "@/lib/voice/voice-server";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function ConsoleLayout({
@@ -49,6 +50,7 @@ export default async function ConsoleLayout({
             admin={actor.admin}
             support={!!allowedIds(actor, "support").length}
             finance={!!allowedIds(actor, "finance").length}
+            voice={voiceEnabled()}
           />
           <main className="page-content" id="main-content" tabIndex={-1}>
             {children}

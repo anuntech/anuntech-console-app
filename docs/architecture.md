@@ -22,7 +22,7 @@ src/
   app/                 rotas (páginas, route handlers, layouts, estados de erro)
     (secure)/          tudo que exige sessão; layout com dock e assistente
       @ticket/         slot paralelo: criação em painel lateral sobre a tela atual
-    api/               route handlers (downloads, uploads, crons, assistente, auth)
+    api/               route handlers (downloads, uploads, crons, assistente, transcricao, auth)
     pagar/[publicId]/  página pública de pagamento
     entrar/, verificar-acesso/, acesso-pendente/
     dev/preview/       vitrine de componentes com dados fictícios (404 em produção)
@@ -65,6 +65,8 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `catalog/` | catálogo de produtos e serviços |
 | `bookmarks/` | pastas, compartilhamento, links e arquivos |
 | `assistant/` | loop do assistente, ferramentas, consentimento, histórico, Jev, modelos do OpenRouter |
+| `voice/` | ditado por microfone: regras comuns (`voice-rules.ts`: formatos, limites, onde o texto entra) e a transcrição no servidor (`voice-server.ts`) |
+| `http/` | `same-origin.ts`, a checagem de origem dos route handlers que gravam ou custam dinheiro |
 | `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe |
 | `integrations/` | estado das integrações em Configurações |
 
@@ -106,7 +108,8 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - Arquivos `"use server"` em `lib/<domínio>/*-actions.ts`. Assinatura padrão `(prev: ActionState, form: FormData) => Promise<ActionState>` com `{ success?, error?, href? }`.
 - A tela usa `ServerForm` (`components/console/server-form.tsx`), que mostra o toast de sucesso, mantém o erro no formulário e navega para `href`.
 - O Next só encontra uma action a partir de uma página que a renderiza: formulários dentro de painéis e diálogos continuam funcionando porque a página importa o componente.
-- Limite de corpo das actions: 2 MB (`next.config.ts`). Anexos maiores sobem em partes de 1 MB por `/api/chamados/uploads` (`components/console/staged-uploads.ts`).
+- Limite de corpo das actions: 2 MB (`next.config.ts`). O áudio do ditado vai por route handler (`/api/transcricao`, até 4 MB, abaixo dos 4,5 MB da Vercel), não por action: actions rodam uma por vez na página e não podem ser canceladas.
+- Anexos maiores sobem em partes de 1 MB por `/api/chamados/uploads` (`components/console/staged-uploads.ts`).
 
 ## Integrações
 
@@ -116,7 +119,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 | Resend | E-mails transacionais: códigos, cobranças, chamados, contratos, orçamentos, alertas | `lib/auth/otp-delivery.ts`, `lib/billing/billing-notices.ts` e os `*-mail.ts` |
 | Synova (FLW/Helena) | WhatsApp: códigos de acesso, avisos de chamados e de cobrança; widget de suporte no site | `lib/auth/otp-delivery.ts`, `lib/tickets/ticket-notifications.ts`, `lib/billing/billing-notices.ts` |
 | Focus NFe | Notas fiscais. Só a autenticação é verificada; emissão ainda não existe | `lib/integrations/integrations.ts` |
-| OpenRouter | Modelo do assistente (padrão `anthropic/claude-sonnet-5`, trocável em Configurações) e Jev, que lê a intenção antes de ações | `lib/assistant/` |
+| OpenRouter | Modelo do assistente (padrão `anthropic/claude-sonnet-5`, trocável em Configurações) e Jev, que lê a intenção antes de ações. Também transcreve o ditado (`/api/v1/audio/transcriptions`): MAI-Transcribe-2 e, se falhar, Voxtral Mini, sempre com `provider.zdr`. O Jev não transcreve: só lê texto e responde com decisões | `lib/assistant/`, `lib/voice/` |
 | Vercel Blob | Fotos de perfil, store privada | `lib/account/profile-avatar.ts` |
 | CNPJ.ws e ViaCEP | Preenchimento de cadastro por CNPJ e CEP | `lib/companies/company-lookup.ts`, `/api/cadastro/consulta` |
 | Google | Entrada opcional | Better Auth |
@@ -151,11 +154,19 @@ Avisos também são processados logo após a ação, com `after()`; o cron garan
 - O assistente também lê e preenche a tela atual (`page-snapshot.ts`, `components/assistant/page-bridge.ts`).
 - Configurações → Assistente guarda modelo, instruções extras e documentos de conhecimento.
 
+## Ditado
+
+- `components/console/use-dictation.ts` é o único lugar que abre o microfone: grava com `MediaRecorder` (webm/opus; mp4 no Safari antigo), para em 2 minutos, ao esconder a página ou ao perder o microfone, e solta o microfone em toda saída (parar, cancelar, erro, desmontar).
+- `POST /api/transcricao` recebe o áudio cru: origem, sessão, permissão de suporte, formato, tamanho e 30 por hora por pessoa (linha HMAC `voice:` em `console_otp_limits`). Devolve só `{ text }`; nada do áudio é gravado nem vai para o log.
+- O texto entra onde estava o cursor (`joinTranscript`). No chamado, `DictationButton` mantém o campo não controlado (o reset do formulário continua valendo); no assistente, `MetalPromptBar` com `dictation`. Enviar o formulário encerra uma gravação em curso.
+- Escape cancela a gravação antes de fechar o painel ou a folha (`data-escape-local`). O assistente não aperta o botão Falar (`data-assistant-ignore` em `clickPage`).
+- `Permissions-Policy: microphone=(self)` em `next.config.ts`: só o próprio Console usa o microfone. `VOICE_INPUT=off` desliga o recurso e esconde o botão.
+
 ## Testes e CI
 
 - `npm test`: testes unitários em `tests/` (regras puras: cobrança, datas, permissões, tabelas, consentimento).
 - `npm run test:integration` (`scripts/test-isolated.mjs`): cria um banco `console_test_<aleatório>`, aplica todas as migrações, sobe `next start` e roda as suítes HTTP com provedores simulados: OTP, segurança, membros, conta, notificações, cobrança e regressão. Precisa de build prévio. `--members-only`, `--billing-only` etc. rodam uma suíte.
-- Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa.
+- Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa. A regressão carrega também `openrouter-mock.cjs`, que responde a transcrição pelos primeiros bytes do áudio (sucesso, falha do primeiro modelo, silêncio) e registra só modelo, formato e tamanho.
 - As suítes postam formulários pelo nome da server action (lido do manifesto do build), então não quebram quando um texto de botão muda.
 - GitHub Actions (`.github/workflows/checks.yml`) roda em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário.
 

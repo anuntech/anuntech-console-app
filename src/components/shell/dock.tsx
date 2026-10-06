@@ -29,6 +29,8 @@ export type NavigationProps = {
   userName: string;
   userImage: string | null;
   canManageMembers: boolean;
+  /** The assistant's microphone (lib/voice). */
+  voice: boolean;
 };
 const items = [
   { href: "/painel", label: "Visão geral", short: "Início", icon: LayoutDashboard },
@@ -107,6 +109,7 @@ export function Dock({
   userName,
   userImage,
   canManageMembers,
+  voice,
 }: NavigationProps) {
   const pathname = usePathname();
   const { position } = useAppearance();
@@ -160,6 +163,7 @@ export function Dock({
         support={support}
         userName={userName}
         shortcuts={actions.map(({ href, label }) => ({ href, label }))}
+        voice={voice}
       />
       <div className={styles.floating}>
         <Tooltip.Provider delay={350} closeDelay={100}>

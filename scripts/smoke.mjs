@@ -1,7 +1,7 @@
 // Run only against a development database. Creates isolated fixtures and removes them in finally.
 import { runBillingTests } from "./billing-smoke.mjs";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,7 +34,15 @@ const ids = {
 const people = {};
 const noticeDir = mkdtempSync(join(tmpdir(), "console-notices-"));
 const noticeFile = join(noticeDir, "messages.jsonl"),
-  noticeFlags = join(noticeDir, "flags.json");
+  noticeFlags = join(noticeDir, "flags.json"),
+  openRouterFile = join(noticeDir, "openrouter.jsonl");
+const transcriptions = () => {
+  try {
+    return readFileSync(openRouterFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((e) => e.transcription);
+  } catch {
+    return [];
+  }
+};
 const flags = (value) =>
   writeFileSync(noticeFlags, JSON.stringify(value), { mode: 0o600 });
 const sentNotices = () => {
@@ -245,7 +253,10 @@ try {
         BETTER_AUTH_URL: base,
         GOOGLE_CLIENT_ID: "console-regression-test",
         GOOGLE_CLIENT_SECRET: "test",
-        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs`,
+        // The OpenRouter mock goes last so it wraps the other mocks' fetch.
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs --require=${process.cwd()}/scripts/openrouter-mock.cjs`,
+        OPENROUTER_API_KEY: "test",
+        CONSOLE_TEST_ASSISTANT_FILE: openRouterFile,
         CONSOLE_TEST_NOTICE_FILE: noticeFile,
         CONSOLE_TEST_NOTICE_FLAGS: noticeFlags,
         CRON_SECRET: "test-cron-secret",
@@ -432,6 +443,45 @@ try {
       ticketForm.text.includes('name="kind"') && ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="channel"') && ticketForm.text.includes("/como-trabalhamos"),
       "Novo chamado pergunta o tipo, não deixa o cliente escolher prioridade nem canal e aponta Como trabalhamos",
     );
+    // Dictation: the microphone is allowed for the Console only, and /api/transcricao turns audio into text.
+    ok(ticketForm.headers.get("permissions-policy")?.includes("microphone=(self)") && ticketForm.headers.get("permissions-policy")?.includes("camera=()"), "Microfone liberado só para o próprio Console");
+    ok(ticketForm.text.includes("Não escreva nem fale senhas"), "Com o microfone, o aviso de senhas vale também para o que se fala");
+    const speak = (who, body, type = "audio/webm;codecs=opus", headers = {}) =>
+      request("/api/transcricao", who, { method: "POST", body, headers: { Origin: base, "Content-Type": type, ...headers } });
+    const audio = (prefix = "") => Buffer.concat([Buffer.from(prefix, "latin1"), Buffer.alloc(3000, 7)]);
+    r = await speak("support", audio());
+    ok(r.status === 200 && JSON.parse(r.text).text === "Texto ditado de teste", "Cliente dita e recebe o texto");
+    const heard = transcriptions().at(-1);
+    ok(heard?.model === "microsoft/mai-transcribe-2" && heard.format === "webm" && heard.zdr === true && heard.language === "pt" && heard.bytes === 3000, "Transcrição vai em português e só com provedores de retenção zero");
+    r = await speak("support", audio(), "audio/mp4");
+    ok(r.status === 200 && transcriptions().at(-1)?.format === "m4a", "Áudio do iPhone (mp4) vai como m4a");
+    const before = transcriptions().length;
+    r = await speak("support", audio("FAILPRIMARY"));
+    ok(r.status === 200 && transcriptions().slice(before).map((e) => e.model).join() === "microsoft/mai-transcribe-2,mistralai/voxtral-mini-transcribe", "Se o primeiro modelo falha, o segundo transcreve");
+    r = await speak("support", audio("SILENCE"));
+    ok(r.status === 422 && JSON.parse(r.text).error.includes("Não deu para entender"), "Áudio sem fala volta com aviso, sem texto");
+    r = await speak("support", audio("FAILALL"));
+    ok(r.status === 502 && JSON.parse(r.text).error.includes("Tente de novo"), "Falha dos dois modelos pede para tentar de novo");
+    r = await speak(null, audio());
+    ok(r.status >= 300 && r.status < 400 && r.headers.get("location")?.includes("/entrar"), "Sem sessão não transcreve");
+    ok((await speak("outsider", audio())).status === 403, "Conta sem empresa não transcreve");
+    ok((await speak("support", audio(), "audio/webm", { Origin: "https://evil.example" })).status === 403, "Outro site não usa o microfone do Console");
+    ok((await speak("support", audio(), "audio/webm", { "Sec-Fetch-Site": "cross-site" })).status === 403, "Pedido de outro site é recusado");
+    ok((await speak("support", audio(), "text/plain")).status === 415, "Só formatos de áudio aceitos");
+    ok((await speak("support", Buffer.alloc(4_000_001, 1))).status === 413, "Áudio grande demais é recusado");
+    ok((await speak("support", Buffer.alloc(100, 1))).status === 400, "Áudio vazio é recusado");
+    ok((await speak("finance", audio())).status === 200 && (await speak("admin", audio())).status === 200, "Administrador do cliente e equipe também ditam");
+    const voiceKey = createHmac("sha256", process.env.BETTER_AUTH_SECRET).update(`voice:${people.manager.id}`).digest("hex");
+    await database.query("delete from console_otp_limits where key=$1", [voiceKey]);
+    const statuses = [];
+    for (let i = 0; i < 31; i += 1) statuses.push((await speak("manager", audio())).status);
+    ok(statuses.slice(0, 30).every((status) => status === 200) && statuses[30] === 429, "Cada pessoa transcreve até 30 vezes por hora");
+    await database.query("delete from console_otp_limits where key=$1", [voiceKey]);
+    ok((await speak("manager", audio("LONG"))).status === 200, "Áudio longo é transcrito");
+    ok((await database.query("select count from console_otp_limits where key=$1", [voiceKey])).rows[0]?.count === 3, "Áudio de 5 minutos conta como 3 transcrições no limite da hora");
+    await database.query("delete from console_otp_limits where key=$1", [voiceKey]);
+    // The audio (base64 of the filler bytes) and the transcript never reach the server log.
+    ok(!logs.includes(Buffer.alloc(48, 7).toString("base64")) && !logs.includes("Texto ditado de teste") && logs.includes("[voice]"), "O log do servidor não guarda áudio nem texto ditado");
     const contextual = await request(`/chamados/novo?from=${encodeURIComponent(`/chamados/${ids.ticketB}`)}`, "admin");
     ok(contextual.text.includes(`value="${ids.b}"`), "Equipe usa empresa do chamado em contexto");
     const forbiddenContext = await request(`/chamados/novo?companyId=${ids.b}`, "support");

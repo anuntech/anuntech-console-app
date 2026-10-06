@@ -11,6 +11,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 - [ ] Especificar Relatórios.
 
 - [ ] Como trabalhamos: marcar no documento do plano as decisões D1 a D24 (as recomendações foram aplicadas por padrão). Em especial: autorizar ou não o e-mail automático de 80% do banco (D19), definir a cidade da sede e os feriados em Configurações → Dados da empresa (D6), e levar ao advogado as mudanças de texto dos modelos (D1, D2, D8, D10, D16).
+- [ ] Ditado por microfone: testar no próprio iPhone e num Android logo depois da publicação (assistente e Abrir chamado), conferir o custo no OpenRouter depois das primeiras gravações e rever o preço do MAI-Transcribe-2 quando a promoção acabar (31/12/2026). Decidir se o microfone também entra na resposta do chamado.
 - [ ] Cadastrar as condições de atendimento de cada empresa (página da empresa), começando pelas 12 do Synova, conferindo com o contrato assinado. Sem isso, nenhum prazo aparece para o cliente.
 
 ## Engenharia
@@ -26,6 +27,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 06/10/2026: ditado por microfone no assistente e em Abrir chamado (`/api/transcricao`, OpenRouter com retenção zero, 2 minutos por gravação, 30 por hora por pessoa).
 - [x] 04/10/2026: Como trabalhamos, todas as fases: formulário de chamado guiado (tipo, impacto, produto, o que esperar), prioridade só da equipe com Crítica, Aguardando você com o que falta, condições de atendimento por empresa com fichas dos modelos e feriados da sede, relógio do chamado (resposta, meta, pausa), fila e resumo da equipe por prazo, página Como trabalhamos, Primeiros passos, Pedir orçamento, próximos passos, Sobre este projeto, regras do quadro e revisão de entregas, estimativa de melhoria, banco de horas com aprovação e relatório, duração das fases do orçamento e o assistente com o guia e as condições.
 - [x] 01/10/2026: widgets da Visão geral (equipe e cliente) sem descrição e mais compactos; fim da margem antiga em `p`, `h1` e `h2` que abria vãos em todo o Console.
 - [x] 01/10/2026: Projetos, Contratos, Produtos e Empresas em lista ou grade, como Bookmarks; grade é o padrão nas cinco.

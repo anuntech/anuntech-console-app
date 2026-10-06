@@ -5,19 +5,13 @@ import { db } from "@/lib/db";
 import { ticketUploads } from "@/db/schema";
 import { MAX_TICKET_BYTES, normalizeTicketFile } from "@/lib/tickets/ticket-files";
 import { safeFileName } from "@/lib/bookmarks/bookmark-validation";
+import { sameOrigin } from "@/lib/http/same-origin";
 export const maxDuration = 60;
 const respond = (data: unknown, status = 200) =>
   Response.json(data, {
     status,
     headers: { "Cache-Control": "private, no-store" },
   });
-function sameOrigin(request: Request) {
-  return (
-    request.headers.get("origin") ===
-      new URL(process.env.BETTER_AUTH_URL || request.url).origin &&
-    request.headers.get("sec-fetch-site") !== "cross-site"
-  );
-}
 export async function POST(request: Request) {
   if (!sameOrigin(request))
     return respond({ error: "O envio foi recusado. Recarregue a página e tente de novo." }, 403);

@@ -180,6 +180,7 @@ export function AssistantPanel({
   userName,
   shortcuts,
   onBusyChange,
+  voice = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -190,6 +191,8 @@ export function AssistantPanel({
   support: boolean;
   userName: string;
   shortcuts: AssistantShortcut[];
+  /** Dictation by microphone in the composer (lib/voice). */
+  voice?: boolean;
 }) {
   const router = useRouter();
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -731,6 +734,7 @@ export function AssistantPanel({
           <MetalPromptBar
             autoFocus
             busy={busy}
+            dictation={voice}
             chips={chips}
             onChipClick={(label) => {
               const target = shortcuts.find((s) => s.label === label);

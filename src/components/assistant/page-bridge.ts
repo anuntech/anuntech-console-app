@@ -1,5 +1,6 @@
 "use client";
 import { FILL_EVENT } from "@/components/console/fillable";
+import { setNativeValue } from "@/components/console/insert-text";
 
 /* ---------- what the assistant sees ---------- */
 
@@ -105,12 +106,6 @@ export function snapshotPage(): PageSnapshot {
 
 /* ---------- what the assistant does ---------- */
 
-const setNative = (el: HTMLInputElement | HTMLTextAreaElement, value: string) => {
-  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-  Object.getOwnPropertyDescriptor(proto, "value")?.set?.call(el, value);
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-  el.dispatchEvent(new Event("change", { bubbles: true }));
-};
 const truthy = (value: string) => ["sim", "true", "1", "on", "yes", "marcado"].includes(fold(value));
 
 function flash(el: Element) {
@@ -164,7 +159,7 @@ export function fillPage(fields: { campo: string; valor: string }[], submit: boo
       const control = el.previousElementSibling?.getAttribute("role") === "checkbox" ? (el.previousElementSibling as HTMLElement) : el;
       if (el.checked !== truthy(valor)) control.click();
     } else {
-      setNative(el as HTMLInputElement | HTMLTextAreaElement, valor);
+      setNativeValue(el as HTMLInputElement | HTMLTextAreaElement, valor);
     }
     flash(el);
     filled += 1;
@@ -180,7 +175,10 @@ export function fillPage(fields: { campo: string; valor: string }[], submit: boo
 /** Clicks the first visible button or link whose text matches, ignoring case and accents. */
 export function clickPage(label: string) {
   const wanted = fold(label);
-  const candidates = [...document.querySelectorAll<HTMLElement>("button, a[href], [role=menuitem]")].filter(visible);
+  // Controls marked data-assistant-ignore (the microphone) are the person's alone.
+  const candidates = [...document.querySelectorAll<HTMLElement>("button, a[href], [role=menuitem]")].filter(
+    (el) => visible(el) && !el.closest("[data-assistant-ignore]"),
+  );
   const target = candidates.find((el) => fold(text(el)) === wanted) ?? candidates.find((el) => fold(text(el)).includes(wanted));
   if (!target) return false;
   flash(target);

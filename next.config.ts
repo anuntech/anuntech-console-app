@@ -26,7 +26,8 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
+            // The microphone only for the Console itself: dictation in the assistant and in tickets (lib/voice).
+            value: "camera=(), microphone=(self), geolocation=()",
           },
         ],
       },

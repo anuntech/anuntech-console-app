@@ -130,11 +130,34 @@ globalThis.fetch = async function (input, init) {
     if (!file || !fs.existsSync(file)) return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
     return new Response(fs.readFileSync(file), { status: 200, headers: { "Content-Type": "application/json" } });
   }
-  if (!url.includes("openrouter.ai/api/v1/chat/completions") && !url.includes("openrouter.ai/api/v1/systemone")) return originalFetch.apply(this, arguments);
+  if (
+    !url.includes("openrouter.ai/api/v1/chat/completions") &&
+    !url.includes("openrouter.ai/api/v1/systemone") &&
+    !url.includes("openrouter.ai/api/v1/audio/transcriptions")
+  )
+    return originalFetch.apply(this, arguments);
   // Live mode: let the real OpenRouter answer, bypassing the OTP harness's outbound block.
   if (process.env.CONSOLE_TEST_OPENROUTER_LIVE === "1" && globalThis.__nativeFetch) {
     if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), live: true, url, model: JSON.parse(init.body).model }) + "\n");
     return globalThis.__nativeFetch.apply(this, arguments);
+  }
+  if (url.includes("/audio/transcriptions")) {
+    // Speech to text: logs what was asked (never the audio) and answers by the first bytes.
+    const req = JSON.parse(init.body);
+    const audio = Buffer.from(req.input_audio?.data ?? "", "base64");
+    const head = audio.subarray(0, 16).toString("latin1");
+    if (log)
+      fs.appendFileSync(
+        log,
+        JSON.stringify({ at: new Date().toISOString(), transcription: true, model: req.model, format: req.input_audio?.format, bytes: audio.length, zdr: req.provider?.zdr, language: req.language, data: undefined }) + "\n",
+      );
+    const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+    if (head.startsWith("FAILALL")) return json({ error: { message: "Provider unavailable" } }, 503);
+    if (head.startsWith("FAILPRIMARY") && req.model === "microsoft/mai-transcribe-2") return json({ error: { message: "Provider unavailable" } }, 503);
+    if (head.startsWith("SILENCE")) return json({ text: "", usage: { seconds: 1, cost: 0 } });
+    // LONG plays a recording of 5 minutes: it costs 3 of the hourly transcriptions.
+    if (head.startsWith("LONG")) return json({ text: "Texto ditado de teste", usage: { seconds: 300, cost: 0 } });
+    return json({ text: "Texto ditado de teste", usage: { seconds: 1, cost: 0 } });
   }
   if (url.includes("/systemone")) {
     // Jev stand-in: keyword intent, keyword approval.

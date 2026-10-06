@@ -62,7 +62,7 @@ O azul-marinho e o amarelo são as tintas do logotipo, as mesmas do `anuntech/de
 
 ### Primitivos (`src/components/ui`)
 
-alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `energy-orb` (esfera animada do assistente) e `metal-prompt-bar`.
+alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `energy-orb` (esfera animada do assistente) e `metal-prompt-bar` (com `dictation`, mostra o microfone).
 
 Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucide). Ajuste um primitivo só quando o ajuste vale para o Console inteiro.
 
@@ -80,6 +80,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 | `Fact` | Par rótulo/valor dentro de `<dl>` nos cards de detalhe |
 | `MoneyField`, `DateField`, `CompanyField`, `PeopleField`, `MultiSelect`, `TokenChip` | Campos especiais: reais, data civil com calendário, empresa com busca, pessoas, múltipla escolha |
 | `AttachmentField`, `FileChip`, `FileRow`, `useStagedUploads`, `DownloadLink` | Anexos com envio em partes e download privado |
+| `DictationButton`, `useDictation` | Ditado num campo de texto: Falar, Parar e Cancelar, tempo de gravação e o texto entra onde estava o cursor, sem enviar nada |
 | `PersonAvatar`, `AvatarStack`, `CompanyMark` | Pessoas e empresas |
 | `CopyButton`, `BackButton` | Copiar com confirmação; voltar com destino padrão |
 | `StatusPage`, `ErrorView` | 404, erro inesperado e link inválido |
@@ -116,6 +117,7 @@ Segue o manual de voz da Anuntech, níveis 0 e 1 para produto: útil, curto e li
 - E-mails automáticos começam pelo fato ("A fatura de … vence hoje."), terminam na ação e assinam "Anuntech".
 - Texto jurídico (modelos de contrato, cláusulas, declarações de assinatura) não passa por revisão de estilo; precisa de revisão humana.
 - O assistente recebe as mesmas regras no prompt ("Como escrever").
+- Ditado: o botão diz a ação ("Falar", "Parar", "Transcrevendo…"); durante a gravação aparece "O áudio vai para um serviço de transcrição e não fica guardado."; no fim, "Texto inserido. Revise antes de enviar.".
 
 ## Acessibilidade
 
@@ -126,6 +128,7 @@ Referência WCAG 2.2 AA e padrões da WAI-ARIA APG.
 - Botão só com ícone tem nome acessível. Ícone decorativo tem `aria-hidden`.
 - Diálogos e painéis prendem o foco, fecham com Escape (exceto durante envio) e devolvem o foco a quem abriu.
 - Situação nunca só por cor. Foco sempre visível. Movimento reduzido e cores forçadas respeitados.
+- Ditado: o nome do botão muda com a fase (sem `aria-pressed`), uma região `aria-live` por campo anuncia cada mudança uma vez, o cronômetro fica fora dela, Escape cancela a gravação e o ponto vermelho só pulsa com movimento liberado.
 - Tabelas largas rolam no próprio contêiner; a página não ganha rolagem horizontal em 320 px.
 - Alvos de toque de pelo menos 44 px no dock e na barra do celular.
 
