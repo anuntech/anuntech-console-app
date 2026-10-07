@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { and, count, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   AlertTriangleIcon,
@@ -223,7 +223,12 @@ export default async function Dashboard() {
       .select({ n: count() })
       .from(subscriptions)
       .innerJoin(companies, eq(companies.id, subscriptions.companyId))
-      .where(and(eq(subscriptions.status, "paused"), eq(companies.archived, false))),
+      .where(
+        and(
+          or(eq(subscriptions.status, "paused"), and(eq(subscriptions.status, "active"), isNotNull(subscriptions.lastError))),
+          eq(companies.archived, false),
+        ),
+      ),
   ]);
 
   const byMonth = new Map(billing.map((row) => [row.month, row]));
@@ -244,8 +249,8 @@ export default async function Dashboard() {
       key: "paused-recurrences",
       icon: <AlertTriangleIcon />,
       tone: "critical" as const,
-      title: "Recorrências pausadas",
-      detail: "Não emitem enquanto estiverem pausadas",
+      title: "Recorrências que precisam de você",
+      detail: "Pausadas ou com a emissão falhando; veja o motivo em Próximas cobranças",
       count: pausedRecurrences.n,
       href: "/financeiro",
     },

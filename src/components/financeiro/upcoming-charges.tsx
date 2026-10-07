@@ -9,6 +9,8 @@ const SHOWN = 4;
 
 function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boolean }) {
   const paused = charge.status === "paused";
+  // An active recurrence with a reason on it: the early issue did not go out (the team only sees reasons).
+  const warn = paused || !!charge.lastError;
   const title = (
     <>
       <span className="block truncate font-medium text-foreground">{charge.description}</span>
@@ -17,7 +19,7 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
   );
   return (
     <li className="flex items-start gap-3 py-3 text-sm first:pt-0 last:pb-0">
-      {paused ? (
+      {warn ? (
         <TriangleAlertIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
       ) : (
         <CalendarClockIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -30,11 +32,12 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
         ) : (
           title
         )}
-        <span className={paused ? "mt-0.5 block text-xs text-warning" : "mt-0.5 block text-xs text-muted-foreground"}>
+        <span className={warn ? "mt-0.5 block text-xs text-warning" : "mt-0.5 block text-xs text-muted-foreground"}>
           {paused
             ? `Pausada: não será emitida até ser retomada.${charge.lastError ? ` ${charge.lastError}` : ""}`
-            : // With the switch on it may come sooner (the previous one paid); never later.
-              `Boleto e Pix chegam até ${dateLabel(charge.issueDate)}.`}
+            : (charge.lastError ??
+              // With the switch on it may come sooner (the previous one paid); never later.
+              `Boleto e Pix chegam até ${dateLabel(charge.issueDate)}.`)}
         </span>
       </div>
       <div className="shrink-0 text-right">
@@ -52,8 +55,9 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
 export function UpcomingCharges({ charges, showCompany, team }: { charges: UpcomingCharge[]; showCompany: boolean; team: boolean }) {
   if (!charges.length) return null;
   const paused = charges.filter((c) => c.status === "paused");
-  // Paused first: they are the ones that need someone.
-  const ordered = [...paused, ...charges.filter((c) => c.status !== "paused")];
+  const failing = charges.filter((c) => c.status !== "paused" && c.lastError);
+  // Paused and failing first: they are the ones that need someone.
+  const ordered = [...paused, ...failing, ...charges.filter((c) => c.status !== "paused" && !c.lastError)];
   const first = ordered.slice(0, SHOWN);
   const rest = ordered.slice(SHOWN);
   return (
@@ -64,8 +68,13 @@ export function UpcomingCharges({ charges, showCompany, team }: { charges: Upcom
           description={
             !team
               ? "Você recebe o aviso por e-mail e WhatsApp 5 dias antes de cada vencimento."
-              : paused.length
-                ? `${paused.length === 1 ? "1 recorrência pausada" : `${paused.length} recorrências pausadas`}. As demais são emitidas sozinhas, e o aviso ao cliente vai 5 dias antes do vencimento.`
+              : paused.length || failing.length
+                ? `${[
+                    paused.length ? (paused.length === 1 ? "1 recorrência pausada" : `${paused.length} recorrências pausadas`) : "",
+                    failing.length ? (failing.length === 1 ? "1 com emissão pendente de correção" : `${failing.length} com emissão pendente de correção`) : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" e ")}. As demais são emitidas sozinhas, e o aviso ao cliente vai 5 dias antes do vencimento.`
                 : "Emitidas sozinhas. O aviso ao cliente vai 5 dias antes do vencimento."
           }
         />
