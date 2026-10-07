@@ -709,6 +709,8 @@ export const subscriptions = pgTable("console_subscriptions", {
   anchorMonth: integer("anchor_month").notNull(),
   nextDueDate: date("next_due_date").notNull(),
   leadDays: integer("lead_days").notNull().default(5),
+  /** Monthly plans: issue the next period as soon as this one is paid at Inter (the owner's decision, 06/10/2026). */
+  issueOnPayment: boolean("issue_on_payment").notNull().default(true),
   collectionDays: integer("collection_days").notNull().default(30),
   status: text("status", { enum: ["draft", "active", "paused", "cancelled"] })
     .notNull()

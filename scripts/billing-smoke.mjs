@@ -649,4 +649,82 @@ export async function runBillingTests({
     i.id,
   ]);
   flags({ approved: true });
+
+  // Monthly recurrence: once the period is paid at Inter, the next one is issued
+  // right away, and its client notice still waits for the usual day.
+  flags({ approved: true, bankUnpaid: true });
+  await submitForm("/financeiro/nova", "admin", "admin", "Criar rascunho", {
+    companyId: ids.a,
+    engagementId: "",
+    description: `Early QA ${marker}`,
+    amount: "321,00",
+    dueDate: offset(15),
+    billingType: "recurring",
+    interval: "monthly",
+  });
+  const early = await one("select * from console_invoices where description=$1", [`Early QA ${marker}`]);
+  const earlyPage = `/financeiro/${early.id}`;
+  await submitForm(earlyPage, "admin", "admin", "Publicar cobrança recorrente", {
+    id: early.id,
+    confirm: "yes",
+    numDiasAgenda: "30",
+    activateRecurring: "yes",
+  });
+  await submitForm(earlyPage, "admin", "admin", { action: "updateSubscription" }, {
+    id: early.subscription_id,
+    description: early.description,
+    amount: "321,00",
+    dueDate: offset(4),
+  });
+  await cron();
+  const periods = async () =>
+    (await db.query("select id, status, due_date::text due from console_invoices where subscription_id=$1 order by due_date", [early.subscription_id])).rows;
+  let earlySub = await one("select next_due_date::text next, issue_on_payment from console_subscriptions where id=$1", [early.subscription_id]);
+  ok((await periods()).length === 1 && (await periods())[0].status === "issued" && earlySub.issue_on_payment === true, "Recorrência mensal nasce emitindo a próxima depois do pagamento");
+  await cron();
+  ok((await periods()).length === 1, "Sem pagamento, a próxima espera o dia de sempre");
+  const upcomingPage = await request(`/financeiro?company=${ids.a}`, "manager");
+  ok(upcomingPage.text.includes("Próximas cobranças") && upcomingPage.text.includes(`Early QA ${marker}`), "Cliente vê a próxima cobrança antes de ela ser emitida");
+  // Inter confirms the payment of the current period.
+  flags({ approved: true, bankUnpaid: false });
+  await submitForm(earlyPage, "admin", "admin", { action: "syncCharge" }, { id: early.id });
+  await submitForm(earlyPage, "admin", "admin", { action: "syncCharge" }, { id: early.id });
+  flags({ approved: true, bankUnpaid: true });
+  ok((await invoice(early.id)).status === "paid", "O Inter confirma o pagamento da fatura atual");
+  await cron();
+  let rows2 = await periods();
+  const next = rows2.find((row) => row.due === earlySub.next);
+  ok(rows2.length === 2 && next?.status === "issued", "Paga a atual, a próxima é emitida no Inter em seguida");
+  const nextSub = await one("select next_due_date::text next from console_subscriptions where id=$1", [early.subscription_id]);
+  ok(nextSub.next > earlySub.next, "A recorrência avança um período com a emissão antecipada");
+  const held = await notices(next.id);
+  const usualDay = new Date(`${next.due}T12:00:00Z`);
+  usualDay.setUTCDate(usualDay.getUTCDate() - 5);
+  ok(
+    held.length > 0 && held.every((row) => row.kind === "initial" && ["waiting", "pending"].includes(row.status) && new Date(row.next_attempt_at).toISOString() === `${usualDay.toISOString().slice(0, 10)}T11:00:00.000Z`),
+    "O aviso da fatura antecipada sai no dia de sempre, 5 dias antes do vencimento, às 8h",
+  );
+  await cron();
+  ok((await periods()).length === 2, "Fatura antecipada em aberto não gera outra");
+  // Moving the next due date into the month already at the bank would bill it twice.
+  const before = (await one("select next_due_date::text next from console_subscriptions where id=$1", [early.subscription_id])).next;
+  await submitForm(earlyPage, "admin", "admin", { action: "updateSubscription" }, {
+    id: early.subscription_id,
+    description: early.description,
+    amount: "321,00",
+    dueDate: `${next.due.slice(0, 8)}${next.due.slice(8) === "28" ? "27" : "28"}`,
+  });
+  ok((await one("select next_due_date::text next from console_subscriptions where id=$1", [early.subscription_id])).next === before, "Editar a recorrência não aceita vencimento num mês já emitido");
+  // Cancelling at Inter: only the team, and the notices stop.
+  await submitForm(`/financeiro/${next.id}`, "manager", "manager", { action: "cancelCharge" }, { id: next.id });
+  ok((await invoice(next.id)).status === "issued", "Cliente não cancela cobrança no Inter");
+  await submitForm(`/financeiro/${next.id}`, "admin", "admin", { action: "cancelCharge" }, { id: next.id, reason: "Cliente encerrou o serviço" });
+  ok((await invoice(next.id)).status === "cancelled", "Equipe cancela no Inter e a fatura fica cancelada");
+  ok((await one("select status from console_subscriptions where id=$1", [early.subscription_id])).status === "paused", "Cancelar no Inter pausa a recorrência, sem emitir o período seguinte");
+  ok((await notices(next.id)).every((row) => row.status === "skipped"), "Cancelada no Inter, nenhum aviso sai");
+  ok(
+    !!(await one("select 1 as ok from console_audit_events where entity_id=$1 and action='invoice.bank_cancel_requested'", [next.id])),
+    "O cancelamento no Inter fica no histórico",
+  );
+  flags({ approved: true });
 }

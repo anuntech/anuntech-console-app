@@ -41,10 +41,13 @@ export async function GET(request: Request) {
         ),
       )
       .orderBy(sql`${invoices.bankCheckedAt} ASC NULLS FIRST`, invoices.id)
-      .limit(20);
+      // With the next period issued on payment there are about twice as many open charges; Inter allows 120 checks a minute.
+      .limit(40);
     let checked = 0;
     let failed = 0;
-    for (let index = 0; index < pending.length; index += 4) {
+    // The rest waits for the next run rather than the function being cut off midway.
+    const deadline = Date.now() + 200_000;
+    for (let index = 0; index < pending.length && Date.now() < deadline; index += 4) {
       const results = await Promise.allSettled(
         pending.slice(index, index + 4).map(async ({ id }) => {
           await reconcileCharge(id, undefined, undefined, "scheduled");

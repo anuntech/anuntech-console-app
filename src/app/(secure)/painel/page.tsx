@@ -126,6 +126,7 @@ export default async function Dashboard() {
     activity,
     [ticketsDue],
     [unsetTerms],
+    [pausedRecurrences],
   ] = await Promise.all([
     db
       .select({
@@ -216,7 +217,13 @@ export default async function Dashboard() {
           eq(contracts.status, "signed"),
           sql`not exists (select 1 from ${serviceTerms} where ${serviceTerms.companyId} = ${contracts.companyId} and ${serviceTerms.active} and ${serviceTerms.verifiedAt} is not null)`,
         ),
-      )
+      ),
+    // A paused recurrence issues nothing until someone fixes and resumes it.
+    db
+      .select({ n: count() })
+      .from(subscriptions)
+      .innerJoin(companies, eq(companies.id, subscriptions.companyId))
+      .where(and(eq(subscriptions.status, "paused"), eq(companies.archived, false))),
   ]);
 
   const byMonth = new Map(billing.map((row) => [row.month, row]));
@@ -233,6 +240,15 @@ export default async function Dashboard() {
     lastMonth.receivedCents > 0 ? { percent: ((thisMonth.receivedCents - lastMonth.receivedCents) / lastMonth.receivedCents) * 100, label: `em relação a ${lastMonth.longLabel}` } : null;
 
   const candidates: (AttentionItem | false)[] = [
+    pausedRecurrences.n > 0 && {
+      key: "paused-recurrences",
+      icon: <AlertTriangleIcon />,
+      tone: "critical" as const,
+      title: "Recorrências pausadas",
+      detail: "Não emitem enquanto estiverem pausadas",
+      count: pausedRecurrences.n,
+      href: "/financeiro",
+    },
     overdue.n > 0 && {
       key: "overdue",
       icon: <AlertTriangleIcon />,

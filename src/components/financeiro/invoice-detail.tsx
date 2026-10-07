@@ -45,7 +45,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { cancelDraft } from "@/lib/actions";
-import { issueCharge, syncCharge } from "@/lib/billing/billing-actions";
+import { cancelCharge, issueCharge, syncCharge } from "@/lib/billing/billing-actions";
 import {
   changePaymentLink,
   changeSubscription,
@@ -117,6 +117,12 @@ export type InvoiceDetailData = {
     amountCents: number;
     description: string;
     lastError: string | null;
+    /** Monthly plans: the next period is issued as soon as this one is paid. Null for yearly. */
+    issueOnPayment: boolean | null;
+    /** Paying this invoice now would issue the next period right away (lib/billing/recurrence.ts earlyIssueAllowed). */
+    earlyReady: boolean;
+    /** The next period, when it is already at the bank. */
+    ahead: { id: string; dueDate: string; amountCents: number; status: "issued" | "paid" } | null;
     terms: ChargeTerms;
   } | null;
   /** Draft waiting for its automatic emission date. */
@@ -254,12 +260,12 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
     null,
   );
   const [confirm, setConfirm] = useState<
-    null | "link" | "subscription" | "cancel" | "delete"
+    null | "link" | "subscription" | "cancel" | "delete" | "bank"
   >(null);
   const [send, setSend] = useState<null | "email" | "whatsapp">(null);
   const [resend, setResend] = useState<string | null>(null);
   const [allEvents, setAllEvents] = useState(false);
-  const ask = (which: "link" | "subscription" | "cancel" | "delete") =>
+  const ask = (which: "link" | "subscription" | "cancel" | "delete" | "bank") =>
     setTimeout(() => setConfirm(which), 0);
   const deletable = admin && !!invoice.deletable;
 
@@ -286,6 +292,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           bankDueDate: null,
           terms: sub.terms,
           recurring: true,
+          issueOnPayment: sub.issueOnPayment ?? undefined,
         }
       : {
           id: invoice.id,
@@ -366,8 +373,14 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       : "Retomar recorrência"}
                   </DropdownMenuItem>
                 )}
-                {(invoice.editable === "draft" || deletable) && (
+                {(invoice.editable === "draft" || deletable || (issued && invoice.providerId)) && (
                   <DropdownMenuSeparator />
+                )}
+                {issued && invoice.providerId && (
+                  <DropdownMenuItem variant="destructive" onSelect={() => ask("bank")}>
+                    <CircleSlashIcon />
+                    Cancelar no Inter
+                  </DropdownMenuItem>
                 )}
                 {invoice.editable === "draft" && (
                   <DropdownMenuItem
@@ -477,6 +490,29 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   </span>
                 </Fact>
                 <Fact label="Tipo">{typeLabel}</Fact>
+                {sub && sub.status === "active" && settled && (
+                  <Fact label="Próxima cobrança">
+                    {sub.ahead ? (
+                      <>
+                        <Link href={`/financeiro/${sub.ahead.id}`} className="font-medium text-foreground hover:text-primary">
+                          <span className="tabular-nums">{currency(sub.ahead.amountCents)}</span>, vence {dateLabel(sub.ahead.dueDate)}
+                        </Link>
+                        <span className="block text-xs text-muted-foreground">
+                          {sub.ahead.status === "paid" ? "Já paga." : "Boleto e Pix já disponíveis."}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="tabular-nums">{currency(sub.amountCents)}</span>, vence {dateLabel(sub.nextDueDate)}
+                        <span className="block text-xs text-muted-foreground">
+                          {sub.earlyReady && !paid
+                            ? `Boleto e Pix saem assim que esta for paga, ou até ${dateLabel(sub.issueDate)}.`
+                            : `Boleto e Pix chegam até ${dateLabel(sub.issueDate)}.`}
+                        </span>
+                      </>
+                    )}
+                  </Fact>
+                )}
                 {hasTerms(invoice.terms) && (
                   <Fact label="Condições" className="sm:col-span-2">
                     {invoice.terms.discountCents ? (
@@ -516,7 +552,9 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   title="Publicar no Inter"
                   description={
                     sub
-                      ? "Ativa a recorrência: esta e as próximas cobranças são emitidas e avisadas 5 dias antes de cada vencimento."
+                      ? sub.interval === "monthly"
+                        ? "Ativa a recorrência: cada cobrança sai assim que a anterior é paga, ou 5 dias antes do vencimento, e o aviso vai 5 dias antes."
+                        : "Ativa a recorrência: esta e as próximas cobranças são emitidas e avisadas 5 dias antes de cada vencimento."
                       : "Emite boleto e Pix no Inter com os dados abaixo."
                   }
                 />
@@ -579,10 +617,9 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                           className="mt-0.5"
                         />
                         <span>
-                          Ativar a recorrência{" "}
-                          {sub.interval === "yearly" ? "anual" : "mensal"}: cada
-                          período é emitido e avisado por e-mail e WhatsApp 5
-                          dias antes do vencimento.
+                          {sub.interval === "monthly" && sub.issueOnPayment
+                            ? "Ativar a recorrência mensal: cada período é emitido assim que o anterior é pago (ou 5 dias antes do vencimento) e avisado por e-mail e WhatsApp 5 dias antes."
+                            : `Ativar a recorrência ${sub.interval === "yearly" ? "anual" : "mensal"}: cada período é emitido e avisado por e-mail e WhatsApp 5 dias antes do vencimento.`}
                         </span>
                       </label>
                     ) : (
@@ -946,7 +983,12 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     <SubscriptionStatusBadge status={sub.status} />
                   </Fact>
                   <Fact label="Próximo vencimento">{dateLabel(sub.nextDueDate)}</Fact>
-                  <Fact label="Próxima emissão e avisos">{dateLabel(sub.issueDate)}</Fact>
+                  <Fact label="Próxima emissão">
+                    {sub.issueOnPayment
+                      ? `Quando a anterior for paga, ou em ${dateLabel(sub.issueDate)}`
+                      : dateLabel(sub.issueDate)}
+                  </Fact>
+                  <Fact label="Aviso ao cliente">{dateLabel(sub.issueDate)}</Fact>
                   <Fact label="Valor por período">
                     <span className="tabular-nums">{currency(sub.amountCents)}</span>
                   </Fact>
@@ -1091,12 +1133,24 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
               }
               description={
                 sub.status === "active"
-                  ? "As próximas emissões automáticas param. Faturas já emitidas não mudam."
+                  ? sub.ahead?.status === "issued"
+                    ? `As próximas emissões automáticas param. A fatura de ${dateLabel(sub.ahead.dueDate)} já está no Inter e continua valendo; se não for devida, abra essa fatura e use Cancelar no Inter.`
+                    : "As próximas emissões automáticas param. Faturas já emitidas não mudam."
                   : `As emissões e avisos voltam. Próximo vencimento: ${dateLabel(sub.nextDueDate)}, ${currency(sub.amountCents)}.`
               }
               confirmLabel={sub.status === "active" ? "Pausar" : "Retomar"}
             />
           )}
+          <ConfirmDialog
+            open={confirm === "bank"}
+            onOpenChange={(open) => !open && setConfirm(null)}
+            action={cancelCharge}
+            fields={{ id: invoice.id }}
+            title="Cancelar esta cobrança no Inter?"
+            description={`O boleto e o Pix de ${currency(invoice.amountCents)} para ${company.name} deixam de valer e os avisos param. Não dá para desfazer: para cobrar de novo, crie outra cobrança.${sub?.status === "active" ? " A recorrência fica pausada para não emitir o próximo período; retome se o cliente continuar." : ""}`}
+            confirmLabel="Cancelar no Inter"
+            destructive
+          />
           <ConfirmDialog
             open={confirm === "cancel"}
             onOpenChange={(open) => !open && setConfirm(null)}

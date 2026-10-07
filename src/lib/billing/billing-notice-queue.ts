@@ -19,8 +19,13 @@ export async function enqueueBillingNotice(
     channel: "email" | "whatsapp";
     kind: BillingNoticeKind;
   },
-  /** Only for an admin's explicit send/resend; automatic notices wait until 08h. */
-  options: { immediate?: boolean } = {},
+  /**
+   * `immediate` only for an admin's explicit send/resend; automatic notices
+   * wait until 08h. `notBefore` holds them longer: an invoice issued early,
+   * right after the previous one was paid, is still announced on its usual
+   * day (5 days before the due date).
+   */
+  options: { immediate?: boolean; notBefore?: Date } = {},
 ) {
   const preferences = await getNoticePreferences(
     input.companyId,
@@ -33,7 +38,12 @@ export async function enqueueBillingNotice(
       : noticePhones(preferences);
   const { companyId: _companyId, ...notice } = input;
   void _companyId;
-  const nextAttemptAt = options.immediate ? new Date() : billingSendTime();
+  const morning = billingSendTime();
+  const nextAttemptAt = options.immediate
+    ? new Date()
+    : options.notBefore && options.notBefore > morning
+      ? options.notBefore
+      : morning;
   await tx
     .insert(billingNotices)
     .values(

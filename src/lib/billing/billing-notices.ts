@@ -239,6 +239,18 @@ export async function processBillingNotice(
         error:
           "Canal desativado ou destinatário alterado nas preferências de notificações.",
       });
+      // A "Nova fatura" queued weeks ahead (issued right after a payment) goes to the contacts saved since.
+      const enabled = notice.channel === "email" ? preferences.emailEnabled : preferences.whatsappEnabled;
+      if (notice.kind === "initial" && notice.attempts === 0 && !notice.payload && enabled && row.i.status === "issued")
+        await db.transaction((tx) =>
+          enqueueBillingNotice(tx, {
+            invoiceId: notice.invoiceId,
+            companyId: row!.c.id,
+            actorId: notice.actorId,
+            channel: notice.channel,
+            kind: "initial",
+          }),
+        );
       return;
     }
     const today = saoPauloDate();

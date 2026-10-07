@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nextDueDate, issueDate } from "../src/lib/billing/recurrence";
+import { addDays, earlyIssueAllowed, nextDueDate, issueDate, type EarlyIssueState } from "../src/lib/billing/recurrence";
 import { billingEmailTemplate } from "../src/lib/billing/billing-email-template";
 test("monthly recurrence clamps February and recovers the original day", () => {
   assert.equal(nextDueDate("2027-01-31", "monthly", 31, 1), "2027-02-28");
@@ -71,4 +71,38 @@ test("WhatsApp button receives only public invoice ID and exact template fields"
   });
   assert.ok(email.text.includes("em aberto há 8 dias"));
   assert.ok(email.text.includes("Valor atualizado"));
+});
+
+const paidMonth: EarlyIssueState = {
+  interval: "monthly",
+  issueOnPayment: true,
+  nextDueDate: "2026-11-20",
+  today: "2026-10-22",
+  previousStatus: "paid",
+  hasOpenInvoice: false,
+  engagementActive: true,
+};
+
+test("a paid monthly period lets the next one go out right away", () => {
+  assert.equal(earlyIssueAllowed(paidMonth), true);
+});
+
+test("early issue needs the previous period paid and nothing open", () => {
+  for (const previousStatus of ["issued", "cancelled", "draft", null])
+    assert.equal(earlyIssueAllowed({ ...paidMonth, previousStatus }), false, String(previousStatus));
+  assert.equal(earlyIssueAllowed({ ...paidMonth, hasOpenInvoice: true }), false);
+});
+
+test("early issue is for monthly plans with the switch on, a running service and a near due date", () => {
+  assert.equal(earlyIssueAllowed({ ...paidMonth, interval: "yearly" }), false);
+  assert.equal(earlyIssueAllowed({ ...paidMonth, issueOnPayment: false }), false);
+  assert.equal(earlyIssueAllowed({ ...paidMonth, engagementActive: false }), false);
+  assert.equal(earlyIssueAllowed({ ...paidMonth, nextDueDate: addDays(paidMonth.today, 45) }), true);
+  assert.equal(earlyIssueAllowed({ ...paidMonth, nextDueDate: addDays(paidMonth.today, 46) }), false);
+  assert.equal(earlyIssueAllowed({ ...paidMonth, nextDueDate: paidMonth.today }), false);
+});
+
+test("civil days add across months and years", () => {
+  assert.equal(addDays("2026-12-20", 45), "2027-02-03");
+  assert.equal(addDays("2027-03-01", -1), "2027-02-28");
 });

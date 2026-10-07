@@ -27,6 +27,7 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 ## Decisões
 
 - **Cobrança manual, recorrência autorizada.** A regra geral é não automatizar cobrança. As recorrências existentes foram ativadas a pedido do Kauan em 19/09/2026; novas automações precisam de pedido explícito.
+- **Próxima fatura emitida no pagamento** (06/10/2026, pedido explícito do Kauan): em toda recorrência mensal ativa, o pagamento confirmado pelo Inter emite o período seguinte na hora, no máximo 45 dias antes do vencimento. O aviso ao cliente continua 5 dias antes. Motivo: clientes abriam o Console e não achavam a próxima fatura. Consequências aceitas: o cliente fica sempre com uma fatura em aberto e o boleto aparece no DDA do banco dele cerca de 30 dias antes. Coluna `issue_on_payment` (migração 0037, ligada para as 32 recorrências), desligável por recorrência. Cancelar no Inter pausa a recorrência, para um cliente que saiu não receber o período seguinte.
 - **Dois papéis por empresa** (21/09): "Atendimento" e "Financeiro" viraram "Membro"; só o Administrador vê dinheiro, contratos e orçamentos. A migração 0016 converteu os dados.
 - **Um ambiente por conta.** A mesma pessoa não pode ser da equipe e de um cliente, nem de dois clientes, contando os e-mails verificados.
 - **Contratos são assinados no Console** (24/09), com hash do texto de cada versão. Substituiu "publicar para o cliente".

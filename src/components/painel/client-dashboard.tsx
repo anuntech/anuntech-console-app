@@ -29,6 +29,7 @@ import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { TicketStatusBadge } from "@/components/chamados/ticket-badges";
 import { FirstStepsCard } from "@/components/guide/first-steps-card";
 import { firstStepsFor } from "@/lib/guide/first-steps";
+import { upcomingCharges } from "@/lib/billing/upcoming-charges";
 import { bankCard, type BankCard } from "@/lib/service-terms/hours-bank";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
@@ -316,6 +317,8 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   const attention = candidates.filter((item): item is AttentionItem => item !== false);
 
   const firstSteps = await firstStepsFor(actor);
+  // With nothing open, the next recurring charge says when the next boleto comes.
+  const [nextCharge] = canFinance && !dueTotals.n ? await upcomingCharges({ admin: false, companyIds: financeIds }) : [];
   // Each company's hours bank, once its conditions are published, and estimates waiting for an Administrador.
   const banks = (
     await Promise.all(actor.grants.map((g) => bankCard(g.company.id, g.company.name, { client: true, now })))
@@ -380,10 +383,12 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                 ? dueTotals.overdueN > 0
                   ? `${plural(dueTotals.overdueN, "vencida", "vencidas")} · ${plural(dueTotals.n, "fatura", "faturas")}`
                   : `Próxima em ${dateLabel(next!.dueDate)}`
-                : "Nada em aberto"
+                : nextCharge
+                  ? `Próxima: ${currency(nextCharge.amountCents)} em ${dateLabel(nextCharge.dueDate)}`
+                  : "Nada em aberto"
             }
             // The list's "Em aberto" leaves out overdue invoices; those are the urgent ones.
-            href={dueTotals.overdueN > 0 ? "/financeiro?status=overdue" : "/financeiro?status=issued"}
+            href={dueTotals.overdueN > 0 ? "/financeiro?status=overdue" : dueTotals.n ? "/financeiro?status=issued" : "/financeiro"}
           />
         )}
         {canSupport && (
@@ -442,7 +447,16 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                 })}
               </ul>
             ) : (
-              <EmptyState icon={<WalletIcon />} title="Nada a pagar agora" description="Quando houver uma fatura em aberto, ela aparece aqui." className="py-10" />
+              <EmptyState
+                icon={<WalletIcon />}
+                title="Nada a pagar agora"
+                description={
+                  nextCharge
+                    ? `A próxima cobrança, de ${currency(nextCharge.amountCents)}, vence em ${dateLabel(nextCharge.dueDate)}. Boleto e Pix chegam até ${dateLabel(nextCharge.issueDate)}.`
+                    : "Quando houver uma fatura em aberto, ela aparece aqui."
+                }
+                className="py-10"
+              />
             )}
           </Widget>
         )}

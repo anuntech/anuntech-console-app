@@ -32,6 +32,8 @@ import {
   type InvoiceMetric,
 } from "@/components/financeiro/invoice-metrics";
 import { InvoicesTable } from "@/components/financeiro/invoices-table";
+import { UpcomingCharges } from "@/components/financeiro/upcoming-charges";
+import { upcomingCharges } from "@/lib/billing/upcoming-charges";
 export const metadata: Metadata = {
   title: "Financeiro",
   description:
@@ -108,6 +110,11 @@ export default async function Finance({
   const total = totals[query.status].count;
   const pageCount = pageCountOf(total, query.pageSize);
   const { page } = clampPage(query, total);
+  // What each recurrence charges next, on the first page of the plain list (a client's own, or ?company=).
+  const upcoming =
+    !search && page === 1 && (query.status === "all" || query.status === "scheduled")
+      ? await upcomingCharges({ admin: actor.admin, companyIds: query.company ? [query.company] : actor.admin ? null : ids })
+      : [];
   const [list, companyFilter] = await Promise.all([
     db
       .select({
@@ -211,6 +218,7 @@ export default async function Finance({
         active={query.status}
         hrefFor={(status) => invoiceListHref({ ...query, status, page: 1 })}
       />
+      <UpcomingCharges charges={upcoming} team={actor.admin} showCompany={(actor.admin || ids.length > 1) && !query.company} />
       <InvoicesTable
         actions={
           actor.admin && (

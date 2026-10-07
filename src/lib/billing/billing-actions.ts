@@ -1,11 +1,11 @@
 "use server";
 import { db } from "../db";
 import { resolveBankDueDate } from "./billing-notice-rules";
-import { invoices, subscriptions, auditEvents } from "@/db/schema";
+import { invoices, subscriptions, auditEvents, billingNotices } from "@/db/schema";
 import { parseChargeTerms, parseTermsScope, sameTerms } from "./billing-terms";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { issueDate } from "./recurrence";
-import { saoPauloDate } from "../dates";
+import { BILLING_SEND_HOUR, billingSendTime, saoPauloDate, saoPauloTime } from "../dates";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -13,7 +13,7 @@ import { publishInvoice } from "./billing-publish";
 import { processBillingNotices } from "./billing-notices";
 import { getActor } from "../access/access";
 import { reconcileCharge } from "./billing-sync";
-import { interApi, interBase, interToken } from "../integrations/integrations";
+import { interApi, interBase, interToken, ProviderError } from "../integrations/integrations";
 import { moneyToCents } from "../access/permissions";
 import type { ActionState } from "../action-state";
 const uuid = z.string().uuid();
@@ -74,7 +74,7 @@ export async function issueCharge(
       refresh(id);
       return {
         success:
-          "Recorrência ativada. Esta cobrança e as próximas serão emitidas e enviadas por e-mail e WhatsApp 5 dias antes de cada vencimento.",
+          "Recorrência ativada. Cada cobrança é emitida 5 dias antes do vencimento (nas mensais, assim que a anterior é paga) e avisada por e-mail e WhatsApp 5 dias antes.",
       };
     }
     const result = await publishInvoice(
@@ -230,6 +230,7 @@ export async function reissueInvoice(
   }
   if (amountCents < 250)
     return { error: "O valor mínimo de uma cobrança Inter é R$ 2,50." };
+  let reissueLead: number | null = null;
   if (i.subscriptionId) {
     const [sub] = await db
       .select()
@@ -237,6 +238,12 @@ export async function reissueInvoice(
       .where(eq(subscriptions.id, i.subscriptionId));
     if (sub && sub.status !== "active")
       return { error: "Retome a recorrência antes de reemitir esta cobrança." };
+    // The next period belongs to the recurrence: moving this one onto it would leave a month without a charge.
+    if (sub && input.dueDate >= sub.nextDueDate)
+      return {
+        error: `O vencimento ${sub.nextDueDate.split("-").reverse().join("/")} já é o próximo período da recorrência. Escolha uma data antes dele ou ajuste em Editar próximas cobranças.`,
+      };
+    reissueLead = sub?.leadDays ?? null;
   }
   try {
     if (i.bankBase !== interBase())
@@ -303,6 +310,15 @@ export async function reissueInvoice(
     false,
     !!i.subscriptionId,
   );
+  // The "Nova fatura" still waiting follows the new due date (5 days before it, at 08:00).
+  if (!result.error && reissueLead !== null) {
+    const usual = saoPauloTime(issueDate(input.dueDate, reissueLead), BILLING_SEND_HOUR);
+    const morning = billingSendTime();
+    await db
+      .update(billingNotices)
+      .set({ nextAttemptAt: usual > morning ? usual : morning })
+      .where(and(eq(billingNotices.invoiceId, id), eq(billingNotices.kind, "initial"), eq(billingNotices.status, "waiting"), eq(billingNotices.attempts, 0)));
+  }
   refresh(id);
   if (result.error)
     return {
@@ -319,5 +335,95 @@ export async function reissueInvoice(
   return {
     success:
       "Cobrança reemitida. Boleto e Pix novos aparecem em instantes; o link de pagamento continua o mesmo.",
+  };
+}
+
+/**
+ * Cancels an open charge at Inter: the client who left, or the next period
+ * issued early that will not be owed. Irreversible at the bank; the boleto and
+ * the Pix stop working. The status here follows Inter's own answer.
+ */
+export async function cancelCharge(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return { error: "Acesso restrito à administração." };
+  const parsed = z
+    .object({
+      id: uuid,
+      reason: z.string().trim().max(50, "Use até 50 caracteres no motivo.").default(""),
+    })
+    .safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { id, reason } = parsed.data;
+  const [i] = await db.select().from(invoices).where(eq(invoices.id, id));
+  if (!i || i.status !== "issued" || !i.providerId)
+    return { error: "Só uma cobrança emitida e em aberto pode ser cancelada no Inter." };
+  if (i.bankBase !== interBase()) return { error: "Esta cobrança pertence a outro ambiente Inter." };
+  // Who asked is on record before the bank is called, whatever it answers.
+  await db.insert(auditEvents).values({
+    actorId: actor.user.id,
+    companyId: i.companyId,
+    action: "invoice.bank_cancel_requested",
+    entityId: id,
+    details: { providerId: i.providerId, reason: reason || null },
+  });
+  try {
+    await interToken();
+    await interApi(`/cobranca/v3/cobrancas/${encodeURIComponent(i.providerId)}/cancelar`, "POST", {
+      motivoCancelamento: reason || "Cancelada pela Anuntech",
+    });
+  } catch (error) {
+    try {
+      await reconcileCharge(id, actor.user.id);
+    } catch {
+      /* The bank sync looks again within minutes. */
+    }
+    refresh(id);
+    return {
+      error:
+        error instanceof ProviderError && error.status >= 400 && error.status < 500
+          ? `O Inter recusou o cancelamento (${error.message}). Confira se a cobrança já foi paga ou baixada.`
+          : "O Inter não confirmou o cancelamento. Consulte a cobrança no Inter antes de tentar de novo.",
+    };
+  }
+  await db.transaction(async (tx) => {
+    // Nothing more goes out about a charge the bank was told to cancel.
+    await tx
+      .update(billingNotices)
+      .set({ status: "skipped", error: "Cobrança cancelada no Inter." })
+      .where(and(eq(billingNotices.invoiceId, id), inArray(billingNotices.status, ["waiting", "pending"])));
+    // A cancelled period must not be followed by the next one on its own: the recurrence waits for someone.
+    if (i.subscriptionId) {
+      const [paused] = await tx
+        .update(subscriptions)
+        .set({ status: "paused", lastError: "Cobrança cancelada no Inter. Retome a recorrência se o cliente continuar." })
+        .where(and(eq(subscriptions.id, i.subscriptionId), eq(subscriptions.status, "active")))
+        .returning({ id: subscriptions.id });
+      if (paused)
+        await tx.insert(auditEvents).values({
+          actorId: actor.user.id,
+          companyId: i.companyId,
+          action: "subscription.status_changed",
+          entityId: paused.id,
+          details: { status: "paused", reason: "bank_cancel" },
+        });
+    }
+  });
+  let cancelled = false;
+  try {
+    await reconcileCharge(id, actor.user.id);
+    const [after] = await db.select({ status: invoices.status }).from(invoices).where(eq(invoices.id, id));
+    cancelled = after?.status === "cancelled";
+  } catch {
+    /* The bank sync confirms it within minutes. */
+  }
+  refresh(id);
+  const recurrence = i.subscriptionId ? " A recorrência ficou pausada; retome se o cliente continuar." : "";
+  return {
+    success: cancelled
+      ? `Cobrança cancelada no Inter. Boleto e Pix deixaram de valer e os avisos param.${recurrence}`
+      : `O Inter recebeu o cancelamento. A situação muda aqui em instantes; os avisos desta fatura foram suspensos.${recurrence}`,
   };
 }

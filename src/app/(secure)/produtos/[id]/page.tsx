@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { catalogItems, companies, engagements, subscriptions } from "@/db/schema";
+import { productNextDueDate } from "@/lib/billing/product-due";
 import { getActor, canAccess } from "@/lib/access/access";
 import { engagementLinks } from "@/lib/record-links";
 import { ServiceDetail } from "@/components/produtos/service-detail";
@@ -17,7 +18,7 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
       engagement: engagements,
       company: companies.name,
       item: catalogItems,
-      nextDueDate: subscriptions.nextDueDate,
+      nextDueDate: productNextDueDate(),
       subscriptionInterval: subscriptions.interval,
       subscriptionAmount: subscriptions.amountCents,
     })

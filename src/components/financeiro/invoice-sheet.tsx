@@ -3,6 +3,8 @@ import { useState } from "react";
 import { TriangleAlertIcon } from "lucide-react";
 import { DateField } from "@/components/console/date-field";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { FormField } from "@/components/console/form-field";
 import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import { MoneyField } from "@/components/console/money-field";
@@ -28,6 +30,8 @@ export type InvoiceEditable = {
   terms: ChargeTerms;
   /** The invoice belongs to a recurrence, so terms can apply to the next ones too. */
   recurring: boolean;
+  /** Recurrence edit, monthly plans: issue the next period as soon as this one is paid. */
+  issueOnPayment?: boolean;
 };
 /** Everything on a draft; on an issued charge too, but a new amount or due
     date means a new charge at the bank; the next periods of a recurrence. */
@@ -137,6 +141,18 @@ function EditSheet({
             : undefined
         }
       />
+      {mode === "subscription" && invoice.issueOnPayment !== undefined && (
+        <div className="grid gap-1">
+          <input type="hidden" name="issueOnPaymentField" value="1" />
+          <Label className="flex items-center gap-2 text-sm font-normal">
+            <Checkbox name="issueOnPayment" value="yes" defaultChecked={invoice.issueOnPayment} />
+            Emitir a próxima assim que esta for paga
+          </Label>
+          <p className="m-0 pl-6 text-xs text-muted-foreground">
+            Boleto e Pix ficam disponíveis logo depois do pagamento. O aviso continua saindo 5 dias antes do vencimento.
+          </p>
+        </div>
+      )}
       {mode === "issued" &&
         (reissue ? (
           <div

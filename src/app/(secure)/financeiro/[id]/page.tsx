@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ne } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
@@ -18,7 +18,7 @@ import { interBase } from "@/lib/integrations/integrations";
 import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
 import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
 import { paymentUrl } from "@/lib/billing/payment-link";
-import { issueDate } from "@/lib/billing/recurrence";
+import { addDays, earlyIssueAllowed, issueDate } from "@/lib/billing/recurrence";
 import {
   InvoiceDetail,
   type InvoiceDetailData,
@@ -59,7 +59,42 @@ export default async function Invoice({
         .where(eq(subscriptions.id, i.subscriptionId))
     : [];
   const scheduled = i.status === "draft" && sub?.status === "active";
+  // Whether paying this invoice would issue the next period at once: the same rule the cron applies.
+  const [otherOpen, engagement] = sub
+    ? await Promise.all([
+        db
+          .select({ id: invoices.id })
+          .from(invoices)
+          .where(and(eq(invoices.subscriptionId, sub.id), eq(invoices.status, "issued"), ne(invoices.id, i.id)))
+          .limit(1),
+        sub.engagementId
+          ? db.select({ status: engagements.status }).from(engagements).where(eq(engagements.id, sub.engagementId))
+          : Promise.resolve([{ status: "active" as const }]),
+      ])
+    : [[], []];
   const today = saoPauloDate();
+  const earlyReady =
+    !!sub &&
+    sub.status === "active" &&
+    i.dueDate >= addDays(sub.nextDueDate, -40) &&
+    earlyIssueAllowed({
+      interval: sub.interval,
+      issueOnPayment: sub.issueOnPayment,
+      nextDueDate: sub.nextDueDate,
+      today,
+      previousStatus: "paid",
+      hasOpenInvoice: otherOpen.length > 0,
+      engagementActive: engagement[0]?.status === "active",
+    });
+  // A later period of the same recurrence already at the bank (issued early, after this one was paid).
+  const [ahead] = sub
+    ? await db
+        .select({ id: invoices.id, dueDate: invoices.dueDate, amountCents: invoices.amountCents, status: invoices.status })
+        .from(invoices)
+        .where(and(eq(invoices.subscriptionId, sub.id), gt(invoices.dueDate, i.dueDate), inArray(invoices.status, ["issued", "paid"])))
+        .orderBy(asc(invoices.dueDate))
+        .limit(1)
+    : [];
   const now = new Date();
   const [notices, preferences, events] = actor.admin
     ? await Promise.all([
@@ -179,7 +214,11 @@ export default async function Invoice({
               issueDate: issueDate(sub.nextDueDate, sub.leadDays),
               amountCents: sub.amountCents,
               description: sub.description,
-              lastError: sub.lastError,
+              // The bank's technical reason is for the team.
+              lastError: actor.admin ? sub.lastError : null,
+              issueOnPayment: sub.interval === "monthly" ? sub.issueOnPayment : null,
+              earlyReady,
+              ahead: ahead ? { ...ahead, status: ahead.status as "issued" | "paid" } : null,
               terms: {
                 discountCents: sub.discountCents,
                 fineBps: sub.fineBps,

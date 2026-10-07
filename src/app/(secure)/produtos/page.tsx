@@ -4,6 +4,7 @@ import { PlusIcon } from "lucide-react";
 import { and, asc, count, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, engagements, subscriptions } from "@/db/schema";
+import { productNextDueDate } from "@/lib/billing/product-due";
 import { getActor } from "@/lib/access/access";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { companyShortcuts, projectListQuery } from "@/lib/projects/project-table";
@@ -55,7 +56,7 @@ export default async function Products({
         url: engagements.url,
         amountCents: sql<number | null>`coalesce(${subscriptions.amountCents}, ${engagements.amountCents})`,
         interval: subscriptions.interval,
-        nextDueDate: subscriptions.nextDueDate,
+        nextDueDate: productNextDueDate(),
         subscriptionId: engagements.subscriptionId,
         companyId: engagements.companyId,
         company: companies.name,

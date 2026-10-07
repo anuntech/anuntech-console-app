@@ -38,7 +38,7 @@ const TYPES = [
   {
     value: "recurring",
     label: "Recorrente",
-    hint: "Emitida e avisada 5 dias antes de cada vencimento.",
+    hint: "Mensal: a próxima sai assim que a anterior é paga. O aviso vai 5 dias antes de cada vencimento.",
   },
 ] as const;
 

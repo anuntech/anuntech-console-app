@@ -55,7 +55,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido |
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
 | `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela |
-| `billing/` | faturas, emissão no Inter, conciliação, recorrência, condições (desconto, multa, juros), link público, avisos de cobrança |
+| `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
 | `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails |
 | `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela |
@@ -133,8 +133,8 @@ Crons da Vercel (`vercel.json`), todos protegidos por `CRON_SECRET`:
 | Rota | Quando | O que faz |
 | --- | --- | --- |
 | `/api/cron/ticket-notifications` | a cada 5 min | Retoma a fila de avisos de chamados |
-| `/api/cron/billing-sync` | a cada 5 min | Consulta cobranças emitidas no Inter e confirma pagamentos |
-| `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou, agenda os lembretes, envia os avisos de cobrança e confere as entregas |
+| `/api/cron/billing-sync` | a cada 5 min | Consulta até 40 cobranças emitidas no Inter e confirma pagamentos |
+| `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou e, nas mensais, o período seguinte de uma fatura recém-paga (`earlyIssueAllowed` em `billing/recurrence.ts`); agenda os lembretes, envia os avisos de cobrança e confere as entregas |
 | `/api/cron/contract-expiry` | diário, 11:00 UTC | Avisa contratos perto do fim e vencidos |
 | `/api/cron/ops-digest` | diário, 11:30 UTC | Resumo da manhã para a equipe (emissões, pagamentos, falhas, atrasos, contratos) |
 

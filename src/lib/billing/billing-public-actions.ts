@@ -1,7 +1,7 @@
 "use server";
 import { enqueueBillingNotice } from "./billing-notice-queue";
 import { randomBytes } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -257,7 +257,9 @@ export async function updateSubscription(
       throw Error("Informe valor a partir de R$ 2,50 e vencimento futuro.");
     const { parseChargeTerms } = await import("./billing-terms");
     const terms = parseChargeTerms(form, amountCents);
-    await db.transaction(async (tx) => {
+    // Only the edit sheet carries the switch; any other caller leaves it as it is.
+    const issueOnPayment = form.has("issueOnPaymentField") ? form.get("issueOnPayment") === "yes" : undefined;
+    const issuedAhead = await db.transaction(async (tx) => {
       const [s] = await tx
         .select()
         .from(subscriptions)
@@ -265,6 +267,23 @@ export async function updateSubscription(
         .for("update");
       if (!s || s.status === "cancelled")
         throw Error("Recorrência não encontrada.");
+      // The next due date must come after the last period already at the bank (issued or paid), never inside it.
+      // The date asked of the bank: Inter may move a weekend due date into the next month.
+      const asked = sql<string>`coalesce((${invoices.bankRequest}->>'dataVencimento')::date, ${invoices.dueDate})::text`;
+      const [last] = await tx
+        .select({ dueDate: asked })
+        .from(invoices)
+        .where(and(eq(invoices.subscriptionId, id), inArray(invoices.status, ["issued", "paid"])))
+        .orderBy(desc(asked))
+        .limit(1);
+      if (
+        last &&
+        (dueDate <= last.dueDate ||
+          (s.interval === "monthly" ? dueDate.slice(0, 7) === last.dueDate.slice(0, 7) : dueDate.slice(0, 4) === last.dueDate.slice(0, 4)))
+      )
+        throw Error(
+          `A fatura de ${last.dueDate.split("-").reverse().join("/")} já está no Inter. Escolha um vencimento depois desse período, ou abra essa fatura e use Editar.`,
+        );
       const [i] = await tx
         .select()
         .from(invoices)
@@ -299,6 +318,7 @@ export async function updateSubscription(
           anchorDay: Number(dueDate.slice(8)),
           anchorMonth: Number(dueDate.slice(5, 7)),
           lastError: null,
+          ...(issueOnPayment === undefined ? {} : { issueOnPayment }),
           ...terms,
         })
         .where(eq(subscriptions.id, id));
@@ -311,14 +331,24 @@ export async function updateSubscription(
         companyId: s.companyId,
         action: "subscription.updated",
         entityId: id,
+        details: issueOnPayment === undefined ? undefined : { issueOnPayment },
       });
+      // A period already at the bank keeps its amount and date until it is reissued.
+      const [open] = await tx
+        .select({ dueDate: invoices.dueDate, amountCents: invoices.amountCents })
+        .from(invoices)
+        .where(and(eq(invoices.subscriptionId, id), eq(invoices.status, "issued"), gte(invoices.dueDate, saoPauloDate())))
+        .orderBy(desc(invoices.dueDate))
+        .limit(1);
+      return open && open.amountCents !== amountCents ? open : null;
     });
     revalidatePath("/produtos");
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/[id]", "page");
     return {
-      success:
-        "Próximas cobranças atualizadas. Faturas já emitidas foram preservadas.",
+      success: issuedAhead
+        ? `Próximas cobranças atualizadas. A fatura de ${issuedAhead.dueDate.split("-").reverse().join("/")} já está no Inter com o valor anterior; para mudar, abra essa fatura e use Editar.`
+        : "Próximas cobranças atualizadas. Faturas já emitidas foram preservadas.",
     };
   } catch (e) {
     return {

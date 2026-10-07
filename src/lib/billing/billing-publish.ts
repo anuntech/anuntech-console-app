@@ -4,7 +4,8 @@ import { enqueueBillingNotice } from "./billing-notice-queue";
 import { randomBytes } from "node:crypto";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { saoPauloDate } from "../dates";
+import { BILLING_SEND_HOUR, saoPauloDate, saoPauloTime } from "../dates";
+import { issueDate } from "./recurrence";
 import { db } from "../db";
 import { invoices, companies, auditEvents, subscriptions } from "@/db/schema";
 import { interApi, interBase, interToken, ProviderError } from "../integrations/integrations";
@@ -32,6 +33,7 @@ export async function publishInvoice(
         .for("update");
       if (!i || i.status !== "draft" || i.bankRequest || i.providerId)
         throw new Error("Esta fatura já tem uma tentativa de emissão.");
+      let leadDays: number | null = null;
       if (i.amountCents < 250)
         throw new Error("O valor mínimo de uma cobrança Inter é R$ 2,50.");
       const today = saoPauloDate();
@@ -78,6 +80,7 @@ export async function publishInvoice(
           throw new Error("A recorrência não autoriza esta emissão.");
         if (!scheduled && !activateRecurring)
           throw new Error("Confirme a ativação da recorrência.");
+        leadDays = sub.leadDays;
         await tx
           .update(subscriptions)
           .set({
@@ -88,15 +91,21 @@ export async function publishInvoice(
           .where(eq(subscriptions.id, sub.id));
       } else if (scheduled)
         throw new Error("Emissão automática exige recorrência.");
+      // A recurring period issued early (the previous one was paid) is still announced on its usual day.
+      const notBefore = scheduled && leadDays !== null ? saoPauloTime(issueDate(i.dueDate, leadDays), BILLING_SEND_HOUR) : undefined;
       if (sendNotifications)
         for (const channel of ["email", "whatsapp"] as const)
-          await enqueueBillingNotice(tx, {
-            invoiceId: i.id,
-            companyId: i.companyId,
-            actorId,
-            channel,
-            kind: "initial",
-          });
+          await enqueueBillingNotice(
+            tx,
+            {
+              invoiceId: i.id,
+              companyId: i.companyId,
+              actorId,
+              channel,
+              kind: "initial",
+            },
+            { notBefore },
+          );
       const location = savedAddress.data;
       // Each reissue gets its own reference; the bank keeps the cancelled
       // charge under the previous one.
