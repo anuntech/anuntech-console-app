@@ -2,10 +2,11 @@ import { timingSafeEqual } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { pool } from "@/lib/db";
 import { processContractExpiry } from "@/lib/contracts/contract-expiry";
+import { trackedCron } from "@/lib/ops/cron-health";
 export const maxDuration = 120;
 
 /** Once a day: warns about contracts ending soon or already ended. */
-export async function GET(request: Request) {
+async function run(request: Request) {
   const secret = process.env.CRON_SECRET;
   const actual = Buffer.from(request.headers.get("authorization") || "");
   const expected = Buffer.from(`Bearer ${secret}`);
@@ -30,3 +31,5 @@ export async function GET(request: Request) {
     }
   }
 }
+
+export const GET = trackedCron("contract-expiry", run);

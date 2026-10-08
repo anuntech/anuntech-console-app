@@ -75,6 +75,7 @@ test("company deletion knows every table that points at a company", () => {
     "console_service_terms.company_id": "not null",
     "console_time_entries.company_id": "not null",
     "console_hours_months.company_id": "not null",
+    "console_automation_events.company_id": "null",
     // Kept, set to null: the history outlives the company.
     "console_audit_events.company_id": "null",
   });
@@ -106,8 +107,9 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_messages.ticket_id": "not null",
     "console_attachments.ticket_id": "null",
     "console_ticket_notices.ticket_id": "not null",
-    // Hours stay in the bank, unlinked.
+    // Hours stay in the bank, unlinked; so does a proposal it asked for.
     "console_time_entries.ticket_id": "null",
+    "console_quotes.ticket_id": "null",
   });
   assert.deepEqual(pointingAt(schema.memberships), {
     "console_email_deliveries.membership_id": "not null",

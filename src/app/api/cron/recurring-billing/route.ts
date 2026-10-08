@@ -1,4 +1,5 @@
 import { checkBillingDeliveries } from "@/lib/billing/billing-delivery";
+import { checkOpsDeliveries } from "@/lib/notifications/ops-delivery";
 import { timingSafeEqual } from "node:crypto";
 import { pool } from "@/lib/db";
 import { processSubscriptions } from "@/lib/billing/billing-recurring";
@@ -7,8 +8,9 @@ import {
   queueBillingReminders,
 } from "@/lib/billing/billing-notices";
 import { revalidatePath } from "next/cache";
+import { trackedCron } from "@/lib/ops/cron-health";
 export const maxDuration = 300;
-export async function GET(request: Request) {
+async function run(request: Request) {
   const secret = process.env.CRON_SECRET;
   const actual = Buffer.from(request.headers.get("authorization") || "");
   const expected = Buffer.from(`Bearer ${secret}`);
@@ -31,6 +33,7 @@ export async function GET(request: Request) {
     await queueBillingReminders();
     await processBillingNotices(deadline);
     await checkBillingDeliveries(deadline + 30000);
+    await checkOpsDeliveries(deadline + 50000);
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/[id]", "page");
     return Response.json(result, {
@@ -45,3 +48,5 @@ export async function GET(request: Request) {
     }
   }
 }
+
+export const GET = trackedCron("recurring-billing", run);

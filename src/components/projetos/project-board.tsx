@@ -483,7 +483,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
     [byId, filtering, filters],
   );
   const { change, form: statusForm } = useEngagementStatus();
-  const changeStatus = (status: "active" | "paused" | "completed") => change(project.id, status);
+  const changeStatus = (status: "active" | "paused" | "completed") => change(project.id, status, project.name);
   // dnd-kit numbers its aria ids globally; a fixed id keeps server and client in step.
   const dndId = useId();
 

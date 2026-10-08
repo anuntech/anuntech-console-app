@@ -45,7 +45,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { cancelDraft } from "@/lib/actions";
-import { cancelCharge, issueCharge, syncCharge } from "@/lib/billing/billing-actions";
+import { cancelCharge, closeDebt, issueCharge, syncCharge } from "@/lib/billing/billing-actions";
 import {
   changePaymentLink,
   changeSubscription,
@@ -127,6 +127,12 @@ export type InvoiceDetailData = {
   } | null;
   /** Draft waiting for its automatic emission date. */
   scheduled: boolean;
+  /** Inter closed it unpaid: still a debt until it is billed again or written off (staff only). */
+  debt:
+    | { state: "open" }
+    | { state: "rebilled"; invoiceId: string; at: string }
+    | { state: "closed"; reason: string; at: string }
+    | null;
   scheduledIssueDate: string | null;
   notices: {
     id: string;
@@ -239,12 +245,67 @@ function Count({ children }: { children: ReactNode }) {
 const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86400000);
 
+/** A charge Inter closed unpaid: bill it again (prefilled) or write it off with a reason. */
+function DebtCard({ invoiceId, debt, amountCents }: { invoiceId: string; debt: NonNullable<InvoiceDetailData["debt"]>; amountCents: number }) {
+  const [closing, setClosing] = useState(false);
+  return (
+    <Card className={debt.state === "open" ? "border-warning-edge" : undefined}>
+      <CardHeader>
+        <SectionTitle
+          title={debt.state === "open" ? "Expirou no Inter sem pagamento" : debt.state === "rebilled" ? "Cobrada de novo" : "Dívida encerrada"}
+          description={
+            debt.state === "open"
+              ? `O Inter encerrou o boleto e o Pix, mas os ${currency(amountCents)} continuam devidos. Cobre de novo com uma nova data para pagar, ou encerre a dívida dizendo por quê.`
+              : debt.state === "rebilled"
+                ? `Em ${dateLabel(new Date(debt.at))} esta dívida virou uma nova cobrança.`
+                : `Em ${dateLabel(new Date(debt.at))}: ${debt.reason}`
+          }
+        />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {debt.state === "open" &&
+          (closing ? (
+            <ServerForm action={closeDebt} onSuccess={() => setClosing(false)} className="flex flex-col gap-2">
+              <input type="hidden" name="id" value={invoiceId} />
+              <FormError />
+              <Label htmlFor="debt-reason">Por que a dívida foi encerrada</Label>
+              <Textarea id="debt-reason" name="reason" required minLength={3} maxLength={300} rows={2} placeholder="Ex.: pago por transferência em 10/10; acordo com o cliente" />
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setClosing(false)}>
+                  Voltar
+                </Button>
+                <SubmitButton size="sm" pendingLabel="Encerrando…">
+                  Encerrar a dívida
+                </SubmitButton>
+              </div>
+            </ServerForm>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" asChild>
+                <Link href={`/financeiro/nova?de=${invoiceId}`}>Cobrar de novo</Link>
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setClosing(true)}>
+                Encerrar a dívida
+              </Button>
+            </div>
+          ))}
+        {debt.state === "rebilled" && debt.invoiceId && (
+          <Button size="sm" variant="outline" className="self-start" asChild>
+            <Link href={`/financeiro/${debt.invoiceId}`}>Abrir a nova cobrança</Link>
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
   const {
     invoice,
     company,
     subscription: sub,
     scheduled,
+    debt,
     scheduledIssueDate,
     notices,
     contacts,
@@ -544,6 +605,8 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
               </dl>
             </CardContent>
           </Card>
+
+          {admin && debt && <DebtCard invoiceId={invoice.id} debt={debt} amountCents={invoice.amountCents} />}
 
           {admin && invoice.status === "draft" && !invoice.bankRequested && !scheduled && (
             <Card>

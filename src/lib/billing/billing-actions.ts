@@ -1,9 +1,10 @@
 "use server";
 import { db } from "../db";
 import { resolveBankDueDate } from "./billing-notice-rules";
-import { invoices, subscriptions, auditEvents, billingNotices } from "@/db/schema";
+import { invoices, subscriptions, auditEvents, billingNotices, automationEvents } from "@/db/schema";
+import { expiredDebtCondition } from "./billing-watch";
 import { parseChargeTerms, parseTermsScope, sameTerms } from "./billing-terms";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { issueDate } from "./recurrence";
 import { BILLING_SEND_HOUR, billingSendTime, saoPauloDate, saoPauloTime } from "../dates";
 import { z } from "zod";
@@ -426,4 +427,33 @@ export async function cancelCharge(
       ? `Cobrança cancelada no Inter. Boleto e Pix deixaram de valer e os avisos param.${recurrence}`
       : `O Inter recebeu o cancelamento. A situação muda aqui em instantes; os avisos desta fatura foram suspensos.${recurrence}`,
   };
+}
+
+/**
+ * A debt Inter closed unpaid that will not be billed again (written off,
+ * settled another way): the reason is kept, and it leaves the lists that
+ * ask someone to act.
+ */
+export async function closeDebt(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return { error: "Acesso restrito à administração." };
+  const parsed = z
+    .object({ id: uuid, reason: z.string().trim().min(3, "Diga por que a dívida foi encerrada.").max(300, "Use até 300 caracteres.") })
+    .safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { id, reason } = parsed.data;
+  const closed = await db.transaction(async (tx) => {
+    const [debt] = await tx
+      .select({ id: invoices.id, companyId: invoices.companyId })
+      .from(invoices)
+      .where(and(eq(invoices.id, id), sql`${expiredDebtCondition}`))
+      .for("update");
+    if (!debt) return false;
+    await tx.insert(automationEvents).values({ kind: "debt.closed", entityId: id, companyId: debt.companyId, actorId: actor.user.id, details: { reason } });
+    await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: debt.companyId, action: "invoice.debt_closed", entityId: id, details: { reason } });
+    return true;
+  });
+  if (!closed) return { error: "Esta dívida já foi cobrada de novo ou encerrada." };
+  refresh(id);
+  return { success: "Dívida encerrada. O motivo fica no histórico da fatura." };
 }

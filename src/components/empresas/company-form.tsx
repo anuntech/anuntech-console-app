@@ -45,11 +45,14 @@ const UF = payerAddress.shape.uf.options;
 export function CompanyFields({
   company,
   lookupEnabled = true,
+  cnpjLookup = lookupEnabled,
   fiscalSettings = true,
   lockDocument = false,
 }: {
   company?: CompanyFormValues | null;
   lookupEnabled?: boolean;
+  /** The CNPJ lookup (Receita) is the team's; a client's Administrador only fills by CEP. */
+  cnpjLookup?: boolean;
   fiscalSettings?: boolean;
   lockDocument?: boolean;
 }) {
@@ -89,7 +92,7 @@ export function CompanyFields({
   );
 
   async function lookup(kind: LookupKind, before = { ...edits.current }) {
-    if (!lookupEnabled) return;
+    if (!lookupEnabled || (kind === "cnpj" && !cnpjLookup)) return;
     cancel();
     const value = digits(current.current[kind === "cnpj" ? "document" : "cep"]);
     if (value.length !== (kind === "cnpj" ? 14 : 8)) return;
@@ -125,6 +128,41 @@ export function CompanyFields({
         );
     } finally {
       if (sequence === generation.current) setLooking(null);
+    }
+  }
+  // A saved company without a full address: Receita's address fills only what is empty, for the person to check.
+  const ADDRESS_KEYS = ["endereco", "numero", "complemento", "bairro", "cidade", "uf", "cep", "codigoMunicipio"] as const;
+  const addressMissing = ["endereco", "numero", "bairro", "cidade", "uf", "cep"].some((key) => !values[key]?.trim());
+  async function fillAddressFromReceita() {
+    const cnpj = digits(current.current.document);
+    if (cnpj.length !== 14) return;
+    cancel();
+    const controller = new AbortController();
+    active.current = controller;
+    setLooking("cnpj");
+    try {
+      const res = await fetch(`/api/cadastro/consulta?tipo=cnpj&valor=${cnpj}`, { signal: controller.signal });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Não foi possível consultar a Receita. Preencha o endereço manualmente.");
+        return;
+      }
+      const fields = lookupFields.parse(data.fields);
+      const next = { ...current.current };
+      let filled = 0;
+      for (const key of ADDRESS_KEYS)
+        if (!next[key]?.trim() && fields[key]) {
+          next[key] = fields[key]!;
+          filled += 1;
+        }
+      current.current = next;
+      setValues(next);
+      if (filled) toast.success("Endereço da Receita preenchido. Confira se é o de cobrança antes de salvar.");
+      else toast.error("A Receita não trouxe o que falta. Preencha o endereço manualmente.");
+    } catch {
+      if (!controller.signal.aborted) toast.error("Não foi possível consultar a Receita. Preencha o endereço manualmente.");
+    } finally {
+      setLooking(null);
     }
   }
   function change(key: string, value: string) {
@@ -234,6 +272,19 @@ export function CompanyFields({
         title="Endereço de cobrança e nota fiscal"
         className="sm:grid-cols-6"
       >
+        {cnpjLookup && addressMissing && digits(values.document).length === 14 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-xs text-warning sm:col-span-6">
+            <span className="min-w-0 flex-1">Sem o endereço completo, o Inter não emite as cobranças desta empresa.</span>
+            <button
+              type="button"
+              onClick={() => void fillAddressFromReceita()}
+              disabled={looking === "cnpj"}
+              className="shrink-0 rounded-md border border-warning-edge bg-card px-2.5 py-1 font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+            >
+              {looking === "cnpj" ? "Buscando…" : "Buscar na Receita"}
+            </button>
+          </div>
+        )}
         <FormField label="CEP" htmlFor={`${id}-cep`} className="sm:col-span-2">
           <div className="relative">
             <Input

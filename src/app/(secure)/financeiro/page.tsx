@@ -34,6 +34,7 @@ import {
 import { InvoicesTable } from "@/components/financeiro/invoices-table";
 import { UpcomingCharges } from "@/components/financeiro/upcoming-charges";
 import { upcomingCharges } from "@/lib/billing/upcoming-charges";
+import { expiredDebtCondition } from "@/lib/billing/billing-watch";
 export const metadata: Metadata = {
   title: "Financeiro",
   description:
@@ -75,7 +76,8 @@ export default async function Finance({
           )
         : undefined,
     ) ?? sql`true`;
-  const displayStatus = sql<string>`case when ${invoices.status} = 'draft' and ${subscriptions.status} = 'active' then 'scheduled' when ${invoices.status} = 'issued' and ${invoices.dueDate} < ${today} then 'overdue' else ${invoices.status} end`;
+  // "expired": Inter closed it unpaid and nobody decided yet (lib/billing/billing-watch.ts); staff only.
+  const displayStatus = sql<string>`case when ${invoices.status} = 'draft' and ${subscriptions.status} = 'active' then 'scheduled' when ${invoices.status} = 'issued' and ${invoices.dueDate} < ${today} then 'overdue' when ${expiredDebtCondition} then 'expired' else ${invoices.status} end`;
   const grouped = await db
     .select({
       status: displayStatus,
@@ -95,6 +97,7 @@ export default async function Finance({
       paid: { count: 0, cents: 0 },
       scheduled: { count: 0, cents: 0 },
       draft: { count: 0, cents: 0 },
+      expired: { count: 0, cents: 0 },
       cancelled: { count: 0, cents: 0 },
     };
   for (const row of grouped) {
@@ -273,6 +276,7 @@ export default async function Finance({
           // A recurrence must not bill the period again; the action refuses it too.
           deletable:
             actor.admin &&
+            row.display !== "expired" &&
             canDeleteInvoice({ ...row, bankRequest: row.bankRequested }) &&
             recurrenceAllowsDelete(
               row,

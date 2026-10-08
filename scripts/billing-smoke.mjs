@@ -726,5 +726,120 @@ export async function runBillingTests({
     !!(await one("select 1 as ok from console_audit_events where entity_id=$1 and action='invoice.bank_cancel_requested'", [next.id])),
     "O cancelamento no Inter fica no histórico",
   );
+
+  // A charge Inter closed unpaid stays a debt: listed, billed again once, or written off with a reason.
+  flags({ approved: true });
+  const expiredId = randomUUID(), expiredTwo = randomUUID();
+  for (const [eid, label] of [[expiredId, `Expired QA ${marker}`], [expiredTwo, `Expired close QA ${marker}`]])
+    await db.query(
+      "insert into console_invoices(id,company_id,description,amount_cents,due_date,status,bank_status,provider_id,bank_base) values($1,$2,$3,15000,$4,'cancelled','EXPIRADO',$5,'https://cdpj.partners.bancointer.com.br')",
+      [eid, ids.a, label, offset(-40), randomUUID()],
+    );
+  let debtList = await request(`/financeiro?status=expired&q=${encodeURIComponent(`Expired QA ${marker}`)}`, "admin");
+  ok(debtList.text.includes(`/financeiro/${expiredId}`) && debtList.text.includes("Expirada sem pagamento"), "Fatura que o Inter expirou aparece como dívida, não como cancelada");
+  const debtPage = await request(`/financeiro/${expiredId}`, "admin");
+  ok(debtPage.text.includes("Expirou no Inter sem pagamento") && debtPage.text.includes(`/financeiro/nova?de=${expiredId}`), "A fatura expirada oferece Cobrar de novo");
+  const rebillForm = await request(`/financeiro/nova?de=${expiredId}`, "admin");
+  ok(rebillForm.text.includes(`Expired QA ${marker}`) && rebillForm.text.includes('name="sourceKind"'), "Cobrar de novo abre a cobrança já preenchida");
+  const rebill = {
+    companyId: ids.a,
+    engagementId: "",
+    description: `Expired QA ${marker} de novo`,
+    amount: "150,00",
+    dueDate: offset(-40),
+    bankDueDate: offset(7),
+    billingType: "one_time",
+    sourceKind: "rebill",
+    sourceId: expiredId,
+  };
+  await submitForm("/financeiro/nova", "admin", "admin", "Criar rascunho", rebill);
+  await submitForm("/financeiro/nova", "admin", "admin", "Criar rascunho", rebill);
+  ok(
+    (await db.query("select bank_due_date::text due from console_invoices where description=$1", [rebill.description])).rows.map((r) => r.due).join() === offset(7),
+    "A dívida vira uma cobrança nova com nova data para pagar, uma vez só",
+  );
+  debtList = await request(`/financeiro?status=expired&q=${encodeURIComponent(`Expired QA ${marker}`)}`, "admin");
+  ok(!debtList.text.includes(`/financeiro/${expiredId}`), "Cobrada de novo, sai da lista de expiradas");
+  await submitForm(`/financeiro/${expiredTwo}`, "admin", "manager", { action: "closeDebt" }, { id: expiredTwo, reason: "Pago por transferência" });
+  ok(!(await one("select 1 as ok from console_automation_events where entity_id=$1", [expiredTwo])), "Cliente não encerra dívida");
+  await submitForm(`/financeiro/${expiredTwo}`, "admin", "admin", { action: "closeDebt" }, { id: expiredTwo, reason: "Pago por transferência" });
+  ok(
+    (await one("select details->>'reason' reason from console_automation_events where entity_id=$1 and kind='debt.closed'", [expiredTwo]))?.reason === "Pago por transferência",
+    "Equipe encerra a dívida com o motivo registrado",
+  );
+  // Cancelling the new draft gives the debt back; an open debt cannot be deleted away.
+  const rebillDraft = await one("select id from console_invoices where description=$1", [rebill.description]);
+  await submitForm(`/financeiro/${rebillDraft.id}`, "admin", "admin", { action: "cancelDraft" }, { id: rebillDraft.id });
+  debtList = await request(`/financeiro?status=expired&q=${encodeURIComponent(`Expired QA ${marker}`)}`, "admin");
+  ok(debtList.text.includes(`/financeiro/${expiredId}`), "Cancelar o rascunho da nova cobrança devolve a dívida à lista");
+  await submitForm(`/financeiro/${expiredId}`, "admin", "admin", { action: "deleteDraftInvoice" }, { id: expiredId });
+  ok(!!(await one("select 1 as ok from console_invoices where id=$1", [expiredId])), "Dívida em aberto não pode ser excluída");
+  // A reissue cancels an earlier charge of the same invoice; only a cancel of the charge that expired hides it.
+  const reissued = randomUUID(), teamCancelled = randomUUID(), currentCharge = randomUUID();
+  for (const [eid, label, provider] of [[reissued, `Expired reissued QA ${marker}`, currentCharge], [teamCancelled, `Expired cancelled QA ${marker}`, randomUUID()]])
+    await db.query(
+      "insert into console_invoices(id,company_id,description,amount_cents,due_date,status,bank_status,provider_id,bank_base) values($1,$2,$3,15000,$4,'cancelled','EXPIRADO',$5,'https://cdpj.partners.bancointer.com.br')",
+      [eid, ids.a, label, offset(-40), provider],
+    );
+  await db.query("insert into console_audit_events(id,actor_id,company_id,entity_id,action,details) values($1,$2,$3,$4,'invoice.bank_cancelled',$5)", [
+    randomUUID(), people.admin.id, ids.a, reissued, JSON.stringify({ providerId: randomUUID() }),
+  ]);
+  await db.query("insert into console_audit_events(id,actor_id,company_id,entity_id,action,details) values($1,$2,$3,$4,'invoice.bank_cancel_requested',$5)", [
+    randomUUID(), people.admin.id, ids.a, teamCancelled, JSON.stringify({ providerId: (await one("select provider_id from console_invoices where id=$1", [teamCancelled])).provider_id }),
+  ]);
+  debtList = await request(`/financeiro?status=expired&q=${encodeURIComponent(`QA ${marker}`)}`, "admin");
+  ok(
+    debtList.text.includes(`/financeiro/${reissued}`) && !debtList.text.includes(`/financeiro/${teamCancelled}`),
+    "Fatura reemitida que expirou continua dívida; a que a equipe cancelou, não",
+  );
+  // Finishing a project pauses its recurrence even when it was created in Nova cobrança (linked only by the recurrence).
+  const leavingProject = randomUUID(), leavingPlan = randomUUID();
+  await db.query("insert into console_engagements(id,company_id,name,kind) values($1,$2,$3,'project')", [leavingProject, ids.a, `Leaving project ${marker}`]);
+  await db.query(
+    "insert into console_subscriptions(id,company_id,engagement_id,description,amount_cents,interval,anchor_day,anchor_month,next_due_date,status,actor_id) values ($1,$2,$3,$4,30000,'monthly',$5,$6,$7,'active',$8)",
+    [leavingPlan, ids.a, leavingProject, `Leaving plan ${marker}`, Number(offset(30).slice(8)), Number(offset(30).slice(5, 7)), offset(30), people.admin.id],
+  );
+  await submitForm("/projetos", "admin", "admin", { action: "updateEngagement" }, { id: leavingProject, status: "completed", pauseBilling: "yes" });
+  ok(
+    (await one("select status from console_subscriptions where id=$1", [leavingPlan]))?.status === "paused",
+    "Concluir o projeto pausa a recorrência criada no Financeiro",
+  );
+  await db.query("delete from console_audit_events where entity_id = any($1)", [[reissued, teamCancelled, leavingProject, leavingPlan]]);
+  await db.query("delete from console_invoices where id = any($1)", [[reissued, teamCancelled]]);
+  await db.query("delete from console_subscriptions where id=$1", [leavingPlan]);
+  await db.query("delete from console_engagements where id=$1", [leavingProject]);
+
+  // The morning digest warns before money is lost; each routine records its runs; the alerts' delivery is read back.
+  const unready = randomUUID();
+  await db.query("insert into console_companies(id,name,document,billing_email) values ($1,$2,'11444777000161',$3)", [unready, `Unready QA ${marker}`, `unready-${marker}@example.invalid`]);
+  await db.query(
+    "insert into console_subscriptions(id,company_id,description,amount_cents,interval,anchor_day,anchor_month,next_due_date,status,actor_id) values ($1,$2,$3,30000,'monthly',$4,$5,$6,'active',$7)",
+    [randomUUID(), unready, `Unready plan ${marker}`, Number(offset(30).slice(8)), Number(offset(30).slice(5, 7)), offset(30), people.admin.id],
+  );
+  await db.query(
+    "insert into console_invoices(id,company_id,description,amount_cents,due_date,status,bank_status,provider_id,bank_base) values($1,$2,$3,15000,$4,'cancelled','EXPIRADO',$5,'https://cdpj.partners.bancointer.com.br')",
+    [randomUUID(), ids.a, `Expired open QA ${marker}`, offset(-40), randomUUID()],
+  );
+  const sentBefore = sentNotices().length;
+  const digest = await request("/api/cron/ops-digest", undefined, { headers: { Authorization: "Bearer test-cron-secret" } });
+  const digestMail = sentNotices().slice(sentBefore).find((n) => n.channel === "email" && String(n.payload.subject).startsWith("[Console]"));
+  const digestText = String(digestMail?.payload.text ?? "");
+  ok(
+    digest.status === 200 &&
+      digestText.includes("Emissões que vão falhar se ninguém mexer") &&
+      digestText.includes(`Unready QA ${marker}`) &&
+      digestText.includes("Expiradas no Inter sem pagamento") &&
+      digestText.includes(`Expired open QA ${marker}`) &&
+      !digestText.includes(`Expired close QA ${marker}`),
+    "O resumo da manhã avisa a emissão que vai falhar e a dívida expirada",
+  );
+  ok(
+    !!(await one("select last_ok_at from console_cron_runs where name='ops-digest'"))?.last_ok_at &&
+      !!(await one("select last_ok_at from console_cron_runs where name='recurring-billing'"))?.last_ok_at,
+    "Cada rotina registra a última execução",
+  );
+  ok(!!(await one("select 1 as ok from console_automation_events where kind='ops-mail' limit 1")), "Os alertas da equipe guardam o envio para conferir a entrega");
+  await db.query("delete from console_subscriptions where company_id=$1", [unready]);
+  await db.query("delete from console_companies where id=$1", [unready]);
   flags({ approved: true });
 }

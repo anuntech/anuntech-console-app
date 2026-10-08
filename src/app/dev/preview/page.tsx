@@ -551,6 +551,7 @@ export default async function Preview({
       terms: { discountCents: 15000, fineBps: 200, interestMonthlyBps: 100 },
           },
     scheduled: tela.startsWith("fatura-recorrente"),
+    debt: null,
     scheduledIssueDate: tela === "fatura-recorrente-atrasada" ? day(-2) : tela.startsWith("fatura-recorrente") ? day(7) : null,
     notices:
       invoiceStatus === "draft" || processing
@@ -960,6 +961,7 @@ export default async function Preview({
       signedAt: contractStatus === "signed" ? ago(1) : null,
       createdAt: ago(72),
       fieldSuggestions: { data: { value: "8 de outubro de 2026", source: "Hoje" } },
+      billingProblems: null,
     },
     parent: null,
     amendments:

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import {
   auditEvents,
+  automationEvents,
   billingNotices,
   companies,
   consoleStaffMembers,
@@ -18,6 +19,10 @@ import { saoPauloDate } from "../dates";
 import { addDays, contractTerm, contractTermLabel, EXPIRY_WARNING_DAYS } from "../contracts/contract-table";
 import { daysOverdue, noticeChannelLabels, noticeKindLabel, noticeStatusLabels } from "../billing/billing-notice-rules";
 import { opsDigestText, type OpsDigestData } from "./ops-digest-text";
+import { expiredDebts, expiringCharges, failingRecurrences, leavingCharges } from "../billing/billing-watch";
+import { quietFor, staleRoutines } from "../ops/cron-health";
+import { unreachableStaff } from "./ops-delivery";
+import { interCertificateExpiry } from "../integrations/integrations";
 
 const consoleUrl = () => process.env.BETTER_AUTH_URL || "http://localhost:3100";
 
@@ -47,7 +52,17 @@ export async function sendOpsMail(subject: string, text: string) {
         body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, text }),
         signal: AbortSignal.timeout(15000),
       });
-      if (res.ok) delivered += 1;
+      if (res.ok) {
+        delivered += 1;
+        // Resend accepts a suppressed address too: the delivery is checked later (ops-delivery.ts).
+        const sent = (await res.json().catch(() => null)) as { id?: string } | null;
+        if (sent?.id)
+          await db
+            .insert(automationEvents)
+            .values({ kind: "ops-mail", entityId: sent.id, details: { to, subject: subject.slice(0, 120), status: "sent" } })
+            .onConflictDoNothing()
+            .catch(() => {});
+      }
     } catch {
       /* The alert is best effort; the digest repeats what is still open. */
     }
@@ -181,8 +196,32 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
       )
       .orderBy(asc(tickets.responseDueAt)),
   ]);
+  const [failing, expired, expiring, leaving, stale, unreachable] = await Promise.all([
+    failingRecurrences(),
+    expiredDebts(),
+    expiringCharges(today),
+    leavingCharges(today),
+    staleRoutines(),
+    staffEmails().then(unreachableStaff),
+  ]);
+  const certificateEnds = interCertificateExpiry();
+  const certificateDays = certificateEnds
+    ? certificateEnds.getTime() <= Date.now()
+      ? -1
+      : Math.ceil((certificateEnds.getTime() - Date.now()) / 86_400_000)
+    : null;
   return {
     today,
+    failing,
+    expired,
+    expiring,
+    leaving,
+    routines: stale.map((r) => ({ label: r.label, quiet: quietFor(r.minutes), lastError: r.lastError })),
+    unreachable,
+    certificate:
+      certificateEnds && certificateDays !== null && certificateDays <= 30
+        ? { expiresOn: saoPauloDate(certificateEnds), days: certificateDays }
+        : null,
     issued24h: issued.length,
     paid24h: paid.length,
     paused,
@@ -201,6 +240,12 @@ export async function sendOpsDigest() {
   const data = await collectOpsDigest();
   const { subject, text } = opsDigestText(data);
   const delivered = await sendOpsMail(subject, text);
-  return { delivered, problems: data.paused.length + data.noticeProblems.length + data.overdue.length + data.contracts.length + (data.tickets?.length ?? 0) };
+  return {
+    delivered,
+    problems:
+      data.paused.length + data.noticeProblems.length + data.overdue.length + data.contracts.length + (data.tickets?.length ?? 0) +
+      (data.failing?.length ?? 0) + (data.expired?.length ?? 0) + (data.expiring?.length ?? 0) + (data.leaving?.length ?? 0) +
+      (data.routines?.length ?? 0) + (data.certificate ? 1 : 0) + (data.unreachable?.length ?? 0),
+  };
 }
 

@@ -101,7 +101,8 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 - **Visão geral:** widgets em `Card` compacto (`gap-4 py-5`), só com título e "Ver todos"; sem frase de descrição.
 - **Detalhe:** breadcrumb, título com situação (`Badge`), ações no cabeçalho; conteúdo principal à esquerda e cards de apoio à direita, uma coluna quando não houver espaço. Dados em `Fact`.
 - **Criar e editar:** `FormSheet` à direita. A partir de uma lista, a URL de criação abre o painel sobre a tela (rota interceptada em `@ticket`); acessada direto, vira página. Enquanto envia, o painel não fecha e o botão não repete.
-- **Confirmar:** `ConfirmDialog` só para o que é destrutivo ou sai do Console (emitir, enviar, excluir). Diz a consequência e começa em Cancelar.
+- **Confirmar:** `ConfirmDialog` só para o que é destrutivo ou sai do Console (emitir, enviar, excluir). Diz a consequência e começa em Cancelar. Uma escolha que acompanha a confirmação ("Pausar também a cobrança recorrente") entra por `extra`, ligada ao formulário pelo atributo `form`.
+- **Avisar antes de falhar:** quando o Console sabe que uma ação futura vai falhar (emissão sem endereço), o aviso aparece no lugar em que a pessoa já está, com o link que corrige ("Corrigir o cadastro"), em vez de esperar o erro.
 - **Feedback:** sucesso em toast; erro fica no formulário, com foco no campo. Nada de spinner permanente: a página pública de pagamento atualiza em silêncio.
 - **Vazio:** explica quando algo vai aparecer ou oferece a ação; não repete o título.
 - **Erro e 404:** `StatusPage`. Dentro do app, embutido na área de conteúdo (o dock continua); fora, tela inteira com a marca. Registro de outra empresa responde igual a registro inexistente.

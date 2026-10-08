@@ -15,19 +15,23 @@ export function FirstStepsCard({ data }: { data: FirstSteps }) {
     <section aria-label="Primeiros passos" className="mb-6 rounded-xl border bg-card shadow-card">
       <div className="flex items-center gap-3 border-b px-4 py-3">
         <h2 className="m-0 text-[15px] leading-6 font-semibold text-foreground">Primeiros passos</h2>
-        <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground tabular-nums">
-          {done} de {data.steps.length}
-        </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="ml-auto text-muted-foreground"
-          disabled={pending}
-          onClick={() => start(() => markFirstStep(data.companyId, "first_steps_hidden"))}
-        >
-          Ocultar
-        </Button>
+        {!data.forced && (
+          <>
+            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground tabular-nums">
+              {done} de {data.steps.length}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground"
+              disabled={pending}
+              onClick={() => start(() => markFirstStep(data.companyId, "first_steps_hidden"))}
+            >
+              Ocultar
+            </Button>
+          </>
+        )}
       </div>
       <ul className="m-0 list-none divide-y p-0">
         {data.steps.map((step) => (

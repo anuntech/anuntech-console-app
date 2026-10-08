@@ -10,6 +10,7 @@ import { db } from "../db";
 import { invoices, companies, auditEvents, subscriptions } from "@/db/schema";
 import { interApi, interBase, interToken, ProviderError } from "../integrations/integrations";
 import { payerAddress, bankReference } from "./billing-rules";
+import { billingReadiness } from "./billing-readiness";
 import { advanceSubscription } from "./billing-publication";
 const uuid = z.string().uuid();
 export async function publishInvoice(
@@ -49,12 +50,9 @@ export async function publishInvoice(
         .select()
         .from(companies)
         .where(eq(companies.id, i.companyId));
-      if (
-        !company ||
-        company.archived ||
-        company.name.length > 100 ||
-        !/^(\d{11}|\d{14})$/.test(company.document)
-      )
+      // The same rule the screens and the morning digest warn with, days ahead (billing-readiness.ts).
+      const problems = company ? billingReadiness(company) : [];
+      if (!company || problems.some((problem) => problem !== "address"))
         throw new Error(
           "Confira o cadastro do pagador (nome até 100 caracteres).",
         );

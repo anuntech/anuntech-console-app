@@ -26,6 +26,15 @@ export function interBase() {
     throw new Error("Endereço Inter não reconhecido.");
   return base;
 }
+/** When the Inter client certificate stops working; null when it is not configured or unreadable. */
+export function interCertificateExpiry(): Date | null {
+  try {
+    const cert = Buffer.from(process.env.INTER_CERTIFICATE_BASE64 ?? "", "base64");
+    return cert.length ? new Date(new X509Certificate(cert).validTo) : null;
+  } catch {
+    return null;
+  }
+}
 async function interRequest(
   path: string,
   method: string,

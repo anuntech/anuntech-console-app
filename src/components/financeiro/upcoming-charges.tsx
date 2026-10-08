@@ -9,8 +9,8 @@ const SHOWN = 4;
 
 function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boolean }) {
   const paused = charge.status === "paused";
-  // An active recurrence with a reason on it: the early issue did not go out (the team only sees reasons).
-  const warn = paused || !!charge.lastError;
+  // An active recurrence with a reason on it (the early issue did not go out, or the record will make it fail); the team only sees reasons.
+  const warn = paused || !!charge.lastError || !!charge.problems;
   const title = (
     <>
       <span className="block truncate font-medium text-foreground">{charge.description}</span>
@@ -35,10 +35,17 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
         <span className={warn ? "mt-0.5 block text-xs text-warning" : "mt-0.5 block text-xs text-muted-foreground"}>
           {paused
             ? `Pausada: não será emitida até ser retomada.${charge.lastError ? ` ${charge.lastError}` : ""}`
-            : (charge.lastError ??
+            : charge.problems
+              ? `A emissão vai falhar: ${charge.problems}.`
+              : (charge.lastError ??
               // With the switch on it may come sooner (the previous one paid); never later.
               `Boleto e Pix chegam até ${dateLabel(charge.issueDate)}.`)}
         </span>
+        {charge.problems && (
+          <Link href={`/empresas/${charge.companyId}?editar=1`} className="mt-0.5 inline-block text-xs font-medium text-primary hover:underline">
+            Corrigir o cadastro
+          </Link>
+        )}
       </div>
       <div className="shrink-0 text-right">
         <span className="block font-medium tabular-nums text-foreground">{currency(charge.amountCents)}</span>
@@ -55,9 +62,9 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
 export function UpcomingCharges({ charges, showCompany, team }: { charges: UpcomingCharge[]; showCompany: boolean; team: boolean }) {
   if (!charges.length) return null;
   const paused = charges.filter((c) => c.status === "paused");
-  const failing = charges.filter((c) => c.status !== "paused" && c.lastError);
+  const failing = charges.filter((c) => c.status !== "paused" && (c.lastError || c.problems));
   // Paused and failing first: they are the ones that need someone.
-  const ordered = [...paused, ...failing, ...charges.filter((c) => c.status !== "paused" && !c.lastError)];
+  const ordered = [...paused, ...failing, ...charges.filter((c) => c.status !== "paused" && !c.lastError && !c.problems)];
   const first = ordered.slice(0, SHOWN);
   const rest = ordered.slice(SHOWN);
   return (

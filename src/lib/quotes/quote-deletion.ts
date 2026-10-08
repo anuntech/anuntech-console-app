@@ -1,7 +1,7 @@
 "use server";
 import { count, eq } from "drizzle-orm";
 import { z } from "zod";
-import { auditEvents, companies, quoteVersions, quotes } from "@/db/schema";
+import { auditEvents, companies, contracts, engagements, invoices, quoteVersions, quotes } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { saoPauloDate } from "../dates";
@@ -54,6 +54,10 @@ export async function deleteQuote(_: ActionState, form: FormData): Promise<Actio
             totalCents: quoteTotals(q.publication ?? q.content).totalCents,
           }
         : null;
+      // What was made from it (contract, project, charges) stays, unlinked.
+      await tx.update(contracts).set({ quoteId: null }).where(eq(contracts.quoteId, q.id));
+      await tx.update(engagements).set({ quoteId: null }).where(eq(engagements.quoteId, q.id));
+      await tx.update(invoices).set({ quoteId: null }).where(eq(invoices.quoteId, q.id));
       await tx.delete(quoteVersions).where(eq(quoteVersions.quoteId, q.id));
       await tx.delete(quotes).where(eq(quotes.id, q.id));
       await tx.insert(auditEvents).values({

@@ -66,7 +66,9 @@ https.request = function (url, options, callback) {
                 flags.billingBankDue || charge.payload.dataVencimento,
               situacao: charge.cancelled
                 ? "CANCELADO"
-                : flags.bankUnpaid
+                : flags.bankExpired
+                  ? "EXPIRADO"
+                  : flags.bankUnpaid
                   ? "A_RECEBER"
                   : charge.checks > 1
                     ? "RECEBIDO"

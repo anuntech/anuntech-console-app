@@ -17,6 +17,7 @@ import { getActor, canAccess } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { hasPermission } from "@/lib/access/permissions";
 import { contractFields } from "@/lib/contracts/contract-fields";
+import { billingProblemsLabel, billingReadiness } from "@/lib/billing/billing-readiness";
 import { contractFieldSuggestions } from "@/lib/contracts/contract-suggestions";
 import { CLIENT_CONTRACT_STATUSES } from "@/lib/contracts/contract-table";
 import { ContractDetail } from "@/components/contratos/contract-detail";
@@ -150,6 +151,8 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           signedAt: c.signedAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
           fieldSuggestions,
+          // The first charges of a signed contract go out only with a complete billing record.
+          billingProblems: editing ? billingProblemsLabel(billingReadiness(row.company)) || null : null,
         },
         parent,
         amendments: amendments.map((a) => ({ ...a, signedAt: a.signedAt?.toISOString() ?? null })),

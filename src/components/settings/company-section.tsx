@@ -57,7 +57,8 @@ export async function CompanySection() {
               billingAddress: profile.billingAddress,
               autoIssueNfse: false,
             }}
-            lookupEnabled={actor.admin}
+            lookupEnabled
+            cnpjLookup={actor.admin}
             fiscalSettings={false}
           />
         </CardContent>

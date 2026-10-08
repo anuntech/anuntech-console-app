@@ -55,7 +55,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido |
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
 | `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela |
-| `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
+| `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cadastro pronto para cobrar (`billing-readiness.ts`), vigilância de dívidas e emissões (`billing-watch.ts`), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
 | `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails |
 | `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela |
@@ -66,8 +66,9 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `bookmarks/` | pastas, compartilhamento, links e arquivos |
 | `assistant/` | loop do assistente, ferramentas, consentimento, histórico, Jev, modelos do OpenRouter |
 | `voice/` | ditado por microfone: regras comuns (`voice-rules.ts`: formatos, limites, onde o texto entra) e a transcrição no servidor (`voice-server.ts`) |
-| `http/` | `same-origin.ts`, a checagem de origem dos route handlers que gravam ou custam dinheiro |
-| `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe |
+| `http/` | `same-origin.ts`, a checagem de origem dos route handlers que gravam ou custam dinheiro; `hourly-limit.ts`, limite por hora gravado no banco |
+| `ops/` | saúde das rotinas (`cron-health.ts`: `trackedCron` grava a última execução de cada cron) |
+| `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe, conferência da entrega dos alertas (`ops-delivery.ts`) |
 | `integrations/` | estado das integrações em Configurações |
 
 Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda server actions antigas de vários assuntos (empresas, chamados, faturas, vínculos) e deve ser dividido aos poucos (ver [task.md](task.md)).
@@ -90,6 +91,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
   - **Projetos:** `tasks`, `task_assignees`, `task_comments` (anexos em `attachments.comment_id`).
   - **Financeiro:** `invoices`, `subscriptions` (recorrências), `billing_notices`, `email_deliveries`.
   - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures`, `contract_change_requests` (pedidos de alteração por cláusula e versão), `quotes`, `quote_versions`.
+  - **Automação:** `cron_runs` (última execução e erro de cada rotina), `automation_events` (o que uma automação ou decisão já fez, único por tipo e registro: dívida encerrada ou cobrada de novo, alerta enviado com o id do Resend). Colunas de ligação `contracts.quote_id`, `quotes.ticket_id`, `engagements.quote_id`, `invoices.quote_id` e os interruptores em `environment_profile.automations` (migração 0038).
   - **Outros:** `bookmarks`, `bookmark_folders`, `bookmark_folder_shares`, `notification_settings`, `notification_preferences`, `assistant_settings`, `assistant_documents`, `assistant_conversations`, `assistant_messages`, `audit_events`.
 - Valores em centavos (`integer`). Vencimentos são datas civis (`date`, `YYYY-MM-DD`), sem conversão de fuso; "hoje" é calculado em America/Sao_Paulo (`lib/dates.ts`).
 - Toda alteração relevante grava `audit_events` na mesma transação.
@@ -128,15 +130,15 @@ O certificado do Inter chega em produção como variáveis BASE64; em desenvolvi
 
 ## Rotinas
 
-Crons da Vercel (`vercel.json`), todos protegidos por `CRON_SECRET`:
+Crons da Vercel (`vercel.json`), todos protegidos por `CRON_SECRET` e envolvidos por `trackedCron`, que grava em `cron_runs` cada execução (o painel e o resumo avisam a rotina parada há mais de 30 minutos, ou 26 horas nas diárias):
 
 | Rota | Quando | O que faz |
 | --- | --- | --- |
 | `/api/cron/ticket-notifications` | a cada 5 min | Retoma a fila de avisos de chamados |
 | `/api/cron/billing-sync` | a cada 5 min | Consulta até 40 cobranças emitidas no Inter e confirma pagamentos |
-| `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou e, nas mensais, o período seguinte de uma fatura recém-paga (`earlyIssueAllowed` em `billing/recurrence.ts`); agenda os lembretes, envia os avisos de cobrança e confere as entregas |
+| `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou e, nas mensais, o período seguinte de uma fatura recém-paga (`earlyIssueAllowed` em `billing/recurrence.ts`); agenda os lembretes, envia os avisos de cobrança e confere as entregas, inclusive dos alertas da equipe |
 | `/api/cron/contract-expiry` | diário, 11:00 UTC | Avisa contratos perto do fim e vencidos |
-| `/api/cron/ops-digest` | diário, 11:30 UTC | Resumo da manhã para a equipe (emissões, pagamentos, falhas, atrasos, contratos) |
+| `/api/cron/ops-digest` | diário, 11:30 UTC | Resumo da manhã para a equipe (emissões, pagamentos, falhas, emissões que vão falhar, dívidas expiradas, atrasos, contratos, rotinas e certificado) |
 
 Avisos também são processados logo após a ação, com `after()`; o cron garante a retomada.
 

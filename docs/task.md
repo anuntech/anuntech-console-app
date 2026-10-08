@@ -10,10 +10,11 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 - [ ] Passar os parâmetros fiscais da contabilidade para ligar a emissão de NFS-e pela Focus.
 - [ ] Especificar Relatórios.
 
-- [ ] Como trabalhamos: marcar no documento do plano as decisões D1 a D24 (as recomendações foram aplicadas por padrão). Em especial: autorizar ou não o e-mail automático de 80% do banco (D19), definir a cidade da sede e os feriados em Configurações → Dados da empresa (D6), e levar ao advogado as mudanças de texto dos modelos (D1, D2, D8, D10, D16).
+- [ ] Como trabalhamos: marcar no documento do plano as decisões D1 a D24 (as recomendações foram aplicadas por padrão). O e-mail automático de 80% do banco (D19) foi autorizado no pedido de 08/10 e entra com o interruptor em Configurações → Automações. Falta definir a cidade da sede e os feriados em Configurações → Dados da empresa (D6), e levar ao advogado as mudanças de texto dos modelos (D1, D2, D8, D10, D16).
 - [ ] Ditado por microfone: testar no próprio iPhone e num Android logo depois da publicação (assistente e Abrir chamado), conferir o custo no OpenRouter depois das primeiras gravações e rever o preço do MAI-Transcribe-2 quando a promoção acabar (31/12/2026). Decidir se o microfone também entra na resposta do chamado.
 - [ ] Recorrências pausadas por endereço: completar o endereço de cobrança da KAPÔ e da CATEL e retomar (CATEL até 07/10, KAPÔ Squad até 08/10). A KAPÔ S3 (vencia 02/10) precisa de fatura avulsa para outubro e próximo vencimento em 02/11.
 - [ ] Webhook do Inter para confirmar pagamento na hora: com a emissão no pagamento, a próxima fatura sairia em segundos em vez de até 10 minutos.
+- [ ] Automação (08/10): o que depende de terceiros fica preparado. Reajuste anual por IPCA precisa da cláusula do advogado; a cópia de segurança semanal precisa do destino e da credencial; a triagem de pedidos por WhatsApp precisa do webhook da FLW (Synova); o webhook do Inter precisa do cadastro na conta Inter.
 - [ ] Cadastrar as condições de atendimento de cada empresa (página da empresa), começando pelas 12 do Synova, conferindo com o contrato assinado. Sem isso, nenhum prazo aparece para o cliente.
 
 ## Engenharia
@@ -29,6 +30,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 08/10/2026: automação, lote 1 (proteger o dinheiro): cadastro conferido antes da emissão, dívida expirada no Inter com Cobrar de novo e Encerrar, aviso 7 dias antes de o Inter encerrar, cobrança de quem saiu, saúde das rotinas, certificado do Inter e alertas da equipe que não chegam.
 - [x] 08/10/2026: campos do contrato no topo do rascunho, com sugestões do cadastro, do produto e do orçamento, aplicar e salvar.
 - [x] 07/10/2026: próxima fatura das recorrências mensais emitida assim que a atual é paga (aviso continua 5 dias antes), Próximas cobranças no Financeiro, na Visão geral e na fatura, recorrências pausadas em destaque e Cancelar no Inter.
 - [x] 06/10/2026: ditado por microfone no assistente e em Abrir chamado (`/api/transcricao`, OpenRouter com retenção zero, 2 minutos por gravação, 30 por hora por pessoa).

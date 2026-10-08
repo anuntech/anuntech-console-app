@@ -2,6 +2,8 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth/auth";
 import { getConsoleStaffAccess } from "@/lib/access/console-members";
 import { normalizeCnpj, normalizeCep } from "@/lib/companies/company-lookup";
+import { allowedIds, getActor } from "@/lib/access/access";
+import { reserveHourly } from "@/lib/http/hourly-limit";
 const json = (data: unknown, status = 200) =>
   Response.json(data, {
     status,
@@ -9,17 +11,18 @@ const json = (data: unknown, status = 200) =>
   });
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  const admin =
-    session?.user.emailVerified &&
-    (await getConsoleStaffAccess(session.user.email)).admin;
-  if (!admin)
-    return json(
-      { error: "Acesso restrito à administração." },
-      session?.user.emailVerified ? 403 : 401,
-    );
+  if (!session?.user.emailVerified) return json({ error: "Entre de novo para consultar." }, 401);
+  const admin = (await getConsoleStaffAccess(session.user.email)).admin;
   const query = new URL(request.url).searchParams;
   const kind = query.get("tipo"),
     value = query.get("valor") || "";
+  // A client's Administrador fills the company's address by CEP (Configurações → Dados da empresa); CNPJ stays with the team.
+  if (!admin) {
+    const actor = await getActor();
+    if (kind !== "cep" || !allowedIds(actor, "finance").length) return json({ error: "Acesso restrito à administração." }, 403);
+    if (!(await reserveHourly("cep", actor.user.id, 20)))
+      return json({ error: "Muitas consultas na última hora. Preencha o endereço manualmente." }, 429);
+  }
   if (!(
     (kind === "cnpj" && /^\d{14}$/.test(value)) ||
     (kind === "cep" && /^\d{8}$/.test(value))

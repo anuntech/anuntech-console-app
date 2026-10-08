@@ -226,6 +226,8 @@ export const contracts = pgTable(
       .references(() => companies.id),
     templateId: text("template_id").references(() => contractTemplates.id),
     engagementId: text("engagement_id").references((): AnyPgColumn => engagements.id),
+    /** The accepted proposal this contract came from, when it did. */
+    quoteId: text("quote_id").references((): AnyPgColumn => quotes.id),
     /** An amendment (aditivo) points at the contract it changes. */
     kind: text("kind", { enum: ["contract", "amendment"] }).notNull().default("contract"),
     parentId: text("parent_id").references((): AnyPgColumn => contracts.id),
@@ -355,6 +357,8 @@ export const quotes = pgTable(
     companyId: text("company_id")
       .notNull()
       .references(() => companies.id),
+    /** The ticket that asked for this proposal ("App ou projeto novo"), when it came from one. */
+    ticketId: text("ticket_id").references((): AnyPgColumn => tickets.id),
     /** "2026-007": numbered per year, in creation order. */
     year: integer("year").notNull(),
     seq: integer("seq").notNull(),
@@ -491,6 +495,8 @@ export const engagements = pgTable(
       .references(() => companies.id),
     name: text("name").notNull(),
     kind: text("kind", { enum: ["product", "project", "service"] }).notNull(),
+    /** The accepted proposal a project was built from. */
+    quoteId: text("quote_id").references((): AnyPgColumn => quotes.id),
     status: text("status", { enum: ["active", "paused", "completed"] })
       .notNull()
       .default("active"),
@@ -732,6 +738,8 @@ export const invoices = pgTable(
       .references(() => companies.id),
     engagementId: text("engagement_id").references(() => engagements.id),
     subscriptionId: text("subscription_id").references(() => subscriptions.id),
+    /** The proposal this charge bills (its down payment or balance), when prepared from one. */
+    quoteId: text("quote_id").references((): AnyPgColumn => quotes.id),
     publicId: text("public_id").unique(),
     publicEnabled: boolean("public_enabled").notNull().default(true),
     boletoPdf: text("boleto_pdf"),
@@ -966,6 +974,8 @@ export const environmentProfile = pgTable("console_environment_profile", {
     .$type<import("@/lib/service-terms/business-calendar").LocalHolidays>()
     .notNull()
     .default({}),
+  /** Which automations are switched off (Configurações → Automações); a missing key means on. */
+  automations: jsonb("automations").$type<Record<string, boolean>>().notNull().default({}),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -1119,4 +1129,35 @@ export const hoursMonths = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("console_hours_month_unique").on(t.companyId, t.month)],
+);
+
+/** The last run of each scheduled routine, so a stopped one is noticed (Painel and the morning digest). */
+export const cronRuns = pgTable("console_cron_runs", {
+  name: text("name").primaryKey(),
+  lastOkAt: timestamp("last_ok_at", { withTimezone: true }),
+  lastFailedAt: timestamp("last_failed_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * One row per thing an automation did or prepared, so it never happens twice
+ * (a reminder sent, a notice queued, a debt contact logged): `kind` plus the
+ * record it was about is unique.
+ */
+export const automationEvents = pgTable(
+  "console_automation_events",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    kind: text("kind").notNull(),
+    entityId: text("entity_id").notNull(),
+    companyId: text("company_id").references(() => companies.id),
+    actorId: text("actor_id").references(() => user.id),
+    details: jsonb("details").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("console_automation_event_unique").on(t.kind, t.entityId),
+    index("console_automation_event_company_idx").on(t.companyId),
+  ],
 );

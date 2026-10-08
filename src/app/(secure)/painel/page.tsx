@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   AlertTriangleIcon,
@@ -21,6 +21,12 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { banksAtAlert } from "@/lib/service-terms/hours-bank";
+import { expiredDebtCondition, expiredDebts, expiringCharges, failingRecurrences, leavingCharges } from "@/lib/billing/billing-watch";
+import { quietFor, staleRoutines } from "@/lib/ops/cron-health";
+import { unreachableStaff } from "@/lib/notifications/ops-delivery";
+import { staffEmails } from "@/lib/notifications/ops-alerts";
+import { deliveryEventLabel } from "@/lib/notifications/ops-digest-text";
+import { interCertificateExpiry } from "@/lib/integrations/integrations";
 import { auditEvents, companies, contracts, invoices, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
 import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
@@ -172,7 +178,7 @@ export default async function Dashboard() {
       .orderBy(desc(tickets.updatedAt))
       .limit(5),
     db
-      .select({ invoice: invoices, company: companies.name, subscriptionStatus: subscriptions.status })
+      .select({ invoice: invoices, company: companies.name, subscriptionStatus: subscriptions.status, expired: sql<boolean>`${expiredDebtCondition}` })
       .from(invoices)
       .innerJoin(companies, eq(companies.id, invoices.companyId))
       .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
@@ -223,12 +229,7 @@ export default async function Dashboard() {
       .select({ n: count() })
       .from(subscriptions)
       .innerJoin(companies, eq(companies.id, subscriptions.companyId))
-      .where(
-        and(
-          or(eq(subscriptions.status, "paused"), and(eq(subscriptions.status, "active"), isNotNull(subscriptions.lastError))),
-          eq(companies.archived, false),
-        ),
-      ),
+      .where(and(eq(subscriptions.status, "paused"), eq(companies.archived, false))),
   ]);
 
   const byMonth = new Map(billing.map((row) => [row.month, row]));
@@ -244,14 +245,84 @@ export default async function Dashboard() {
   const receivedDelta =
     lastMonth.receivedCents > 0 ? { percent: ((thisMonth.receivedCents - lastMonth.receivedCents) / lastMonth.receivedCents) * 100, label: `em relação a ${lastMonth.longLabel}` } : null;
 
+  // What would cost money if nobody looked: the same lists the morning digest sends (lib/billing/billing-watch.ts).
+  const [failing, expiredDebt, expiring, leaving, stale, unreachable] = await Promise.all([
+    failingRecurrences(),
+    expiredDebts(),
+    expiringCharges(today),
+    leavingCharges(today),
+    staleRoutines(now),
+    staffEmails().then(unreachableStaff),
+  ]);
+  const certificateEnds = interCertificateExpiry();
+  // Expired is decided by the clock, so the first hours after the end never read "vence em 0 dias".
+  const certificateDays = certificateEnds
+    ? certificateEnds.getTime() <= now.getTime()
+      ? -1
+      : Math.ceil((certificateEnds.getTime() - now.getTime()) / 86_400_000)
+    : null;
   const candidates: (AttentionItem | false)[] = [
-    pausedRecurrences.n > 0 && {
+    certificateDays !== null && certificateDays <= 30 && {
+      key: "inter-certificate",
+      icon: <AlertTriangleIcon />,
+      tone: "critical" as const,
+      title: certificateDays < 0 ? "Certificado do Inter vencido" : "Certificado do Inter perto de vencer",
+      detail: certificateDays < 0 ? "Emissão e conciliação estão paradas" : `Vence em ${certificateDays === 1 ? "1 dia" : `${certificateDays} dias`}; troque na Vercel antes`,
+      count: 1,
+      href: "/configuracoes/integracoes",
+    },
+    unreachable.length > 0 && {
+      key: "unreachable-staff",
+      icon: <AlertTriangleIcon />,
+      tone: "critical" as const,
+      title: "Alertas da equipe que não chegam",
+      detail: unreachable.map((u) => `${u.email} (${deliveryEventLabel(u.event)})`).join(", "),
+      count: unreachable.length,
+      href: "/configuracoes/membros",
+    },
+    stale.length > 0 && {
+      key: "stale-routines",
+      icon: <AlertTriangleIcon />,
+      tone: "critical" as const,
+      title: stale.length === 1 ? `Rotina parada: ${stale[0].label}` : "Rotinas paradas",
+      detail: stale.map((r) => `${r.label}: ${quietFor(r.minutes)}`).join(" · "),
+      count: stale.length,
+      href: "/configuracoes/integracoes",
+    },
+    pausedRecurrences.n + failing.length > 0 && {
       key: "paused-recurrences",
       icon: <AlertTriangleIcon />,
       tone: "critical" as const,
       title: "Recorrências que precisam de você",
-      detail: "Pausadas ou com a emissão falhando; veja o motivo em Próximas cobranças",
-      count: pausedRecurrences.n,
+      detail: "Pausadas, com cadastro incompleto ou com a emissão falhando; o motivo está em Próximas cobranças",
+      count: pausedRecurrences.n + failing.length,
+      href: "/financeiro",
+    },
+    expiredDebt.length > 0 && {
+      key: "expired-debts",
+      icon: <AlertTriangleIcon />,
+      tone: "critical" as const,
+      title: "Expiradas no Inter sem pagamento",
+      detail: `${currency(expiredDebt.reduce((sum, i) => sum + i.amountCents, 0))} que ninguém cobrou de novo`,
+      count: expiredDebt.length,
+      href: "/financeiro?status=expired",
+    },
+    expiring.length > 0 && {
+      key: "expiring-charges",
+      icon: <ClockIcon />,
+      tone: "warning" as const,
+      title: "Boletos que o Inter encerra em até 7 dias",
+      detail: `${currency(expiring.reduce((sum, i) => sum + i.amountCents, 0))} ainda sem pagamento`,
+      count: expiring.length,
+      href: expiring.length === 1 ? `/financeiro/${expiring[0].id}` : "/financeiro?status=overdue",
+    },
+    leaving.length > 0 && {
+      key: "leaving-charges",
+      icon: <AlertTriangleIcon />,
+      tone: "warning" as const,
+      title: "Cobrança de quem encerrou",
+      detail: leaving.length === 1 ? `${leaving[0].company}: ${leaving[0].reason}` : "Serviço concluído ou contrato vencido com a recorrência ativa",
+      count: leaving.length,
       href: "/financeiro",
     },
     overdue.n > 0 && {
@@ -484,7 +555,7 @@ export default async function Dashboard() {
           <CardContent className="px-0">
             {recentInvoices.length ? (
               <ul className="divide-y border-t">
-                {recentInvoices.map(({ invoice, company, subscriptionStatus }) => (
+                {recentInvoices.map(({ invoice, company, subscriptionStatus, expired }) => (
                   <RecentRow
                     key={invoice.id}
                     href={`/financeiro/${invoice.id}`}
@@ -492,7 +563,7 @@ export default async function Dashboard() {
                     detail={`${company} · ${dateLabel(invoice.dueDate)}`}
                     status={
                       <InvoiceStatusBadge
-                        status={invoiceDisplayStatus({ status: invoice.status, dueDate: invoice.dueDate, scheduled: subscriptionStatus === "active" }, today)}
+                        status={invoiceDisplayStatus({ status: invoice.status, dueDate: invoice.dueDate, scheduled: subscriptionStatus === "active", expired }, today)}
                       />
                     }
                   />

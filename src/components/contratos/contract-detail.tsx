@@ -101,6 +101,8 @@ export type ContractDetailData = {
     createdAt: string;
     /** What the Console already knows for the open fields of a draft. */
     fieldSuggestions: FieldSuggestions;
+    /** What in the company's record keeps Inter from issuing its charges (the team, on a draft). */
+    billingProblems: string | null;
   };
   /** The contract this one amends, when it is an amendment. */
   parent: { id: string; title: string; status: ContractStatus } | null;
@@ -749,6 +751,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
         description={
           // What goes out is the saved text, never the edits still open on the page.
           (editorDirty ? "Há alterações no texto que ainda não foram salvas e não entram no envio. " : "") +
+          (c.billingProblems ? `Atenção: ${c.billingProblems} no cadastro da empresa. Sem isso, as cobranças deste contrato não saem no Inter. ` : "") +
           (c.status === "in_review"
             ? `O texto vira a versão ${c.version + 1}. O cliente recebe um aviso por e-mail, vê o que mudou e a resposta a cada pedido, e assina ou pede novas alterações.`
             : c.version > 0

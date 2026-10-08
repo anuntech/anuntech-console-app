@@ -5,6 +5,7 @@ import {
   useActionState,
   useContext,
   useEffect,
+  useId,
   useRef,
   useState,
   type ComponentProps,
@@ -169,6 +170,8 @@ type ConfirmProps = {
   confirmLabel?: string;
   destructive?: boolean;
   onSuccess?: (state: ActionState) => void;
+  /** Visible choices inside the dialog; they join the form through its id (the dialog renders in a portal). */
+  extra?: (formId: string) => ReactNode;
 };
 
 /**
@@ -186,12 +189,15 @@ export function ConfirmDialog({
   confirmLabel = "Confirmar",
   destructive = false,
   onSuccess,
+  extra,
 }: ConfirmProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = useId();
   return (
     <>
       <ServerForm
         ref={formRef}
+        id={formId}
         action={action}
         onSuccess={(state) => {
           onOpenChange(false);
@@ -210,6 +216,7 @@ export function ConfirmDialog({
               <AlertDialogDescription>{description}</AlertDialogDescription>
             )}
           </AlertDialogHeader>
+          {extra?.(formId)}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction

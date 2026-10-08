@@ -5,9 +5,10 @@ import { db, pool } from "@/lib/db";
 import { invoices } from "@/db/schema";
 import { interBase } from "@/lib/integrations/integrations";
 import { reconcileCharge } from "@/lib/billing/billing-sync";
+import { trackedCron } from "@/lib/ops/cron-health";
 
 export const maxDuration = 300;
-export async function GET(request: Request) {
+async function run(request: Request) {
   const secret = process.env.CRON_SECRET;
   const actual = Buffer.from(request.headers.get("authorization") || "");
   const expected = Buffer.from(`Bearer ${secret}`);
@@ -75,3 +76,5 @@ export async function GET(request: Request) {
     }
   }
 }
+
+export const GET = trackedCron("billing-sync", run);

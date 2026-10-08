@@ -45,7 +45,8 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 ### Empresas
 
 - Cadastro com CPF ou CNPJ, razão social, e-mail financeiro, telefone e endereço de cobrança. CNPJ e CEP preenchem o resto sozinhos (CNPJ.ws e ViaCEP); tudo continua editável.
-- O endereço completo é obrigatório para emitir cobrança. O servidor sempre usa o endereço salvo no cadastro.
+- O endereço completo é obrigatório para emitir cobrança. O servidor sempre usa o endereço salvo no cadastro. Uma regra só (`billing-readiness.ts`) diz o que falta, e o Console avisa antes da emissão: Próximas cobranças (com "Corrigir o cadastro"), resumo da manhã, painel da equipe, aceite do orçamento e envio do contrato. "Buscar na Receita" preenche só os campos de endereço vazios.
+- O Administrador do cliente completa o endereço em Configurações → Dados da empresa (consulta só por CEP, 20 por hora); o passo aparece nos Primeiros passos dele enquanto faltar.
 - Preferência "Emitir nota fiscal automaticamente" por empresa, só a equipe altera. Hoje é apenas registrada; nenhuma nota é emitida.
 - Arquivar tira a empresa da lista sem mexer em acessos, faturas, contratos ou chamados. Excluir de vez só é possível quando a empresa não tem nada que precise ser guardado (regras em `lib/deletion-rules.ts`).
 - A equipe pode entrar como a empresa para ver o que o cliente vê.
@@ -92,6 +93,8 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Só o Inter confirma pagamento (situação `RECEBIDO`), por consulta manual ou pela conciliação a cada 5 minutos. O navegador nunca confirma pagamento.
 - Editar uma cobrança emitida (valor, vencimento ou condições) cancela o boleto e o Pix atuais e emite novos; o link continua o mesmo.
 - Financeiro → Envios mostra cada aviso: aceito pelo provedor, entregue, falhou ou incerto, com reenvio manual.
+- Dívida expirada: quando o Inter encerra por prazo (`EXPIRADO`) uma cobrança que ninguém pagou nem cancelou, ela aparece para a equipe como "Expirada sem pagamento" (filtro próprio no Financeiro, resumo e painel), não como cancelada. Na fatura, "Cobrar de novo" abre uma cobrança avulsa com o mesmo valor e uma nova data para o boleto (o vencimento original continua registrado), e "Encerrar a dívida" pede o motivo. Cada dívida é decidida uma vez só. Sete dias antes de o Inter encerrar uma cobrança em aberto, o resumo avisa.
+- Pausar ou concluir um projeto, produto ou serviço pergunta se a recorrência dele também pausa (marcado por padrão), para não cobrar quem saiu. O resumo lista as cobranças em aberto de vínculos encerrados ou contratos vencidos sem renovação.
 - A equipe pode excluir de vez um rascunho que nunca foi ao Inter e uma cobrança que o próprio Inter cancelou (cancelada, expirada ou com falha de emissão). Fatura paga ou com nota fiscal nunca é excluída, e a exclusão não deixa uma recorrência cobrar o mesmo período de novo. A atividade guarda o registro.
 
 ### Contratos
@@ -126,7 +129,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 ### Notificações e rotinas da equipe
 
 - Cada empresa define até 10 e-mails e 10 telefones por assunto (Financeiro e Chamados), com canais independentes. Esses contatos não ganham acesso ao Console.
-- A equipe recebe todo dia um resumo da manhã (emissões e pagamentos das últimas 24 horas, recorrências pausadas, falhas de aviso, atrasos e contratos perto do fim) e alertas de falhas operacionais.
+- A equipe recebe todo dia um resumo da manhã (emissões e pagamentos das últimas 24 horas, recorrências pausadas, emissões que vão falhar pelo cadastro, dívidas expiradas, cobranças que o Inter encerra em até 7 dias, cobranças de quem saiu, falhas de aviso, atrasos, contratos perto do fim, rotinas paradas, alertas que não chegam e o certificado do Inter perto de vencer) e alertas de falhas operacionais. O painel da equipe mostra os mesmos pontos em "Precisa de atenção".
 
 ## Requisitos transversais
 

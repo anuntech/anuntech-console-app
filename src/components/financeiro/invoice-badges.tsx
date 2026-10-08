@@ -43,6 +43,7 @@ const invoiceTones: Record<InvoiceDisplayStatus, { pill: string; dot: string }> 
     },
     paid: { pill: "bg-success-soft text-success", dot: "bg-success" },
     scheduled: { pill: "bg-secondary text-foreground", dot: "bg-primary/60" },
+    expired: { pill: "bg-warning-soft text-warning", dot: "bg-warning" },
     draft: {
       pill: "bg-secondary text-muted-foreground",
       dot: "bg-muted-foreground/50",

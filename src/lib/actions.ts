@@ -2,7 +2,7 @@
 import { prepareTicketFiles, takeTicketUploads } from "./tickets/ticket-files";
 import { DOCUMENT_ATTACHMENTS } from "./tickets/attachment-rules";
 import { z } from "zod";
-import { and, eq, sql, isNull } from "drizzle-orm";
+import { and, eq, or, sql, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "./db";
 import { resolveBankDueDate } from "./billing/billing-notice-rules";
@@ -18,7 +18,9 @@ import {
   auditEvents,
   attachments,
   user,
+  automationEvents,
 } from "@/db/schema";
+import { expiredDebtCondition } from "./billing/billing-watch";
 import { normalizeEmail, moneyToCents } from "./access/permissions";
 import { parseChargeTerms, parseTermsScope } from "./billing/billing-terms";
 import type { ActionState } from "./action-state";
@@ -171,9 +173,9 @@ export async function updateEngagement(
   if (!actor.admin) return blocked;
   try {
     const input = z
-      .object({ id, status: z.enum(["active", "paused", "completed"]) })
+      .object({ id, status: z.enum(["active", "paused", "completed"]), pauseBilling: z.literal("yes").optional() })
       .parse(Object.fromEntries(form));
-    await db.transaction(async (tx) => {
+    const pausedBilling = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(engagements)
         .set({ status: input.status })
@@ -187,9 +189,38 @@ export async function updateEngagement(
         entityId: row.id,
         details: { status: row.status },
       });
+      // A service that stopped should not keep billing: the person chose to pause its recurrence too.
+      // Linked either way: the catalog writes engagements.subscription_id, Nova cobrança only subscriptions.engagement_id.
+      if (input.status === "active" || !input.pauseBilling) return false;
+      const paused = await tx
+        .update(subscriptions)
+        .set({ status: "paused", lastError: input.status === "completed" ? "Pausada ao concluir o serviço." : "Pausada junto com o serviço." })
+        .where(
+          and(
+            eq(subscriptions.status, "active"),
+            eq(subscriptions.companyId, row.companyId),
+            or(eq(subscriptions.engagementId, row.id), row.subscriptionId ? eq(subscriptions.id, row.subscriptionId) : undefined),
+          ),
+        )
+        .returning({ id: subscriptions.id });
+      for (const sub of paused)
+        await tx.insert(auditEvents).values({
+          actorId: actor.user.id,
+          companyId: row.companyId,
+          action: "subscription.status_changed",
+          entityId: sub.id,
+          details: { status: "paused", reason: "engagement" },
+        });
+      return paused.length;
     });
     refresh();
-    return { success: "Situação atualizada." };
+    return {
+      success: !pausedBilling
+        ? "Situação atualizada."
+        : pausedBilling === 1
+          ? "Situação atualizada. A cobrança recorrente ficou pausada."
+          : `Situação atualizada. ${pausedBilling} cobranças recorrentes ficaram pausadas.`,
+    };
   } catch (e) {
     return failure(e);
   }
@@ -596,6 +627,9 @@ export async function createInvoice(
         bankDueDate: z.union([z.iso.date(), z.literal("")]).default(""),
         billingType: z.enum(["one_time", "recurring"]).default("one_time"),
         interval: z.enum(["monthly", "yearly"]).default("monthly"),
+        // What the Console prepared this charge from (new-invoice-context.ts).
+        sourceKind: z.enum(["rebill", "quote_upfront", "quote_balance", "contract"]).optional(),
+        sourceId: z.union([id, z.literal("")]).default(""),
       })
       .parse(Object.fromEntries(form));
     const amountCents = moneyToCents(input.amount);
@@ -615,6 +649,16 @@ export async function createInvoice(
     );
     if ("error" in bank) return { error: bank.error };
     const invoice = await db.transaction(async (tx) => {
+      if (input.sourceKind === "rebill" && input.sourceId) {
+        // A debt is billed again once; the old charge stays as the record of what expired.
+        const [debt] = await tx
+          .select({ id: invoices.id, companyId: invoices.companyId })
+          .from(invoices)
+          .where(and(eq(invoices.id, input.sourceId), sql`${expiredDebtCondition}`))
+          .for("update");
+        if (!debt || debt.companyId !== input.companyId)
+          throw new Error("Esta dívida já foi cobrada de novo ou encerrada.");
+      }
       if (input.engagementId) {
         const [eng] = await tx
           .select()
@@ -664,7 +708,16 @@ export async function createInvoice(
         companyId: row.companyId,
         action: "invoice.drafted",
         entityId: row.id,
+        details: input.sourceKind ? { source: input.sourceKind, sourceId: input.sourceId } : undefined,
       });
+      if (input.sourceKind === "rebill" && input.sourceId)
+        await tx.insert(automationEvents).values({
+          kind: "debt.rebilled",
+          entityId: input.sourceId,
+          companyId: row.companyId,
+          actorId: actor.user.id,
+          details: { invoiceId: row.id },
+        });
       return row;
     });
     refresh();
@@ -706,6 +759,10 @@ export async function cancelDraft(
               "Fatura do período cancelada. Revise o próximo vencimento.",
           })
           .where(eq(subscriptions.id, row.subscriptionId));
+      // A draft that billed an old debt again gives that debt back to the team.
+      await tx
+        .delete(automationEvents)
+        .where(and(eq(automationEvents.kind, "debt.rebilled"), sql`${automationEvents.details}->>'invoiceId' = ${row.id}`));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.companyId,

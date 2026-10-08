@@ -12,6 +12,7 @@ import type { ActionState } from "../action-state";
 import { saoPauloDate } from "../dates";
 import { currency, longDateLabel } from "../format";
 import { sendOpsMail } from "../notifications/ops-alerts";
+import { billingProblemsLabel, billingReadiness } from "../billing/billing-readiness";
 import { hasPermission } from "../access/permissions";
 import { deliverQuoteNotice } from "./quote-mail";
 import {
@@ -419,10 +420,16 @@ export async function answerQuote(_: ActionState, form: FormData): Promise<Actio
       });
     });
     const totals = quoteTotals(q.publication);
+    // The down payment cannot go out without a full billing address: the team hears it now, not on the day.
+    const [payer] = status === "accepted" ? await db.select().from(companies).where(eq(companies.id, q.companyId)) : [];
+    const problems = payer ? billingReadiness(payer) : [];
+    const billingNote = problems.length
+      ? `\n\nAtenção: ${billingProblemsLabel(problems)} no cadastro. Sem isso, a entrada e as cobranças deste cliente não saem no Inter. Corrija em ${consoleUrl()}/empresas/${q.companyId}?editar=1`
+      : "";
     const who = party === "client" ? `${actor.user.name || actor.user.email} (${q.publication.companyName})` : `${actor.user.name || actor.user.email}, pela Anuntech, a pedido do cliente`;
     await sendOpsMail(
       `Orçamento ${q.publication.number} ${status === "accepted" ? "aceito" : "recusado"}: ${q.title}`,
-      `${status === "accepted" ? "Aceito" : "Recusado"} por ${who} em ${longDateLabel(new Date())}.\n\nCliente: ${q.publication.companyName}\nValor: ${currency(totals.totalCents)}${note ? `\nObservação: ${note}` : ""}\n\n${status === "accepted" ? "Próximos passos ficam por sua conta: contrato, produtos e cobranças partem do orçamento aceito." : ""}\n\nAbrir no Console: ${consoleUrl()}/orcamentos/${q.id}`,
+      `${status === "accepted" ? "Aceito" : "Recusado"} por ${who} em ${longDateLabel(new Date())}.\n\nCliente: ${q.publication.companyName}\nValor: ${currency(totals.totalCents)}${note ? `\nObservação: ${note}` : ""}\n\n${status === "accepted" ? "Próximos passos ficam por sua conta: contrato, produtos e cobranças partem do orçamento aceito." : ""}${billingNote}\n\nAbrir no Console: ${consoleUrl()}/orcamentos/${q.id}`,
     );
     refresh(q.id);
     return {

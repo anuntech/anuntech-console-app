@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { companies, invoices, subscriptions } from "@/db/schema";
 import { db } from "../db";
 import { issueDate } from "./recurrence";
+import { billingProblemsLabel, billingReadiness } from "./billing-readiness";
 
 /**
  * The next charge of each recurrence, before it exists as an invoice: the
@@ -26,6 +27,8 @@ export type UpcomingCharge = {
   lastError: string | null;
   /** Latest invoice of the recurrence the viewer can open, for the link. */
   invoiceId: string | null;
+  /** What in the company's record will make the issue fail (the team only). */
+  problems: string | null;
 };
 
 export async function upcomingCharges({ admin, companyIds }: { admin: boolean; companyIds: string[] | null }): Promise<UpcomingCharge[]> {
@@ -36,6 +39,9 @@ export async function upcomingCharges({ admin, companyIds }: { admin: boolean; c
       subscriptionId: subscriptions.id,
       companyId: subscriptions.companyId,
       company: companies.name,
+      document: companies.document,
+      archived: companies.archived,
+      billingAddress: companies.billingAddress,
       description: subscriptions.description,
       amountCents: subscriptions.amountCents,
       dueDate: subscriptions.nextDueDate,
@@ -53,7 +59,8 @@ export async function upcomingCharges({ admin, companyIds }: { admin: boolean; c
         // A paused recurrence will not be issued: the team needs to see it, the client does not.
         inArray(subscriptions.status, admin ? ["active", "paused"] : ["active"]),
         companyIds ? inArray(subscriptions.companyId, companyIds) : undefined,
-        eq(companies.archived, false),
+        // An archived client's active recurrence will fail to issue: the team sees it with the reason.
+        admin ? undefined : eq(companies.archived, false),
       ),
     )
     .orderBy(asc(subscriptions.nextDueDate), asc(companies.name));
@@ -69,5 +76,8 @@ export async function upcomingCharges({ admin, companyIds }: { admin: boolean; c
     status: row.status as "active" | "paused",
     lastError: admin ? row.lastError : null,
     invoiceId: row.invoiceId,
+    problems: admin
+      ? billingProblemsLabel(billingReadiness({ name: row.company, document: row.document, archived: row.archived, billingAddress: row.billingAddress })) || null
+      : null,
   }));
 }

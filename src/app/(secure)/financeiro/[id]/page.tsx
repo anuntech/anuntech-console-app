@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { and, asc, desc, eq, gt, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
   auditEvents,
+  automationEvents,
   billingNotices,
   companies,
   engagements,
@@ -73,6 +74,34 @@ export default async function Invoice({
       ])
     : [[], []];
   const today = saoPauloDate();
+  // A charge Inter closed unpaid is still a debt until someone bills it again or writes it off (staff only).
+  let debt: InvoiceDetailData["debt"] = null;
+  if (actor.admin && i.status === "cancelled" && i.bankStatus === "EXPIRADO") {
+    const [[teamCancel], decisions] = await Promise.all([
+      db
+        .select({ id: auditEvents.id })
+        .from(auditEvents)
+        .where(
+          and(
+            eq(auditEvents.entityId, i.id),
+            inArray(auditEvents.action, ["invoice.bank_cancelled", "invoice.bank_cancel_requested"]),
+            // A reissue cancelled an earlier charge of this invoice; only a cancel of this one counts.
+            sql`${auditEvents.details}->>'providerId' = ${i.providerId}`,
+          ),
+        )
+        .limit(1),
+      db.select().from(automationEvents).where(and(eq(automationEvents.entityId, i.id), inArray(automationEvents.kind, ["debt.closed", "debt.rebilled"]))),
+    ]);
+    if (!teamCancel) {
+      const rebilled = decisions.find((d) => d.kind === "debt.rebilled");
+      const closed = decisions.find((d) => d.kind === "debt.closed");
+      debt = rebilled
+        ? { state: "rebilled", invoiceId: String(rebilled.details?.invoiceId ?? ""), at: rebilled.createdAt.toISOString() }
+        : closed
+          ? { state: "closed", reason: String(closed.details?.reason ?? ""), at: closed.createdAt.toISOString() }
+          : { state: "open" };
+    }
+  }
   const earlyReady =
     !!sub &&
     sub.status === "active" &&
@@ -156,7 +185,7 @@ export default async function Invoice({
           bankDueDate: i.bankDueDate,
           status: i.status,
           display: invoiceDisplayStatus(
-            { status: i.status, dueDate: i.dueDate, scheduled },
+            { status: i.status, dueDate: i.dueDate, scheduled, expired: debt?.state === "open" },
             today,
           ),
           createdAt: i.createdAt.toISOString(),
@@ -188,7 +217,7 @@ export default async function Invoice({
                 ? "issued"
                 : null,
           // A recurrence must not bill the period again; the action refuses it too.
-          deletable: actor.admin && canDeleteInvoice(i) && recurrenceAllowsDelete(i, sub),
+          deletable: actor.admin && canDeleteInvoice(i) && recurrenceAllowsDelete(i, sub) && debt?.state !== "open",
           bankClosed: closedAtBank(i),
           terms: {
             discountCents: i.discountCents,
@@ -227,6 +256,7 @@ export default async function Invoice({
             }
           : null,
         scheduled,
+        debt,
         scheduledIssueDate:
           scheduled && sub ? issueDate(i.dueDate, sub.leadDays) : null,
         notices: notices.map((n) => ({

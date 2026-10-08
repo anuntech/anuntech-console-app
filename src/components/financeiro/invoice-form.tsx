@@ -46,27 +46,57 @@ const TYPES = [
  * Fields to draft a charge. Names match createInvoice. Rendered as siblings
  * so the sheet and the card space them with their own `gap-5`.
  */
+/**
+ * A charge the Console prepared from something already decided (a debt Inter
+ * closed unpaid, a proposal's down payment or balance, a signed contract):
+ * the fields come filled, the person reviews and creates the draft, and the
+ * draft keeps a link to where it came from.
+ */
+export type InvoicePrefill = {
+  /** `label` follows "Preenchida a partir": "da fatura…", "do orçamento…". */
+  source: { kind: "rebill" | "quote_upfront" | "quote_balance" | "contract"; id: string; label: string };
+  companyId: string;
+  engagementId?: string | null;
+  description: string;
+  amountCents: number;
+  dueDate?: string;
+  bankDueDate?: string;
+  billingType?: "one_time" | "recurring";
+  interval?: "monthly" | "yearly";
+};
+
 export function InvoiceFields({
   companies,
   engagements,
   companyId,
+  prefill,
   autoFocus = false,
 }: {
   companies: InvoiceCompanyOption[];
   engagements: InvoiceEngagementOption[];
   companyId?: string;
+  prefill?: InvoicePrefill | null;
   autoFocus?: boolean;
 }) {
   // One company: nothing to choose, so it travels as a hidden value.
   const only = companies.length === 1 ? companies[0].id : null;
-  const [company, setCompany] = useState(only ?? companyId ?? "");
-  const [type, setType] = useState<"one_time" | "recurring">("one_time");
-  const [dueDate, setDueDate] = useState("");
-  const [bankDueDate, setBankDueDate] = useState("");
+  const [company, setCompany] = useState(only ?? prefill?.companyId ?? companyId ?? "");
+  const [type, setType] = useState<"one_time" | "recurring">(prefill?.billingType ?? "one_time");
+  const [dueDate, setDueDate] = useState(prefill?.dueDate ?? "");
+  const [bankDueDate, setBankDueDate] = useState(prefill?.bankDueDate ?? "");
   const items = engagements.filter((e) => e.companyId === company);
   return (
     <>
       {only && <input type="hidden" name="companyId" value={only} />}
+      {prefill && (
+        <>
+          <input type="hidden" name="sourceKind" value={prefill.source.kind} />
+          <input type="hidden" name="sourceId" value={prefill.source.id} />
+          <p className="m-0 rounded-lg border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+            Preenchida a partir {prefill.source.label}. Confira antes de criar.
+          </p>
+        </>
+      )}
       <div className={cn("grid gap-5", !only && "sm:grid-cols-2")}>
         {!only && (
           <FormField label="Empresa" htmlFor="invoice-company">
@@ -86,7 +116,7 @@ export function InvoiceFields({
             id="invoice-engagement"
             name="engagementId"
             key={company}
-            defaultValue=""
+            defaultValue={company === prefill?.companyId ? (prefill?.engagementId ?? "") : ""}
             disabled={!company}
           >
             <NativeSelectOption value="">
@@ -108,6 +138,7 @@ export function InvoiceFields({
           maxLength={1000}
           rows={2}
           autoFocus={autoFocus && !!only}
+          defaultValue={prefill?.description}
           placeholder="Nome do produto ou serviço"
           className="min-h-16"
         />
@@ -141,14 +172,14 @@ export function InvoiceFields({
       <div className="grid gap-5 sm:grid-cols-2">
         {type === "recurring" && (
           <FormField label="Frequência" htmlFor="invoice-interval">
-            <NativeSelect id="invoice-interval" name="interval" defaultValue="monthly">
+            <NativeSelect id="invoice-interval" name="interval" defaultValue={prefill?.interval ?? "monthly"}>
               <NativeSelectOption value="monthly">Mensal</NativeSelectOption>
               <NativeSelectOption value="yearly">Anual</NativeSelectOption>
             </NativeSelect>
           </FormField>
         )}
         <FormField label="Valor" htmlFor="invoice-amount">
-          <MoneyField id="invoice-amount" />
+          <MoneyField id="invoice-amount" defaultCents={prefill?.amountCents} />
         </FormField>
         <FormField label={type === "recurring" ? "Primeiro vencimento" : "Vencimento"} htmlFor="invoice-due">
           <DateField id="invoice-due" name="dueDate" required value={dueDate} onChange={setDueDate} />
@@ -175,10 +206,12 @@ export function NewInvoiceForm({
   companies,
   engagements,
   companyId,
+  prefill,
 }: {
   companies: InvoiceCompanyOption[];
   engagements: InvoiceEngagementOption[];
   companyId?: string;
+  prefill?: InvoicePrefill | null;
 }) {
   return (
     <Card className="max-w-2xl">
@@ -189,6 +222,7 @@ export function NewInvoiceForm({
             companies={companies}
             engagements={engagements}
             companyId={companyId}
+            prefill={prefill}
             autoFocus
           />
         </CardContent>

@@ -15,6 +15,7 @@ import {
   InvoiceFields,
   type InvoiceCompanyOption,
   type InvoiceEngagementOption,
+  type InvoicePrefill,
 } from "./invoice-form";
 import { ChargeTermsFields } from "./charge-terms-fields";
 import { BankDueDateField } from "./bank-due-date-field";
@@ -213,10 +214,12 @@ export function NewInvoiceSheet({
   companies,
   engagements,
   companyId,
+  prefill,
 }: {
   companies: InvoiceCompanyOption[];
   engagements: InvoiceEngagementOption[];
   companyId?: string;
+  prefill?: InvoicePrefill | null;
 }) {
   const sheet = useRouteSheet();
   return (
@@ -232,6 +235,7 @@ export function NewInvoiceSheet({
         companies={companies}
         engagements={engagements}
         companyId={companyId}
+        prefill={prefill}
         autoFocus
       />
     </FormSheet>

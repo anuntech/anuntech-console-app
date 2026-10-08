@@ -1,8 +1,8 @@
 "use server";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, count, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auditEvents, billingNotices, companies, engagements, invoices, subscriptions } from "@/db/schema";
+import { auditEvents, automationEvents, billingNotices, companies, engagements, invoices, subscriptions } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
@@ -13,6 +13,7 @@ import {
   invoiceDeletionBlock,
   recurrenceAllowsDelete,
 } from "../deletion-rules";
+import { expiredDebtCondition } from "./billing-watch";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -52,6 +53,12 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
       if (!invoice) throw new Refusal("Fatura não encontrada.");
       const block = invoiceDeletionBlock(invoice);
       if (block) throw new Refusal(block);
+      // Inter closed it unpaid and nobody decided yet: deleting would make the debt vanish.
+      const [debt] = await tx
+        .select({ id: invoices.id })
+        .from(invoices)
+        .where(and(eq(invoices.id, invoice.id), sql`${expiredDebtCondition}`));
+      if (debt) throw new Refusal("Esta fatura é uma dívida em aberto. Cobre de novo ou encerre a dívida antes de excluir.");
       const closed = closedAtBank(invoice);
       // A reissue clears the bank columns; the history still says it was there.
       const [{ bankEvents }] = await tx
@@ -97,6 +104,15 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
         .from(companies)
         .where(eq(companies.id, invoice.companyId));
       await tx.delete(billingNotices).where(eq(billingNotices.invoiceId, invoice.id));
+      // Its own debt decision goes with it; a draft that billed an old debt again gives that debt back to the team.
+      await tx
+        .delete(automationEvents)
+        .where(
+          or(
+            and(eq(automationEvents.entityId, invoice.id), inArray(automationEvents.kind, ["debt.closed", "debt.rebilled"])),
+            and(eq(automationEvents.kind, "debt.rebilled"), sql`${automationEvents.details}->>'invoiceId' = ${invoice.id}`),
+          ),
+        );
       await tx.delete(invoices).where(eq(invoices.id, invoice.id));
       if (recurrence) {
         // Never activated and this was its only charge: nothing else reaches it.

@@ -5,6 +5,8 @@ import { z } from "zod";
 import {
   attachments,
   auditEvents,
+  automationEvents,
+  quotes,
   bookmarkFolderShares,
   bookmarkFolders,
   bookmarks,
@@ -114,6 +116,10 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
       await tx.delete(hoursMonths).where(eq(hoursMonths.companyId, company.id));
       await tx.delete(serviceTerms).where(eq(serviceTerms.companyId, company.id));
       await tx.delete(userMilestones).where(eq(userMilestones.companyId, company.id));
+      // What the automations did for it (reminders sent, debts decided) goes with it.
+      await tx.delete(automationEvents).where(eq(automationEvents.companyId, company.id));
+      // A proposal of another company asked for in one of its tickets only loses the link.
+      await tx.update(quotes).set({ ticketId: null }).where(inArray(quotes.ticketId, itsTickets));
       const notices = await tx
         .delete(ticketNotices)
         .where(inArray(ticketNotices.ticketId, itsTickets))

@@ -7,14 +7,16 @@ import {
 } from "../list-query";
 
 export type InvoiceTableStatus = "draft" | "issued" | "paid" | "cancelled";
-export type InvoiceDisplayStatus = InvoiceTableStatus | "overdue" | "scheduled";
+export type InvoiceDisplayStatus = InvoiceTableStatus | "overdue" | "scheduled" | "expired";
 
 // Overdue is a display state only; payment confirmation still comes from Inter.
 export function invoiceDisplayStatus(
-  invoice: { status: InvoiceTableStatus; dueDate: string; scheduled?: boolean },
+  invoice: { status: InvoiceTableStatus; dueDate: string; scheduled?: boolean; expired?: boolean },
   today: string,
 ): InvoiceDisplayStatus {
   if (invoice.status === "draft" && invoice.scheduled) return "scheduled";
+  // Inter closed it unpaid and nobody decided yet: still a debt, not a cancellation.
+  if (invoice.status === "cancelled" && invoice.expired) return "expired";
   return invoice.status === "issued" && invoice.dueDate < today
     ? "overdue"
     : invoice.status;
@@ -28,6 +30,7 @@ export const invoiceFilters: InvoiceStatusFilter[] = [
   "paid",
   "scheduled",
   "draft",
+  "expired",
   "cancelled",
 ];
 /** Drafts and cancellations are internal; clients only ever see the rest. */
@@ -43,6 +46,7 @@ export const invoiceStatusLabels: Record<InvoiceDisplayStatus, string> = {
   paid: "Paga",
   scheduled: "Agendada",
   draft: "Rascunho",
+  expired: "Expirada sem pagamento",
   cancelled: "Cancelada",
 };
 export const invoiceFilterLabels: Record<InvoiceStatusFilter, string> = {
@@ -52,6 +56,7 @@ export const invoiceFilterLabels: Record<InvoiceStatusFilter, string> = {
   paid: "Pagas",
   scheduled: "Agendadas",
   draft: "Rascunhos",
+  expired: "Expiradas sem pagamento",
   cancelled: "Canceladas",
 };
 /** Due-date windows; "custom" reads `from`/`to`. */

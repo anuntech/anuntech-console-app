@@ -314,6 +314,11 @@ try {
       "Cliente não consulta cadastro público pela API interna",
     );
     ok(
+      (await request("/api/cadastro/consulta?tipo=cep&valor=invalido", "finance")).status === 400 &&
+        (await request("/api/cadastro/consulta?tipo=cep&valor=invalido", "support")).status === 403,
+      "Administrador do cliente consulta só o CEP; Membro não consulta",
+    );
+    ok(
       (
         await request(
           "/api/cadastro/consulta?tipo=cnpj&valor=12345678901",
@@ -2070,6 +2075,12 @@ try {
       `delete from ${table} where contract_id in (select id from console_contracts where company_id=any($1::text[]))`,
       [companyIds],
     );
+  // Links to a proposal go before the proposals; automation records before companies and people.
+  await database.query("update console_engagements set quote_id=null where company_id=any($1::text[])", [companyIds]);
+  await database.query("delete from console_automation_events where company_id=any($1::text[]) or actor_id=any($2::text[])", [
+    companyIds,
+    Object.values(people).map((p) => p.id),
+  ]);
   for (const table of [
     "console_audit_events",
     "console_invoices",

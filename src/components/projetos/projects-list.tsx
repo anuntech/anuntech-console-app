@@ -111,7 +111,7 @@ function ProjectRowActions({
   row: ProjectRow;
   admin: boolean;
   onEdit: (row: ProjectRow) => void;
-  onStatus: (id: string, status: EngagementStatus) => void;
+  onStatus: (id: string, status: EngagementStatus, name?: string) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
   const deletable = admin && canDeleteEngagement(row.links);
@@ -156,13 +156,13 @@ function ProjectRowActions({
             </DropdownMenuItem>
           )}
           {row.status === "active" && (
-            <DropdownMenuItem onSelect={() => onStatus(row.id, "paused")}>
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "paused", row.name)}>
               <PauseIcon />
               Pausar
             </DropdownMenuItem>
           )}
           {row.status !== "completed" && (
-            <DropdownMenuItem onSelect={() => onStatus(row.id, "completed")}>
+            <DropdownMenuItem onSelect={() => onStatus(row.id, "completed", row.name)}>
               <CircleCheckIcon />
               Marcar como concluído
             </DropdownMenuItem>
