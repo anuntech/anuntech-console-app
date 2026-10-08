@@ -105,13 +105,18 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Assinatura eletrônica no próprio Console, com registro de quem assinou, quando e em qual versão. Com as duas partes assinadas, o PDF final é guardado.
 - Voltar para rascunho mantém a versão enviada no histórico; o próximo envio é uma versão nova, assinada de novo.
 - **Rodadas de revisão:** enquanto o contrato espera assinatura, os administradores da empresa podem pedir alterações cláusula por cláusula, com o motivo e, se quiserem, o texto proposto. Os pedidos ficam guardados até o cliente enviar a rodada; aí o contrato vai para "Em revisão", a assinatura dessa versão é bloqueada e a equipe recebe um e-mail. A equipe aceita ou recusa cada pedido (recusar exige resposta); aceitar um texto proposto o aplica sozinho no rascunho quando a cláusula ainda está como o cliente leu. A próxima versão só sai com todos os pedidos respondidos; o cliente recebe um e-mail, vê o que mudou marcado na margem e a resposta a cada pedido, e assina ou abre outra rodada. Tudo fica no histórico, por versão.
-- Aditivos a contratos assinados, vigência com início e fim, aviso 30 dias antes do fim e no vencimento.
+- Aditivos a contratos assinados, vigência com início e fim, aviso 30 dias antes do fim e no vencimento. O aviso, o resumo da manhã e o contrato trazem "Preparar prorrogação": um aditivo com a nova vigência (do dia seguinte ao fim, pelo mesmo tempo) e a cláusula de prorrogação, em rascunho.
+- Quando o cliente assina primeiro, a equipe recebe um e-mail e o painel mostra "Falta a assinatura da Anuntech".
+- No contrato assinado, a equipe vê o orçamento de origem e prepara, a partir dele, a cobrança recorrente do item (valor, ciclo e dia de vencimento do contrato), as condições de atendimento em rascunho pela ficha do modelo (só valem depois de conferidas) e a prorrogação. Cada um é preparado uma vez; cancelar o rascunho da cobrança libera de novo.
+- Enviar contrato ou orçamento para uma empresa sem Administrador pede o e-mail de quem vai assinar ou responder (sugere o e-mail financeiro). A pessoa recebe acesso como Administrador antes do envio; em branco, o envio sai sem avisar ninguém. O painel e o resumo listam os clientes sem Administrador que têm contrato, orçamento ou cobrança em aberto.
 
 ### Orçamentos
 
 - Propostas por fases, numeradas por ano, com PDF.
 - Valor = horas máximas × taxa/hora, menos o desconto negociado (opcional, em reais, nunca maior que o valor das horas; no editor fica recolhido em "Adicionar desconto"). Entrada e saldo são calculados sobre o valor com desconto, e a proposta mostra o valor das horas e o desconto. Ao copiar um orçamento para outra empresa pelo assistente, o desconto não vai junto.
 - Enviar congela a versão e avisa os administradores da empresa, que aceitam ou recusam no Console. Rascunho pode ser duplicado; proposta enviada pode voltar para edição ou ser retirada.
+- "Criar orçamento deste pedido" no chamado leva o pedido junto: o orçamento fica ligado ao chamado e a descrição vira o resumo. No orçamento, "Responder no chamado" abre o chamado com uma resposta pronta para cada momento (enviado, aceito, recusado), que a equipe revisa e envia.
+- Orçamento aceito: "Próximos passos" com o contrato (o modelo de desenvolvimento, quando ativo, já com escopo, entregáveis, stack, prazo e valores do orçamento), o projeto (um cartão por tarefa em A fazer, com o código e a fase como etiqueta, depois de Acessos e Reunião de início, até 300 cartões, com confirmação) e as cobranças da entrada e do saldo em rascunho. Cada passo é feito uma vez e mostra o que já existe.
 
 ### Bookmarks
 
@@ -130,6 +135,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 
 - Cada empresa define até 10 e-mails e 10 telefones por assunto (Financeiro e Chamados), com canais independentes. Esses contatos não ganham acesso ao Console.
 - A equipe recebe todo dia um resumo da manhã (emissões e pagamentos das últimas 24 horas, recorrências pausadas, emissões que vão falhar pelo cadastro, dívidas expiradas, cobranças que o Inter encerra em até 7 dias, cobranças de quem saiu, falhas de aviso, atrasos, contratos perto do fim, rotinas paradas, alertas que não chegam e o certificado do Inter perto de vencer) e alertas de falhas operacionais. O painel da equipe mostra os mesmos pontos em "Precisa de atenção".
+- Seguimento comercial e de projetos, no resumo e no painel: contratos que esperam a Anuntech, orçamentos sem resposta perto de vencer (3 dias), expirados há até 30 dias ou sem validade há mais de 14, aceitos há mais de 3 dias sem contrato, contratos sem assinatura do cliente há mais de 7 dias, pedidos do cliente no Backlog há mais de 2 dias, entregas em Revisão com o prazo de teste das condições vencido e clientes sem Administrador. Só lista e leva ao item; nada vai ao cliente. Os limites ficam em `lib/commercial/follow-up.ts`.
 
 ## Requisitos transversais
 

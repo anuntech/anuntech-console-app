@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { auditEvents, companies, quoteVersions, quotes } from "@/db/schema";
+import { auditEvents, automationEvents, companies, contracts, engagements, quoteVersions, quotes, tickets } from "@/db/schema";
+import { BOARD_LIMIT, quoteBoardTasks } from "@/lib/quotes/quote-handoff";
+import { managerInvite } from "@/lib/access/invite-manager";
 import { getActor, canAccess } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { hasPermission } from "@/lib/access/permissions";
@@ -39,6 +41,45 @@ export default async function Quote({ params }: { params: Promise<{ id: string }
           .limit(12)
       : [],
   ]);
+  // Staff: what the accepted proposal already became (contract, project, charges) and the request it answers.
+  const handoff = actor.admin
+    ? await Promise.all([
+        q.status === "accepted"
+          ? db
+              .select({ id: contracts.id, title: contracts.title, status: contracts.status })
+              .from(contracts)
+              .where(and(eq(contracts.quoteId, q.id), ne(contracts.status, "cancelled")))
+              .orderBy(desc(contracts.createdAt))
+              .limit(1)
+          : Promise.resolve([]),
+        q.status === "accepted"
+          ? db.select({ id: engagements.id, name: engagements.name }).from(engagements).where(eq(engagements.quoteId, q.id)).limit(1)
+          : Promise.resolve([]),
+        q.status === "accepted"
+          ? db
+              .select({ kind: automationEvents.kind, details: automationEvents.details })
+              .from(automationEvents)
+              .where(and(eq(automationEvents.entityId, q.id), inArray(automationEvents.kind, ["quote.upfront", "quote.balance"])))
+          : Promise.resolve([]),
+        q.ticketId
+          ? db.select({ id: tickets.id, subject: tickets.subject, status: tickets.status }).from(tickets).where(eq(tickets.id, q.ticketId))
+          : Promise.resolve([]),
+      ]).then(([[contract], [project], charges, [ticket]]) => {
+        const invoiceOf = (kind: string) => String(charges.find((c) => c.kind === kind)?.details?.invoiceId ?? "") || null;
+        const content = q.publication ?? q.content;
+        const cards = quoteBoardTasks(content).length;
+        const wanted = 2 + content.phases.reduce((sum, phase) => sum + phase.tasks.length, 0);
+        return {
+          contract: contract ?? null,
+          project: project ?? null,
+          upfrontInvoiceId: invoiceOf("quote.upfront"),
+          balanceInvoiceId: invoiceOf("quote.balance"),
+          ticket: ticket ? { id: ticket.id, subject: ticket.subject, open: ticket.status !== "closed" } : null,
+          cards,
+          cut: wanted > BOARD_LIMIT,
+        };
+      })
+    : undefined;
   const grant = actor.grants.find((g) => g.company.id === q.companyId);
   const party = actor.admin ? "anuntech" : grant && hasPermission(grant.role, "finance") ? "client" : null;
   const frozen = q.status !== "draft" && q.publication ? q.publication : null;
@@ -75,6 +116,8 @@ export default async function Quote({ params }: { params: Promise<{ id: string }
         })),
         viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email },
         events: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString() })),
+        handoff,
+        invite: actor.admin && q.status === "draft" ? await managerInvite(q.companyId) : null,
         now: new Date().toISOString(),
         today: saoPauloDate(),
       }}

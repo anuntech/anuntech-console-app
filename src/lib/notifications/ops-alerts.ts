@@ -23,6 +23,7 @@ import { expiredDebts, expiringCharges, failingRecurrences, leavingCharges } fro
 import { quietFor, staleRoutines } from "../ops/cron-health";
 import { unreachableStaff } from "./ops-delivery";
 import { interCertificateExpiry } from "../integrations/integrations";
+import { commercialFollowUp } from "../commercial/follow-up";
 
 const consoleUrl = () => process.env.BETTER_AUTH_URL || "http://localhost:3100";
 
@@ -171,7 +172,7 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
       .where(and(eq(invoices.status, "issued"), lt(invoices.dueDate, today)))
       .orderBy(invoices.dueDate),
     db
-      .select({ company: companies.name, title: contracts.title, startsAt: contracts.startsAt, endsAt: contracts.endsAt })
+      .select({ id: contracts.id, company: companies.name, title: contracts.title, startsAt: contracts.startsAt, endsAt: contracts.endsAt })
       .from(contracts)
       .innerJoin(companies, eq(companies.id, contracts.companyId))
       .where(
@@ -196,13 +197,14 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
       )
       .orderBy(asc(tickets.responseDueAt)),
   ]);
-  const [failing, expired, expiring, leaving, stale, unreachable] = await Promise.all([
+  const [failing, expired, expiring, leaving, stale, unreachable, followUp] = await Promise.all([
     failingRecurrences(),
     expiredDebts(),
     expiringCharges(today),
     leavingCharges(today),
     staleRoutines(),
     staffEmails().then(unreachableStaff),
+    commercialFollowUp(today),
   ]);
   const certificateEnds = interCertificateExpiry();
   const certificateDays = certificateEnds
@@ -218,6 +220,7 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
     leaving,
     routines: stale.map((r) => ({ label: r.label, quiet: quietFor(r.minutes), lastError: r.lastError })),
     unreachable,
+    followUp,
     certificate:
       certificateEnds && certificateDays !== null && certificateDays <= 30
         ? { expiresOn: saoPauloDate(certificateEnds), days: certificateDays }
@@ -228,8 +231,8 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
     noticeProblems: problems,
     overdue: overdue.map((i) => ({ ...i, days: daysOverdue(i.dueDate, today) })),
     contracts: ending
-      .map((c) => ({ company: c.company, title: c.title, label: contractTermLabel(contractTerm(c, today)) }))
-      .filter((c): c is { company: string; title: string; label: string } => !!c.label),
+      .map((c) => ({ id: c.id, company: c.company, title: c.title, label: contractTermLabel(contractTerm(c, today)) }))
+      .filter((c): c is { id: string; company: string; title: string; label: string } => !!c.label),
     tickets: ticketsDue.map((t) => ({ company: t.company, subject: t.subject, dueAt: t.dueAt!.toISOString(), id: t.id })),
     url: consoleUrl(),
   };
@@ -245,7 +248,8 @@ export async function sendOpsDigest() {
     problems:
       data.paused.length + data.noticeProblems.length + data.overdue.length + data.contracts.length + (data.tickets?.length ?? 0) +
       (data.failing?.length ?? 0) + (data.expired?.length ?? 0) + (data.expiring?.length ?? 0) + (data.leaving?.length ?? 0) +
-      (data.routines?.length ?? 0) + (data.certificate ? 1 : 0) + (data.unreachable?.length ?? 0),
+      (data.routines?.length ?? 0) + (data.certificate ? 1 : 0) + (data.unreachable?.length ?? 0) +
+      (data.followUp ?? []).reduce((sum, group) => sum + group.items.length, 0),
   };
 }
 

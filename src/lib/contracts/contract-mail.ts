@@ -52,7 +52,7 @@ export async function deliverContractNotice(
 /** Warns the Anuntech side that a signed contract is about to end, or has ended. */
 export async function deliverContractExpiryNotice(
   email: string,
-  input: { companyName: string; title: string; url: string; endsAt: string; days: number },
+  input: { companyName: string; title: string; url: string; endsAt: string; days: number; renewUrl?: string },
 ) {
   const expired = input.days < 0;
   const when = expired
@@ -68,6 +68,6 @@ export async function deliverContractExpiryNotice(
     to: email,
     tag: "contract-expiry",
     subject: `${expired ? "Contrato vencido" : "Contrato vencendo"}: ${input.title}`,
-    text: `O contrato "${input.title}" com ${input.companyName} ${when} (${longDateLabel(input.endsAt)}).\n\n${expired ? "Se a relação continua, registre a renovação por aditivo ou crie um novo contrato." : "Para renovar, crie um aditivo de prorrogação ou um novo contrato antes do fim da vigência."}\n\nAbrir no Console: ${input.url}\n\nConsole da Anuntech`,
+    text: `O contrato "${input.title}" com ${input.companyName} ${when} (${longDateLabel(input.endsAt)}).\n\n${expired ? "Se a relação continua, registre a renovação por aditivo ou crie um novo contrato." : "Para renovar, crie um aditivo de prorrogação ou um novo contrato antes do fim da vigência."}${input.renewUrl ? `\n\nA prorrogação já sai preenchida, com a nova vigência: ${input.renewUrl}` : ""}\n\nAbrir no Console: ${input.url}\n\nConsole da Anuntech`,
   });
 }

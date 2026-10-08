@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { getActor, canAccess, type Actor } from "../access/access";
 import { auth } from "../auth/auth";
-import { accountEmails, auditEvents, companies, memberships, quoteVersions, quotes, user } from "@/db/schema";
+import { accountEmails, auditEvents, companies, engagements, memberships, quoteVersions, quotes, tasks, tickets, user } from "@/db/schema";
 import type { ActionState } from "../action-state";
 import { saoPauloDate } from "../dates";
 import { currency, longDateLabel } from "../format";
@@ -15,6 +15,8 @@ import { sendOpsMail } from "../notifications/ops-alerts";
 import { billingProblemsLabel, billingReadiness } from "../billing/billing-readiness";
 import { hasPermission } from "../access/permissions";
 import { deliverQuoteNotice } from "./quote-mail";
+import { quoteBoardTasks } from "./quote-handoff";
+import { inviteManagerBeforeSend } from "../access/invite-manager";
 import {
   quoteContentSchema,
   quoteExpired,
@@ -123,19 +125,25 @@ export async function createQuote(_: ActionState, form: FormData): Promise<Actio
     const fields = quoteFields(form);
     const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
     if (!company) return { error: "Escolha a empresa." };
+    // The client's request it answers, of the same company.
+    const ticketId = z.union([id, z.literal("")]).default("").parse(form.get("ticketId") ?? "");
+    const [ticket] = ticketId
+      ? await db.select({ id: tickets.id }).from(tickets).where(and(eq(tickets.id, ticketId), eq(tickets.companyId, companyId)))
+      : [];
+    if (ticketId && !ticket) return { error: "O chamado de origem não é desta empresa." };
     const created = await db.transaction(async (tx) => {
       const year = Number(saoPauloDate().slice(0, 4));
       const last = await lastQuoteSeq(tx, year);
       const [row] = await tx
         .insert(quotes)
-        .values({ ...fields, companyId, year, seq: last + 1, authorId: actor.user.id })
+        .values({ ...fields, companyId, year, seq: last + 1, authorId: actor.user.id, ticketId: ticket?.id ?? null })
         .returning({ id: quotes.id, year: quotes.year, seq: quotes.seq });
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId,
         entityId: row.id,
         action: "quote.created",
-        details: { number: quoteNumberLabel(row.year, row.seq) },
+        details: { number: quoteNumberLabel(row.year, row.seq), ticketId: ticket?.id ?? null },
       });
       return row;
     });
@@ -234,6 +242,10 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
   if (!actor.admin) return blocked;
   try {
     const quoteId = id.parse(form.get("id"));
+    // No Administrador yet: the person the team named gets access first, so the notice reaches someone who can answer.
+    const [target] = await db.select({ companyId: quotes.companyId }).from(quotes).where(eq(quotes.id, quoteId));
+    const refused = target ? await inviteManagerBeforeSend(form, target.companyId) : null;
+    if (refused) return refused;
     const sent = await db.transaction(async (tx) => {
       const [q] = await tx.select().from(quotes).where(eq(quotes.id, quoteId)).for("update");
       if (!q) throw Error("Orçamento não encontrado.");
@@ -429,7 +441,7 @@ export async function answerQuote(_: ActionState, form: FormData): Promise<Actio
     const who = party === "client" ? `${actor.user.name || actor.user.email} (${q.publication.companyName})` : `${actor.user.name || actor.user.email}, pela Anuntech, a pedido do cliente`;
     await sendOpsMail(
       `Orçamento ${q.publication.number} ${status === "accepted" ? "aceito" : "recusado"}: ${q.title}`,
-      `${status === "accepted" ? "Aceito" : "Recusado"} por ${who} em ${longDateLabel(new Date())}.\n\nCliente: ${q.publication.companyName}\nValor: ${currency(totals.totalCents)}${note ? `\nObservação: ${note}` : ""}\n\n${status === "accepted" ? "Próximos passos ficam por sua conta: contrato, produtos e cobranças partem do orçamento aceito." : ""}${billingNote}\n\nAbrir no Console: ${consoleUrl()}/orcamentos/${q.id}`,
+      `${status === "accepted" ? "Aceito" : "Recusado"} por ${who} em ${longDateLabel(new Date())}.\n\nCliente: ${q.publication.companyName}\nValor: ${currency(totals.totalCents)}${note ? `\nObservação: ${note}` : ""}\n\n${status === "accepted" ? "Os próximos passos estão no orçamento, já preenchidos: contrato, projeto com o quadro das fases e as cobranças de entrada e saldo. Cada um nasce como rascunho para você conferir." : ""}${billingNote}\n\nAbrir no Console: ${consoleUrl()}/orcamentos/${q.id}`,
     );
     refresh(q.id);
     return {
@@ -442,6 +454,64 @@ export async function answerQuote(_: ActionState, form: FormData): Promise<Actio
             ? "Resposta registrada. Obrigado por avisar."
             : "Recusa registrada.",
     };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/**
+ * The project an accepted proposal describes: one card per task in A fazer,
+ * with its code and its phase as the label, after the two steps every
+ * project starts with. Staff only, once per proposal; the client sees the
+ * project as soon as it exists, so the team confirms a preview first.
+ */
+export async function createProjectFromQuote(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const quoteId = id.parse(form.get("id"));
+    const created = await db.transaction(async (tx) => {
+      const [q] = await tx.select().from(quotes).where(eq(quotes.id, quoteId)).for("update");
+      if (!q || q.status !== "accepted") throw new Error("Só um orçamento aceito vira projeto.");
+      const [existing] = await tx.select({ id: engagements.id }).from(engagements).where(eq(engagements.quoteId, q.id));
+      if (existing) throw new Error("Este orçamento já tem projeto. Abra o que existe pelo orçamento.");
+      const accepted = q.publication ?? { ...q.content, title: q.title };
+      const [project] = await tx
+        .insert(engagements)
+        .values({
+          companyId: q.companyId,
+          name: accepted.title.slice(0, 160),
+          kind: "project",
+          quoteId: q.id,
+          description: accepted.summary.trim().slice(0, 3000) || null,
+        })
+        .returning({ id: engagements.id, companyId: engagements.companyId });
+      const cards = quoteBoardTasks(accepted);
+      if (cards.length)
+        await tx.insert(tasks).values(
+          cards.map((card, index) => ({
+            engagementId: project.id,
+            companyId: project.companyId,
+            title: card.title,
+            description: card.description || null,
+            status: "todo" as const,
+            labels: card.labels,
+            position: (index + 1) * 1024,
+            createdBy: actor.user.id,
+          })),
+        );
+      await tx.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: q.companyId,
+        action: "engagement.created",
+        entityId: project.id,
+        details: { quoteId: q.id, tasks: cards.length },
+      });
+      return { id: project.id, cards: cards.length };
+    });
+    revalidatePath("/projetos");
+    refresh(quoteId);
+    return { success: `Projeto criado com ${created.cards} cartões em A fazer.`, href: `/projetos/${created.id}` };
   } catch (e) {
     return failure(e);
   }

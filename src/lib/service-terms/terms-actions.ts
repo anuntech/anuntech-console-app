@@ -2,11 +2,12 @@
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auditEvents, contracts, engagements, serviceTerms } from "@/db/schema";
+import { auditEvents, companies, contractTemplates, contracts, engagements, serviceTerms } from "@/db/schema";
+import { synovaWithoutTerms } from "./terms-queries";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
-import { blankPolicy, presetPolicy, termsPresets } from "./presets";
+import { blankPolicy, presetForTemplate, presetPolicy, termsPresets } from "./presets";
 import { BUSINESS_DAY_MINUTES, type ServicePolicy } from "./terms-model";
 
 /*
@@ -245,4 +246,96 @@ export async function deactivateServiceTerms(_: ActionState, form: FormData): Pr
   });
   revalidatePath(`/empresas/${row.companyId}`);
   return { success: "Condições desativadas. Novos chamados ficam sem prazo até outras entrarem." };
+}
+
+/**
+ * Draft conditions from a signed contract: the ficha of its template, the
+ * contract and its item linked, unconfirmed and unpublished. Only confirmed
+ * conditions govern tickets, so nothing changes for the client until
+ * someone checks them against the signed text.
+ */
+export async function prepareServiceTerms(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  const contractId = id.safeParse(form.get("contractId"));
+  if (!contractId.success) return blocked;
+  try {
+    const [row] = await db
+      .select({ contract: contracts, template: contractTemplates.name, document: companies.document })
+      .from(contracts)
+      .innerJoin(companies, eq(companies.id, contracts.companyId))
+      .leftJoin(contractTemplates, eq(contractTemplates.id, contracts.templateId))
+      .where(eq(contracts.id, contractId.data));
+    if (!row || row.contract.status !== "signed" || row.contract.kind !== "contract") return { error: "Só um contrato assinado gera condições." };
+    const preset = presetForTemplate(row.template);
+    const policy = preset ? presetPolicy(preset) : null;
+    if (!preset || !policy) return { error: "Este modelo de contrato não tem ficha de condições. Cadastre à mão na página da empresa." };
+    const [existing] = await db.select({ id: serviceTerms.id }).from(serviceTerms).where(eq(serviceTerms.contractId, row.contract.id));
+    if (existing) return { error: "Este contrato já tem condições. Confira na página da empresa." };
+    const [terms] = await db
+      .insert(serviceTerms)
+      .values({
+        companyId: row.contract.companyId,
+        engagementId: row.contract.engagementId,
+        basis: "console_contract",
+        preset,
+        label: termsPresets.find((p) => p.key === preset)!.label,
+        contractId: row.contract.id,
+        policy,
+        personClient: row.document.replace(/\D/g, "").length === 11,
+      })
+      .returning({ id: serviceTerms.id });
+    await db.insert(auditEvents).values({
+      actorId: actor.user.id,
+      companyId: row.contract.companyId,
+      action: "service_terms.created",
+      entityId: terms.id,
+      details: { preset, contractId: row.contract.id, verified: false, prepared: true },
+    });
+    revalidatePath(`/empresas/${row.contract.companyId}`);
+    revalidatePath(`/contratos/${row.contract.id}`);
+    return {
+      success: "Condições criadas como rascunho. Confira com o contrato assinado antes de valerem.",
+      href: `/empresas/${row.contract.companyId}`,
+    };
+  } catch (e) {
+    return { error: e instanceof Error && e.message ? e.message : "Não foi possível preparar as condições." };
+  }
+}
+
+/** One draft per Synova client without conditions (external contract, Synova ficha), all unconfirmed. */
+export async function prepareSynovaTerms(): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const rows = await synovaWithoutTerms();
+    const policy = presetPolicy("synova")!;
+    for (const row of rows) {
+      const [terms] = await db
+        .insert(serviceTerms)
+        .values({
+          companyId: row.companyId,
+          basis: "external_contract",
+          preset: "synova",
+          label: "Licença Synova",
+          policy,
+          personClient: row.document.replace(/\D/g, "").length === 11,
+        })
+        .returning({ id: serviceTerms.id });
+      await db.insert(auditEvents).values({
+        actorId: actor.user.id,
+        companyId: row.companyId,
+        action: "service_terms.created",
+        entityId: terms.id,
+        details: { preset: "synova", verified: false, prepared: true },
+      });
+      revalidatePath(`/empresas/${row.companyId}`);
+    }
+    revalidatePath("/configuracoes/contratos");
+    return rows.length
+      ? { success: `${rows.length === 1 ? "1 rascunho criado" : `${rows.length} rascunhos criados`}. Confira cada um na página da empresa.` }
+      : { success: "Todos os clientes do Synova já têm condições." };
+  } catch (e) {
+    return { error: e instanceof Error && e.message ? e.message : "Não foi possível preparar as condições." };
+  }
 }

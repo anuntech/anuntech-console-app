@@ -2,7 +2,8 @@
 import { prepareTicketFiles, takeTicketUploads } from "./tickets/ticket-files";
 import { DOCUMENT_ATTACHMENTS } from "./tickets/attachment-rules";
 import { z } from "zod";
-import { and, eq, or, sql, isNull } from "drizzle-orm";
+import { and, eq, inArray, or, sql, isNull } from "drizzle-orm";
+import { chargeSourceEvent, chargeSourceKinds, preparedChargeEvents } from "./billing/charge-sources";
 import { revalidatePath } from "next/cache";
 import { db } from "./db";
 import { resolveBankDueDate } from "./billing/billing-notice-rules";
@@ -19,6 +20,8 @@ import {
   attachments,
   user,
   automationEvents,
+  quotes,
+  contracts,
 } from "@/db/schema";
 import { expiredDebtCondition } from "./billing/billing-watch";
 import { normalizeEmail, moneyToCents } from "./access/permissions";
@@ -628,7 +631,7 @@ export async function createInvoice(
         billingType: z.enum(["one_time", "recurring"]).default("one_time"),
         interval: z.enum(["monthly", "yearly"]).default("monthly"),
         // What the Console prepared this charge from (new-invoice-context.ts).
-        sourceKind: z.enum(["rebill", "quote_upfront", "quote_balance", "contract"]).optional(),
+        sourceKind: z.enum(chargeSourceKinds).optional(),
         sourceId: z.union([id, z.literal("")]).default(""),
       })
       .parse(Object.fromEntries(form));
@@ -648,16 +651,43 @@ export async function createInvoice(
       saoPauloDate(),
     );
     if ("error" in bank) return { error: bank.error };
+    const source = input.sourceKind && input.sourceId ? { kind: input.sourceKind, id: input.sourceId } : null;
     const invoice = await db.transaction(async (tx) => {
-      if (input.sourceKind === "rebill" && input.sourceId) {
+      let quoteId: string | null = null;
+      if (source?.kind === "rebill") {
         // A debt is billed again once; the old charge stays as the record of what expired.
         const [debt] = await tx
           .select({ id: invoices.id, companyId: invoices.companyId })
           .from(invoices)
-          .where(and(eq(invoices.id, input.sourceId), sql`${expiredDebtCondition}`))
+          .where(and(eq(invoices.id, source.id), sql`${expiredDebtCondition}`))
           .for("update");
         if (!debt || debt.companyId !== input.companyId)
           throw new Error("Esta dívida já foi cobrada de novo ou encerrada.");
+      } else if (source?.kind === "quote_upfront" || source?.kind === "quote_balance") {
+        // The entrada and the saldo of an accepted proposal, each prepared once.
+        const [quote] = await tx
+          .select({ companyId: quotes.companyId, status: quotes.status })
+          .from(quotes)
+          .where(eq(quotes.id, source.id))
+          .for("update");
+        if (!quote || quote.companyId !== input.companyId || quote.status !== "accepted")
+          throw new Error("A cobrança precisa partir de um orçamento aceito desta empresa.");
+        quoteId = source.id;
+      } else if (source?.kind === "contract") {
+        const [contract] = await tx
+          .select({ companyId: contracts.companyId, status: contracts.status, kind: contracts.kind })
+          .from(contracts)
+          .where(eq(contracts.id, source.id))
+          .for("update");
+        if (!contract || contract.companyId !== input.companyId || contract.status !== "signed" || contract.kind !== "contract")
+          throw new Error("A cobrança precisa partir de um contrato assinado desta empresa.");
+      }
+      if (source && source.kind !== "rebill") {
+        const [prepared] = await tx
+          .select({ id: automationEvents.id })
+          .from(automationEvents)
+          .where(and(eq(automationEvents.kind, chargeSourceEvent[source.kind]), eq(automationEvents.entityId, source.id)));
+        if (prepared) throw new Error("Esta cobrança já foi preparada. Abra a que existe pelo orçamento ou pelo contrato.");
       }
       if (input.engagementId) {
         const [eng] = await tx
@@ -700,6 +730,7 @@ export async function createInvoice(
           amountCents,
           dueDate: input.dueDate,
           bankDueDate: bank.bankDueDate,
+          quoteId,
           ...terms,
         })
         .returning();
@@ -708,15 +739,15 @@ export async function createInvoice(
         companyId: row.companyId,
         action: "invoice.drafted",
         entityId: row.id,
-        details: input.sourceKind ? { source: input.sourceKind, sourceId: input.sourceId } : undefined,
+        details: source ? { source: source.kind, sourceId: source.id } : undefined,
       });
-      if (input.sourceKind === "rebill" && input.sourceId)
+      if (source)
         await tx.insert(automationEvents).values({
-          kind: "debt.rebilled",
-          entityId: input.sourceId,
+          kind: chargeSourceEvent[source.kind],
+          entityId: source.id,
           companyId: row.companyId,
           actorId: actor.user.id,
-          details: { invoiceId: row.id },
+          details: { invoiceId: row.id, subscriptionId },
         });
       return row;
     });
@@ -759,10 +790,10 @@ export async function cancelDraft(
               "Fatura do período cancelada. Revise o próximo vencimento.",
           })
           .where(eq(subscriptions.id, row.subscriptionId));
-      // A draft that billed an old debt again gives that debt back to the team.
+      // A draft prepared from a debt, a proposal or a contract gives that source back, to be prepared again.
       await tx
         .delete(automationEvents)
-        .where(and(eq(automationEvents.kind, "debt.rebilled"), sql`${automationEvents.details}->>'invoiceId' = ${row.id}`));
+        .where(and(inArray(automationEvents.kind, preparedChargeEvents), sql`${automationEvents.details}->>'invoiceId' = ${row.id}`));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.companyId,

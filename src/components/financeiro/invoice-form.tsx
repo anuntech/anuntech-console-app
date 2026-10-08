@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import type { ChargeSourceKind } from "@/lib/billing/charge-sources";
 import { useState } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,7 @@ const TYPES = [
  */
 export type InvoicePrefill = {
   /** `label` follows "Preenchida a partir": "da fatura…", "do orçamento…". */
-  source: { kind: "rebill" | "quote_upfront" | "quote_balance" | "contract"; id: string; label: string };
+  source: { kind: ChargeSourceKind; id: string; label: string };
   companyId: string;
   engagementId?: string | null;
   description: string;

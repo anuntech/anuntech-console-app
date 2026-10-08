@@ -128,6 +128,8 @@ export type TicketDetailData = {
   entries: TicketEntry[];
   files: TicketFile[];
   viewer: { admin: boolean };
+  /** Staff: a reply prepared elsewhere (a proposal sent or answered), ready to review and send. */
+  replyDraft?: string;
   /** Staff who can take the ticket; loaded only for admins. */
   assignees?: TicketAssignee[];
   clock?: TicketClock | null;
@@ -175,7 +177,7 @@ function When({ at, now }: { at: string; now: string }) {
   );
 }
 
-function Composer({ ticketId }: { ticketId: string }) {
+function Composer({ ticketId, draft }: { ticketId: string; draft?: string }) {
   const uploads = useTicketUploads();
   return (
     <ServerForm
@@ -206,6 +208,7 @@ function Composer({ ticketId }: { ticketId: string }) {
         rows={4}
         maxLength={10000}
         placeholder="Escreva sua resposta…"
+        defaultValue={draft}
         className="min-h-24"
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === "Enter")
@@ -434,7 +437,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                 </DropdownMenuItem>
                 {(ticket.kind === "change" || ticket.kind === "new_project") && (
                   <DropdownMenuItem asChild>
-                    <Link href={`/orcamentos/novo?companyId=${ticket.companyId}&titulo=${encodeURIComponent(ticket.subject)}`}>
+                    <Link href={`/orcamentos/novo?companyId=${ticket.companyId}&chamado=${ticket.id}`}>
                       <CalculatorIcon />
                       Criar orçamento deste pedido
                     </Link>
@@ -547,7 +550,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                 onReopen={() => move("open")}
               />
             ) : (
-              <Composer ticketId={ticket.id} />
+              <Composer ticketId={ticket.id} draft={data.replyDraft} />
             )}
           </CardContent>
         </Card>

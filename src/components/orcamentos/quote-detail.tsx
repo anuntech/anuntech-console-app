@@ -7,11 +7,8 @@ import {
   CircleDashedIcon,
   CopyPlusIcon,
   DownloadIcon,
-  FolderKanbanIcon,
   FoldersIcon,
   MoreHorizontalIcon,
-  PackageIcon,
-  ReceiptTextIcon,
   SendIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
@@ -54,6 +51,8 @@ import { quoteExpired, quoteTotals, type QuoteContent, type QuoteStatus } from "
 import { QuoteStatusBadge, validityText } from "./quote-badges";
 import { QuoteDocument } from "./quote-document";
 import { QuoteEditor } from "./quote-editor";
+import { QuoteHandoffCard, type QuoteHandoff } from "./quote-handoff-card";
+import { InviteManagerField } from "@/components/console/invite-manager-field";
 
 export type QuoteDetailData = {
   quote: {
@@ -80,6 +79,10 @@ export type QuoteDetailData = {
   versions: { version: number; sentAt: string; hash: string; current: boolean }[];
   viewer: { admin: boolean; party: "anuntech" | "client" | null; name: string };
   events: { id: string; action: string; createdAt: string }[];
+  /** Staff: what the proposal already became and the request it answers. */
+  handoff?: QuoteHandoff;
+  /** Staff, before sending: the company has no Administrador yet, and who to suggest. */
+  invite?: { suggestion: string } | null;
   now: string;
   today: string;
 };
@@ -401,29 +404,13 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
               </Card>
             )}
 
-            {viewer.admin && q.status === "accepted" && (
-              <Card>
-                <CardHeader>
-                  <SectionTitle title="Próximos passos" description="Nada é criado sozinho. Parta do orçamento aceito." />
-                </CardHeader>
-                <CardContent className="flex flex-col gap-1">
-                  {[
-                    { href: `/contratos/novo?companyId=${q.companyId}`, label: "Criar contrato", icon: FoldersIcon },
-                    { href: `/projetos/novo?companyId=${q.companyId}`, label: "Criar projeto", icon: FolderKanbanIcon },
-                    { href: `/produtos/novo?companyId=${q.companyId}`, label: "Vincular produto ou serviço", icon: PackageIcon },
-                    { href: `/financeiro/nova?companyId=${q.companyId}`, label: "Nova cobrança", icon: ReceiptTextIcon },
-                  ].map(({ href, label, icon: Icon }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      className="flex h-10 items-center gap-3 rounded-lg px-3 text-sm text-foreground transition-colors hover:bg-accent"
-                    >
-                      <Icon className="size-4 text-muted-foreground" />
-                      {label}
-                    </Link>
-                  ))}
-                </CardContent>
-              </Card>
+            {viewer.admin && data.handoff && (
+              <QuoteHandoffCard
+                quote={{ id: q.id, number: q.number, title: q.title, status: q.status, companyId: q.companyId }}
+                handoff={data.handoff}
+                upfrontCents={totals.upfrontCents}
+                balanceCents={totals.balanceCents}
+              />
             )}
 
             <Card>
@@ -527,6 +514,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         onOpenChange={setSending}
         action={sendQuote}
         fields={{ id: q.id }}
+        extra={data.invite ? (formId) => <InviteManagerField formId={formId} suggestion={data.invite!.suggestion} /> : undefined}
         title="Enviar ao cliente?"
         description={
           q.version > 0

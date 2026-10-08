@@ -142,6 +142,24 @@ export const termsPresets: TermsPreset[] = [
   { key: "custom", label: "Outro contrato", source: "Contrato próprio da empresa", policy: null },
 ];
 
+/**
+ * The ficha behind a contract template, by the template's name (the names in
+ * the database are not the fichas' labels: "Suporte técnico e sustentação de
+ * sistemas" is "Suporte e sustentação"). Null for templates with no ficha
+ * (development, consulting, squad, confidentiality).
+ */
+export function presetForTemplate(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const text = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (/synova/.test(text)) return "synova";
+  if (/suporte|sustentacao/.test(text)) return "support";
+  if (/saas|licenca de uso de software/.test(text)) return "saas";
+  if (/infraestrutura|nuvem/.test(text)) return "infra";
+  if (/e-?mail/.test(text)) return "email";
+  if (/escopo fechado|servico tecnico/.test(text)) return "service";
+  return null;
+}
+
 /** A fresh copy of a preset's policy (null for "custom" and unknown keys). */
 export function presetPolicy(key: string): ServicePolicy | null {
   const preset = termsPresets.find((p) => p.key === key);

@@ -14,6 +14,7 @@ import {
   recurrenceAllowsDelete,
 } from "../deletion-rules";
 import { expiredDebtCondition } from "./billing-watch";
+import { preparedChargeEvents } from "./charge-sources";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -104,13 +105,13 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
         .from(companies)
         .where(eq(companies.id, invoice.companyId));
       await tx.delete(billingNotices).where(eq(billingNotices.invoiceId, invoice.id));
-      // Its own debt decision goes with it; a draft that billed an old debt again gives that debt back to the team.
+      // Its own debt decision goes with it; a draft prepared from a debt, a proposal or a contract gives that source back.
       await tx
         .delete(automationEvents)
         .where(
           or(
             and(eq(automationEvents.entityId, invoice.id), inArray(automationEvents.kind, ["debt.closed", "debt.rebilled"])),
-            and(eq(automationEvents.kind, "debt.rebilled"), sql`${automationEvents.details}->>'invoiceId' = ${invoice.id}`),
+            and(inArray(automationEvents.kind, preparedChargeEvents), sql`${automationEvents.details}->>'invoiceId' = ${invoice.id}`),
           ),
         );
       await tx.delete(invoices).where(eq(invoices.id, invoice.id));

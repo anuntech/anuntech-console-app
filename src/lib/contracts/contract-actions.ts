@@ -20,6 +20,7 @@ import {
   engagements,
   environmentProfile,
   memberships,
+  quotes,
   subscriptions,
   user,
   type ContractPublication,
@@ -29,7 +30,11 @@ import { addressLabel } from "../companies/company-billing";
 import { formatDocument } from "../companies/company-input";
 import { contractPdf } from "./contract-pdf";
 import { deliverContractNotice } from "./contract-mail";
+import { sendOpsMail } from "../notifications/ops-alerts";
+import { inviteManagerBeforeSend } from "../access/invite-manager";
 import { fillContractTemplate, pendingContractVariables } from "./contract-templates";
+import { applyContractFields, contractFields } from "./contract-fields";
+import { quoteContractValues } from "../quotes/quote-handoff";
 import { currency, longDateLabel } from "../format";
 import { hasPermission } from "../access/permissions";
 
@@ -222,6 +227,16 @@ const AMENDMENT_SKELETON = [
   "São Paulo, {{data}}.",
 ].join("\n\n");
 
+/** An amendment that only extends the term; the team reviews the text before sending. */
+const RENEWAL_SKELETON = [
+  "TERMO ADITIVO DE PRORROGAÇÃO",
+  "CONTRATANTE: {{empresa}}, CNPJ {{cnpj}}.\nCONTRATADA: {{anuntech}}, CNPJ {{anuntech_cnpj}}.",
+  "As partes acima resolvem aditar o contrato “{{contrato}}”, assinado em {{contrato_data}}, nos seguintes termos:",
+  "CLÁUSULA 1 — PRORROGAÇÃO\nA vigência do contrato fica prorrogada para o período de {{inicio}} a {{fim}}.",
+  "CLÁUSULA 2 — RATIFICAÇÃO\nPermanecem inalteradas as demais cláusulas e condições do contrato original.",
+  "São Paulo, {{data}}.",
+].join("\n\n");
+
 /**
  * A draft from a template (or blank), with the company's data filled in.
  * With `parentId`, it is an amendment to a signed contract of the same company.
@@ -237,6 +252,8 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         templateId: z.union([id, z.literal("")]).default(""),
         engagementId: z.union([id, z.literal("")]).default(""),
         title: z.string().trim().max(160).default(""),
+        quoteId: z.union([id, z.literal("")]).default(""),
+        renewal: z.literal("yes").optional(),
       })
       .and(term)
       .parse(Object.fromEntries(form));
@@ -257,6 +274,19 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         )[0]
       : null;
     if (input.templateId && !template) return { error: "Escolha um modelo ativo." };
+    // The accepted proposal this contract formalizes, once: a second one would split what was agreed.
+    const quote =
+      !parent && input.quoteId
+        ? (await db.select().from(quotes).where(and(eq(quotes.id, input.quoteId), eq(quotes.companyId, companyId), eq(quotes.status, "accepted"))))[0]
+        : null;
+    if (input.quoteId && !parent && !quote) return { error: "O orçamento precisa estar aceito e ser desta empresa." };
+    if (quote) {
+      const [existing] = await db
+        .select({ id: contracts.id })
+        .from(contracts)
+        .where(and(eq(contracts.quoteId, quote.id), ne(contracts.status, "cancelled")));
+      if (existing) return { error: "Este orçamento já tem um contrato. Abra o que existe pelo orçamento." };
+    }
     const engagementId = input.engagementId || parent?.engagementId || null;
     const { company, values } = await contractValues(companyId, engagementId, {
       startsAt: input.startsAt,
@@ -278,11 +308,18 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         : template
           ? `${template.name} — ${company.name}`
           : `Contrato — ${company.name}`);
-    const body = template
+    let body = template
       ? fillContractTemplate(template.body, values)
       : parent
-        ? fillContractTemplate(AMENDMENT_SKELETON, values)
+        ? fillContractTemplate(input.renewal ? RENEWAL_SKELETON : AMENDMENT_SKELETON, values)
         : "";
+    if (quote && body) {
+      const accepted = quote.publication ?? { ...quote.content, title: quote.title };
+      body = applyContractFields(
+        body,
+        quoteContractValues({ ...quote, title: accepted.title, content: accepted }, contractFields(body).map((f) => f.key)),
+      ).body;
+    }
     const [row] = await db
       .insert(contracts)
       .values({
@@ -296,6 +333,7 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         startsAt: input.startsAt || null,
         endsAt: input.endsAt || null,
         authorId: actor.user.id,
+        quoteId: quote?.id ?? null,
       })
       .returning({ id: contracts.id });
     await db.insert(auditEvents).values({
@@ -303,7 +341,7 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
       companyId: company.id,
       entityId: row.id,
       action: parent ? "contract.amendment_created" : "contract.created",
-      details: { templateId: template?.id ?? null, parentId: parent?.id ?? null },
+      details: { templateId: template?.id ?? null, parentId: parent?.id ?? null, quoteId: quote?.id ?? null, renewal: !!input.renewal },
     });
     if (parent)
       await db.insert(auditEvents).values({
@@ -426,6 +464,10 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
   if (!actor.admin) return blocked;
   try {
     const contractId = id.parse(form.get("id"));
+    // No Administrador yet: the person the team named gets access first, so the notice reaches someone who can sign.
+    const [target] = await db.select({ companyId: contracts.companyId }).from(contracts).where(eq(contracts.id, contractId));
+    const refused = target ? await inviteManagerBeforeSend(form, target.companyId) : null;
+    if (refused) return refused;
     const sent = await db.transaction(async (tx) => {
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, contractId)).for("update");
       if (!c) throw Error("Contrato não encontrado.");
@@ -707,6 +749,14 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
     });
     refresh(c.id, c.parentId);
     const noun = c.kind === "amendment" ? "Aditivo" : "Contrato";
+    // The client signed first: the team hears it now, so the contract closes the same day.
+    if (!closed && party === "client") {
+      const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, c.companyId));
+      await sendOpsMail(
+        `[Console] ${noun} assinado pelo cliente: falta a Anuntech · ${company?.name ?? ""}`,
+        `${actor.user.name || actor.user.email} assinou "${c.title}" por ${company?.name ?? "o cliente"} em ${longDateLabel(new Date())}.\n\nFalta a assinatura da Anuntech. Assine pelo Console: ${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${c.id}\n\nConsole da Anuntech`,
+      );
+    }
     return {
       success: closed
         ? `${noun} assinado pelas duas partes. O PDF final já está disponível.`

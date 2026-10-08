@@ -27,6 +27,17 @@ export function issueDate(due: string, leadDays = 5): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** The first date on `day` of a month (the month's last day when shorter) that is on or after `from`. */
+export function monthlyDueOnOrAfter(day: number, from: string): string {
+  const [year, month] = from.split("-").map(Number);
+  const inMonth = (monthIndex: number) => {
+    const last = new Date(Date.UTC(year, monthIndex + 1, 0, 12)).getUTCDate();
+    return new Date(Date.UTC(year, monthIndex, Math.min(day, last), 12)).toISOString().slice(0, 10);
+  };
+  const here = inMonth(month - 1);
+  return here >= from ? here : inMonth(month);
+}
+
 /** "2026-10-07" plus n civil days. */
 export function addDays(date: string, days: number): string {
   const value = new Date(`${date}T12:00:00Z`);

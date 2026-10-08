@@ -1,5 +1,6 @@
 // Run only against a development database. Creates isolated fixtures and removes them in finally.
 import { runBillingTests } from "./billing-smoke.mjs";
+import { runHandoffTests } from "./handoff-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -2047,6 +2048,7 @@ try {
     ok,
     marker,
   });
+  await runHandoffTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );
@@ -2075,7 +2077,9 @@ try {
       `delete from ${table} where contract_id in (select id from console_contracts where company_id=any($1::text[]))`,
       [companyIds],
     );
-  // Links to a proposal go before the proposals; automation records before companies and people.
+  // Conditions point at contracts, links point at proposals; automation records go before companies and people.
+  for (const table of ["console_time_entries", "console_hours_months", "console_service_terms"])
+    await database.query(`delete from ${table} where company_id=any($1::text[])`, [companyIds]);
   await database.query("update console_engagements set quote_id=null where company_id=any($1::text[])", [companyIds]);
   await database.query("delete from console_automation_events where company_id=any($1::text[]) or actor_id=any($2::text[])", [
     companyIds,

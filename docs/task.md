@@ -15,7 +15,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 - [ ] Recorrências pausadas por endereço: completar o endereço de cobrança da KAPÔ e da CATEL e retomar (CATEL até 07/10, KAPÔ Squad até 08/10). A KAPÔ S3 (vencia 02/10) precisa de fatura avulsa para outubro e próximo vencimento em 02/11.
 - [ ] Webhook do Inter para confirmar pagamento na hora: com a emissão no pagamento, a próxima fatura sairia em segundos em vez de até 10 minutos.
 - [ ] Automação (08/10): o que depende de terceiros fica preparado. Reajuste anual por IPCA precisa da cláusula do advogado; a cópia de segurança semanal precisa do destino e da credencial; a triagem de pedidos por WhatsApp precisa do webhook da FLW (Synova); o webhook do Inter precisa do cadastro na conta Inter.
-- [ ] Cadastrar as condições de atendimento de cada empresa (página da empresa), começando pelas 12 do Synova, conferindo com o contrato assinado. Sem isso, nenhum prazo aparece para o cliente.
+- [ ] Cadastrar as condições de atendimento de cada empresa (página da empresa), começando pelas 12 do Synova, conferindo com o contrato assinado. Sem isso, nenhum prazo aparece para o cliente. Desde 08/10, Configurações → Modelos de contrato prepara os rascunhos do Synova de uma vez; falta conferir cada um.
 
 ## Engenharia
 
@@ -30,6 +30,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 08/10/2026: automação, lote 2 (contrato, orçamento e comercial): contrato, projeto e cobranças de entrada e saldo preparados a partir do orçamento aceito, orçamento ligado ao chamado com resposta pronta, recorrência, condições e prorrogação preparadas no contrato assinado, aviso quando o cliente assina, seguimento comercial no resumo e no painel, convite do Administrador no envio.
 - [x] 08/10/2026: automação, lote 1 (proteger o dinheiro): cadastro conferido antes da emissão, dívida expirada no Inter com Cobrar de novo e Encerrar, aviso 7 dias antes de o Inter encerrar, cobrança de quem saiu, saúde das rotinas, certificado do Inter e alertas da equipe que não chegam.
 - [x] 08/10/2026: campos do contrato no topo do rascunho, com sugestões do cadastro, do produto e do orçamento, aplicar e salvar.
 - [x] 07/10/2026: próxima fatura das recorrências mensais emitida assim que a atual é paga (aviso continua 5 dias antes), Próximas cobranças no Financeiro, na Visão geral e na fatura, recorrências pausadas em destaque e Cancelar no Inter.

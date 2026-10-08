@@ -27,6 +27,7 @@ import { unreachableStaff } from "@/lib/notifications/ops-delivery";
 import { staffEmails } from "@/lib/notifications/ops-alerts";
 import { deliveryEventLabel } from "@/lib/notifications/ops-digest-text";
 import { interCertificateExpiry } from "@/lib/integrations/integrations";
+import { commercialFollowUp } from "@/lib/commercial/follow-up";
 import { auditEvents, companies, contracts, invoices, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
 import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
@@ -412,6 +413,56 @@ export default async function Dashboard() {
       count: unsetTerms.n,
       href: "/empresas",
     });
+  // Sales and project work waiting on someone (the same groups the morning digest lists).
+  const followUp = new Map((await commercialFollowUp(today)).map((group) => [group.key, group.items]));
+  const followItem = (keys: string[], item: Omit<AttentionItem, "count" | "href"> & { href: string }) => {
+    const items = keys.flatMap((key) => followUp.get(key) ?? []);
+    if (items.length) candidates.push({ ...item, count: items.length, href: items.length === 1 ? items[0].href : item.href });
+  };
+  followItem(["awaiting-anuntech"], {
+    key: "awaiting-anuntech",
+    icon: <PenLineIcon />,
+    tone: "warning",
+    title: "Falta a assinatura da Anuntech",
+    detail: "O cliente já assinou",
+    href: "/contratos?status=sent",
+  });
+  followItem(["no-manager"], {
+    key: "no-manager",
+    icon: <Building2Icon />,
+    tone: "warning",
+    title: "Clientes sem Administrador",
+    detail: "Têm contrato, orçamento ou cobrança, e ninguém para assinar ou responder",
+    href: "/empresas",
+  });
+  followItem(["accepted-no-contract"], {
+    key: "accepted-no-contract",
+    icon: <FileTextIcon />,
+    title: "Orçamentos aceitos sem contrato",
+    detail: "O contrato sai preenchido a partir do orçamento",
+    href: "/orcamentos?status=accepted",
+  });
+  followItem(["quotes-expiring", "quotes-expired", "quotes-no-validity"], {
+    key: "quotes-follow-up",
+    icon: <FileTextIcon />,
+    title: "Orçamentos sem resposta",
+    detail: "Perto de vencer, expirados há pouco ou sem validade",
+    href: "/orcamentos?status=sent",
+  });
+  followItem(["contracts-stalled"], {
+    key: "contracts-stalled",
+    icon: <PenLineIcon />,
+    title: "Contratos parados sem assinatura do cliente",
+    detail: "Enviados há mais de 7 dias",
+    href: "/contratos?status=sent",
+  });
+  followItem(["backlog-requests", "reviews-overdue"], {
+    key: "projects-follow-up",
+    icon: <ClockIcon />,
+    title: "Pedidos e entregas parados",
+    detail: "Pedidos do cliente no Backlog e entregas com o prazo de teste vencido",
+    href: "/projetos",
+  });
   const attention = candidates.filter((item): item is AttentionItem => item !== false);
 
   const feed: ActivityEntry[] = activity.map((event) => ({

@@ -6,6 +6,7 @@ import { addressLabel } from "../companies/company-billing";
 import { formatDocument } from "../companies/company-input";
 import { currency, longDateLabel } from "../format";
 import { quoteNumberLabel, quoteTotals } from "../quotes/quote-model";
+import { quoteContractValues } from "../quotes/quote-handoff";
 
 /**
  * What the Console already knows for a contract's open fields, offered as
@@ -15,7 +16,7 @@ import { quoteNumberLabel, quoteTotals } from "../quotes/quote-model";
  */
 export type FieldSuggestion = { value: string; source: string };
 
-type Draft = Pick<typeof contracts.$inferSelect, "companyId" | "engagementId" | "startsAt" | "endsAt" | "parentId">;
+type Draft = Pick<typeof contracts.$inferSelect, "companyId" | "engagementId" | "startsAt" | "endsAt" | "parentId" | "quoteId">;
 
 export async function contractFieldSuggestions(
   contract: Draft,
@@ -40,13 +41,15 @@ export async function contractFieldSuggestions(
           .leftJoin(catalogItems, eq(catalogItems.id, engagements.catalogItemId))
           .where(and(eq(engagements.id, contract.engagementId), eq(engagements.companyId, contract.companyId)))
       : Promise.resolve([]),
-    // The proposal behind the contract: the latest accepted, else the latest still open.
-    db
-      .select()
-      .from(quotes)
-      .where(and(eq(quotes.companyId, contract.companyId), inArray(quotes.status, ["accepted", "sent"])))
-      .orderBy(desc(eq(quotes.status, "accepted")), desc(quotes.decidedAt), desc(quotes.publishedAt))
-      .limit(1),
+    // The proposal behind the contract: the one it was created from, else the latest accepted, else the latest still open.
+    contract.quoteId
+      ? db.select().from(quotes).where(and(eq(quotes.id, contract.quoteId), eq(quotes.companyId, contract.companyId)))
+      : db
+          .select()
+          .from(quotes)
+          .where(and(eq(quotes.companyId, contract.companyId), inArray(quotes.status, ["accepted", "sent"])))
+          .orderBy(desc(eq(quotes.status, "accepted")), desc(quotes.decidedAt), desc(quotes.publishedAt))
+          .limit(1),
     db
       .select({ email: memberships.email, name: user.name })
       .from(memberships)
@@ -102,6 +105,13 @@ export async function contractFieldSuggestions(
       totals.hoursMax ? (totals.hoursMin === totals.hoursMax ? `${totals.hoursMax} horas` : `${totals.hoursMin} a ${totals.hoursMax} horas`) : null,
       source,
     );
+  }
+  if (quote) {
+    // Scope, deliverables, stack and timeline, by the words in each placeholder's name.
+    const source = `Orçamento ${quoteNumberLabel(quote.year, quote.seq)} · ${quote.title}`;
+    const accepted = quote.publication ?? { ...quote.content, title: quote.title };
+    const rest = keys.filter((key) => !out[key]);
+    for (const [key, value] of Object.entries(quoteContractValues({ ...quote, title: accepted.title, content: accepted }, rest))) offer(key, value, source);
   }
   offer("responsavel_anuntech", author.name, "Você");
   offer("email_responsavel_anuntech", author.email, "Você");

@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { ContractHandoffCard, type ContractHandoff } from "./contract-handoff-card";
+import { InviteManagerField } from "@/components/console/invite-manager-field";
 import { useRef, useState } from "react";
 import {
   Building2Icon,
@@ -129,6 +131,10 @@ export type ContractDetailData = {
    * ones included, which decide whether it can be deleted. Absent, it cannot.
    */
   deletion?: { signatures: number; amendments: number };
+  /** Staff, on a signed contract: the proposal behind it and what is ready to prepare from it. */
+  handoff?: ContractHandoff;
+  /** Staff, before sending: the company has no Administrador yet, and who to suggest. */
+  invite?: { suggestion: string } | null;
   now: string;
   today: string;
 };
@@ -471,6 +477,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
 
         <aside className="flex min-w-0 flex-col gap-6">
           {roundCard && <div className="hidden lg:block">{roundCard}</div>}
+          {viewer.admin && data.handoff && <ContractHandoffCard contractId={c.id} handoff={data.handoff} />}
           {viewer.party === "client" && c.status === "signed" && !amendment && (
             <Card className="gap-4 py-5">
               <CardHeader>
@@ -747,6 +754,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
         onOpenChange={setSending}
         action={sendContract}
         fields={{ id: c.id }}
+        extra={data.invite ? (formId) => <InviteManagerField formId={formId} suggestion={data.invite!.suggestion} /> : undefined}
         title={c.status === "in_review" ? `Enviar a versão ${c.version + 1}?` : "Enviar para assinatura?"}
         description={
           // What goes out is the saved text, never the edits still open on the page.

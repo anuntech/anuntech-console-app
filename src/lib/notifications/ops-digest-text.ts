@@ -1,7 +1,7 @@
+import type { FollowUpGroup } from "../commercial/follow-up";
 import { currency, dateLabel, dueLabel } from "../format";
 import { noticeChannelLabels, noticeKindLabel, noticeStatusLabels } from "../billing/billing-notice-rules";
 
-/** Everything the morning summary reports; pure data so the text can be tested. */
 /** Why a staff alert did not arrive, from Resend's last event. */
 const DELIVERY_EVENTS: Record<string, string> = {
   suppressed: "suprimido no Resend",
@@ -13,6 +13,7 @@ export function deliveryEventLabel(event: string) {
   return DELIVERY_EVENTS[event] ?? event;
 }
 
+/** Everything the morning summary reports; pure data so the text can be tested. */
 export type OpsDigestData = {
   today: string;
   issued24h: number;
@@ -27,7 +28,8 @@ export type OpsDigestData = {
     error: string | null;
   }[];
   overdue: { company: string; description: string; amountCents: number; days: number }[];
-  contracts: { company: string; title: string; label: string }[];
+  /** With `id`, the line links to the prepared extension. */
+  contracts: { company: string; title: string; label: string; id?: string }[];
   /** Unanswered tickets whose first response is due by tonight or already late. */
   tickets?: { id: string; company: string; subject: string; dueAt: string }[];
   /** Active recurrences that will fail when they issue: an incomplete record or an early issue that failed. */
@@ -44,6 +46,8 @@ export type OpsDigestData = {
   unreachable?: { email: string; event: string; since: string }[];
   /** The Inter certificate, when it ends within 30 days (or already ended). */
   certificate?: { expiresOn: string; days: number } | null;
+  /** Sales and project work waiting on someone (lib/commercial/follow-up.ts); links are relative. */
+  followUp?: FollowUpGroup[];
   url: string;
 };
 
@@ -63,7 +67,8 @@ export function opsDigestText(d: OpsDigestData): { subject: string; text: string
   const leaving = d.leaving ?? [];
   const routines = d.routines ?? [];
   const unreachable = d.unreachable ?? [];
-  const problems = unreachable.length +
+  const followUp = (d.followUp ?? []).filter((group) => group.items.length);
+  const problems = unreachable.length + followUp.reduce((sum, group) => sum + group.items.length, 0) +
     d.paused.length + d.noticeProblems.length + d.overdue.length + d.contracts.length + tickets.length +
     failing.length + expired.length + expiring.length + leaving.length + routines.length + (d.certificate ? 1 : 0);
   const date = dateLabel(d.today);
@@ -119,8 +124,10 @@ export function opsDigestText(d: OpsDigestData): { subject: string; text: string
     );
   if (d.contracts.length)
     sections.push(
-      `Contratos vencendo ou vencidos (${d.contracts.length}):\n${list(d.contracts, (c) => `${c.company} · ${c.title} · ${c.label}`)}`,
+      `Contratos vencendo ou vencidos (${d.contracts.length}):\n${list(d.contracts, (c) => `${c.company} · ${c.title} · ${c.label}${c.id ? ` · prorrogação pronta: ${d.url}/contratos/novo?parentId=${c.id}&prorrogar=1` : ""}`)}`,
     );
+  for (const group of followUp)
+    sections.push(`${group.title} (${group.items.length}):\n${list(group.items, (item) => `${item.line} · ${d.url}${item.href}`)}`);
   if (!problems)
     sections.push("Tudo em dia: nenhuma recorrência pausada ou com cadastro incompleto, nenhum aviso com problema, nenhuma fatura vencida ou expirada, nenhum chamado perto do prazo, rotinas rodando.");
   sections.push(`Abrir o Console: ${d.url}/financeiro`);

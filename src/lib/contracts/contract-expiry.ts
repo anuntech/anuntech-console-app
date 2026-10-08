@@ -63,6 +63,7 @@ export async function processContractExpiry(today = saoPauloDate()) {
             url: `${url}/contratos/${contract.id}`,
             endsAt: contract.endsAt!,
             days: term.days,
+            renewUrl: `${url}/contratos/novo?parentId=${contract.id}&prorrogar=1`,
           });
           delivered += 1;
         } catch {

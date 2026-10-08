@@ -541,10 +541,15 @@ export function CompanyDetail({
               ) : (
                 <EmptyState
                   icon={<UserRoundIcon />}
-                  title="Ninguém tem acesso ainda"
-                  description="Libere o e-mail que o cliente usa para entrar. Ele recebe um convite automaticamente."
+                  title="Próximo passo: convide o Administrador"
+                  description="Só o Administrador assina contratos, responde orçamentos e vê as faturas. Libere o e-mail que ele usa; o convite sai automaticamente."
                   className="py-10"
                 />
+              )}
+              {members.length > 0 && !members.some((member) => member.role === "manager") && (
+                <p className="mx-6 mt-3 mb-0 rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-xs text-warning">
+                  Ninguém aqui é Administrador. Só ele assina contratos, responde orçamentos e vê as faturas da empresa.
+                </p>
               )}
             </CardContent>
           </Card>

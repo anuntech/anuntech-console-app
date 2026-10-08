@@ -90,11 +90,15 @@ async function ticketAssignees(): Promise<TicketAssignee[]> {
 
 export default async function Ticket({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ resposta?: string }>;
 }) {
   const actor = await getActor();
   const { id } = await params;
+  // A reply the team prepared elsewhere (a proposal sent or answered); it is only a draft in the box.
+  const { resposta } = await searchParams;
   const [row] = await db
     .select({
       ticket: tickets,
@@ -258,6 +262,7 @@ export default async function Ticket({
           author: f.author,
         })),
         viewer: { admin: actor.admin },
+        replyDraft: actor.admin && typeof resposta === "string" ? resposta.slice(0, 2000) : undefined,
         assignees,
         clock,
         hours,
