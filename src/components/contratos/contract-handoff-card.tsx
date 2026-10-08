@@ -13,7 +13,7 @@ export type ContractHandoff = {
   /** The item's recurrence: running, prepared as a draft, or ready to prepare (null: nothing to bill). */
   recurrence: { state: "active" | "prepared"; href: string | null } | { state: "ready" } | null;
   /** Conditions of service: already there, or ready from the template's ficha (null: no ficha). */
-  terms: { state: "exists"; href: string } | { state: "ready"; label: string } | null;
+  terms: { state: "exists"; href: string; confirmed: boolean } | { state: "ready"; label: string } | null;
   /** Within 30 days of the end: an extension in progress, or ready to prepare. */
   renewal: { state: "pending"; href: string } | { state: "ready" } | null;
 };
@@ -60,7 +60,17 @@ export function ContractHandoffCard({ contractId, handoff }: { contractId: strin
           ))}
         {terms &&
           (terms.state === "exists" ? (
-            <Step href={terms.href} icon={ClockIcon} label="Condições de atendimento" done="Cadastradas a partir deste contrato" />
+            terms.confirmed ? (
+              <Step href={terms.href} icon={ClockIcon} label="Condições de atendimento" done="Conferidas a partir deste contrato" />
+            ) : (
+              <Link href={terms.href} className={row}>
+                <ClockIcon className="size-4 shrink-0 text-warning" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">Condições de atendimento</span>
+                  <span className="block truncate text-xs text-muted-foreground">Rascunho: conferir com o contrato assinado</span>
+                </span>
+              </Link>
+            )
           ) : (
             <ConfirmAction
               action={prepareServiceTerms}

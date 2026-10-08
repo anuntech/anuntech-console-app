@@ -217,14 +217,15 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
 /** Staff, on a signed contract: the proposal behind it and what is ready to prepare from it. */
 async function contractHandoff(c: typeof contracts.$inferSelect, template: string | null): Promise<ContractHandoff> {
   const today = saoPauloDate();
-  const [[quote], [item], [recurrence], [prepared], [terms], [pending]] = await Promise.all([
+  const [[quote], [item], recurrences, [prepared], [terms], [pending]] = await Promise.all([
     c.quoteId ? db.select().from(quotes).where(eq(quotes.id, c.quoteId)) : Promise.resolve([]),
     c.engagementId
       ? db.select({ amountCents: engagements.amountCents, subscriptionId: engagements.subscriptionId }).from(engagements).where(eq(engagements.id, c.engagementId))
       : Promise.resolve([]),
+    // The item's recurrences with their invoices, newest first: running, still a draft, or paused after a cancelled draft.
     c.engagementId
       ? db
-          .select({ id: subscriptions.id, invoiceId: invoices.id })
+          .select({ status: subscriptions.status, invoiceId: invoices.id, invoiceStatus: invoices.status })
           .from(subscriptions)
           .innerJoin(engagements, eq(engagements.id, c.engagementId))
           .leftJoin(invoices, eq(invoices.subscriptionId, subscriptions.id))
@@ -235,13 +236,12 @@ async function contractHandoff(c: typeof contracts.$inferSelect, template: strin
             ),
           )
           .orderBy(desc(invoices.dueDate))
-          .limit(1)
       : Promise.resolve([]),
     db
       .select({ details: automationEvents.details })
       .from(automationEvents)
       .where(and(eq(automationEvents.kind, "contract.recurrence"), eq(automationEvents.entityId, c.id))),
-    db.select({ id: serviceTerms.id }).from(serviceTerms).where(eq(serviceTerms.contractId, c.id)).limit(1),
+    db.select({ id: serviceTerms.id, verifiedAt: serviceTerms.verifiedAt }).from(serviceTerms).where(eq(serviceTerms.contractId, c.id)).limit(1),
     c.endsAt && c.endsAt <= addDays(today, 30)
       ? db
           .select({ id: contracts.id })
@@ -251,16 +251,23 @@ async function contractHandoff(c: typeof contracts.$inferSelect, template: strin
       : Promise.resolve([]),
   ]);
   const preset = presetForTemplate(template);
+  // A paused recurrence whose only invoices were cancelled drafts bills nothing: the contract can prepare a new one.
+  const running = recurrences.find((r) => r.status === "active" || (r.status === "paused" && r.invoiceStatus && r.invoiceStatus !== "cancelled"));
+  const drafted = recurrences.find((r) => r.status === "draft");
   return {
     quote: quote ? { id: quote.id, label: `Orçamento ${quoteNumberLabel(quote.year, quote.seq)} · ${quote.publication?.title ?? quote.title}` } : null,
-    recurrence: recurrence
-      ? { state: "active", href: recurrence.invoiceId ? `/financeiro/${recurrence.invoiceId}` : null }
-      : prepared
-        ? { state: "prepared", href: `/financeiro/${String(prepared.details?.invoiceId ?? "")}` }
+    recurrence: running
+      ? { state: "active", href: running.invoiceId ? `/financeiro/${running.invoiceId}` : null }
+      : drafted || prepared
+        ? { state: "prepared", href: drafted?.invoiceId ? `/financeiro/${drafted.invoiceId}` : `/financeiro/${String(prepared?.details?.invoiceId ?? "")}` }
         : item?.amountCents
           ? { state: "ready" }
           : null,
-    terms: terms ? { state: "exists", href: `/empresas/${c.companyId}` } : preset ? { state: "ready", label: termsPresets.find((p) => p.key === preset)!.label } : null,
+    terms: terms
+      ? { state: "exists", href: `/empresas/${c.companyId}`, confirmed: !!terms.verifiedAt }
+      : preset
+        ? { state: "ready", label: termsPresets.find((p) => p.key === preset)!.label }
+        : null,
     renewal: !c.endsAt || c.endsAt > addDays(today, 30) ? null : pending ? { state: "pending", href: `/contratos/${pending.id}` } : { state: "ready" },
   };
 }

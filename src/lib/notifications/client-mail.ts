@@ -4,15 +4,19 @@ import { and, eq, isNotNull, or } from "drizzle-orm";
 import { accountEmails, memberships, user } from "@/db/schema";
 import { db } from "../db";
 
-/** One e-mail to a client contact through Resend; throws when it was not accepted. */
-export async function sendClientMail(input: { to: string; subject: string; text: string; tag: string }) {
+/**
+ * One e-mail to a client contact through Resend; throws when it was not
+ * accepted. With `key`, a repeat (a retry, a second click) is the same e-mail
+ * to Resend and goes out once.
+ */
+export async function sendClientMail(input: { to: string; subject: string; text: string; tag: string; key?: string }) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     redirect: "error",
     headers: {
       Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
-      "Idempotency-Key": `${input.tag}-${randomUUID()}`,
+      "Idempotency-Key": `${input.tag}-${input.key ? `${input.key}-${input.to}` : randomUUID()}`,
     },
     body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [input.to], subject: input.subject, text: input.text }),
     signal: AbortSignal.timeout(15000),

@@ -59,16 +59,16 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails; o que o orçamento aceito entrega aos próximos passos (`quote-handoff.ts`: campos do contrato por significado, entrada e saldo, quadro inicial) |
 | `commercial/` | seguimento comercial e de projetos para o resumo e o painel (`follow-up.ts`, limites em `FOLLOW_UP`) |
-| `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela |
+| `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela; vigilância da equipe (`ticket-watch.ts`: lembrete de primeira resposta, parados no cliente, estimativas, sem horas, responsável habitual), triagem do Jev (`ticket-triage.ts`), acompanhamento por clique (`ticket-follow-actions.ts`) e as listas de suporte do resumo (`support-follow-up.ts`) |
 | `projects/` | tarefas, quadro, comentários, revisão de entregas (`reviewTask`), exclusão de projetos e serviços |
-| `service-terms/` | calendário de dias úteis (`business-calendar.ts`), fichas dos modelos (`presets.ts`, com `presetForTemplate` pelo nome do modelo de contrato), condições (`terms.ts`, `terms-actions.ts`), relógio do chamado (`ticket-clock.ts`), textos para o cliente (`terms-text.ts`), banco de horas (`hours-bank.ts`, `hours-actions.ts`), feriados da sede |
+| `service-terms/` | calendário de dias úteis (`business-calendar.ts`), fichas dos modelos (`presets.ts`, com `presetForTemplate` pelo nome do modelo de contrato), condições (`terms.ts`, `terms-actions.ts`), relógio do chamado (`ticket-clock.ts`), textos para o cliente (`terms-text.ts`), banco de horas (`hours-bank.ts`, `hours-actions.ts`, envio do aviso e do relatório uma vez por mês e excedente pronto para cobrar em `hours-delivery.ts`), feriados da sede |
 | `guide/` | conteúdo de Como trabalhamos (`guide-content.ts`, versionado), marcos por pessoa e primeiros passos |
 | `catalog/` | catálogo de produtos e serviços |
 | `bookmarks/` | pastas, compartilhamento, links e arquivos |
-| `assistant/` | loop do assistente, ferramentas, consentimento, histórico, Jev, modelos do OpenRouter |
+| `assistant/` | loop do assistente, ferramentas, consentimento, histórico, Jev, modelos do OpenRouter, rascunho de resposta de chamado (`draft-reply.ts`) e fases sugeridas de orçamento (`draft-phases.ts`) |
 | `voice/` | ditado por microfone: regras comuns (`voice-rules.ts`: formatos, limites, onde o texto entra) e a transcrição no servidor (`voice-server.ts`) |
 | `http/` | `same-origin.ts`, a checagem de origem dos route handlers que gravam ou custam dinheiro; `hourly-limit.ts`, limite por hora gravado no banco |
-| `ops/` | saúde das rotinas (`cron-health.ts`: `trackedCron` grava a última execução de cada cron) |
+| `ops/` | saúde das rotinas (`cron-health.ts`: `trackedCron` grava a última execução de cada cron) e quem assina na auditoria um passo automático (`automation-actor.ts`) |
 | `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe, conferência da entrega dos alertas (`ops-delivery.ts`) |
 | `integrations/` | estado das integrações em Configurações |
 
@@ -111,7 +111,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - Arquivos `"use server"` em `lib/<domínio>/*-actions.ts`. Assinatura padrão `(prev: ActionState, form: FormData) => Promise<ActionState>` com `{ success?, error?, href? }`.
 - A tela usa `ServerForm` (`components/console/server-form.tsx`), que mostra o toast de sucesso, mantém o erro no formulário e navega para `href`.
 - O Next só encontra uma action a partir de uma página que a renderiza: formulários dentro de painéis e diálogos continuam funcionando porque a página importa o componente.
-- Limite de corpo das actions: 2 MB (`next.config.ts`). O áudio do ditado vai por route handler (`/api/transcricao`, até 4 MB, abaixo dos 4,5 MB da Vercel), não por action: actions rodam uma por vez na página e não podem ser canceladas.
+- Limite de corpo das actions: 2 MB (`next.config.ts`). O áudio do ditado vai por route handler (`/api/transcricao`, até 4 MB, abaixo dos 4,5 MB da Vercel), não por action: actions rodam uma por vez na página e não podem ser canceladas. Pelo mesmo motivo, as sugestões do modelo (`/api/chamados/[id]/sugestao` e `/api/orcamentos/[id]/fases`, só a equipe, com limite por hora) também são route handlers.
 - Anexos maiores sobem em partes de 1 MB por `/api/chamados/uploads` (`components/console/staged-uploads.ts`).
 
 ## Integrações
@@ -135,7 +135,7 @@ Crons da Vercel (`vercel.json`), todos protegidos por `CRON_SECRET` e envolvidos
 
 | Rota | Quando | O que faz |
 | --- | --- | --- |
-| `/api/cron/ticket-notifications` | a cada 5 min | Retoma a fila de avisos de chamados |
+| `/api/cron/ticket-notifications` | a cada 5 min | Retoma a fila de avisos de chamados e manda à equipe o lembrete da primeira resposta (antes e no estouro) |
 | `/api/cron/billing-sync` | a cada 5 min | Consulta até 40 cobranças emitidas no Inter e confirma pagamentos |
 | `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou e, nas mensais, o período seguinte de uma fatura recém-paga (`earlyIssueAllowed` em `billing/recurrence.ts`); agenda os lembretes, envia os avisos de cobrança e confere as entregas, inclusive dos alertas da equipe |
 | `/api/cron/contract-expiry` | diário, 11:00 UTC | Avisa contratos perto do fim e vencidos |

@@ -172,6 +172,13 @@ globalThis.fetch = async function (input, init) {
     }
     const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul/ };
     for (const [key, pattern] of Object.entries(areaWords)) if (req.questions[`area_${key}`]) answers[`area_${key}`] = { type: "noul", noul: pattern.test(message) ? 0.9 : 0.1 };
+    // A new ticket read by its text: "parou" or "fora do ar" reads as a stopped system.
+    if (req.questions.tipo) {
+      const text = `${req.state?.assunto ?? ""} ${req.state?.descricao ?? ""}`.toLowerCase();
+      const down = /parou|fora do ar|n[aã]o abre/.test(text);
+      answers.tipo = { type: "choice", choice: down ? "problem" : "question", probabilities: {}, confidence: 0.95 };
+      answers.impacto = { type: "choice", choice: down ? "down" : "other", probabilities: {}, confidence: 0.95 };
+    }
     if (req.questions.aprovado) {
       const recent = req.state?.conversa_recente ?? [];
       const person = [...recent].reverse().find((m) => m.de === "pessoa")?.texto?.toLowerCase() ?? "";
@@ -182,6 +189,25 @@ globalThis.fetch = async function (input, init) {
     return new Response(JSON.stringify({ model: "typesafe/jev-mock", answers, usage: { cost: 0 } }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
   const body = JSON.parse(init.body);
+  // The ticket reply draft and the proposal phases: one-shot prompts, no tools.
+  const system = String(body.messages?.[0]?.content ?? "");
+  if (system.startsWith("Você escreve a próxima resposta"))
+    return new Response(JSON.stringify(reply("Rascunho de teste: confira o acesso e responda por aqui.")), { status: 200, headers: { "Content-Type": "application/json" } });
+  if (system.startsWith("Você monta o primeiro rascunho"))
+    return new Response(
+      JSON.stringify(
+        reply(
+          JSON.stringify({
+            phases: [
+              { name: "Descoberta", description: "Entender o fluxo", hoursMin: 8, hoursMax: 12, weeks: 1, tasks: [{ title: "Entrevistas", description: "Com a equipe" }] },
+              { name: "Construção", description: "Telas e regras", hoursMin: 40, hoursMax: 60, weeks: 4, tasks: [{ title: "Cadastro", description: "" }] },
+            ],
+            stack: ["Next.js"],
+          }),
+        ),
+      ),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
   if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length }) + "\n");
   // A slow model on request, to watch the UI while the assistant works.
   const wait = Number(process.env.CONSOLE_TEST_ASSISTANT_DELAY_MS || 0);

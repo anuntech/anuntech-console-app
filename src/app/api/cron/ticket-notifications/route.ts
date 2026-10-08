@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { processTicketNotices } from "@/lib/tickets/ticket-notifications";
+import { remindFirstResponses } from "@/lib/tickets/ticket-watch";
 import { trackedCron } from "@/lib/ops/cron-health";
 export const maxDuration = 60;
 async function run(request: Request) {
@@ -13,7 +14,12 @@ async function run(request: Request) {
   )
     return Response.json({ error: "Não autorizado" }, { status: 401 });
   const result = await processTicketNotices();
-  return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+  // The team's own reminder before a first response is late; never the client.
+  const reminders = await remindFirstResponses().catch((error) => {
+    console.warn("[ticket-notifications] reminders failed", error instanceof Error ? error.message : error);
+    return { reminded: 0 };
+  });
+  return Response.json({ ...result, ...reminders }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export const GET = trackedCron("ticket-notifications", run);

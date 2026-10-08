@@ -24,6 +24,7 @@ import { quietFor, staleRoutines } from "../ops/cron-health";
 import { unreachableStaff } from "./ops-delivery";
 import { interCertificateExpiry } from "../integrations/integrations";
 import { commercialFollowUp } from "../commercial/follow-up";
+import { supportFollowUp } from "../tickets/support-follow-up";
 
 const consoleUrl = () => process.env.BETTER_AUTH_URL || "http://localhost:3100";
 
@@ -39,8 +40,13 @@ export async function staffEmails() {
 
 /** One plain-text e-mail to every staff address; a failure never breaks the caller. */
 export async function sendOpsMail(subject: string, text: string) {
+  return sendStaffMail(await staffEmails(), subject, text);
+}
+
+/** The same, to some staff addresses only (a ticket's owner). */
+export async function sendStaffMail(recipients: string[], subject: string, text: string) {
   let delivered = 0;
-  for (const to of await staffEmails()) {
+  for (const to of recipients) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -172,7 +178,14 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
       .where(and(eq(invoices.status, "issued"), lt(invoices.dueDate, today)))
       .orderBy(invoices.dueDate),
     db
-      .select({ id: contracts.id, company: companies.name, title: contracts.title, startsAt: contracts.startsAt, endsAt: contracts.endsAt })
+      .select({
+        id: contracts.id,
+        company: companies.name,
+        title: contracts.title,
+        startsAt: contracts.startsAt,
+        endsAt: contracts.endsAt,
+        pendingId: sql<string | null>`(select c2.id from ${contracts} c2 where c2.parent_id = ${contracts.id} and c2.status in ('draft', 'sent', 'in_review') limit 1)`,
+      })
       .from(contracts)
       .innerJoin(companies, eq(companies.id, contracts.companyId))
       .where(
@@ -204,7 +217,7 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
     leavingCharges(today),
     staleRoutines(),
     staffEmails().then(unreachableStaff),
-    commercialFollowUp(today),
+    Promise.all([commercialFollowUp(today), supportFollowUp()]).then((groups) => groups.flat()),
   ]);
   const certificateEnds = interCertificateExpiry();
   const certificateDays = certificateEnds
@@ -231,8 +244,8 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
     noticeProblems: problems,
     overdue: overdue.map((i) => ({ ...i, days: daysOverdue(i.dueDate, today) })),
     contracts: ending
-      .map((c) => ({ id: c.id, company: c.company, title: c.title, label: contractTermLabel(contractTerm(c, today)) }))
-      .filter((c): c is { id: string; company: string; title: string; label: string } => !!c.label),
+      .map((c) => ({ id: c.id, pendingId: c.pendingId, company: c.company, title: c.title, label: contractTermLabel(contractTerm(c, today)) }))
+      .filter((c): c is { id: string; pendingId: string | null; company: string; title: string; label: string } => !!c.label),
     tickets: ticketsDue.map((t) => ({ company: t.company, subject: t.subject, dueAt: t.dueAt!.toISOString(), id: t.id })),
     url: consoleUrl(),
   };

@@ -20,7 +20,6 @@ import {
   ClockIcon,
 } from "lucide-react";
 import { db } from "@/lib/db";
-import { banksAtAlert } from "@/lib/service-terms/hours-bank";
 import { expiredDebtCondition, expiredDebts, expiringCharges, failingRecurrences, leavingCharges } from "@/lib/billing/billing-watch";
 import { quietFor, staleRoutines } from "@/lib/ops/cron-health";
 import { unreachableStaff } from "@/lib/notifications/ops-delivery";
@@ -28,6 +27,7 @@ import { staffEmails } from "@/lib/notifications/ops-alerts";
 import { deliveryEventLabel } from "@/lib/notifications/ops-digest-text";
 import { interCertificateExpiry } from "@/lib/integrations/integrations";
 import { commercialFollowUp } from "@/lib/commercial/follow-up";
+import { supportFollowUp } from "@/lib/tickets/support-follow-up";
 import { auditEvents, companies, contracts, invoices, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
 import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
@@ -393,17 +393,7 @@ export default async function Dashboard() {
       href: "/financeiro?status=draft",
     },
   ];
-  const banks = await banksAtAlert();
-  if (banks.length)
-    candidates.push({
-      key: "banks",
-      icon: <ClockIcon />,
-      tone: "warning",
-      title: "Bancos de horas no limite de aviso",
-      detail: "Avise o cliente e peça aprovação antes de passar do banco",
-      count: banks.length,
-      href: banks.length === 1 ? `/empresas/${banks[0].companyId}` : "/empresas",
-    });
+
   if (unsetTerms.n > 0)
     candidates.push({
       key: "terms",
@@ -414,7 +404,7 @@ export default async function Dashboard() {
       href: "/empresas",
     });
   // Sales and project work waiting on someone (the same groups the morning digest lists).
-  const followUp = new Map((await commercialFollowUp(today)).map((group) => [group.key, group.items]));
+  const followUp = new Map([...(await commercialFollowUp(today)), ...(await supportFollowUp(now))].map((group) => [group.key, group.items]));
   const followItem = (keys: string[], item: Omit<AttentionItem, "count" | "href"> & { href: string }) => {
     const items = keys.flatMap((key) => followUp.get(key) ?? []);
     if (items.length) candidates.push({ ...item, count: items.length, href: items.length === 1 ? items[0].href : item.href });
@@ -455,6 +445,43 @@ export default async function Dashboard() {
     title: "Contratos parados sem assinatura do cliente",
     detail: "Enviados há mais de 7 dias",
     href: "/contratos?status=sent",
+  });
+  followItem(["hours-alerts"], {
+    key: "banks",
+    icon: <ClockIcon />,
+    tone: "warning",
+    title: "Bancos de horas no limite sem aviso",
+    detail: "Avise o cliente e peça aprovação antes de passar do banco",
+    href: "/empresas",
+  });
+  followItem(["hours-reports"], {
+    key: "hours-reports",
+    icon: <ClockIcon />,
+    title: "Relatórios de horas a enviar",
+    detail: "O prazo de contestação só começa com o envio",
+    href: "/empresas",
+  });
+  followItem(["hours-overage"], {
+    key: "hours-overage",
+    icon: <ReceiptTextIcon />,
+    tone: "warning",
+    title: "Horas além do banco prontas para cobrar",
+    detail: "O prazo de contestação terminou; a cobrança sai preenchida",
+    href: "/empresas",
+  });
+  followItem(["tickets-waiting", "estimates-waiting"], {
+    key: "tickets-waiting",
+    icon: <HeadsetIcon />,
+    title: "Chamados parados no cliente",
+    detail: "Esperando resposta além do prazo, ou estimativa sem resposta",
+    href: "/chamados?status=waiting_customer",
+  });
+  followItem(["tickets-no-hours"], {
+    key: "tickets-no-hours",
+    icon: <ClockIcon />,
+    title: "Chamados terminados sem horas",
+    detail: "Em empresas com banco de horas: registre ou marque que não houve",
+    href: "/chamados?status=resolved",
   });
   followItem(["backlog-requests", "reviews-overdue"], {
     key: "projects-follow-up",

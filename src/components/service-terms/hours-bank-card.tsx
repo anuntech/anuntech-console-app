@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionTitle } from "@/components/console/page-header";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
-import { dateLabel, dateTimeLabel } from "@/lib/format";
+import { currency, dateLabel, dateTimeLabel } from "@/lib/format";
 import { approveOverage, contestHoursReport, sendBankAlert, sendHoursReport } from "@/lib/service-terms/hours-actions";
 import type { BankCard } from "@/lib/service-terms/hours-bank";
 
@@ -74,7 +75,18 @@ function ReportLine({
  * and the 80% notice by click. Last month stays here while its report is
  * pending or can still be contested.
  */
-export function HoursBankCard({ bank, viewer, showCompany = false }: { bank: BankCard; viewer: "team" | "approver" | "member"; showCompany?: boolean }) {
+export function HoursBankCard({
+  bank,
+  viewer,
+  showCompany = false,
+  overage = null,
+}: {
+  bank: BankCard;
+  viewer: "team" | "approver" | "member";
+  showCompany?: boolean;
+  /** Team: last month's hours beyond the bank, ready to bill (the contest window closed). */
+  overage?: { minutes: number; priceCents: number; amountCents: number; href: string } | null;
+}) {
   const [approving, setApproving] = useState(false);
   const percent = bank.includedMinutes ? Math.round((bank.usedMinutes / bank.includedMinutes) * 100) : 0;
   const alert = percent >= bank.alertPercent;
@@ -178,6 +190,16 @@ export function HoursBankCard({ bank, viewer, showCompany = false }: { bank: Ban
           />
         )}
 
+        {viewer === "team" && overage && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-field/60 px-3 py-2 text-sm">
+            <span className="min-w-0">
+              Excedente do mês passado: {hours(overage.minutes)} × {currency(overage.priceCents)} = <strong className="font-semibold">{currency(overage.amountCents)}</strong>
+            </span>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={overage.href}>Preparar cobrança</Link>
+            </Button>
+          </div>
+        )}
         {viewer === "team" && (
           <div className="flex flex-wrap gap-2">
             {prev && !prev.reportSentAt && (
@@ -196,13 +218,16 @@ export function HoursBankCard({ bank, viewer, showCompany = false }: { bank: Ban
                 {bank.reportSentAt ? `Reenviar relatório de ${monthName(bank.month)}` : `Enviar relatório parcial de ${monthName(bank.month)}`}
               </SubmitButton>
             </ServerForm>
-            {alert && (
+            {alert && !bank.alertSentAt && (
               <ServerForm action={sendBankAlert}>
                 <input type="hidden" name="companyId" value={bank.companyId} />
                 <SubmitButton variant="outline" size="sm" pendingLabel="Avisando…">
                   Avisar o cliente dos {bank.alertPercent}%
                 </SubmitButton>
               </ServerForm>
+            )}
+            {bank.alertSentAt && (
+              <p className="m-0 self-center text-xs text-muted-foreground">{`Aviso dos ${bank.alertPercent}% enviado em ${dateLabel(new Date(bank.alertSentAt))}.`}</p>
             )}
           </div>
         )}

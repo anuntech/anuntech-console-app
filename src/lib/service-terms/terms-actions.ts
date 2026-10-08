@@ -9,6 +9,7 @@ import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { blankPolicy, presetForTemplate, presetPolicy, termsPresets } from "./presets";
 import { BUSINESS_DAY_MINUTES, type ServicePolicy } from "./terms-model";
+import { moneyToCents } from "../access/permissions";
 
 /*
  * The team records a company's "Condições de atendimento" from its signed
@@ -75,6 +76,20 @@ const input = z.object({
   tacitAcceptance: flag,
   testClause: clause,
   bankHours: hours,
+  /** Price of each hour beyond the bank (SUP 3.3), as typed ("150" or "150,00"); empty: not agreed. */
+  overage: z
+    .string()
+    .default("")
+    .transform((v, ctx) => {
+      const text = v.trim().replace(/^R\$\s*/, "");
+      if (!text) return null;
+      const cents = moneyToCents(text.includes(",") ? text.replace(/\./g, "") : text);
+      if (cents === null) {
+        ctx.addIssue({ code: "custom", message: "Informe o valor da hora excedente como 150 ou 150,00." });
+        return z.NEVER;
+      }
+      return cents;
+    }),
   bankAlertPercent: days,
   reportContestDays: days,
   bankClause: clause,
@@ -125,7 +140,7 @@ function policyFrom(v: z.infer<typeof input>): ServicePolicy {
     testDays: v.testDays,
     tacitAcceptance: v.tacitAcceptance,
     hoursBank: v.bankHours
-      ? { monthlyMinutes: v.bankHours, alertPercent: v.bankAlertPercent ?? 80, overageCents: null, reportContestDays: v.reportContestDays }
+      ? { monthlyMinutes: v.bankHours, alertPercent: v.bankAlertPercent ?? 80, overageCents: v.overage, reportContestDays: v.reportContestDays }
       : null,
     improvementBankLimitMinutes: v.improvementBankLimit,
     improvementWarrantyDays: v.improvementWarrantyDays,

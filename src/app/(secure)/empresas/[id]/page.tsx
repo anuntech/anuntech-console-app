@@ -20,8 +20,9 @@ import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
 import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
-import { bankCard } from "@/lib/service-terms/hours-bank";
-import { serviceTerms } from "@/db/schema";
+import { bankCard, previousMonth } from "@/lib/service-terms/hours-bank";
+import { overageCharge } from "@/lib/service-terms/hours-delivery";
+import { automationEvents, serviceTerms } from "@/db/schema";
 export const metadata = {
   title: "Detalhes da empresa",
   description: "Cadastro, contatos e acessos de uma empresa.",
@@ -132,6 +133,16 @@ export default async function Company({
       .orderBy(desc(contracts.updatedAt)),
   ]);
   const bank = await bankCard(id, company.name);
+  // Last month's hours beyond the bank, once the client's window to contest closed: ready to bill, once.
+  const overageMonth = bank ? previousMonth(bank.month) : null;
+  const overage = overageMonth ? await overageCharge(id, overageMonth) : null;
+  const overagePrepared = overage
+    ? !!(await db
+        .select({ id: automationEvents.id })
+        .from(automationEvents)
+        .where(and(eq(automationEvents.kind, "hours.overage_billed"), eq(automationEvents.entityId, `${id}:${overageMonth}`)))
+        .then((r) => r.length))
+    : false;
   const termsCard = (
     <>
     <ServiceTermsCard
@@ -155,7 +166,11 @@ export default async function Company({
       now={new Date().toISOString()}
     />
     {bank && (
-      <HoursBankCard viewer="team" bank={bank} />
+      <HoursBankCard
+        viewer="team"
+        bank={bank}
+        overage={overage && !overagePrepared ? { ...overage, href: `/financeiro/nova?excedente=${id}&mes=${overageMonth}` } : null}
+      />
     )}
     </>
   );

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, gte, isNull, lt, lte } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
 import { auditEvents, companies, contracts } from "@/db/schema";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
@@ -16,7 +16,7 @@ export async function processContractExpiry(today = saoPauloDate()) {
   const url = process.env.BETTER_AUTH_URL || "http://localhost:3100";
   const [expiring, expired] = await Promise.all([
     db
-      .select({ contract: contracts, company: companies.name })
+      .select({ contract: contracts, company: companies.name, pending: sql<string | null>`(select c2.id from ${contracts} c2 where c2.parent_id = ${contracts.id} and c2.status in ('draft', 'sent', 'in_review') limit 1)` })
       .from(contracts)
       .innerJoin(companies, eq(companies.id, contracts.companyId))
       .where(
@@ -31,7 +31,7 @@ export async function processContractExpiry(today = saoPauloDate()) {
       .orderBy(asc(contracts.endsAt))
       .limit(50),
     db
-      .select({ contract: contracts, company: companies.name })
+      .select({ contract: contracts, company: companies.name, pending: sql<string | null>`(select c2.id from ${contracts} c2 where c2.parent_id = ${contracts.id} and c2.status in ('draft', 'sent', 'in_review') limit 1)` })
       .from(contracts)
       .innerJoin(companies, eq(companies.id, contracts.companyId))
       .where(
@@ -51,7 +51,7 @@ export async function processContractExpiry(today = saoPauloDate()) {
     ["expiring", expiring],
     ["expired", expired],
   ] as const) {
-    for (const { contract, company } of rows) {
+    for (const { contract, company, pending } of rows) {
       const term = contractTerm({ startsAt: contract.startsAt, endsAt: contract.endsAt }, today);
       if (term.state !== "expiring" && term.state !== "expired") continue;
       let delivered = 0;
@@ -63,7 +63,8 @@ export async function processContractExpiry(today = saoPauloDate()) {
             url: `${url}/contratos/${contract.id}`,
             endsAt: contract.endsAt!,
             days: term.days,
-            renewUrl: `${url}/contratos/novo?parentId=${contract.id}&prorrogar=1`,
+            // An extension already in progress is not offered again.
+            renewUrl: pending ? undefined : `${url}/contratos/novo?parentId=${contract.id}&prorrogar=1`,
           });
           delivered += 1;
         } catch {

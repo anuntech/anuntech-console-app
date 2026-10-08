@@ -2,23 +2,23 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auditEvents, companies, hoursMonths, tickets, timeEntries } from "@/db/schema";
+import { auditEvents, hoursMonths, tickets, timeEntries } from "@/db/schema";
 import { canAccess, getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { dateLabel } from "../format";
-import { companyAdministrators, sendClientMail } from "../notifications/client-mail";
 import { sendOpsMail } from "../notifications/ops-alerts";
 import { enqueueTicketNotice, scheduleTicketNotices } from "../tickets/ticket-notifications";
 import { bankMonth, bankTerms, hoursLabel, monthOf } from "./hours-bank";
+import { deliverBankAlert, deliverHoursReport } from "./hours-delivery";
 
 /*
  * The hours bank of a support contract (SUP 3.1 to 3.4, 4.1): the team logs
  * hours, the client's Administrador approves what goes beyond the bank and
  * the estimate of each improvement, and the month's report can be contested.
- * Nothing here e-mails on its own; the report and the 80% notice go when the
- * team clicks.
+ * The report and the 80% notice go when the team clicks, or from the
+ * routines when the automation is switched on (hours-delivery.ts).
  */
 
 const blocked = { error: "Você não tem permissão para fazer isso." };
@@ -210,66 +210,30 @@ export async function sendHoursReport(_: ActionState, form: FormData): Promise<A
   if (!actor.admin) return blocked;
   try {
     const input = z.object({ companyId: id, month: z.string().regex(/^\d{4}-\d{2}$/) }).parse(Object.fromEntries(form));
-    const data = await bankMonth(input.companyId, input.month);
-    if (!data) return { error: "Esta empresa não tem banco de horas." };
-    const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, input.companyId));
-    const lines = data.entries
-      .map((e) => `- ${dateLabel(e.workedOn)} · ${hoursLabel(e.minutes)}${e.kind === "warranty" ? " (garantia, fora do banco)" : e.kind === "critical" ? " (defeito crítico)" : ""} · ${e.note}${e.ticket ? ` · ${e.ticket}` : ""}`)
-      .join("\n");
-    const contest = data.reportContestDays
-      ? `\n\nVocê pode contestar este relatório no Console em até ${data.reportContestDays} dias úteis. Sem contestação, ele conta como aprovado.`
-      : "";
-    let sent = 0;
-    for (const person of await companyAdministrators(input.companyId)) {
-      try {
-        await sendClientMail({
-          to: person.email,
-          tag: "hours-report",
-          subject: `Banco de horas de ${input.month}: ${company?.name ?? ""}`,
-          text: `Relatório do banco de horas de ${input.month}.\n\nUsado: ${hoursLabel(data.usedMinutes)} de ${hoursLabel(data.includedMinutes)} incluídas${data.overageApprovedMinutes ? `, com até ${hoursLabel(data.overageApprovedMinutes)} além do banco aprovadas` : ""}.\n\n${lines || "Nenhum registro no mês."}${contest}\n\nVeja no Console: ${consoleUrl()}/painel\n\nAnuntech`,
-        });
-        sent += 1;
-      } catch {
-        /* The report stays in the Console. */
-      }
-    }
-    const now = new Date();
-    await db
-      .insert(hoursMonths)
-      .values({ companyId: input.companyId, month: input.month, reportSentAt: now, reportSentBy: actor.user.id })
-      .onConflictDoUpdate({ target: [hoursMonths.companyId, hoursMonths.month], set: { reportSentAt: now, reportSentBy: actor.user.id, updatedAt: now } });
-    await db.insert(auditEvents).values({ actorId: actor.user.id, companyId: input.companyId, entityId: input.companyId, action: "hours.report_sent", details: { month: input.month, sent } });
+    const result = await deliverHoursReport(input.companyId, input.month, { actorId: actor.user.id });
+    if (!result) return { error: "Esta empresa não tem banco de horas." };
     refresh(input.companyId);
-    return { success: sent ? `Relatório enviado a ${sent === 1 ? "1 Administrador" : `${sent} Administradores`}.` : "Relatório registrado, mas a empresa não tem Administrador para receber o e-mail." };
+    return {
+      success: result.sent
+        ? `Relatório enviado a ${result.sent === 1 ? "1 Administrador" : `${result.sent} Administradores`}.`
+        : "Relatório registrado, mas a empresa não tem Administrador para receber o e-mail.",
+    };
   } catch (e) {
     return failure(e);
   }
 }
 
-/** The team tells the company's Administradores that this month's bank reached the alert line (SUP 3.3), by click. */
+/** The team tells the company's Administradores that this month's bank reached the alert line (SUP 3.3), once a month. */
 export async function sendBankAlert(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   if (!actor.admin) return blocked;
   try {
     const companyId = id.parse(form.get("companyId"));
-    const data = await bankMonth(companyId);
-    if (!data) return { error: "Esta empresa não tem banco de horas." };
-    let sent = 0;
-    for (const person of await companyAdministrators(companyId)) {
-      try {
-        await sendClientMail({
-          to: person.email,
-          tag: "hours-alert",
-          subject: `Banco de horas em ${Math.round((data.usedMinutes / data.includedMinutes) * 100)}%`,
-          text: `O banco de horas deste mês está em ${hoursLabel(data.usedMinutes)} de ${hoursLabel(data.includedMinutes)}.\n\nFora a correção de um defeito crítico, nada passa do banco sem a aprovação de um Administrador da empresa. Se quiser que a equipe continue além dele, aprove as horas extras no Console: ${consoleUrl()}/painel\n\nAnuntech`,
-        });
-        sent += 1;
-      } catch {
-        /* The notice stays in the Console. */
-      }
-    }
-    await db.insert(auditEvents).values({ actorId: actor.user.id, companyId, entityId: companyId, action: "hours.alert_sent", details: { month: data.month, sent } });
-    return { success: sent ? "Aviso enviado." : "A empresa não tem Administrador para receber o aviso." };
+    const result = await deliverBankAlert(companyId, { actorId: actor.user.id });
+    if (!result) return { error: "Esta empresa não tem banco de horas." };
+    refresh(companyId);
+    if (result.already) return { error: `O aviso deste mês já foi enviado em ${dateLabel(result.already)}.` };
+    return { success: result.sent ? "Aviso enviado." : "A empresa não tem Administrador para receber o aviso." };
   } catch (e) {
     return failure(e);
   }

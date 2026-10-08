@@ -1,6 +1,9 @@
 import "server-only";
 import { and, asc, eq, gte, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
-import { companies, contractSignatures, contracts, engagements, memberships, quotes, serviceTerms, subscriptions, tasks } from "@/db/schema";
+import { companies, contractSignatures, contracts, engagements, memberships, quotes, subscriptions, tasks } from "@/db/schema";
+import { governingTerms, loadCalendar, snapshotOf } from "../service-terms/terms";
+import { addBusinessMinutes } from "../service-terms/business-calendar";
+import { BUSINESS_DAY_MINUTES } from "../service-terms/terms-model";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { dateLabel } from "../format";
@@ -63,7 +66,7 @@ export async function commercialFollowUp(today = saoPauloDate()): Promise<Follow
           eq(quotes.status, "accepted"),
           lt(quotes.decidedAt, ago(FOLLOW_UP.acceptedNoContractDays)),
           gte(quotes.decidedAt, ago(90)),
-          sql`not exists (select 1 from ${contracts} c where c.status <> 'cancelled' and (c.quote_id = ${quotes.id} or (c.company_id = ${quotes.companyId} and c.created_at >= ${quotes.decidedAt})))`,
+          sql`not exists (select 1 from ${contracts} c where c.status <> 'cancelled' and (c.quote_id = ${quotes.id} or (c.quote_id is null and c.kind = 'contract' and c.company_id = ${quotes.companyId} and c.created_at >= ${quotes.decidedAt})))`,
         ),
       )
       .orderBy(asc(quotes.decidedAt)),
@@ -101,37 +104,21 @@ export async function commercialFollowUp(today = saoPauloDate()): Promise<Follow
       .innerJoin(companies, eq(companies.id, tasks.companyId))
       .where(and(eq(tasks.requested, true), eq(tasks.status, "backlog"), lt(tasks.createdAt, ago(FOLLOW_UP.backlogDays))))
       .orderBy(asc(tasks.createdAt)),
-    // Deliveries waiting longer than the test window the company's confirmed conditions give the client.
+    // Deliveries in Revisão; the test window of the conditions that govern each project is applied below, in business days.
     db
       .select({
         id: tasks.id,
         title: tasks.title,
         project: engagements.name,
         projectId: engagements.id,
+        companyId: tasks.companyId,
         company: companies.name,
         reviewSince: tasks.reviewSince,
-        testDays: sql<number>`(${serviceTerms.policy}->>'testDays')::int`,
       })
       .from(tasks)
       .innerJoin(engagements, eq(engagements.id, tasks.engagementId))
       .innerJoin(companies, eq(companies.id, tasks.companyId))
-      .innerJoin(
-        serviceTerms,
-        and(
-          eq(serviceTerms.companyId, tasks.companyId),
-          eq(serviceTerms.active, true),
-          isNotNull(serviceTerms.verifiedAt),
-          sql`(${serviceTerms.engagementId} is null or ${serviceTerms.engagementId} = ${tasks.engagementId})`,
-          sql`(${serviceTerms.policy}->>'testDays') is not null`,
-        ),
-      )
-      .where(
-        and(
-          eq(tasks.status, "review"),
-          isNotNull(tasks.reviewSince),
-          sql`${tasks.reviewSince} < now() - make_interval(days => (${serviceTerms.policy}->>'testDays')::int)`,
-        ),
-      )
+      .where(and(eq(tasks.status, "review"), isNotNull(tasks.reviewSince)))
       .orderBy(asc(tasks.reviewSince)),
     // Only an Administrador signs, answers a proposal or sees the invoices: a client with something open and nobody to act on it.
     db
@@ -148,7 +135,20 @@ export async function commercialFollowUp(today = saoPauloDate()): Promise<Follow
       )
       .orderBy(asc(companies.name)),
   ]);
-  const seenReview = new Set<string>();
+  // The board's own rule (projetos/[id]/page.tsx): the conditions that govern the project, never for a person client.
+  const now = new Date();
+  const calendar = reviews.length ? await loadCalendar() : null;
+  const windows = new Map<string, number | null>();
+  const overdueReviews: (typeof reviews[number] & { testDays: number })[] = [];
+  for (const task of reviews) {
+    if (!windows.has(task.projectId)) {
+      const terms = snapshotOf(await governingTerms(task.companyId, task.projectId));
+      windows.set(task.projectId, terms && !terms.personClient ? (terms.policy.testDays ?? null) : null);
+    }
+    const testDays = windows.get(task.projectId);
+    if (testDays && calendar && addBusinessMinutes(task.reviewSince!, testDays * BUSINESS_DAY_MINUTES, calendar) < now)
+      overdueReviews.push({ ...task, testDays });
+  }
   const groups: FollowUpGroup[] = [
     {
       key: "awaiting-anuntech",
@@ -193,9 +193,10 @@ export async function commercialFollowUp(today = saoPauloDate()): Promise<Follow
     {
       key: "reviews-overdue",
       title: "Entregas em Revisão com o prazo de teste vencido",
-      items: reviews
-        .filter((t) => !seenReview.has(t.id) && !!seenReview.add(t.id))
-        .map((t) => ({ line: `${t.company} · ${t.project} · ${t.title} · ${t.testDays === 1 ? "1 dia" : `${t.testDays} dias`} de teste`, href: `/projetos/${t.projectId}` })),
+      items: overdueReviews.map((t) => ({
+        line: `${t.company} · ${t.project} · ${t.title} · ${t.testDays === 1 ? "1 dia útil" : `${t.testDays} dias úteis`} de teste`,
+        href: `/projetos/${t.projectId}`,
+      })),
     },
   ];
   return groups.filter((group) => group.items.length);

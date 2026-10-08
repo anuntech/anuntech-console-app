@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState, type ReactNode } from "react";
 import {
   Building2Icon,
+  SparklesIcon,
   CalculatorIcon,
   ClockIcon,
   HeadsetIcon,
@@ -37,6 +39,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { toast } from "@/components/shell/notifications";
+import { setNativeValue } from "@/components/console/insert-text";
 import { replyTicket, updateTicket } from "@/lib/actions";
 import {
   dateLabel,
@@ -66,6 +69,9 @@ import {
 import { TicketPriorityMark, TicketStatusBadge } from "./ticket-badges";
 import { useTicketUploads } from "./ticket-uploads";
 import { EstimateCard, TicketHoursCard, type TicketHoursData } from "./ticket-hours";
+import { TicketFollowCard, type TicketFollowUp } from "./ticket-follow-card";
+import { TicketTriageNotice } from "./ticket-triage-notice";
+import type { TicketTriage } from "@/lib/tickets/ticket-triage";
 
 export type TicketFile = {
   id: string;
@@ -130,6 +136,10 @@ export type TicketDetailData = {
   viewer: { admin: boolean };
   /** Staff: a reply prepared elsewhere (a proposal sent or answered), ready to review and send. */
   replyDraft?: string;
+  /** Staff: remind or resolve a ticket that waits on the client; say a finished one took no hours. */
+  followUp?: TicketFollowUp;
+  /** Staff: Jev read the text as worse than what was ticked; the suggested priority. */
+  triage?: TicketTriage | null;
   /** Staff who can take the ticket; loaded only for admins. */
   assignees?: TicketAssignee[];
   clock?: TicketClock | null;
@@ -177,13 +187,58 @@ function When({ at, now }: { at: string; now: string }) {
   );
 }
 
-function Composer({ ticketId, draft }: { ticketId: string; draft?: string }) {
+/** Staff: a reply drafted from the conversation and the conditions, into the box to edit before sending. */
+function SuggestReply({ ticketId, field }: { ticketId: string; field: React.RefObject<HTMLTextAreaElement | null> }) {
+  const [pending, setPending] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={pending}
+      onClick={async () => {
+        setPending(true);
+        try {
+          const res = await fetch(`/api/chamados/${ticketId}/sugestao`, { method: "POST" });
+          const data = (await res.json().catch(() => null)) as { text?: string; error?: string } | null;
+          if (!res.ok || !data?.text) throw new Error(data?.error ?? "Não foi possível sugerir agora.");
+          const el = field.current;
+          if (el) {
+            setNativeValue(el, el.value.trim() ? `${el.value.trim()}\n\n${data.text}` : data.text);
+            el.focus();
+          }
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Não foi possível sugerir agora.");
+        } finally {
+          setPending(false);
+        }
+      }}
+    >
+      <SparklesIcon />
+      {pending ? "Escrevendo…" : "Sugerir resposta"}
+    </Button>
+  );
+}
+
+function Composer({ ticketId, draft, suggest }: { ticketId: string; draft?: string; suggest?: boolean }) {
   const uploads = useTicketUploads();
+  const field = useRef<HTMLTextAreaElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   return (
     <ServerForm
       action={replyTicket}
       prepare={uploads}
       reset
+      onSuccess={() => {
+        // A prepared reply is used once: the reset would bring it back from the URL.
+        if (!draft) return;
+        if (field.current) {
+          field.current.defaultValue = "";
+          field.current.value = "";
+        }
+        router.replace(pathname, { scroll: false });
+      }}
       className="flex flex-col gap-3 border-t pt-5"
       onSubmit={(event) => {
         const form = event.currentTarget;
@@ -203,6 +258,7 @@ function Composer({ ticketId, draft }: { ticketId: string; draft?: string }) {
         Sua resposta
       </Label>
       <Textarea
+        ref={field}
         id="reply-body"
         name="body"
         rows={4}
@@ -218,6 +274,7 @@ function Composer({ ticketId, draft }: { ticketId: string; draft?: string }) {
       <FormError />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <AttachmentField variant="compact" className="flex-1" />
+        {suggest && <SuggestReply ticketId={ticketId} field={field} />}
         <SubmitButton pendingLabel="Enviando…">
           <SendIcon />
           Enviar resposta
@@ -476,6 +533,12 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
         }
       />
 
+      {admin && data.triage && (
+        <div className="mb-6">
+          <TicketTriageNotice ticketId={ticket.id} triage={data.triage} />
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <Card className="min-w-0">
           <CardHeader>
@@ -550,7 +613,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                 onReopen={() => move("open")}
               />
             ) : (
-              <Composer ticketId={ticket.id} draft={data.replyDraft} />
+              <Composer ticketId={ticket.id} draft={data.replyDraft} suggest={admin} />
             )}
           </CardContent>
         </Card>
@@ -675,6 +738,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
 
           {data.clock && <ClockCard clock={data.clock} status={ticket.status} admin={admin} now={now} />}
           {data.hours && (admin ? <TicketHoursCard ticketId={ticket.id} data={data.hours} /> : <EstimateCard ticketId={ticket.id} data={data.hours} />)}
+          {admin && data.followUp && <TicketFollowCard ticketId={ticket.id} followUp={data.followUp} />}
 
           <Card>
             <CardHeader>

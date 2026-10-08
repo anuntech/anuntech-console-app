@@ -5,6 +5,9 @@ import { z } from "zod";
 import { and, eq, inArray, or, sql, isNull } from "drizzle-orm";
 import { chargeSourceEvent, chargeSourceKinds, preparedChargeEvents } from "./billing/charge-sources";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { jevEnabled } from "./assistant/jev";
+import { triageTicket } from "./tickets/ticket-triage";
 import { db } from "./db";
 import { resolveBankDueDate } from "./billing/billing-notice-rules";
 import { saoPauloDate } from "./dates";
@@ -24,6 +27,8 @@ import {
   contracts,
 } from "@/db/schema";
 import { expiredDebtCondition } from "./billing/billing-watch";
+import { usualAssignee } from "./tickets/ticket-watch";
+import { overageCharge } from "./service-terms/hours-delivery";
 import { normalizeEmail, moneyToCents } from "./access/permissions";
 import { parseChargeTerms, parseTermsScope } from "./billing/billing-terms";
 import type { ActionState } from "./action-state";
@@ -273,6 +278,8 @@ export async function createTicket(
       // The priority is Anuntech's call (support contract 5.1): the team may set it, the Console only suggests.
       const priority = (actor.admin && input.priority) || suggestPriority(input.kind, impact, terms?.policy.levels);
       const dues = ticketDues({ createdAt: now, priority, kind: input.kind, impact, terms }, await loadCalendar(tx));
+      // Every ticket starts with an owner: the team member who opens it, or whoever took this client's last one.
+      const assignedTo = actor.admin ? normalizeEmail(actor.user.email) : await usualAssignee(input.companyId, input.engagementId || null, tx);
       const [row] = await tx
         .insert(tickets)
         .values({
@@ -287,6 +294,7 @@ export async function createTicket(
           responseDueAt: dues.responseDueAt,
           resolutionDueAt: dues.resolutionDueAt,
           authorId: actor.user.id,
+          assignedTo,
           createdAt: now,
           updatedAt: now,
         })
@@ -327,6 +335,8 @@ export async function createTicket(
       ).catch(() => undefined);
     refresh();
     scheduleTicketNotices();
+    // Jev reads the text after the answer goes out; the team may get a suggested priority.
+    if (jevEnabled()) after(() => triageTicket(ticket.id));
     return { success: "Chamado aberto.", href: `/chamados/${ticket.id}` };
   } catch (e) {
     return failure(e);
@@ -632,7 +642,8 @@ export async function createInvoice(
         interval: z.enum(["monthly", "yearly"]).default("monthly"),
         // What the Console prepared this charge from (new-invoice-context.ts).
         sourceKind: z.enum(chargeSourceKinds).optional(),
-        sourceId: z.union([id, z.literal("")]).default(""),
+        // A record's id, or "<companyId>:<YYYY-MM>" for a month's hours beyond the bank.
+        sourceId: z.union([id, z.string().regex(/^[0-9a-f-]{36}:\d{4}-\d{2}$/), z.literal("")]).default(""),
       })
       .parse(Object.fromEntries(form));
     const amountCents = moneyToCents(input.amount);
@@ -657,12 +668,14 @@ export async function createInvoice(
       if (source?.kind === "rebill") {
         // A debt is billed again once; the old charge stays as the record of what expired.
         const [debt] = await tx
-          .select({ id: invoices.id, companyId: invoices.companyId })
+          .select({ id: invoices.id, companyId: invoices.companyId, quoteId: invoices.quoteId })
           .from(invoices)
           .where(and(eq(invoices.id, source.id), sql`${expiredDebtCondition}`))
           .for("update");
         if (!debt || debt.companyId !== input.companyId)
           throw new Error("Esta dívida já foi cobrada de novo ou encerrada.");
+        // An entrada or saldo billed again stays the proposal's.
+        quoteId = debt.quoteId;
       } else if (source?.kind === "quote_upfront" || source?.kind === "quote_balance") {
         // The entrada and the saldo of an accepted proposal, each prepared once.
         const [quote] = await tx
@@ -673,6 +686,10 @@ export async function createInvoice(
         if (!quote || quote.companyId !== input.companyId || quote.status !== "accepted")
           throw new Error("A cobrança precisa partir de um orçamento aceito desta empresa.");
         quoteId = source.id;
+      } else if (source?.kind === "overage") {
+        const [companyId, month] = source.id.split(":");
+        if (companyId !== input.companyId || !(await overageCharge(companyId, month)))
+          throw new Error("Não há horas além do banco prontas para cobrar neste mês.");
       } else if (source?.kind === "contract") {
         const [contract] = await tx
           .select({ companyId: contracts.companyId, status: contracts.status, kind: contracts.kind })
@@ -741,6 +758,17 @@ export async function createInvoice(
         entityId: row.id,
         details: source ? { source: source.kind, sourceId: source.id } : undefined,
       });
+      // Whatever the debt was prepared from (an entrada, a contract's recurrence) now points at the charge that collects it.
+      if (source?.kind === "rebill")
+        await tx
+          .update(automationEvents)
+          .set({ details: sql`jsonb_set(${automationEvents.details}, '{invoiceId}', to_jsonb(${row.id}::text))` })
+          .where(
+            and(
+              inArray(automationEvents.kind, preparedChargeEvents.filter((kind) => kind !== chargeSourceEvent.rebill)),
+              sql`${automationEvents.details}->>'invoiceId' = ${source.id}`,
+            ),
+          );
       if (source)
         await tx.insert(automationEvents).values({
           kind: chargeSourceEvent[source.kind],

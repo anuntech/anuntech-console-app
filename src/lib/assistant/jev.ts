@@ -144,3 +144,28 @@ export async function approveAction(input: {
   if (!answer || answer.type !== "noul") return null;
   return { approved: answer.noul >= 0.6, score: answer.noul };
 }
+
+/* ---------- a new ticket, read by its text ---------- */
+
+/**
+ * What the ticket's text says it is, regardless of what was ticked when it
+ * was opened: the kind and, for something that broke, how badly. Null when
+ * Jev had no say.
+ */
+export async function classifyTicket(input: { subject: string; body: string; kinds: Record<string, string>; impacts: Record<string, string> }) {
+  const answers = await ask(
+    { assunto: input.subject.slice(0, 200), descricao: input.body.slice(0, 2000) },
+    {
+      tipo: { type: "choice", instructions: "Pelo texto, o que é este chamado de suporte?", criteria: input.kinds },
+      impacto: {
+        type: "choice",
+        instructions: "Se algo parou ou deu erro, quanto isso atrapalha o cliente agora, pelo que o texto diz? Se não é um erro, escolha 'other'.",
+        criteria: input.impacts,
+      },
+    },
+  );
+  const kind = answers?.tipo;
+  const impact = answers?.impacto;
+  if (kind?.type !== "choice" || impact?.type !== "choice") return null;
+  return { kind: kind.choice, kindConfidence: kind.confidence, impact: impact.choice, impactConfidence: impact.confidence };
+}

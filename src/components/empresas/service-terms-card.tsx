@@ -280,6 +280,14 @@ function TermsSheet({
               <FormField label="Aviso em (%)" htmlFor="terms-ba">
                 <Input id="terms-ba" name="bankAlertPercent" inputMode="numeric" defaultValue={p.hoursBank?.alertPercent ?? 80} />
               </FormField>
+              <FormField label="Hora excedente (R$)" htmlFor="terms-ov" hint="Vazio: não combinado.">
+                <Input
+                  id="terms-ov"
+                  name="overage"
+                  inputMode="decimal"
+                  defaultValue={p.hoursBank?.overageCents ? (p.hoursBank.overageCents / 100).toFixed(2).replace(".", ",") : ""}
+                />
+              </FormField>
               <FormField label="Contestação (dias úteis)" htmlFor="terms-rcd">
                 <Input id="terms-rcd" name="reportContestDays" inputMode="numeric" defaultValue={p.hoursBank?.reportContestDays ?? ""} />
               </FormField>

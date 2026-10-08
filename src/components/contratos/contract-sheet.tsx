@@ -55,7 +55,8 @@ export function NewContractFields({ companies, templates, engagements, companyId
   // One company: nothing to choose, so it travels as a hidden value.
   const only = companies.length === 1 ? companies[0].id : null;
   const [company, setCompany] = useState(parent?.companyId ?? quote?.companyId ?? only ?? companyId ?? companies[0]?.id ?? "");
-  const [templateId, setTemplateId] = useState(parent ? "" : (preferred ?? templates[0]?.id ?? ""));
+  // From a proposal, only the development template is a safe start; otherwise the team picks.
+  const [templateId, setTemplateId] = useState(parent ? "" : quote ? (preferred ?? "") : (preferred ?? templates[0]?.id ?? ""));
   const [startsAt, setStartsAt] = useState(renewal?.startsAt ?? "");
   const [endsAt, setEndsAt] = useState(renewal?.endsAt ?? "");
   const template = templates.find((t) => t.id === templateId);
@@ -83,7 +84,9 @@ export function NewContractFields({ companies, templates, engagements, companyId
             <p className="text-xs font-medium text-muted-foreground">A partir do orçamento aceito</p>
             <p className="mt-0.5 font-medium text-foreground">{quote.label}</p>
             <p className="text-xs text-muted-foreground">
-              {quote.company} · escopo, entregáveis, valores e prazo entram nos campos do modelo
+              {preferred
+                ? `${quote.company} · escopo, entregáveis, valores e prazo entram nos campos do modelo`
+                : `${quote.company} · nenhum modelo de desenvolvimento ativo: escolha o modelo, e os campos que o orçamento responde saem preenchidos`}
             </p>
           </div>
         </>

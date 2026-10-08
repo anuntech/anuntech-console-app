@@ -29,7 +29,8 @@ import { commitmentLine } from "@/lib/service-terms/terms-text";
 import { bankTerms } from "@/lib/service-terms/hours-bank";
 import { saoPauloDate } from "@/lib/dates";
 import type { TicketHoursData } from "@/components/chamados/ticket-hours";
-import { timeEntries } from "@/db/schema";
+import { automationEvents, timeEntries } from "@/db/schema";
+import { ticketTriage } from "@/lib/tickets/ticket-triage";
 import { desc } from "drizzle-orm";
 export const metadata: Metadata = {
   title: "Chamado",
@@ -263,6 +264,22 @@ export default async function Ticket({
         })),
         viewer: { admin: actor.admin },
         replyDraft: actor.admin && typeof resposta === "string" ? resposta.slice(0, 2000) : undefined,
+        triage: actor.admin && !["resolved", "closed"].includes(t.status) ? await ticketTriage(t.id, t.priority) : null,
+        followUp: actor.admin
+          ? {
+              waiting: t.status === "waiting_customer",
+              // Finished at a client with a bank, no hours logged, nobody said there were none.
+              noHours:
+                (t.status === "resolved" || t.status === "closed") &&
+                !!bank &&
+                !(hours?.entries.length) &&
+                !(await db
+                  .select({ id: automationEvents.id })
+                  .from(automationEvents)
+                  .where(and(eq(automationEvents.kind, "ticket.no_hours"), eq(automationEvents.entityId, t.id)))
+                  .then((r) => r.length)),
+            }
+          : undefined,
         assignees,
         clock,
         hours,

@@ -20,6 +20,7 @@ import {
   taskAssignees,
   taskComments,
   tasks,
+  tickets,
   user,
 } from "@/db/schema";
 import {
@@ -37,6 +38,7 @@ import { addCatalogEngagement, saveCatalogItem } from "../catalog/catalog-action
 import { createContract, setContractTerm } from "../contracts/contract-actions";
 import { duplicateQuote, saveQuote } from "../quotes/quote-actions";
 import { saveCompanyMember } from "../access/members-actions";
+import { logTime } from "../service-terms/hours-actions";
 import { addressLabel } from "../companies/company-billing";
 import { formatDocument, formatPhone } from "../companies/company-input";
 import { currency, engagementLabels, priorityLabels, roleLabels, ticketLabels } from "../format";
@@ -796,6 +798,47 @@ export const bestMatch = <T extends { name: string }>(items: T[], wanted: string
   return items.find((i) => fold(i.name) === w) ?? items.find((i) => fold(i.name).includes(w)) ?? null;
 };
 
+/** Hours from the phone, by voice too: the same rules as the ticket's form (bank limit, approved estimate). */
+const logHours = tool({
+  name: "registrar_horas",
+  area: "chamados",
+  staffOnly: true,
+  write: true,
+  description:
+    "Registra horas de trabalho da equipe no banco de horas de uma empresa, de preferência ligadas a um chamado. Tipos: bank (consome o banco), warranty (garantia, fora do banco), critical (defeito crítico). Confirme horas, chamado e o que foi feito antes.",
+  input: z.object({
+    chamadoId: id.optional(),
+    companyId: id.optional(),
+    horas: z.number().positive().max(200),
+    oQueFoiFeito: z.string().trim().min(3).max(500),
+    data: z.iso.date().optional(),
+    tipo: z.enum(["bank", "warranty", "critical"]).default("bank"),
+  }),
+  run: async ({ actor }, input) => {
+    let companyId = input.companyId;
+    let subject: string | null = null;
+    if (input.chamadoId) {
+      const [t] = await db.select({ companyId: tickets.companyId, subject: tickets.subject }).from(tickets).where(eq(tickets.id, input.chamadoId));
+      if (!t || !canAccess(actor, t.companyId, "support")) throw new ToolError("Chamado não encontrado.");
+      companyId = t.companyId;
+      subject = t.subject;
+    }
+    if (!companyId) throw new ToolError("Diga o chamado ou a empresa das horas.");
+    const state = await submit(logTime, {
+      companyId,
+      ticketId: input.chamadoId ?? "",
+      hours: String(input.horas),
+      note: input.oQueFoiFeito,
+      workedOn: input.data,
+      kind: input.tipo,
+    });
+    return {
+      result: { registrado: true, mensagem: state.success, link: input.chamadoId ? `/chamados/${input.chamadoId}` : `/empresas/${companyId}` },
+      summary: `Registrei ${String(input.horas).replace(".", ",")} h${subject ? ` no chamado "${subject}"` : ""}`,
+    };
+  },
+});
+
 export const extraTools = [
   readCompany,
   readProject,
@@ -828,4 +871,5 @@ export const extraTools = [
   editQuote,
   cloneQuote,
   inviteMember,
+  logHours,
 ];

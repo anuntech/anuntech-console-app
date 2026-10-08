@@ -55,7 +55,8 @@ export function quoteContractValues(quote: HandoffQuote, keys: string[]): Record
     if (/valor_hora|valores_hora/.test(key)) return content.hourlyRateCents ? currency(content.hourlyRateCents) : "";
     if (/entrada/.test(key)) return totals.upfrontCents ? `${currency(totals.upfrontCents)} (${content.upfrontPercent}% do total)` : "";
     if (/saldo/.test(key)) return totals.balanceCents ? currency(totals.balanceCents) : "";
-    if (/^valor(_total)?$|valor_do_projeto|valor_global/.test(key)) return totals.totalCents ? currency(totals.totalCents) : "";
+    // Not the bare {{valor}}: in the Console's own variables it is the linked item's price per period.
+    if (/^valor_total$|valor_do_projeto|valor_global/.test(key)) return totals.totalCents ? currency(totals.totalCents) : "";
     // Narrow on purpose: support templates also speak of hours and deadlines ({{horas_mensais}}, {{prazo_de_resposta}}).
     if (/estimativa|^horas$|horas_estimadas|total_de_horas/.test(key)) return totals.hoursMax ? hours(totals.hoursMin, totals.hoursMax) : "";
     if (/escopo/.test(key)) return scopeText(content);

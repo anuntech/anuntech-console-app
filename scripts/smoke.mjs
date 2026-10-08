@@ -1,6 +1,7 @@
 // Run only against a development database. Creates isolated fixtures and removes them in finally.
 import { runBillingTests } from "./billing-smoke.mjs";
 import { runHandoffTests } from "./handoff-smoke.mjs";
+import { runSupportTests } from "./support-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -2049,6 +2050,7 @@ try {
     marker,
   });
   await runHandoffTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
+  await runSupportTests({ database, ids, people, request, submitForm, sentNotices, ok, marker, base });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );

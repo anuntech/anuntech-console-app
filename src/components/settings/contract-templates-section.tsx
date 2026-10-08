@@ -3,14 +3,14 @@ import { asc, eq, sql } from "drizzle-orm";
 import { contractTemplates, contracts } from "@/db/schema";
 import { requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
-import { synovaWithoutTerms } from "@/lib/service-terms/terms-queries";
+import { synovaDraftsToConfirm, synovaWithoutTerms } from "@/lib/service-terms/terms-queries";
 import { ContractTemplatesTable } from "./contract-templates-table";
 import { SynovaTerms } from "./synova-terms";
 
 /** The model contracts Anuntech starts from. */
 export async function ContractTemplatesSection() {
   await requireAdmin();
-  const synova = await synovaWithoutTerms();
+  const [synova, drafts] = await Promise.all([synovaWithoutTerms(), synovaDraftsToConfirm()]);
   const rows = await db
     .select({
       id: contractTemplates.id,
@@ -26,7 +26,7 @@ export async function ContractTemplatesSection() {
   void eq;
   return (
     <>
-      <SynovaTerms companies={synova.map((row) => row.company)} />
+      <SynovaTerms companies={synova.map((row) => row.company)} drafts={drafts} />
       <ContractTemplatesTable rows={rows.sort((a, b) => Number(b.active) - Number(a.active))} />
     </>
   );

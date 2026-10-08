@@ -28,8 +28,8 @@ export type OpsDigestData = {
     error: string | null;
   }[];
   overdue: { company: string; description: string; amountCents: number; days: number }[];
-  /** With `id`, the line links to the prepared extension. */
-  contracts: { company: string; title: string; label: string; id?: string }[];
+  /** With `id`, the line links to the prepared extension, or to the one already in progress (`pendingId`). */
+  contracts: { company: string; title: string; label: string; id?: string; pendingId?: string | null }[];
   /** Unanswered tickets whose first response is due by tonight or already late. */
   tickets?: { id: string; company: string; subject: string; dueAt: string }[];
   /** Active recurrences that will fail when they issue: an incomplete record or an early issue that failed. */
@@ -124,7 +124,7 @@ export function opsDigestText(d: OpsDigestData): { subject: string; text: string
     );
   if (d.contracts.length)
     sections.push(
-      `Contratos vencendo ou vencidos (${d.contracts.length}):\n${list(d.contracts, (c) => `${c.company} · ${c.title} · ${c.label}${c.id ? ` · prorrogação pronta: ${d.url}/contratos/novo?parentId=${c.id}&prorrogar=1` : ""}`)}`,
+      `Contratos vencendo ou vencidos (${d.contracts.length}):\n${list(d.contracts, (c) => `${c.company} · ${c.title} · ${c.label}${c.pendingId ? ` · prorrogação em andamento: ${d.url}/contratos/${c.pendingId}` : c.id ? ` · prorrogação pronta: ${d.url}/contratos/novo?parentId=${c.id}&prorrogar=1` : ""}`)}`,
     );
   for (const group of followUp)
     sections.push(`${group.title} (${group.items.length}):\n${list(group.items, (item) => `${item.line} · ${d.url}${item.href}`)}`);

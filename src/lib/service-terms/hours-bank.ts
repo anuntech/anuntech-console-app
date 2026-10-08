@@ -1,6 +1,6 @@
 import "server-only";
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
-import { hoursMonths, serviceTerms, timeEntries, tickets, user } from "@/db/schema";
+import { automationEvents, hoursMonths, serviceTerms, timeEntries, tickets, user } from "@/db/schema";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { loadCalendar, snapshotOf } from "./terms";
@@ -107,6 +107,8 @@ export type BankCard = Omit<BankMonth, "terms" | "entries"> & {
   companyId: string;
   companyName: string;
   entries: Omit<BankMonth["entries"][number], "ticketId">[];
+  /** When this month's 80% alert went out (once a month; see hours-delivery.ts). */
+  alertSentAt: string | null;
   /** Last month, while its report waits to be sent (team) or can still be contested (client). */
   previous: Pick<BankMonth, "month" | "usedMinutes" | "includedMinutes" | "overageApprovedMinutes" | "reportSentAt" | "contestedAt" | "contestUntil"> | null;
 };
@@ -120,12 +122,17 @@ export async function bankCard(companyId: string, companyName: string, audience:
   const lastOpen = !!last && (audience.client
     ? !!last.reportSentAt && !last.contestedAt && (!last.contestUntil || new Date(last.contestUntil) >= now)
     : (!last.reportSentAt && last.entries.length > 0) || (!!last.reportSentAt && !last.contestedAt && !!last.contestUntil && new Date(last.contestUntil) >= now));
+  const [alert] = await db
+    .select({ at: automationEvents.createdAt })
+    .from(automationEvents)
+    .where(and(eq(automationEvents.kind, "hours.alert"), eq(automationEvents.entityId, `${companyId}:${current.month}`)));
   const { terms: _terms, entries, ...rest } = current;
   void _terms;
   return {
     ...rest,
     companyId,
     companyName,
+    alertSentAt: alert?.at.toISOString() ?? null,
     entries: entries.map(({ ticketId: _ticket, ...e }) => (void _ticket, e)),
     previous: lastOpen && last
       ? { month: last.month, usedMinutes: last.usedMinutes, includedMinutes: last.includedMinutes, overageApprovedMinutes: last.overageApprovedMinutes, reportSentAt: last.reportSentAt, contestedAt: last.contestedAt, contestUntil: last.contestUntil }

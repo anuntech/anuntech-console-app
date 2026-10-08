@@ -16,7 +16,7 @@ import { billingProblemsLabel, billingReadiness } from "../billing/billing-readi
 import { hasPermission } from "../access/permissions";
 import { deliverQuoteNotice } from "./quote-mail";
 import { quoteBoardTasks } from "./quote-handoff";
-import { inviteManagerBeforeSend } from "../access/invite-manager";
+import { inviteManagerOnSend } from "../access/invite-manager";
 import {
   quoteContentSchema,
   quoteExpired,
@@ -242,10 +242,6 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
   if (!actor.admin) return blocked;
   try {
     const quoteId = id.parse(form.get("id"));
-    // No Administrador yet: the person the team named gets access first, so the notice reaches someone who can answer.
-    const [target] = await db.select({ companyId: quotes.companyId }).from(quotes).where(eq(quotes.id, quoteId));
-    const refused = target ? await inviteManagerBeforeSend(form, target.companyId) : null;
-    if (refused) return refused;
     const sent = await db.transaction(async (tx) => {
       const [q] = await tx.select().from(quotes).where(eq(quotes.id, quoteId)).for("update");
       if (!q) throw Error("Orçamento não encontrado.");
@@ -298,6 +294,8 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
     });
     const url = `${consoleUrl()}/orcamentos/${sent.id}`;
     const totals = quoteTotals(sent.publication);
+    // No Administrador yet: the person the team named gets access now that the proposal is out, so the notice reaches them.
+    const invite = await inviteManagerOnSend(form, sent.companyId);
     let notified = 0;
     for (const manager of await companyManagers(sent.companyId)) {
       try {
@@ -317,9 +315,10 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
     }
     refresh(sent.id);
     return {
-      success: notified
-        ? `Orçamento enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
-        : "Orçamento enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.",
+      success:
+        (notified
+          ? `Orçamento enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
+          : "Orçamento enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.") + (invite ? ` ${invite}` : ""),
     };
   } catch (e) {
     return failure(e);

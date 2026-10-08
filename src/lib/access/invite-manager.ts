@@ -24,14 +24,18 @@ export async function managerInvite(companyId: string): Promise<{ suggestion: st
   return { suggestion: company?.email ?? "" };
 }
 
-/** Gives the typed e-mail access as Administrador before the send; an error stops the send. */
-export async function inviteManagerBeforeSend(form: FormData, companyId: string): Promise<ActionState | null> {
+/**
+ * After the document went out: gives the typed e-mail access as
+ * Administrador, so the send's notice reaches them. Returns a line for the
+ * success message when the access could not be given; the send stands.
+ */
+export async function inviteManagerOnSend(form: FormData, companyId: string): Promise<string | null> {
   const email = String(form.get("inviteEmail") ?? "").trim();
   if (!email || !(await managerInvite(companyId))) return null;
   const access = new FormData();
   access.set("companyId", companyId);
   access.set("email", email);
   access.set("role", "manager");
-  const result = await saveCompanyMember({}, access);
-  return result.error ? { error: `Não foi possível liberar o acesso: ${result.error}` } : null;
+  const result: ActionState = await saveCompanyMember({}, access);
+  return result.error ? `Não foi possível liberar o acesso de ${email}: ${result.error}` : null;
 }

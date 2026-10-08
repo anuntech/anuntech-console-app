@@ -1,6 +1,6 @@
 "use server";
 import { createHash } from "node:crypto";
-import { and, asc, count, eq, isNotNull, ne, or } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -31,7 +31,7 @@ import { formatDocument } from "../companies/company-input";
 import { contractPdf } from "./contract-pdf";
 import { deliverContractNotice } from "./contract-mail";
 import { sendOpsMail } from "../notifications/ops-alerts";
-import { inviteManagerBeforeSend } from "../access/invite-manager";
+import { inviteManagerOnSend } from "../access/invite-manager";
 import { fillContractTemplate, pendingContractVariables } from "./contract-templates";
 import { applyContractFields, contractFields } from "./contract-fields";
 import { quoteContractValues } from "../quotes/quote-handoff";
@@ -263,6 +263,13 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
     if (input.parentId && !parent) return { error: "Contrato original não encontrado." };
     if (parent && parent.status !== "signed") return { error: "Só contratos assinados recebem aditivos." };
     if (parent && parent.kind !== "contract") return { error: "Um aditivo não pode receber outro aditivo; adite o contrato original." };
+    if (parent && input.renewal) {
+      const [pending] = await db
+        .select({ id: contracts.id })
+        .from(contracts)
+        .where(and(eq(contracts.parentId, parent.id), inArray(contracts.status, ["draft", "sent", "in_review"])));
+      if (pending) return { error: "Já existe um aditivo em andamento para este contrato. Abra o que existe antes de preparar outra prorrogação." };
+    }
     const companyId = parent?.companyId ?? input.companyId;
     if (!companyId) return { error: "Escolha a empresa." };
     const template = input.templateId
@@ -464,10 +471,6 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
   if (!actor.admin) return blocked;
   try {
     const contractId = id.parse(form.get("id"));
-    // No Administrador yet: the person the team named gets access first, so the notice reaches someone who can sign.
-    const [target] = await db.select({ companyId: contracts.companyId }).from(contracts).where(eq(contracts.id, contractId));
-    const refused = target ? await inviteManagerBeforeSend(form, target.companyId) : null;
-    if (refused) return refused;
     const sent = await db.transaction(async (tx) => {
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, contractId)).for("update");
       if (!c) throw Error("Contrato não encontrado.");
@@ -547,6 +550,8 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
       return { ...c, version, companyName: company.name, answered: c.status === "in_review" ? answered : 0 };
     });
     const url = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${sent.id}`;
+    // No Administrador yet: the person the team named gets access now that the contract is out, so the notice reaches them.
+    const invite = await inviteManagerOnSend(form, sent.companyId);
     const signers = await companySigners(sent.companyId);
     let notified = 0;
     for (const signer of signers) {
@@ -567,9 +572,10 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
     refresh(sent.id, sent.parentId);
     const noun = sent.kind === "amendment" ? "Aditivo" : "Contrato";
     return {
-      success: notified
-        ? `${noun} enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
-        : `${noun} enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.`,
+      success:
+        (notified
+          ? `${noun} enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
+          : `${noun} enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.`) + (invite ? ` ${invite}` : ""),
     };
   } catch (e) {
     return failure(e);

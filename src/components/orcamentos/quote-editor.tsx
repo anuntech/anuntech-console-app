@@ -1,7 +1,8 @@
 "use client";
 import { useId, useState, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
-import { ChevronDownIcon, ChevronUpIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, SparklesIcon, Trash2Icon, XIcon } from "lucide-react";
+import { toast } from "@/components/shell/notifications";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -225,6 +226,26 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
   const uid = useId();
   const [content, setContent] = useState<QuoteContent>(quote.content);
   const patch = (next: Partial<QuoteContent>) => setContent((current) => ({ ...current, ...next }));
+  const [suggesting, setSuggesting] = useState(false);
+  // Phases, hours and tasks proposed from the summary; they land in the editor only, to adjust and save.
+  const suggestPhases = async () => {
+    setSuggesting(true);
+    try {
+      const res = await fetch(`/api/orcamentos/${quote.id}/fases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: quote.title, summary: content.summary }),
+      });
+      const data = (await res.json().catch(() => null)) as { phases?: QuotePhase[]; stack?: string[]; error?: string } | null;
+      if (!res.ok || !data?.phases?.length) throw new Error(data?.error ?? "Não foi possível sugerir agora.");
+      setContent((current) => ({ ...current, phases: data.phases!, stack: current.stack.length ? current.stack : (data.stack ?? []) }));
+      toast.success("Fases sugeridas. Confira horas e tarefas antes de salvar.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível sugerir agora.");
+    } finally {
+      setSuggesting(false);
+    }
+  };
   const setPhase = (index: number, phase: QuotePhase) => patch({ phases: content.phases.map((entry, i) => (i === index ? phase : entry)) });
   const movePhase = (index: number, direction: -1 | 1) => {
     const phases = [...content.phases];
@@ -389,10 +410,18 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
             {content.phases.length === 0 && (
               <p className="m-0 text-sm text-muted-foreground">Nenhuma fase ainda. O orçamento precisa de ao menos uma para ser enviado.</p>
             )}
-            <Button type="button" variant="outline" className="self-start" onClick={() => patch({ phases: [...content.phases, emptyPhase()] })}>
-              <PlusIcon />
-              Adicionar fase
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => patch({ phases: [...content.phases, emptyPhase()] })}>
+                <PlusIcon />
+                Adicionar fase
+              </Button>
+              {content.phases.length === 0 && content.summary.trim().length >= 20 && (
+                <Button type="button" variant="ghost" disabled={suggesting} onClick={suggestPhases}>
+                  <SparklesIcon />
+                  {suggesting ? "Sugerindo…" : "Sugerir fases pelo resumo"}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

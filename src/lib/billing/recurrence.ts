@@ -38,6 +38,31 @@ export function monthlyDueOnOrAfter(day: number, from: string): string {
   return here >= from ? here : inMonth(month);
 }
 
+/** "2026-01-31" plus n months, on the same day or the month's last day when shorter. */
+export function addMonths(date: string, months: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const index = month - 1 + months;
+  const last = new Date(Date.UTC(year, index + 1, 0, 12)).getUTCDate();
+  return new Date(Date.UTC(year, index, Math.min(day, last), 12)).toISOString().slice(0, 10);
+}
+
+/**
+ * The next term of a contract that ran from `startsAt` to `endsAt`: from the
+ * day after the end, for as long. A term of whole months (1 Jan to 31 Dec,
+ * 8 Oct to 7 Oct) renews by months, so leap years and short months never
+ * leave a gap; any other length renews by days.
+ */
+export function nextTerm(startsAt: string | null, endsAt: string): { startsAt: string; endsAt: string } {
+  const start = addDays(endsAt, 1);
+  if (!startsAt) return { startsAt: start, endsAt: addDays(addMonths(start, 12), -1) };
+  const [sy, sm, sd] = startsAt.split("-").map(Number);
+  const [ey, em, ed] = start.split("-").map(Number);
+  const months = (ey - sy) * 12 + (em - sm);
+  if (months > 0 && (sd === ed || addMonths(startsAt, months) === start)) return { startsAt: start, endsAt: addDays(addMonths(start, months), -1) };
+  const days = Math.round((Date.parse(`${endsAt}T12:00:00Z`) - Date.parse(`${startsAt}T12:00:00Z`)) / 86_400_000);
+  return { startsAt: start, endsAt: addDays(start, Math.max(days, 27)) };
+}
+
 /** "2026-10-07" plus n civil days. */
 export function addDays(date: string, days: number): string {
   const value = new Date(`${date}T12:00:00Z`);

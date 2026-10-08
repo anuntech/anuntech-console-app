@@ -9,13 +9,23 @@ import { expiredDebtCondition } from "@/lib/billing/billing-watch";
 import { addDays, monthlyDueOnOrAfter } from "@/lib/billing/recurrence";
 import { quoteCharge } from "@/lib/quotes/quote-handoff";
 import { quoteNumberLabel } from "@/lib/quotes/quote-model";
+import { overageCharge } from "@/lib/service-terms/hours-delivery";
 import type {
   InvoiceCompanyOption,
   InvoiceEngagementOption,
   InvoicePrefill,
 } from "./invoice-form";
 
-export type NewInvoiceSearchParams = Promise<{ companyId?: string; de?: string; orcamento?: string; parte?: string; contrato?: string }>;
+export type NewInvoiceSearchParams = Promise<{
+  companyId?: string;
+  de?: string;
+  orcamento?: string;
+  parte?: string;
+  contrato?: string;
+  /** With `mes`: a closed month's hours beyond the bank. */
+  excedente?: string;
+  mes?: string;
+}>;
 const UUID = /^[0-9a-f-]{36}$/;
 
 /** A debt Inter closed unpaid, billed again as a one-time charge with a new date to pay. */
@@ -101,6 +111,22 @@ async function contractPrefill(contractId: string): Promise<InvoicePrefill | nul
   };
 }
 
+/** The hours beyond a closed month's bank, at the price in the conditions. */
+async function overagePrefill(companyId: string, month: string): Promise<InvoicePrefill | null> {
+  if (!UUID.test(companyId) || !/^\d{4}-\d{2}$/.test(month)) return null;
+  const charge = await overageCharge(companyId, month);
+  if (!charge) return null;
+  return {
+    source: { kind: "overage", id: `${companyId}:${month}`, label: `do banco de horas de ${month.split("-").reverse().join("/")} (horas além do banco, depois do prazo de contestação)` },
+    companyId,
+    engagementId: null,
+    description: charge.description,
+    amountCents: charge.amountCents,
+    dueDate: addDays(saoPauloDate(), 7),
+    billingType: "one_time",
+  };
+}
+
 /** Active clients to bill, their products/projects, a preselected client and, when asked, a prepared charge. */
 export async function newInvoiceContext(
   searchParams: NewInvoiceSearchParams,
@@ -130,14 +156,16 @@ export async function newInvoiceContext(
         )
         .orderBy(engagements.name)
     : [];
-  const { companyId, de, orcamento, parte, contrato } = await searchParams;
+  const { companyId, de, orcamento, parte, contrato, excedente, mes } = await searchParams;
   const prefill = de
     ? await rebillPrefill(de)
     : orcamento
       ? await quotePrefill(orcamento, parte === "saldo" ? "balance" : "upfront")
       : contrato
         ? await contractPrefill(contrato)
-        : null;
+        : excedente && mes
+          ? await overagePrefill(excedente, mes)
+          : null;
   const usable = prefill && companies.some((c) => c.id === prefill.companyId) ? prefill : null;
   return {
     companies,

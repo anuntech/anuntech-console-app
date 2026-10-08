@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BOARD_LIMIT, quoteBoardTasks, quoteCharge, quoteContractValues, type HandoffQuote } from "../src/lib/quotes/quote-handoff";
-import { monthlyDueOnOrAfter } from "../src/lib/billing/recurrence";
+import { monthlyDueOnOrAfter, nextTerm } from "../src/lib/billing/recurrence";
 import { presetForTemplate } from "../src/lib/service-terms/presets";
 import { opsDigestText } from "../src/lib/notifications/ops-digest-text";
 
@@ -26,13 +26,15 @@ const quote: HandoffQuote = {
 };
 
 test("contract fields are matched by meaning, only the ones asked and filled", () => {
-  const values = quoteContractValues(quote, ["numero_proposta", "escopo_funcional", "entregaveis", "tecnologias", "prazo_de_entrega", "valor", "parcela_de_entrada", "horas_mensais", "prazo_de_resposta", "outra_coisa"]);
+  const values = quoteContractValues(quote, ["numero_proposta", "escopo_funcional", "entregaveis", "tecnologias", "prazo_de_entrega", "valor", "valor_total", "parcela_de_entrada", "horas_mensais", "prazo_de_resposta", "outra_coisa"]);
   assert.equal(values.numero_proposta, "2026-007");
   assert.match(values.escopo_funcional, /^Fase 1, Descoberta: Entender o fluxo\.\nP1-01 Entrevistas: Com a equipe\.\nFase 2, Construção\.\nP2-01 Cadastro de OS\nP2-02 Relatórios: Mensais\.$/);
   assert.equal(values.entregaveis, "P1-01 Entrevistas\nP2-01 Cadastro de OS\nP2-02 Relatórios");
   assert.equal(values.tecnologias, "Next.js, Postgres");
   assert.equal(values.prazo_de_entrega, "4 semanas");
-  assert.match(values.valor, /R\$\s5\.000,00/);
+  assert.match(values.valor_total, /R\$\s5\.000,00/);
+  // The bare {{valor}} is the item's price per period in the Console's variables; the total never fills it.
+  assert.equal(values.valor, undefined);
   assert.match(values.parcela_de_entrada, /R\$\s2\.500,00 \(50% do total\)/);
   // Support templates speak of hours and deadlines too; the proposal does not answer them.
   assert.equal(values.horas_mensais, undefined);
@@ -96,4 +98,14 @@ test("the digest lists sales follow-up and links the prepared renewal", () => {
   assert.match(subject, /2 pontos/);
   assert.match(text, /prorrogação pronta: https:\/\/console\.example\/contratos\/novo\?parentId=c1&prorrogar=1/);
   assert.match(text, /Assinados pelo cliente, falta a Anuntech \(1\):\n- ACME · Licença · https:\/\/console\.example\/contratos\/c2/);
+});
+
+test("a renewal of whole months keeps whole months, leap years and short months included", () => {
+  assert.deepEqual(nextTerm("2027-01-01", "2027-12-31"), { startsAt: "2028-01-01", endsAt: "2028-12-31" });
+  assert.deepEqual(nextTerm("2026-10-08", "2027-10-07"), { startsAt: "2027-10-08", endsAt: "2028-10-07" });
+  assert.deepEqual(nextTerm("2026-02-01", "2026-02-28"), { startsAt: "2026-03-01", endsAt: "2026-03-31" });
+  assert.deepEqual(nextTerm("2026-01-31", "2026-02-27"), { startsAt: "2026-02-28", endsAt: "2026-03-27" });
+  assert.deepEqual(nextTerm(null, "2026-10-31"), { startsAt: "2026-11-01", endsAt: "2027-10-31" });
+  // Not whole months: the same number of days.
+  assert.deepEqual(nextTerm("2026-10-01", "2026-10-20"), { startsAt: "2026-10-21", endsAt: "2026-11-17" });
 });

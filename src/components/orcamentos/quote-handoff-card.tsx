@@ -40,7 +40,7 @@ function Step({ href, icon: Icon, label, done }: { href: string; icon: Component
 function replyFor(quote: Quote, upfront: boolean) {
   switch (quote.status) {
     case "sent":
-      return `Enviamos o orçamento ${quote.number}, ${quote.title}. Ele está em Orçamentos, no Console, para você ler e responder. Se tiver alguma dúvida, responda por aqui.`;
+      return `Enviamos o orçamento ${quote.number}, ${quote.title}. Os Administradores da empresa recebem o aviso e respondem em Orçamentos, no Console. Se tiver alguma dúvida, responda por aqui.`;
     case "accepted":
       return `Recebemos o aceite do orçamento ${quote.number}. Agora preparamos o contrato${upfront ? " e a cobrança da entrada" : ""}; os próximos passos aparecem em Contratos${upfront ? " e Financeiro" : ""}.`;
     case "declined":

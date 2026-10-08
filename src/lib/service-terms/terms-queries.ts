@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, notExists, or, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, notExists, or, sql } from "drizzle-orm";
 import { companies, engagements, serviceTerms, subscriptions } from "@/db/schema";
 import { db } from "../db";
 
@@ -18,4 +18,14 @@ export async function synovaWithoutTerms() {
         notExists(db.select({ one: sql`1` }).from(serviceTerms).where(eq(serviceTerms.companyId, subscriptions.companyId))),
       ),
     );
+}
+
+/** Synova conditions prepared as drafts and not confirmed yet: the list to check one by one. */
+export async function synovaDraftsToConfirm() {
+  return db
+    .select({ companyId: serviceTerms.companyId, company: companies.name })
+    .from(serviceTerms)
+    .innerJoin(companies, eq(companies.id, serviceTerms.companyId))
+    .where(and(eq(serviceTerms.active, true), eq(serviceTerms.preset, "synova"), isNull(serviceTerms.verifiedAt), eq(companies.archived, false)))
+    .orderBy(asc(companies.name));
 }

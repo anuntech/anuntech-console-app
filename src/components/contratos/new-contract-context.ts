@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, count, desc, eq, inArray, ne } from "drizzle-orm";
 import { companies, contractTemplates, contracts, engagements, quotes } from "@/db/schema";
 import { saoPauloDate } from "@/lib/dates";
-import { addDays } from "@/lib/billing/recurrence";
+import { addDays, nextTerm } from "@/lib/billing/recurrence";
 import { quoteNumberLabel } from "@/lib/quotes/quote-model";
 import { accessibleCompanies, requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
@@ -17,8 +17,7 @@ export type NewContractSearchParams = Promise<{
   /** With parentId: an amendment that extends the term, dates already set. */
   prorrogar?: string;
 }>;
-const DAY = 86_400_000;
-const days = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / DAY);
+
 const UUID = /^[0-9a-f-]{36}$/i;
 
 /**
@@ -93,15 +92,11 @@ export async function newContractContext(searchParams: NewContractSearchParams):
   // Extending a contract: the day after it ends, for as long as it ran (a year when it had no start).
   const parentEnds = parentRow?.contract.endsAt;
   const renewal =
-    parentRow && params.prorrogar && parentEnds
-      ? (() => {
-          const startsAt = addDays(parentEnds, 1);
-          const length = parentRow.contract.startsAt ? Math.max(days(parentRow.contract.startsAt, parentEnds), 27) : 364;
-          return { startsAt, endsAt: addDays(startsAt, length) };
-        })()
-      : parentRow && params.prorrogar
-        ? { startsAt: saoPauloDate(), endsAt: addDays(saoPauloDate(), 364) }
-        : undefined;
+    parentRow && params.prorrogar
+      ? parentEnds
+        ? nextTerm(parentRow.contract.startsAt, parentEnds)
+        : nextTerm(null, addDays(saoPauloDate(), -1))
+      : undefined;
   return {
     companies: allCompanies,
     templates,
