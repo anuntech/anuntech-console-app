@@ -5,6 +5,7 @@ import { db, pool } from "@/lib/db";
 import { invoices } from "@/db/schema";
 import { interBase } from "@/lib/integrations/integrations";
 import { reconcileCharge } from "@/lib/billing/billing-sync";
+import { locateUncertainCharges } from "@/lib/billing/billing-locate";
 import { trackedCron } from "@/lib/ops/cron-health";
 
 export const maxDuration = 300;
@@ -60,12 +61,14 @@ async function run(request: Request) {
         else failed++;
       }
     }
-    if (checked) {
+    // Issues that never got an answer: looked up at the bank by reference, never issued again.
+    const located = Date.now() < deadline ? await locateUncertainCharges().catch(() => 0) : 0;
+    if (checked || located) {
       revalidatePath("/financeiro");
       revalidatePath("/painel");
     }
     return Response.json(
-      { checked, failed },
+      { checked, failed, located },
       { status: failed ? 503 : 200, headers: { "Cache-Control": "no-store" } },
     );
   } finally {

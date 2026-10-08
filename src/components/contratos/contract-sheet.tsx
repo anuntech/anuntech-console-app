@@ -18,7 +18,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { createContract } from "@/lib/contracts/contract-actions";
-import { dateLabel } from "@/lib/format";
+import { currency, dateLabel } from "@/lib/format";
 
 export type NewContractData = {
   companies: CompanyOption[];
@@ -32,6 +32,8 @@ export type NewContractData = {
   templateId?: string;
   /** An amendment that extends the term: its new dates. */
   renewal?: { startsAt: string; endsAt: string };
+  /** The yearly readjust by IPCA: the item's price now and after, from the anniversary. */
+  readjust?: { anniversary: string; currentCents: number; newCents: number; percent: number; period: string };
   /** Set when the new document amends a signed contract. */
   parent?: {
     id: string;
@@ -51,13 +53,13 @@ const kindLabel: Record<string, string> = { product: "produto", service: "servi�
  * from the template. Rendered as siblings so the sheet and the card space
  * them with their own `gap-5`.
  */
-export function NewContractFields({ companies, templates, engagements, companyId, engagementId, parent, quote, templateId: preferred, renewal }: NewContractData) {
+export function NewContractFields({ companies, templates, engagements, companyId, engagementId, parent, quote, templateId: preferred, renewal, readjust }: NewContractData) {
   // One company: nothing to choose, so it travels as a hidden value.
   const only = companies.length === 1 ? companies[0].id : null;
   const [company, setCompany] = useState(parent?.companyId ?? quote?.companyId ?? only ?? companyId ?? companies[0]?.id ?? "");
   // From a proposal, only the development template is a safe start; otherwise the team picks.
   const [templateId, setTemplateId] = useState(parent ? "" : quote ? (preferred ?? "") : (preferred ?? templates[0]?.id ?? ""));
-  const [startsAt, setStartsAt] = useState(renewal?.startsAt ?? "");
+  const [startsAt, setStartsAt] = useState(renewal?.startsAt ?? readjust?.anniversary ?? "");
   const [endsAt, setEndsAt] = useState(renewal?.endsAt ?? "");
   const template = templates.find((t) => t.id === templateId);
   const items = engagements.filter((e) => e.companyId === company);
@@ -74,6 +76,14 @@ export function NewContractFields({ companies, templates, engagements, companyId
               {parent.company}
               {parent.endsAt && ` · vigência até ${dateLabel(parent.endsAt)}`}
             </p>
+            {readjust && (
+              <>
+                <input type="hidden" name="readjust" value="yes" />
+                <p className="mt-2 text-xs text-foreground">
+                  {`Reajuste pelo IPCA de ${readjust.period} (${String(readjust.percent).replace(".", ",")}%): ${currency(readjust.currentCents)} passa a ${currency(readjust.newCents)} a partir de ${dateLabel(readjust.anniversary)}. O texto sai em rascunho; a recorrência muda só quando você editar as próximas cobranças.`}
+                </p>
+              </>
+            )}
           </div>
         </>
       ) : quote ? (

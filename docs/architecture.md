@@ -55,8 +55,8 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido, convite do Administrador no envio (`invite-manager.ts`), entrega e reenvio dos convites (`invite-tracking.ts`) |
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
 | `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela; implantação (`onboarding.ts`), qualidade dos contatos (`contact-quality.ts`), lista de clientes da equipe (`clients-follow-up.ts`) e limpeza de registros de teste (`cleanup.ts`) |
-| `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cadastro pronto para cobrar (`billing-readiness.ts`), vigilância de dívidas e emissões (`billing-watch.ts`), origens de cobrança preparada (`charge-sources.ts`: dívida, entrada, saldo, contrato, cada uma uma vez), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
-| `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
+| `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cadastro pronto para cobrar (`billing-readiness.ts`), vigilância de dívidas e emissões (`billing-watch.ts`), origens de cobrança preparada (`charge-sources.ts`: dívida, entrada, saldo, contrato, excedente, cada uma uma vez; `prepared-release.ts` devolve a origem quando o rascunho sai), fila de atrasos (`collections.ts`), localização no Inter da emissão sem resposta (`billing-locate.ts`), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
+| `contracts/` | modelos, contratos, versões, assinatura, aditivos (prorrogação e reajuste pelo IPCA em `readjust.ts`), vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails; o que o orçamento aceito entrega aos próximos passos (`quote-handoff.ts`: campos do contrato por significado, entrada e saldo, quadro inicial) |
 | `automations/` | os interruptores de Configurações → Automações (`automation-list.ts`, guardados em `environment_profile.automations`) e os avisos automáticos ao cliente (`client-automations.ts`: cada um reivindica um evento em `automation_events` antes de enviar) |
 | `commercial/` | seguimento comercial e de projetos para o resumo e o painel (`follow-up.ts`, limites em `FOLLOW_UP`) |
@@ -70,7 +70,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `voice/` | ditado por microfone: regras comuns (`voice-rules.ts`: formatos, limites, onde o texto entra) e a transcrição no servidor (`voice-server.ts`) |
 | `http/` | `same-origin.ts`, a checagem de origem dos route handlers que gravam ou custam dinheiro; `hourly-limit.ts`, limite por hora gravado no banco |
 | `ops/` | saúde das rotinas (`cron-health.ts`: `trackedCron` grava a última execução de cada cron) e quem assina na auditoria um passo automático (`automation-actor.ts`) |
-| `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe, conferência da entrega dos alertas (`ops-delivery.ts`) |
+| `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe, conferência da entrega dos alertas (`ops-delivery.ts`), fechamento do mês (`month-close.ts`) |
 | `integrations/` | estado das integrações em Configurações |
 
 Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda server actions antigas de vários assuntos (empresas, chamados, faturas, vínculos) e deve ser dividido aos poucos (ver [task.md](task.md)).
@@ -126,6 +126,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 | OpenRouter | Modelo do assistente (padrão `anthropic/claude-sonnet-5`, trocável em Configurações) e Jev, que lê a intenção antes de ações. Também transcreve o ditado (`/api/v1/audio/transcriptions`): MAI-Transcribe-2 e, se falhar, Voxtral Mini, sempre com `provider.zdr`. O Jev não transcreve: só lê texto e responde com decisões | `lib/assistant/`, `lib/voice/` |
 | Vercel Blob | Fotos de perfil, store privada | `lib/account/profile-avatar.ts` |
 | CNPJ.ws e ViaCEP | Preenchimento de cadastro por CNPJ e CEP | `lib/companies/company-lookup.ts`, `/api/cadastro/consulta` |
+| Banco Central (SGS) | IPCA dos últimos 12 meses (série 433), lido uma vez por dia pela rotina do resumo | `lib/contracts/readjust.ts` |
 | Google | Entrada opcional | Better Auth |
 
 O certificado do Inter chega em produção como variáveis BASE64; em desenvolvimento, por caminho local (`certificates/inter`, fora do Git).
@@ -137,11 +138,11 @@ Crons da Vercel (`vercel.json`), todos protegidos por `CRON_SECRET` e envolvidos
 | Rota | Quando | O que faz |
 | --- | --- | --- |
 | `/api/cron/ticket-notifications` | a cada 5 min | Retoma a fila de avisos de chamados, manda à equipe o lembrete da primeira resposta (antes e no estouro) e os avisos ao cliente que saem na hora (80% do banco, contrato assinado) |
-| `/api/cron/billing-sync` | a cada 5 min | Consulta até 40 cobranças emitidas no Inter e confirma pagamentos |
+| `/api/cron/billing-sync` | a cada 5 min | Consulta até 40 cobranças emitidas no Inter e confirma pagamentos; procura no Inter, pela referência, as emissões sem resposta |
 | `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou e, nas mensais, o período seguinte de uma fatura recém-paga (`earlyIssueAllowed` em `billing/recurrence.ts`); agenda os lembretes, envia os avisos de cobrança e confere as entregas, inclusive dos alertas da equipe |
 | `/api/cron/contract-expiry` | diário, 11:00 UTC | Avisa contratos perto do fim e vencidos |
 | `/api/cron/client-notices` | diário, 12:00 UTC | Avisos automáticos ao cliente ligados em Automações: relatório do banco de horas, lembretes de orçamento, contrato e chamado, entregas para revisar e o resumo semanal (segundas) |
-| `/api/cron/ops-digest` | diário, 11:30 UTC | Resumo da manhã para a equipe (emissões, pagamentos, falhas, emissões que vão falhar, dívidas expiradas, atrasos, contratos, rotinas e certificado) |
+| `/api/cron/ops-digest` | diário, 11:30 UTC | Resumo da manhã para a equipe (emissões, pagamentos, falhas, emissões que vão falhar, dívidas expiradas, atrasos, contratos, rotinas, certificado e os seguimentos), o IPCA do dia e, no 1º dia útil, o fechamento do mês |
 
 Avisos também são processados logo após a ação, com `after()`; o cron garante a retomada.
 

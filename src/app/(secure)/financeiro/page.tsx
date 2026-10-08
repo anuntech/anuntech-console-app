@@ -1,14 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  CalendarClockIcon,
-  CircleCheckIcon,
-  Clock3Icon,
-  MailCheckIcon,
-  PlusIcon,
-  ReceiptTextIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { AlarmClockIcon, CalendarClockIcon, CircleCheckIcon, Clock3Icon, MailCheckIcon, PlusIcon, ReceiptTextIcon, TriangleAlertIcon } from "lucide-react";
 import { and, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, invoices, subscriptions } from "@/db/schema";
@@ -226,6 +218,12 @@ export default async function Finance({
         actions={
           actor.admin && (
             <>
+              <Button variant="outline" asChild>
+                <Link href="/financeiro/atrasos">
+                  <AlarmClockIcon />
+                  Atrasos
+                </Link>
+              </Button>
               <Button variant="outline" asChild>
                 <Link href="/financeiro/envios">
                   <MailCheckIcon />

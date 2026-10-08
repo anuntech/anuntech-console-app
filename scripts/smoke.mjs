@@ -4,6 +4,7 @@ import { runHandoffTests } from "./handoff-smoke.mjs";
 import { runSupportTests } from "./support-smoke.mjs";
 import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
+import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -2055,6 +2056,7 @@ try {
   await runSupportTests({ database, ids, people, request, submitForm, sentNotices, ok, marker, base });
   await runNoticesTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
   await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
+  await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );

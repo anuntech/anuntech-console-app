@@ -27,6 +27,13 @@ https.request = function (url, options, callback) {
         result = {};
       } else if (options.method === "POST") {
         const payload = JSON.parse(body);
+        const postFlags = JSON.parse(fs.readFileSync(process.env.CONSOLE_TEST_NOTICE_FLAGS, "utf8"));
+        // The bank takes the charge but the answer never arrives ("Sem resposta do banco").
+        if (postFlags.postTimeout && ![...charges.values()].some((c) => c.payload.seuNumero === payload.seuNumero)) {
+          charges.set(randomUUID(), { payload, checks: 0 });
+          req.emit("error", new Error("Mock timeout after the bank took the charge"));
+          return;
+        }
         if (
           [...charges.values()].some(
             (c) => c.payload.seuNumero === payload.seuNumero,
@@ -39,6 +46,11 @@ https.request = function (url, options, callback) {
           charges.set(id, { payload, checks: 0 });
           result = { codigoSolicitacao: id };
         }
+      } else if (path === "/cobranca/v3/cobrancas") {
+        // The list the Console reads to find a charge by its reference.
+        result = {
+          cobrancas: [...charges.entries()].map(([id, c]) => ({ cobranca: { ...c.payload, codigoSolicitacao: id, situacao: c.cancelled ? "CANCELADO" : "A_RECEBER" } })),
+        };
       } else {
         const id = path.split("/")[4],
           charge = charges.get(id);
@@ -66,7 +78,9 @@ https.request = function (url, options, callback) {
                 flags.billingBankDue || charge.payload.dataVencimento,
               situacao: charge.cancelled
                 ? "CANCELADO"
-                : flags.bankExpired
+                : flags.bankMarked
+                  ? "MARCADO_RECEBIDO"
+                  : flags.bankExpired
                   ? "EXPIRADO"
                   : flags.bankUnpaid
                   ? "A_RECEBER"

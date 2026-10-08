@@ -5,6 +5,11 @@ const accepted = new Map();
 const templateId = process.env.FLW_TICKET_TEMPLATE_ID;
 globalThis.fetch = async (input, options = {}) => {
   const url = new URL(String(input));
+  // Banco Central's IPCA (series 433): 12 months of 0,4% each, about 4,9% in the year.
+  if (url.hostname === "api.bcb.gov.br")
+    return Response.json(
+      Array.from({ length: 12 }, (_, i) => ({ data: `01/${String(i + 1).padStart(2, "0")}/2026`, valor: "0.40" })),
+    );
   if (["publica.cnpj.ws", "viacep.com.br"].includes(url.hostname)) {
     const flags = JSON.parse(
       fs.readFileSync(process.env.CONSOLE_TEST_NOTICE_FLAGS, "utf8"),

@@ -37,6 +37,7 @@ import { after } from "next/server";
 import { fillContractTemplate, pendingContractVariables } from "./contract-templates";
 import { applyContractFields, contractFields } from "./contract-fields";
 import { quoteContractValues } from "../quotes/quote-handoff";
+import { readjustFor } from "./readjust";
 import { currency, longDateLabel } from "../format";
 import { hasPermission } from "../access/permissions";
 
@@ -229,6 +230,16 @@ const AMENDMENT_SKELETON = [
   "São Paulo, {{data}}.",
 ].join("\n\n");
 
+/** The yearly readjust by IPCA; the clause waits for the lawyer, so the team reviews it before sending. */
+const READJUST_SKELETON = [
+  "TERMO ADITIVO DE REAJUSTE",
+  "CONTRATANTE: {{empresa}}, CNPJ {{cnpj}}.\nCONTRATADA: {{anuntech}}, CNPJ {{anuntech_cnpj}}.",
+  "As partes acima resolvem aditar o contrato “{{contrato}}”, assinado em {{contrato_data}}, nos seguintes termos:",
+  "CLÁUSULA 1 — REAJUSTE\nA partir de {{aniversario}}, o valor de {{valor_atual}} passa a {{novo_valor}}, corrigido pelo IPCA acumulado de {{periodo}} ({{percentual}}).",
+  "CLÁUSULA 2 — RATIFICAÇÃO\nPermanecem inalteradas as demais cláusulas e condições do contrato original.",
+  "São Paulo, {{data}}.",
+].join("\n\n");
+
 /** An amendment that only extends the term; the team reviews the text before sending. */
 const RENEWAL_SKELETON = [
   "TERMO ADITIVO DE PRORROGAÇÃO",
@@ -256,6 +267,7 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         title: z.string().trim().max(160).default(""),
         quoteId: z.union([id, z.literal("")]).default(""),
         renewal: z.literal("yes").optional(),
+        readjust: z.literal("yes").optional(),
       })
       .and(term)
       .parse(Object.fromEntries(form));
@@ -317,11 +329,22 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         : template
           ? `${template.name} — ${company.name}`
           : `Contrato — ${company.name}`);
+    // The readjust is computed again here (IPCA, the item's price): the form only asks for it.
+    const readjust = parent && input.readjust ? await readjustFor(parent.id) : null;
+    if (parent && input.readjust && !readjust) return { error: "Este contrato não tem reajuste a preparar agora (aniversário em até 30 dias, item com preço e IPCA disponível)." };
     let body = template
       ? fillContractTemplate(template.body, values)
       : parent
-        ? fillContractTemplate(input.renewal ? RENEWAL_SKELETON : AMENDMENT_SKELETON, values)
+        ? fillContractTemplate(readjust ? READJUST_SKELETON : input.renewal ? RENEWAL_SKELETON : AMENDMENT_SKELETON, values)
         : "";
+    if (readjust)
+      body = applyContractFields(body, {
+        valor_atual: currency(readjust.currentCents),
+        novo_valor: currency(readjust.newCents),
+        percentual: `${String(readjust.percent).replace(".", ",")}%`,
+        periodo: readjust.period,
+        aniversario: longDateLabel(readjust.anniversary),
+      }).body;
     if (quote && body) {
       const accepted = quote.publication ?? { ...quote.content, title: quote.title };
       body = applyContractFields(

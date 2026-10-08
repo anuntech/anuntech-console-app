@@ -26,6 +26,8 @@ import { interCertificateExpiry } from "../integrations/integrations";
 import { commercialFollowUp } from "../commercial/follow-up";
 import { supportFollowUp } from "../tickets/support-follow-up";
 import { clientsFollowUp } from "../companies/clients-follow-up";
+import { collectionFollowUp } from "../billing/collections";
+import { readjustFollowUp } from "../contracts/readjust";
 
 const consoleUrl = () => process.env.BETTER_AUTH_URL || "http://localhost:3100";
 
@@ -218,7 +220,7 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
     leavingCharges(today),
     staleRoutines(),
     staffEmails().then(unreachableStaff),
-    Promise.all([commercialFollowUp(today), supportFollowUp(), clientsFollowUp()]).then((groups) => groups.flat()),
+    Promise.all([collectionFollowUp(today), commercialFollowUp(today), readjustFollowUp(today, true), supportFollowUp(), clientsFollowUp()]).then((groups) => groups.flat()),
   ]);
   const certificateEnds = interCertificateExpiry();
   const certificateDays = certificateEnds

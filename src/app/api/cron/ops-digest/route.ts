@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { pool } from "@/lib/db";
 import { sendOpsDigest } from "@/lib/notifications/ops-alerts";
+import { sendMonthClose } from "@/lib/notifications/month-close";
 import { trackedCron } from "@/lib/ops/cron-health";
 export const maxDuration = 120;
 
@@ -17,7 +18,12 @@ async function run(request: Request) {
     const locked = (await conn.query("select pg_try_advisory_xact_lock(72649186) as locked")).rows[0].locked;
     if (!locked) return Response.json({ skipped: true });
     const result = await sendOpsDigest();
-    console.log(`[ops-digest] ${JSON.stringify(result)}`);
+    // On the 1st business day, last month's close goes too (once).
+    const monthClose = await sendMonthClose().catch((error) => {
+      console.warn("[ops-digest] month close failed", error instanceof Error ? error.message : error);
+      return false;
+    });
+    console.log(`[ops-digest] ${JSON.stringify({ ...result, monthClose })}`);
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
   } finally {
     try {

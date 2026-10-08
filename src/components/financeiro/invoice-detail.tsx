@@ -45,7 +45,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { cancelDraft } from "@/lib/actions";
-import { cancelCharge, closeDebt, issueCharge, syncCharge } from "@/lib/billing/billing-actions";
+import { cancelCharge, closeDebt, confirmPaidOutside, issueCharge, locateCharge, syncCharge } from "@/lib/billing/billing-actions";
 import {
   changePaymentLink,
   changeSubscription,
@@ -248,6 +248,35 @@ const daysBetween = (from: string, to: string) =>
   Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86400000);
 
 /** A charge Inter closed unpaid: bill it again (prefilled) or write it off with a reason. */
+/** Staff: Inter shows the charge as marked received by hand; confirm the money came in another way. */
+function PaidOutsideCard({ invoiceId }: { invoiceId: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <SectionTitle title="Marcada como recebida no Inter" description="O Inter mostra esta cobrança como recebida fora do boleto e do Pix." />
+      </CardHeader>
+      <ServerForm action={confirmPaidOutside} className="contents">
+        <input type="hidden" name="id" value={invoiceId} />
+        <CardContent className="flex flex-col gap-3">
+          <FormError />
+          <p className="m-0 text-sm text-muted-foreground">
+            Se o pagamento entrou por outro meio (transferência, dinheiro), confirme aqui. A fatura passa a contar como paga e os lembretes param.
+          </p>
+          <div>
+            <Label htmlFor={`outside-${invoiceId}`} className="mb-1.5">
+              Como o pagamento entrou
+            </Label>
+            <Input id={`outside-${invoiceId}`} name="note" required maxLength={300} placeholder="Ex.: transferência em 05/10" />
+          </div>
+        </CardContent>
+        <CardFooter className="justify-end border-t">
+          <SubmitButton pendingLabel="Confirmando…">Confirmar recebimento</SubmitButton>
+        </CardFooter>
+      </ServerForm>
+    </Card>
+  );
+}
+
 function DebtCard({ invoiceId, debt, amountCents }: { invoiceId: string; debt: NonNullable<InvoiceDetailData["debt"]>; amountCents: number }) {
   const [closing, setClosing] = useState(false);
   return (
@@ -609,6 +638,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           </Card>
 
           {admin && debt && <DebtCard invoiceId={invoice.id} debt={debt} amountCents={invoice.amountCents} />}
+          {admin && invoice.status === "issued" && invoice.bankStatus === "MARCADO_RECEBIDO" && <PaidOutsideCard invoiceId={invoice.id} />}
 
           {admin && invoice.status === "draft" && !invoice.bankRequested && !scheduled && (
             <Card>
@@ -786,6 +816,17 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   </SubmitButton>
                 </CardFooter>
               </ServerForm>
+              {invoice.bankStatus === "RESPOSTA_INDEFINIDA" && (
+                <ServerForm action={locateCharge} className="flex flex-wrap items-center justify-between gap-3 border-t px-6 pt-4">
+                  <input type="hidden" name="id" value={invoice.id} />
+                  <p className="m-0 min-w-0 flex-1 text-xs text-muted-foreground">
+                    Sem o código? O Console procura no Inter a cobrança desta fatura pela referência, nos dias da emissão. A rotina também tenta a cada hora.
+                  </p>
+                  <SubmitButton variant="outline" size="sm" pendingLabel="Procurando…">
+                    Localizar no Inter
+                  </SubmitButton>
+                </ServerForm>
+              )}
             </Card>
           )}
 

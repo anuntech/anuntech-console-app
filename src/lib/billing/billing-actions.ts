@@ -1,5 +1,6 @@
 "use server";
 import { db } from "../db";
+import { locateUncertainCharge } from "./billing-locate";
 import { resolveBankDueDate } from "./billing-notice-rules";
 import { invoices, subscriptions, auditEvents, billingNotices, automationEvents } from "@/db/schema";
 import { expiredDebtCondition } from "./billing-watch";
@@ -132,6 +133,52 @@ export async function syncCharge(
       error:
         "Não foi possível reconciliar a cobrança. Confira o código e tente consultar novamente; nenhuma nova cobrança foi emitida.",
     };
+  }
+}
+
+/**
+ * "Confirmar recebimento fora do boleto": Inter shows the charge as marked
+ * received by hand (MARCADO_RECEBIDO), not paid through the boleto or Pix.
+ * The team confirms the money came in another way, with a note; only then
+ * the invoice counts as paid. Nothing is sent to the bank.
+ */
+export async function confirmPaidOutside(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return { error: "Acesso restrito à administração." };
+  try {
+    const id = uuid.parse(form.get("id"));
+    const note = z.string().trim().min(3, "Diga como o pagamento entrou.").max(300).parse(form.get("note"));
+    const done = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(invoices)
+        .set({ status: "paid" })
+        .where(and(eq(invoices.id, id), eq(invoices.status, "issued"), eq(invoices.bankStatus, "MARCADO_RECEBIDO")))
+        .returning({ id: invoices.id, companyId: invoices.companyId });
+      if (!row) return false;
+      await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: row.companyId, entityId: row.id, action: "invoice.paid_outside", details: { note } });
+      return true;
+    });
+    if (!done) return { error: "Só uma cobrança em aberto que o Inter mostra como marcada como recebida pode ser confirmada assim." };
+    refresh(id);
+    return { success: "Recebimento confirmado. A fatura conta como paga e os lembretes param." };
+  } catch (e) {
+    return { error: e instanceof z.ZodError ? e.issues[0].message : "Não foi possível confirmar agora." };
+  }
+}
+
+/** "Localizar no Inter": finds the charge of an issue that never got an answer, by its reference, and links it after the usual checks. */
+export async function locateCharge(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return { error: "Acesso restrito à administração." };
+  try {
+    const id = uuid.parse(form.get("id"));
+    const result = await locateUncertainCharge(id, actor.user.id);
+    if (!result.found) return { error: `${result.reason ?? "Cobrança não encontrada."} Nenhuma nova cobrança foi emitida.` };
+    after(() => processBillingNotices());
+    refresh(id);
+    return { success: "Cobrança encontrada no Inter e ligada a esta fatura." };
+  } catch {
+    return { error: "Não foi possível consultar o Inter agora. Tente de novo; nenhuma nova cobrança foi emitida." };
   }
 }
 

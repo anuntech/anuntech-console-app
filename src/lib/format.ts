@@ -94,6 +94,9 @@ export const engagementLabels: Record<string, string> = {
 };
 
 export const auditLabels: Record<string, string> = {
+  "invoice.paid_outside": "Recebimento fora do boleto confirmado",
+  "collection.contact": "Contato de cobrança registrado",
+  "membership.invite_resent": "Convite reenviado",
   "settings.automations_updated": "Automações atualizadas",
   "contract.signed_notice_sent": "Contrato assinado enviado ao cliente",
   "contract.reminder_sent": "Lembrete de assinatura enviado",

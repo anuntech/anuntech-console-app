@@ -4,6 +4,7 @@ import { companies, contractTemplates, contracts, engagements, quotes } from "@/
 import { saoPauloDate } from "@/lib/dates";
 import { addDays, nextTerm } from "@/lib/billing/recurrence";
 import { quoteNumberLabel } from "@/lib/quotes/quote-model";
+import { readjustFor } from "@/lib/contracts/readjust";
 import { accessibleCompanies, requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
 import type { NewContractData } from "./contract-sheet";
@@ -16,6 +17,8 @@ export type NewContractSearchParams = Promise<{
   orcamento?: string;
   /** With parentId: an amendment that extends the term, dates already set. */
   prorrogar?: string;
+  /** With parentId: the yearly readjust by IPCA on the anniversary. */
+  reajuste?: string;
 }>;
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -114,6 +117,7 @@ export async function newContractContext(searchParams: NewContractSearchParams):
     // A software proposal usually becomes the development contract.
     templateId: quote ? templates.find((t) => /desenvolvimento/i.test(t.name))?.id : undefined,
     renewal,
+    readjust: parentRow && params.reajuste ? ((await readjustFor(parentRow.contract.id)) ?? undefined) : undefined,
     parent: parentRow
       ? {
           id: parentRow.contract.id,

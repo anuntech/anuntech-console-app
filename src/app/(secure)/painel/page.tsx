@@ -29,6 +29,8 @@ import { interCertificateExpiry } from "@/lib/integrations/integrations";
 import { commercialFollowUp } from "@/lib/commercial/follow-up";
 import { supportFollowUp } from "@/lib/tickets/support-follow-up";
 import { clientsFollowUp } from "@/lib/companies/clients-follow-up";
+import { collectionFollowUp } from "@/lib/billing/collections";
+import { readjustFollowUp } from "@/lib/contracts/readjust";
 import { auditEvents, companies, contracts, invoices, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
 import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
@@ -406,7 +408,7 @@ export default async function Dashboard() {
     });
   // Sales and project work waiting on someone (the same groups the morning digest lists).
   const followUp = new Map(
-    (await Promise.all([commercialFollowUp(today), supportFollowUp(now), clientsFollowUp(now)])).flat().map((group) => [group.key, group.items]),
+    (await Promise.all([collectionFollowUp(today), commercialFollowUp(today), readjustFollowUp(today), supportFollowUp(now), clientsFollowUp(now)])).flat().map((group) => [group.key, group.items]),
   );
   const followItem = (keys: string[], item: Omit<AttentionItem, "count" | "href"> & { href: string }) => {
     // One line per record, even when it falls in two groups (waiting past the deadline and with an estimate).
@@ -428,6 +430,36 @@ export default async function Dashboard() {
     title: "Clientes sem Administrador",
     detail: "Têm contrato, orçamento ou cobrança, e ninguém para assinar ou responder",
     href: "/empresas",
+  });
+  followItem(["collections"], {
+    key: "collections",
+    icon: <WalletIcon />,
+    tone: "critical",
+    title: "Atrasos para cobrar",
+    detail: "Mais de 25 dias, sem contato combinado; o texto sai pronto",
+    href: "/financeiro/atrasos",
+  });
+  followItem(["marked-received"], {
+    key: "marked-received",
+    icon: <WalletIcon />,
+    tone: "warning",
+    title: "Marcadas como recebidas no Inter",
+    detail: "Pagas fora do boleto? Confirme na fatura para os lembretes pararem",
+    href: "/financeiro",
+  });
+  followItem(["readjusts"], {
+    key: "readjusts",
+    icon: <FileTextIcon />,
+    title: "Reajustes de contrato a preparar",
+    detail: "Aniversário em até 30 dias; o aditivo sai com o IPCA e o novo valor",
+    href: "/contratos",
+  });
+  followItem(["fiscal-queue"], {
+    key: "fiscal-queue",
+    icon: <ReceiptTextIcon />,
+    title: "Notas fiscais a emitir",
+    detail: "Faturas pagas de clientes com nota automática; a emissão pela Focus espera os parâmetros da contabilidade",
+    href: "/financeiro?status=paid",
   });
   followItem(["stalled-invites"], {
     key: "stalled-invites",
