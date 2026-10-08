@@ -94,6 +94,11 @@ export const engagementLabels: Record<string, string> = {
 };
 
 export const auditLabels: Record<string, string> = {
+  "settings.automations_updated": "Automações atualizadas",
+  "contract.signed_notice_sent": "Contrato assinado enviado ao cliente",
+  "contract.reminder_sent": "Lembrete de assinatura enviado",
+  "quote.reminder_sent": "Lembrete de validade do orçamento enviado",
+  "ticket.client_reminded": "Cliente lembrado do que falta",
   "service_terms.created": "Condições de atendimento cadastradas",
   "service_terms.updated": "Condições de atendimento atualizadas",
   "service_terms.deactivated": "Condições de atendimento desativadas",

@@ -14,6 +14,7 @@ export type SettingsSection =
   | "catalog"
   | "contracts"
   | "integrations"
+  | "automations"
   | "assistant";
 
 export type SettingsGroup = {

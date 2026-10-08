@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { processTicketNotices } from "@/lib/tickets/ticket-notifications";
 import { remindFirstResponses } from "@/lib/tickets/ticket-watch";
+import { runFrequentAutomations } from "@/lib/automations/client-automations";
 import { trackedCron } from "@/lib/ops/cron-health";
 export const maxDuration = 60;
 async function run(request: Request) {
@@ -19,7 +20,12 @@ async function run(request: Request) {
     console.warn("[ticket-notifications] reminders failed", error instanceof Error ? error.message : error);
     return { reminded: 0 };
   });
-  return Response.json({ ...result, ...reminders }, { headers: { "Cache-Control": "no-store" } });
+  // Client notices that go as soon as something happens (80% of the bank, a contract signed by both sides).
+  const notices = await runFrequentAutomations().catch((error) => {
+    console.warn("[ticket-notifications] automations failed", error instanceof Error ? error.message : error);
+    return {};
+  });
+  return Response.json({ ...result, ...reminders, ...notices }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export const GET = trackedCron("ticket-notifications", run);

@@ -30,6 +30,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 08/10/2026: automação, lotes 3 e 4 (suporte, banco de horas e avisos ao cliente): responsável na abertura, lembrete de primeira resposta, triagem do Jev, acompanhamento de chamados parados, aviso e relatório do banco uma vez por mês, excedente pronto para cobrar, horas pelo assistente, sugestões de resposta e de fases, e os avisos automáticos ao cliente com interruptor em Configurações → Automações.
 - [x] 08/10/2026: automação, lote 2 (contrato, orçamento e comercial): contrato, projeto e cobranças de entrada e saldo preparados a partir do orçamento aceito, orçamento ligado ao chamado com resposta pronta, recorrência, condições e prorrogação preparadas no contrato assinado, aviso quando o cliente assina, seguimento comercial no resumo e no painel, convite do Administrador no envio.
 - [x] 08/10/2026: automação, lote 1 (proteger o dinheiro): cadastro conferido antes da emissão, dívida expirada no Inter com Cobrar de novo e Encerrar, aviso 7 dias antes de o Inter encerrar, cobrança de quem saiu, saúde das rotinas, certificado do Inter e alertas da equipe que não chegam.
 - [x] 08/10/2026: campos do contrato no topo do rascunho, com sugestões do cadastro, do produto e do orçamento, aplicar e salvar.

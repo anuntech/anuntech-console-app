@@ -1,5 +1,6 @@
 "use server";
 import { and, asc, eq, inArray, isNull, max, sql } from "drizzle-orm";
+import { sendOpsMail } from "../notifications/ops-alerts";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -48,7 +49,7 @@ const STEP = 1024;
 async function projectFor(engagementId: string) {
   const actor = await getActor();
   const [project] = await db
-    .select({ id: engagements.id, companyId: engagements.companyId })
+    .select({ id: engagements.id, companyId: engagements.companyId, name: engagements.name })
     .from(engagements)
     .where(eq(engagements.id, engagementId));
   if (!project || !canAccess(actor, project.companyId, "overview")) return null;
@@ -502,6 +503,12 @@ export async function reviewTask(_: ActionState, form: FormData): Promise<Action
       });
     });
     refresh(project.id);
+    // A problem in a delivery reaches the team now, not at the next look at the board.
+    if (input.decision === "problem")
+      await sendOpsMail(
+        `[Console] Problema apontado numa entrega: ${current.title}`,
+        `${actor.user.name || actor.user.email} apontou um problema em "${current.title}" (${project.name}).\n\n${input.note}\n\nO cartão voltou para Em andamento: ${process.env.BETTER_AUTH_URL || "https://console.anuntech.com"}/projetos/${project.id}\n\nConsole da Anuntech`,
+      ).catch(() => undefined);
     return { success: input.decision === "approve" ? "Entrega aprovada." : "Problema enviado à equipe." };
   } catch (error) {
     return failure(error);

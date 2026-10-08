@@ -14,6 +14,7 @@ export const ROUTINES = {
   "ticket-notifications": { label: "Avisos de chamados", every: 30 },
   "ops-digest": { label: "Resumo da manhã", every: 26 * 60 },
   "contract-expiry": { label: "Aviso de vigência dos contratos", every: 26 * 60 },
+  "client-notices": { label: "Avisos automáticos aos clientes", every: 26 * 60 },
 } as const satisfies Record<string, { label: string; every: number }>;
 export type Routine = keyof typeof ROUTINES;
 

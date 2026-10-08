@@ -32,6 +32,8 @@ import { contractPdf } from "./contract-pdf";
 import { deliverContractNotice } from "./contract-mail";
 import { sendOpsMail } from "../notifications/ops-alerts";
 import { inviteManagerOnSend } from "../access/invite-manager";
+import { deliverContractSigned } from "../automations/client-automations";
+import { after } from "next/server";
 import { fillContractTemplate, pendingContractVariables } from "./contract-templates";
 import { applyContractFields, contractFields } from "./contract-fields";
 import { quoteContractValues } from "../quotes/quote-handoff";
@@ -755,6 +757,8 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
     });
     refresh(c.id, c.parentId);
     const noun = c.kind === "amendment" ? "Aditivo" : "Contrato";
+    // Both sides signed: the client gets the final PDF's link and the next steps (Configurações → Automações).
+    if (closed) after(() => deliverContractSigned(c.id).catch(() => undefined));
     // The client signed first: the team hears it now, so the contract closes the same day.
     if (!closed && party === "client") {
       const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, c.companyId));

@@ -37,7 +37,7 @@ const ago = (days: number) => sql`now() - make_interval(days => ${days})`;
 const quoteLabel = (q: { year: number; seq: number; title: string }) => `Orçamento ${quoteNumberLabel(q.year, q.seq)} · ${q.title}`;
 
 export async function commercialFollowUp(today = saoPauloDate()): Promise<FollowUpGroup[]> {
-  const [expiring, expired, noValidity, acceptedAlone, stalled, awaitingUs, backlog, reviews, noManager] = await Promise.all([
+  const [expiring, expired, noValidity, acceptedAlone, stalled, awaitingUs, backlog, reviews, noManager, problems] = await Promise.all([
     db
       .select({ id: quotes.id, year: quotes.year, seq: quotes.seq, title: quotes.title, company: companies.name, validUntil: quotes.validUntil })
       .from(quotes)
@@ -134,6 +134,19 @@ export async function commercialFollowUp(today = saoPauloDate()): Promise<Follow
         ),
       )
       .orderBy(asc(companies.name)),
+    // The client pointed out a problem in a delivery this week and the card is still back in progress.
+    db
+      .select({ id: tasks.id, title: tasks.title, project: engagements.name, projectId: engagements.id, company: companies.name })
+      .from(tasks)
+      .innerJoin(engagements, eq(engagements.id, tasks.engagementId))
+      .innerJoin(companies, eq(companies.id, tasks.companyId))
+      .where(
+        and(
+          eq(tasks.status, "in_progress"),
+          sql`exists (select 1 from console_audit_events a where a.entity_id = ${tasks.id} and a.action = 'task.review_failed' and a.created_at >= now() - interval '7 days')`,
+        ),
+      )
+      .orderBy(asc(tasks.updatedAt)),
   ]);
   // The board's own rule (projetos/[id]/page.tsx): the conditions that govern the project, never for a person client.
   const now = new Date();
@@ -189,6 +202,11 @@ export async function commercialFollowUp(today = saoPauloDate()): Promise<Follow
       key: "backlog-requests",
       title: "Pedidos do cliente parados no Backlog",
       items: backlog.map((t) => ({ line: `${t.company} · ${t.project} · ${t.title}`, href: `/projetos/${t.projectId}` })),
+    },
+    {
+      key: "review-problems",
+      title: "Problemas apontados pelo cliente em entregas",
+      items: problems.map((t) => ({ line: `${t.company} · ${t.project} · ${t.title}`, href: `/projetos/${t.projectId}` })),
     },
     {
       key: "reviews-overdue",

@@ -136,6 +136,13 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Microfone no campo de mensagem: a pessoa fala, o texto aparece no campo e ela envia quando quiser. Depois de enviado, vale como mensagem digitada (o Jev lê a intenção).
 - A equipe escolhe o modelo, escreve instruções extras e sobe documentos de conhecimento em Configurações → Assistente.
 
+### Automações
+
+- Configurações → Automações (só a equipe) lista o que o Console faz sozinho, cada item com um interruptor, ligado por padrão (pedido do Kauan em 08/10/2026). Desligar vale a partir da próxima rotina.
+- Avisos ao cliente, aos Administradores de cada empresa, cada um uma vez: aviso de 80% do banco de horas (assim que passa da linha, só com condições já publicadas); relatório do banco do mês anterior (a partir do 2º dia útil, para quem teve horas); lembrete 3 dias antes da validade de um orçamento sem resposta (uma vez por versão); lembrete de contrato sem a assinatura do cliente 7 dias depois do envio (uma vez por versão); contrato assinado pelas duas partes com o link do PDF final e os próximos passos; uma vez por dia, as entregas que entraram em Revisão, com o prazo de teste quando há; lembrete do que falta num chamado esperando o cliente, na metade dos dias das condições (3 dias úteis sem condições), pelos avisos de chamado da empresa; e, às segundas, um resumo da semana por empresa (chamados, o que espera o cliente, entregas em Revisão, banco de horas e próxima fatura), só quando houve movimento.
+- Para a equipe: a triagem do Jev nos chamados novos também tem interruptor.
+- A Visão geral do cliente mostra "Entregas para você revisar". Quando o cliente aponta um problema numa entrega, a equipe recebe um e-mail e o painel lista "Problemas apontados em entregas".
+
 ### Notificações e rotinas da equipe
 
 - Cada empresa define até 10 e-mails e 10 telefones por assunto (Financeiro e Chamados), com canais independentes. Esses contatos não ganham acesso ao Console.

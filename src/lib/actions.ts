@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { jevEnabled } from "./assistant/jev";
 import { triageTicket } from "./tickets/ticket-triage";
+import { automationOn } from "./automations/automations";
 import { db } from "./db";
 import { resolveBankDueDate } from "./billing/billing-notice-rules";
 import { saoPauloDate } from "./dates";
@@ -336,7 +337,7 @@ export async function createTicket(
     refresh();
     scheduleTicketNotices();
     // Jev reads the text after the answer goes out; the team may get a suggested priority.
-    if (jevEnabled()) after(() => triageTicket(ticket.id));
+    if (jevEnabled()) after(async () => { if (await automationOn("ticketTriage")) await triageTicket(ticket.id); });
     return { success: "Chamado aberto.", href: `/chamados/${ticket.id}` };
   } catch (e) {
     return failure(e);

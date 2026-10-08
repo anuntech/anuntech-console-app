@@ -10,6 +10,7 @@ import {
   SparklesIcon,
   UserRoundIcon,
   UsersIcon,
+  WorkflowIcon,
 } from "lucide-react";
 import { getActor } from "@/lib/access/access";
 import { canManageMembers } from "@/lib/access/member-access";
@@ -110,6 +111,12 @@ export async function SettingsShell({
                 href: "/configuracoes/integracoes",
                 label: "Integrações",
                 icon: <PlugZapIcon />,
+              },
+              {
+                key: "automations" as const,
+                href: "/configuracoes/automacoes",
+                label: "Automações",
+                icon: <WorkflowIcon />,
               },
               {
                 key: "assistant" as const,

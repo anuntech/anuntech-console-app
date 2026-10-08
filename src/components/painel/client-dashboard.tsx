@@ -16,6 +16,7 @@ import {
   ReceiptTextIcon,
   WalletIcon,
   Clock3Icon,
+  CheckCircle2Icon,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { companies, contractSignatures, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
@@ -344,6 +345,25 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   }
   if (estimates.n > 0)
     attention.push({ key: "estimates", icon: <Clock3Icon />, title: "Estimativas de melhoria para aprovar", count: estimates.n, href: "/chamados" });
+  // Deliveries waiting for the Administrador's test: approve or point out a problem on each card.
+  const toReview = canFinance
+    ? await db
+        .select({ projectId: tasks.engagementId })
+        .from(tasks)
+        .where(and(inArray(tasks.companyId, financeIds), eq(tasks.status, "review")))
+    : [];
+  if (toReview.length) {
+    const projects = new Set(toReview.map((t) => t.projectId));
+    attention.push({
+      key: "reviews",
+      icon: <CheckCircle2Icon />,
+      tone: "warning",
+      title: "Entregas para você revisar",
+      detail: "Aprove ou aponte o problema em cada cartão",
+      count: toReview.length,
+      href: projects.size === 1 ? `/projetos/${[...projects][0]}` : "/projetos",
+    });
+  }
   const firstName = (actor.user.name || "").trim().split(/\s+/)[0];
   const dateLine = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(now);
   const next = openInvoices[0]?.invoice;

@@ -483,6 +483,14 @@ export default async function Dashboard() {
     detail: "Em empresas com banco de horas: registre ou marque que não houve",
     href: "/chamados?status=resolved",
   });
+  followItem(["review-problems"], {
+    key: "review-problems",
+    icon: <AlertTriangleIcon />,
+    tone: "warning",
+    title: "Problemas apontados em entregas",
+    detail: "O cliente testou e o cartão voltou para Em andamento",
+    href: "/projetos",
+  });
   followItem(["backlog-requests", "reviews-overdue"], {
     key: "projects-follow-up",
     icon: <ClockIcon />,

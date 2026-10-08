@@ -109,3 +109,11 @@ test("a renewal of whole months keeps whole months, leap years and short months 
   // Not whole months: the same number of days.
   assert.deepEqual(nextTerm("2026-10-01", "2026-10-20"), { startsAt: "2026-10-21", endsAt: "2026-11-17" });
 });
+
+test("automations are on unless switched off", async () => {
+  const { automationState, automationKeys } = await import("../src/lib/automations/automation-list");
+  const state = automationState({ weeklySummary: false });
+  assert.equal(state.weeklySummary, false);
+  assert.equal(state.hoursAlert, true);
+  assert.equal(Object.keys(automationState(null)).length, automationKeys.length);
+});

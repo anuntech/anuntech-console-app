@@ -58,6 +58,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cadastro pronto para cobrar (`billing-readiness.ts`), vigilância de dívidas e emissões (`billing-watch.ts`), origens de cobrança preparada (`charge-sources.ts`: dívida, entrada, saldo, contrato, cada uma uma vez), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
 | `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails; o que o orçamento aceito entrega aos próximos passos (`quote-handoff.ts`: campos do contrato por significado, entrada e saldo, quadro inicial) |
+| `automations/` | os interruptores de Configurações → Automações (`automation-list.ts`, guardados em `environment_profile.automations`) e os avisos automáticos ao cliente (`client-automations.ts`: cada um reivindica um evento em `automation_events` antes de enviar) |
 | `commercial/` | seguimento comercial e de projetos para o resumo e o painel (`follow-up.ts`, limites em `FOLLOW_UP`) |
 | `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela; vigilância da equipe (`ticket-watch.ts`: lembrete de primeira resposta, parados no cliente, estimativas, sem horas, responsável habitual), triagem do Jev (`ticket-triage.ts`), acompanhamento por clique (`ticket-follow-actions.ts`) e as listas de suporte do resumo (`support-follow-up.ts`) |
 | `projects/` | tarefas, quadro, comentários, revisão de entregas (`reviewTask`), exclusão de projetos e serviços |
@@ -135,10 +136,11 @@ Crons da Vercel (`vercel.json`), todos protegidos por `CRON_SECRET` e envolvidos
 
 | Rota | Quando | O que faz |
 | --- | --- | --- |
-| `/api/cron/ticket-notifications` | a cada 5 min | Retoma a fila de avisos de chamados e manda à equipe o lembrete da primeira resposta (antes e no estouro) |
+| `/api/cron/ticket-notifications` | a cada 5 min | Retoma a fila de avisos de chamados, manda à equipe o lembrete da primeira resposta (antes e no estouro) e os avisos ao cliente que saem na hora (80% do banco, contrato assinado) |
 | `/api/cron/billing-sync` | a cada 5 min | Consulta até 40 cobranças emitidas no Inter e confirma pagamentos |
 | `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou e, nas mensais, o período seguinte de uma fatura recém-paga (`earlyIssueAllowed` em `billing/recurrence.ts`); agenda os lembretes, envia os avisos de cobrança e confere as entregas, inclusive dos alertas da equipe |
 | `/api/cron/contract-expiry` | diário, 11:00 UTC | Avisa contratos perto do fim e vencidos |
+| `/api/cron/client-notices` | diário, 12:00 UTC | Avisos automáticos ao cliente ligados em Automações: relatório do banco de horas, lembretes de orçamento, contrato e chamado, entregas para revisar e o resumo semanal (segundas) |
 | `/api/cron/ops-digest` | diário, 11:30 UTC | Resumo da manhã para a equipe (emissões, pagamentos, falhas, emissões que vão falhar, dívidas expiradas, atrasos, contratos, rotinas e certificado) |
 
 Avisos também são processados logo após a ação, com `after()`; o cron garante a retomada.
