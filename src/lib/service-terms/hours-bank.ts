@@ -16,7 +16,7 @@ export const previousMonth = (month: string) => {
   const [y, m] = month.split("-").map(Number);
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
 };
-const nextMonth = (month: string) => {
+export const nextMonth = (month: string) => {
   const [y, m] = month.split("-").map(Number);
   return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
 };
@@ -102,6 +102,22 @@ export async function bankMonth(companyId: string, month = monthOf(), audience: 
   };
 }
 
+/** When the month's last hour was logged, so a report sent before it does not count as final. */
+export async function lastLoggedAt(companyId: string, month: string) {
+  const [row] = await db
+    .select({ at: sql<Date | null>`max(${timeEntries.createdAt})` })
+    .from(timeEntries)
+    .where(and(eq(timeEntries.companyId, companyId), sql`${timeEntries.workedOn} >= ${`${month}-01`}::date and ${timeEntries.workedOn} < ${`${nextMonth(month)}-01`}::date`));
+  return row?.at ? new Date(row.at) : null;
+}
+
+/** A report that covers the whole month: sent after it closed and after its last hour was logged. */
+export function finalReport(reportSentAt: string | null, month: string, lastLogged: Date | null) {
+  if (!reportSentAt) return false;
+  const sent = new Date(reportSentAt);
+  return sent >= new Date(`${nextMonth(month)}-01T00:00:00-03:00`) && (!lastLogged || sent >= lastLogged);
+}
+
 /** What a bank card shows: never the terms themselves, only the month's numbers. */
 export type BankCard = Omit<BankMonth, "terms" | "entries"> & {
   companyId: string;
@@ -110,7 +126,10 @@ export type BankCard = Omit<BankMonth, "terms" | "entries"> & {
   /** When this month's 80% alert went out (once a month; see hours-delivery.ts). */
   alertSentAt: string | null;
   /** Last month, while its report waits to be sent (team) or can still be contested (client). */
-  previous: Pick<BankMonth, "month" | "usedMinutes" | "includedMinutes" | "overageApprovedMinutes" | "reportSentAt" | "contestedAt" | "contestUntil"> | null;
+  previous: (Pick<BankMonth, "month" | "usedMinutes" | "includedMinutes" | "overageApprovedMinutes" | "reportSentAt" | "contestedAt" | "contestUntil"> & {
+    /** The report covers the whole month (sent after it closed and after its last hour). */
+    final: boolean;
+  }) | null;
 };
 
 /** This month's card for a company, plus last month while its report is pending or contestable. */
@@ -119,9 +138,10 @@ export async function bankCard(companyId: string, companyName: string, audience:
   const current = await bankMonth(companyId, monthOf(), audience);
   if (!current) return null;
   const last = await bankMonth(companyId, previousMonth(current.month), audience);
+  const lastFinal = !!last && finalReport(last.reportSentAt, last.month, await lastLoggedAt(companyId, last.month));
   const lastOpen = !!last && (audience.client
     ? !!last.reportSentAt && !last.contestedAt && (!last.contestUntil || new Date(last.contestUntil) >= now)
-    : (!last.reportSentAt && last.entries.length > 0) || (!!last.reportSentAt && !last.contestedAt && !!last.contestUntil && new Date(last.contestUntil) >= now));
+    : (!lastFinal && last.entries.length > 0) || (!!last.reportSentAt && !last.contestedAt && !!last.contestUntil && new Date(last.contestUntil) >= now));
   const [alert] = await db
     .select({ at: automationEvents.createdAt })
     .from(automationEvents)
@@ -135,7 +155,7 @@ export async function bankCard(companyId: string, companyName: string, audience:
     alertSentAt: alert?.at.toISOString() ?? null,
     entries: entries.map(({ ticketId: _ticket, ...e }) => (void _ticket, e)),
     previous: lastOpen && last
-      ? { month: last.month, usedMinutes: last.usedMinutes, includedMinutes: last.includedMinutes, overageApprovedMinutes: last.overageApprovedMinutes, reportSentAt: last.reportSentAt, contestedAt: last.contestedAt, contestUntil: last.contestUntil }
+      ? { month: last.month, usedMinutes: last.usedMinutes, includedMinutes: last.includedMinutes, overageApprovedMinutes: last.overageApprovedMinutes, reportSentAt: last.reportSentAt, contestedAt: last.contestedAt, contestUntil: last.contestUntil, final: lastFinal }
       : null,
   };
 }

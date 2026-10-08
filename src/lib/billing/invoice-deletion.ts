@@ -1,5 +1,5 @@
 "use server";
-import { and, count, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, count, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auditEvents, automationEvents, billingNotices, companies, engagements, invoices, subscriptions } from "@/db/schema";
@@ -14,7 +14,7 @@ import {
   recurrenceAllowsDelete,
 } from "../deletion-rules";
 import { expiredDebtCondition } from "./billing-watch";
-import { preparedChargeEvents } from "./charge-sources";
+import { releasePreparedCharges } from "./prepared-release";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -108,12 +108,8 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
       // Its own debt decision goes with it; a draft prepared from a debt, a proposal or a contract gives that source back.
       await tx
         .delete(automationEvents)
-        .where(
-          or(
-            and(eq(automationEvents.entityId, invoice.id), inArray(automationEvents.kind, ["debt.closed", "debt.rebilled"])),
-            and(inArray(automationEvents.kind, preparedChargeEvents), sql`${automationEvents.details}->>'invoiceId' = ${invoice.id}`),
-          ),
-        );
+        .where(and(eq(automationEvents.entityId, invoice.id), inArray(automationEvents.kind, ["debt.closed", "debt.rebilled"])));
+      await releasePreparedCharges(tx, invoice.id);
       await tx.delete(invoices).where(eq(invoices.id, invoice.id));
       if (recurrence) {
         // Never activated and this was its only charge: nothing else reaches it.

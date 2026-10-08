@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { MoreHorizontalIcon, ShieldCheckIcon, UserRoundXIcon } from "lucide-react";
+import { MailIcon, MoreHorizontalIcon, ShieldCheckIcon, UserRoundXIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,6 +31,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import {
+  resendInvite,
   revokeCompanyMember,
   revokeConsoleStaffMember,
   saveCompanyMember,
@@ -117,6 +118,7 @@ export function MemberMenu({
 }) {
   const [editing, setEditing] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [resending, setResending] = useState(false);
   return (
     <>
       <DropdownMenu modal={false}>
@@ -131,6 +133,15 @@ export function MemberMenu({
               <DropdownMenuItem onSelect={() => setTimeout(() => setEditing(true), 0)}>
                 <ShieldCheckIcon />
                 Editar permissão
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {!staff && pending && (
+            <>
+              <DropdownMenuItem onSelect={() => setTimeout(() => setResending(true), 0)}>
+                <MailIcon />
+                Reenviar convite
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
@@ -173,6 +184,17 @@ export function MemberMenu({
             </ServerForm>
           </DialogContent>
         </Dialog>
+      )}
+      {!staff && (
+        <ConfirmDialog
+          open={resending}
+          onOpenChange={setResending}
+          action={resendInvite}
+          fields={{ id: memberId }}
+          title="Reenviar o convite?"
+          description={`${email} ainda não entrou. Um novo convite sai agora; dá para reenviar uma vez por semana.`}
+          confirmLabel="Reenviar"
+        />
       )}
       <ConfirmDialog
         open={revoking}

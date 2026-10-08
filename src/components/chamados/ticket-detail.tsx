@@ -274,11 +274,13 @@ function Composer({ ticketId, draft, suggest }: { ticketId: string; draft?: stri
       <FormError />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <AttachmentField variant="compact" className="flex-1" />
-        {suggest && <SuggestReply ticketId={ticketId} field={field} />}
-        <SubmitButton pendingLabel="Enviando…">
-          <SendIcon />
-          Enviar resposta
-        </SubmitButton>
+        <div className="ml-auto flex items-center gap-2">
+          {suggest && <SuggestReply ticketId={ticketId} field={field} />}
+          <SubmitButton pendingLabel="Enviando…">
+            <SendIcon />
+            Enviar resposta
+          </SubmitButton>
+        </div>
       </div>
     </ServerForm>
   );

@@ -69,6 +69,8 @@ import { DeleteCompanyDialog } from "./delete-company-dialog";
 import type { CompanyFormValues } from "./company-form";
 import { formatDocument, formatPhone } from "@/lib/companies/company-input";
 import { addressLabel } from "@/lib/companies/company-billing";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { auditLabels, currency, dateLabel, roleLabels } from "@/lib/format";
 import {
   revokeMembership,
@@ -76,10 +78,22 @@ import {
   setCompanyArchived,
 } from "@/lib/actions";
 import { sendAccessNotice } from "@/lib/access/email-actions";
+import { resendInvite } from "@/lib/access/members-actions";
 import { startAssistedSession } from "@/lib/access/assisted-actions";
 import { canDeleteCompany, type CompanyLinks } from "@/lib/deletion-rules";
 
+/** What is still running for a client, offered to wind down when it is archived. */
+export type CompanyOffboarding = {
+  recurrences: number;
+  engagements: number;
+  openInvoices: { n: number; cents: number };
+  contracts: number;
+  tickets: number;
+};
+
 export type CompanyDetailData = {
+  /** Staff: what still runs, for the archive dialog. */
+  offboarding?: CompanyOffboarding;
   company: CompanyFormValues & {
     id: string;
     archived: boolean;
@@ -217,8 +231,8 @@ function MemberMenu({
   member: CompanyDetailData["members"][number];
   companyName: string;
 }) {
-  const [confirm, setConfirm] = useState<null | "notice" | "revoke">(null);
-  const ask = (which: "notice" | "revoke") =>
+  const [confirm, setConfirm] = useState<null | "notice" | "revoke" | "resend">(null);
+  const ask = (which: "notice" | "revoke" | "resend") =>
     setTimeout(() => setConfirm(which), 0);
   return (
     <>
@@ -237,6 +251,12 @@ function MemberMenu({
             <MailIcon />
             Enviar aviso de acesso
           </DropdownMenuItem>
+          {!member.verified && (
+            <DropdownMenuItem onSelect={() => ask("resend")}>
+              <MailIcon />
+              Reenviar convite
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
@@ -255,6 +275,15 @@ function MemberMenu({
         title="Enviar aviso de acesso?"
         description={`${member.email} recebe um e-mail explicando como entrar em ${companyName}.`}
         confirmLabel="Enviar aviso"
+      />
+      <ConfirmDialog
+        open={confirm === "resend"}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        action={resendInvite}
+        fields={{ id: member.id }}
+        title="Reenviar o convite?"
+        description={`${member.email} ainda não entrou. Um novo convite sai agora; dá para reenviar uma vez por semana.`}
+        confirmLabel="Reenviar"
       />
       <ConfirmDialog
         open={confirm === "revoke"}
@@ -669,6 +698,7 @@ export function CompanyDetail({
         }
         confirmLabel={company.archived ? "Restaurar" : "Arquivar"}
         destructive={!company.archived}
+        extra={company.archived || !data.offboarding ? undefined : (formId) => <OffboardingChoices formId={formId} data={data.offboarding!} members={members.length} />}
       />
       {deletable && (
         <DeleteCompanyDialog
@@ -678,5 +708,45 @@ export function CompanyDetail({
         />
       )}
     </>
+  );
+}
+
+/** Archiving a client: what still runs, and what to wind down with it. Only what is ticked happens. */
+function OffboardingChoices({ formId, data, members }: { formId: string; data: CompanyOffboarding; members: number }) {
+  const choices = [
+    data.recurrences > 0 && { name: "pauseRecurrences", label: `Pausar ${data.recurrences === 1 ? "a recorrência ativa" : `as ${data.recurrences} recorrências ativas`}` },
+    data.engagements > 0 && { name: "completeEngagements", label: `Concluir ${data.engagements === 1 ? "o projeto, produto ou serviço ativo" : `os ${data.engagements} projetos, produtos e serviços ativos`}` },
+    members > 0 && { name: "revokeAccess", label: `Revogar ${members === 1 ? "o acesso da pessoa" : `os acessos das ${members} pessoas`} da empresa` },
+  ].filter((choice): choice is { name: string; label: string } => !!choice);
+  const open = [
+    data.openInvoices.n > 0 && `${data.openInvoices.n === 1 ? "1 fatura em aberto" : `${data.openInvoices.n} faturas em aberto`} (${currency(data.openInvoices.cents)}): cancele no Inter pela fatura, se for o caso`,
+    data.contracts > 0 && `${data.contracts === 1 ? "1 contrato em vigência" : `${data.contracts} contratos em vigência`}`,
+    data.tickets > 0 && `${data.tickets === 1 ? "1 chamado aberto" : `${data.tickets} chamados abertos`}`,
+  ].filter(Boolean);
+  if (!choices.length && !open.length) return null;
+  return (
+    <div className="grid gap-3 rounded-lg border bg-field/60 px-3 py-3 text-sm">
+      {choices.length > 0 && (
+        <div className="grid gap-2">
+          <p className="m-0 text-xs font-medium text-muted-foreground">Junto com o arquivamento</p>
+          {choices.map((choice) => (
+            <Label key={choice.name} className="flex items-start gap-2 font-normal">
+              <Checkbox form={formId} name={choice.name} value="yes" className="mt-0.5" />
+              {choice.label}
+            </Label>
+          ))}
+        </div>
+      )}
+      {open.length > 0 && (
+        <div className="grid gap-1">
+          <p className="m-0 text-xs font-medium text-muted-foreground">Continua como está</p>
+          {open.map((line) => (
+            <p key={line as string} className="m-0 text-xs text-muted-foreground">
+              {line}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

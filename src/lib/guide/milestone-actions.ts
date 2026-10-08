@@ -17,6 +17,7 @@ export async function markFirstStep(companyId: string, key: string) {
   const actor = await getActor();
   const input = z.object({ companyId: z.string().uuid(), key: z.enum(milestoneKeys) }).parse({ companyId, key });
   if (!canAccess(actor, input.companyId, "overview")) return;
-  await recordMilestone(actor.user.id, input.key, input.companyId);
+  // Reviewing who has access is due again every 6 months, so its date follows the latest review.
+  await recordMilestone(actor.user.id, input.key, input.companyId, input.key === "members_reviewed");
   revalidatePath("/painel");
 }

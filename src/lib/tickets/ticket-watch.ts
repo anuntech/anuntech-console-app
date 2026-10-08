@@ -51,7 +51,16 @@ export async function remindFirstResponses(now = new Date()) {
     .select({ id: tickets.id, subject: tickets.subject, dueAt: tickets.responseDueAt, assignedTo: tickets.assignedTo, company: companies.name })
     .from(tickets)
     .innerJoin(companies, eq(companies.id, tickets.companyId))
-    .where(and(isNull(tickets.firstResponseAt), inArray(tickets.status, ["open", "in_progress"]), isNotNull(tickets.responseDueAt), lte(tickets.responseDueAt, soon)))
+    // Late for more than a day: already reminded, or older than this routine; they stay in the digest, not here.
+    .where(
+      and(
+        isNull(tickets.firstResponseAt),
+        inArray(tickets.status, ["open", "in_progress"]),
+        isNotNull(tickets.responseDueAt),
+        lte(tickets.responseDueAt, soon),
+        gte(tickets.responseDueAt, new Date(now.getTime() - 86_400_000)),
+      ),
+    )
     .orderBy(asc(tickets.responseDueAt))
     .limit(30);
   let sent = 0;
@@ -64,11 +73,16 @@ export async function remindFirstResponses(now = new Date()) {
       .returning({ id: automationEvents.id });
     if (!claimed) continue;
     const to = await ownerOrTeam(row.assignedTo);
-    await sendStaffMail(
+    const delivered = await sendStaffMail(
       to,
       `[Console] ${late ? "Primeira resposta atrasada" : "Primeira resposta vence em breve"}: ${row.company} · ${row.subject}`,
       `${late ? `A primeira resposta de "${row.subject}" (${row.company}) venceu ${dueLabel(row.dueAt!.toISOString())}.` : `A primeira resposta de "${row.subject}" (${row.company}) vence ${dueLabel(row.dueAt!.toISOString())}.`}\n\nSó uma resposta escrita no chamado conta para o contrato. Se já falou com o cliente por WhatsApp, registre a resposta no Console: ${consoleUrl()}/chamados/${row.id}\n\nConsole da Anuntech`,
     );
+    // Nobody got it: the next run tries again.
+    if (!delivered) {
+      await db.delete(automationEvents).where(eq(automationEvents.id, claimed.id));
+      continue;
+    }
     sent += 1;
   }
   return { reminded: sent };
@@ -118,7 +132,10 @@ export async function ticketWatch(now = new Date()) {
   });
   const estimateLimit = now.getTime() - TICKET_WATCH.estimateDays * 86_400_000;
   return {
-    waiting: waitingLong.map((t) => ({ line: `${t.company} · ${t.subject}${t.waitingFor ? ` · falta: ${t.waitingFor}` : ""}`, href: `/chamados/${t.id}` })),
+    waiting: waitingLong.map((t) => {
+      const missing = t.waitingFor?.replace(/\s+/g, " ").trim();
+      return { line: `${t.company} · ${t.subject}${missing ? ` · falta: ${missing.length > 80 ? `${missing.slice(0, 79)}…` : missing}` : ""}`, href: `/chamados/${t.id}` };
+    }),
     estimates: estimates
       .filter((t) => t.proposedAt && new Date(t.proposedAt).getTime() < estimateLimit)
       .map((t) => ({ line: `${t.company} · ${t.subject}`, href: `/chamados/${t.id}` })),

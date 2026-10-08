@@ -19,7 +19,7 @@ import { interBase } from "@/lib/integrations/integrations";
 import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
 import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
 import { paymentUrl } from "@/lib/billing/payment-link";
-import { addDays, earlyIssueAllowed, issueDate } from "@/lib/billing/recurrence";
+import { missedPeriods, addDays, earlyIssueAllowed, issueDate } from "@/lib/billing/recurrence";
 import {
   InvoiceDetail,
   type InvoiceDetailData,
@@ -248,6 +248,9 @@ export default async function Invoice({
               issueOnPayment: sub.interval === "monthly" ? sub.issueOnPayment : null,
               earlyReady,
               ahead: ahead ? { ...ahead, status: ahead.status as "issued" | "paid" } : null,
+              // Paused past its due date: the periods that went by, to bill as drafts when it resumes.
+              resume:
+                actor.admin && sub.status === "paused" && sub.nextDueDate <= today ? missedPeriods(sub, today) : null,
               terms: {
                 discountCents: sub.discountCents,
                 fineBps: sub.fineBps,

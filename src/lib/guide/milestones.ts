@@ -15,6 +15,19 @@ export async function milestonesOf(userId: string, companyIds: string[] = []) {
   return new Set(rows.map((r) => `${r.key}:${r.companyId}`));
 }
 
-export async function recordMilestone(userId: string, key: string, companyId = "") {
-  await db.insert(userMilestones).values({ userId, key, companyId }).onConflictDoNothing();
+/** With `refresh`, a repeat moves the date (a review done again), instead of keeping the first one. */
+export async function recordMilestone(userId: string, key: string, companyId = "", refresh = false) {
+  const insert = db.insert(userMilestones).values({ userId, key, companyId });
+  await (refresh
+    ? insert.onConflictDoUpdate({ target: [userMilestones.userId, userMilestones.companyId, userMilestones.key], set: { createdAt: new Date() } })
+    : insert.onConflictDoNothing());
+}
+
+/** When a person last did something, per company. */
+export async function milestoneAt(userId: string, key: MilestoneKey, companyId: string) {
+  const [row] = await db
+    .select({ at: userMilestones.createdAt })
+    .from(userMilestones)
+    .where(and(eq(userMilestones.userId, userId), eq(userMilestones.key, key), eq(userMilestones.companyId, companyId)));
+  return row?.at ?? null;
 }

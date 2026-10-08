@@ -61,6 +61,6 @@ export async function ticketTriage(ticketId: string, priority: "critical" | "hig
     .select({ details: automationEvents.details })
     .from(automationEvents)
     .where(and(eq(automationEvents.kind, "ticket.triage"), eq(automationEvents.entityId, ticketId)));
-  const triage = row?.details as TicketTriage | undefined;
-  return triage && rank[triage.priority] > rank[priority] ? triage : null;
+  const triage = row?.details as (TicketTriage & { dismissedAt?: string }) | undefined;
+  return triage && !triage.dismissedAt && rank[triage.priority] > rank[priority] ? triage : null;
 }

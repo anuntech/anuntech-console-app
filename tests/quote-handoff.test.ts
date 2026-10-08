@@ -117,3 +117,29 @@ test("automations are on unless switched off", async () => {
   assert.equal(state.hoursAlert, true);
   assert.equal(Object.keys(automationState(null)).length, automationKeys.length);
 });
+
+test("contact checks: documents, landlines, Anuntech addresses and the billing e-mail", async () => {
+  const { validDocument, isLandline, contactProblems } = await import("../src/lib/companies/contact-quality");
+  assert.equal(validDocument("11.222.333/0001-81"), true);
+  assert.equal(validDocument("11.222.333/0001-82"), false);
+  assert.equal(validDocument("529.982.247-25"), true);
+  assert.equal(validDocument("111.111.111-11"), false);
+  assert.equal(isLandline("(11) 3456-7890"), true);
+  assert.equal(isLandline("(11) 98765-4321"), false);
+  assert.equal(isLandline("+55 11 98765-4321"), false);
+  const problems = contactProblems({ document: "11222333000181", billingEmail: "financeiro@cliente.com" }, [
+    { topic: "billing", emails: ["outro@cliente.com"], phones: ["1134567890"], whatsappEnabled: true, emailEnabled: true },
+    { topic: "tickets", emails: ["kauan@anuntech.com"], phones: [], whatsappEnabled: false, emailEnabled: true },
+  ]);
+  assert.equal(problems.length, 3);
+});
+
+test("a recurrence resumed late lists the periods without a charge and the next one ahead", async () => {
+  const { missedPeriods } = await import("../src/lib/billing/recurrence");
+  assert.deepEqual(missedPeriods({ nextDueDate: "2026-08-10", interval: "monthly", anchorDay: 10, anchorMonth: 8 }, "2026-10-08"), {
+    missed: ["2026-08-10", "2026-09-10"],
+    next: "2026-10-10",
+  });
+  assert.deepEqual(missedPeriods({ nextDueDate: "2026-10-20", interval: "monthly", anchorDay: 20, anchorMonth: 10 }, "2026-10-08"), { missed: [], next: "2026-10-20" });
+  assert.deepEqual(missedPeriods({ nextDueDate: "2026-01-31", interval: "monthly", anchorDay: 31, anchorMonth: 1 }, "2026-03-01").missed, ["2026-01-31", "2026-02-28"]);
+});

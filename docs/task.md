@@ -6,7 +6,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 - [ ] Apagar o repositório vazio `anuntech/anuntech-console-vazio`, que sobrou da transferência.
 - [ ] Trocar a chave do OpenRouter (foi colada numa conversa) e decidir entre créditos e modelo pago para o assistente.
-- [ ] Apagar pela interface os registros de teste criados em produção durante o QA.
+- [ ] Apagar pela interface os registros de teste criados em produção durante o QA. Desde 08/10, Configurações → Limpeza lista os candidatos, filhos antes da empresa.
 - [ ] Passar os parâmetros fiscais da contabilidade para ligar a emissão de NFS-e pela Focus.
 - [ ] Especificar Relatórios.
 
@@ -30,6 +30,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 08/10/2026: automação, lote 5 (clientes e operação): convites conferidos e reenviados, aviso quando o cliente muda o cadastro, implantação, contatos e acessos para revisar, revisão de acessos a cada 6 meses, Limpeza e encerramento guiado ao arquivar.
 - [x] 08/10/2026: automação, lotes 3 e 4 (suporte, banco de horas e avisos ao cliente): responsável na abertura, lembrete de primeira resposta, triagem do Jev, acompanhamento de chamados parados, aviso e relatório do banco uma vez por mês, excedente pronto para cobrar, horas pelo assistente, sugestões de resposta e de fases, e os avisos automáticos ao cliente com interruptor em Configurações → Automações.
 - [x] 08/10/2026: automação, lote 2 (contrato, orçamento e comercial): contrato, projeto e cobranças de entrada e saldo preparados a partir do orçamento aceito, orçamento ligado ao chamado com resposta pronta, recorrência, condições e prorrogação preparadas no contrato assinado, aviso quando o cliente assina, seguimento comercial no resumo e no painel, convite do Administrador no envio.
 - [x] 08/10/2026: automação, lote 1 (proteger o dinheiro): cadastro conferido antes da emissão, dívida expirada no Inter com Cobrar de novo e Encerrar, aviso 7 dias antes de o Inter encerrar, cobrança de quem saiu, saúde das rotinas, certificado do Inter e alertas da equipe que não chegam.

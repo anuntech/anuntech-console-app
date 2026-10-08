@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNotNull, or, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, or, sum } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
@@ -12,6 +12,7 @@ import {
   memberships,
   tickets,
   user,
+  subscriptions,
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/access/access";
 import { companyLinks } from "@/lib/record-links";
@@ -20,9 +21,11 @@ import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
 import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
-import { bankCard, previousMonth } from "@/lib/service-terms/hours-bank";
-import { overageCharge } from "@/lib/service-terms/hours-delivery";
-import { automationEvents, serviceTerms } from "@/db/schema";
+import { OnboardingCard } from "@/components/empresas/onboarding-card";
+import { onboardingMissing } from "@/lib/companies/onboarding";
+import { bankCard } from "@/lib/service-terms/hours-bank";
+import { overageReady } from "@/lib/service-terms/hours-delivery";
+import { serviceTerms } from "@/db/schema";
 export const metadata = {
   title: "Detalhes da empresa",
   description: "Cadastro, contatos e acessos de uma empresa.",
@@ -133,18 +136,21 @@ export default async function Company({
       .orderBy(desc(contracts.updatedAt)),
   ]);
   const bank = await bankCard(id, company.name);
-  // Last month's hours beyond the bank, once the client's window to contest closed: ready to bill, once.
-  const overageMonth = bank ? previousMonth(bank.month) : null;
-  const overage = overageMonth ? await overageCharge(id, overageMonth) : null;
-  const overagePrepared = overage
-    ? !!(await db
-        .select({ id: automationEvents.id })
-        .from(automationEvents)
-        .where(and(eq(automationEvents.kind, "hours.overage_billed"), eq(automationEvents.entityId, `${id}:${overageMonth}`)))
-        .then((r) => r.length))
-    : false;
+  // A closed month's hours beyond the bank, once the client's window to contest closed: ready to bill, once.
+  const overage = bank ? await overageReady(id) : null;
+  const onboarding = await onboardingMissing(id);
+  // What still runs, offered to wind down in the archive dialog.
+  const [[recurrences], [runningItems], [signedContracts]] = await Promise.all([
+    db.select({ n: count() }).from(subscriptions).where(and(eq(subscriptions.companyId, id), eq(subscriptions.status, "active"))),
+    db.select({ n: count() }).from(engagements).where(and(eq(engagements.companyId, id), inArray(engagements.status, ["active", "paused"]))),
+    db
+      .select({ n: count() })
+      .from(contracts)
+      .where(and(eq(contracts.companyId, id), eq(contracts.status, "signed"), eq(contracts.kind, "contract"), or(isNull(contracts.endsAt), gte(contracts.endsAt, saoPauloDate())))),
+  ]);
   const termsCard = (
     <>
+    <OnboardingCard steps={onboarding} />
     <ServiceTermsCard
       companyId={id}
       items={termRows.map((t) => ({
@@ -169,7 +175,7 @@ export default async function Company({
       <HoursBankCard
         viewer="team"
         bank={bank}
-        overage={overage && !overagePrepared ? { ...overage, href: `/financeiro/nova?excedente=${id}&mes=${overageMonth}` } : null}
+        overage={overage ? { ...overage, href: `/financeiro/nova?excedente=${id}&mes=${overage.month}` } : null}
       />
     )}
     </>
@@ -202,6 +208,13 @@ export default async function Company({
           action: e.action,
           createdAt: saoPauloDate(e.createdAt),
         })),
+        offboarding: {
+          recurrences: recurrences?.n ?? 0,
+          engagements: runningItems?.n ?? 0,
+          openInvoices: { n: invoiceRow?.n ?? 0, cents: Number(invoiceRow?.cents ?? 0) },
+          contracts: signedContracts?.n ?? 0,
+          tickets: ticketRow?.n ?? 0,
+        },
         relations: {
           openTickets: ticketRow?.n ?? 0,
           openInvoices: invoiceRow?.n ?? 0,

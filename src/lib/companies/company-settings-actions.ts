@@ -1,6 +1,8 @@
 "use server";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { sendOpsMail } from "../notifications/ops-alerts";
+import { billingProblemsLabel, billingReadiness } from "../billing/billing-readiness";
 import { z } from "zod";
 import {
   auditEvents,
@@ -13,7 +15,7 @@ import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { lockTicketNotifications } from "../notifications/notification-settings";
 import { companyIdentity, companyEmail, companyPhone } from "./company-input";
-import { companyBillingInput } from "./company-billing";
+import { addressLabel, companyBillingInput } from "./company-billing";
 import { AccessChangeError, lockManagedCompany } from "./company-management";
 import {
   preferenceKey,
@@ -44,6 +46,8 @@ export async function saveCompanySettings(
       .parse(Object.fromEntries(form));
     if (actor.admin && input.id !== "console") return blocked;
     const { billingAddress } = companyBillingInput(form);
+    // Filled inside the transaction; read after it commits.
+    const record: { changed: { before: typeof companies.$inferSelect; after: RecordFields } | null } = { changed: null };
     await db.transaction(async (tx) => {
       if (input.id === "console") {
         if (!actor.admin) throw new AccessChangeError(blocked.error);
@@ -64,6 +68,7 @@ export async function saveCompanySettings(
         .select()
         .from(companies)
         .where(eq(companies.id, input.id));
+      record.changed = { before, after: { ...input, billingAddress } };
       await tx
         .update(companies)
         .set({ ...input, billingAddress })
@@ -80,6 +85,8 @@ export async function saveCompanySettings(
       });
     });
     refresh();
+    // The client changed what goes on the next boleto: the team hears it before the bank does.
+    if (record.changed && !actor.admin) await alertRecordChange(record.changed.before, record.changed.after, actor.user.name || actor.user.email);
     return { success: "Dados da empresa atualizados." };
   } catch (error) {
     return failure(error);
@@ -164,4 +171,26 @@ export async function saveNotificationPreferences(
   } catch (error) {
     return failure(error);
   }
+}
+
+type RecordFields = { name: string; document: string; billingEmail: string; phone?: string | null; billingAddress: typeof companies.$inferSelect["billingAddress"] };
+
+/** What the client changed in the billing record, before and after, to the team. */
+async function alertRecordChange(before: typeof companies.$inferSelect, after: RecordFields, who: string) {
+  const address = (value: typeof before.billingAddress) => (value ? addressLabel(value) : "sem endereço");
+  const lines = [
+    before.name !== after.name ? `Razão social: ${before.name} → ${after.name}` : null,
+    before.document !== after.document ? `CPF/CNPJ: ${before.document} → ${after.document}` : null,
+    before.billingEmail !== after.billingEmail ? `E-mail financeiro: ${before.billingEmail} → ${after.billingEmail}` : null,
+    (before.phone ?? "") !== (after.phone ?? "") ? `Telefone: ${before.phone || "sem telefone"} → ${after.phone || "sem telefone"}` : null,
+    address(before.billingAddress) !== address(after.billingAddress) ? `Endereço: ${address(before.billingAddress)} → ${address(after.billingAddress)}` : null,
+  ].filter(Boolean);
+  if (!lines.length) return;
+  const problems = billingReadiness({ ...before, ...after });
+  await sendOpsMail(
+    `[Console] Cadastro alterado pelo cliente: ${after.name}`,
+    `${who} alterou o cadastro de ${after.name} em Configurações → Dados da empresa.\n\n${lines.join("\n")}${
+      problems.length ? `\n\nAtenção: ${billingProblemsLabel(problems)}. Sem isso, as próximas cobranças não saem no Inter.` : ""
+    }${before.document !== after.document ? "\n\nO CPF/CNPJ mudou: as próximas cobranças saem com o novo pagador." : ""}\n\nConsole da Anuntech`,
+  ).catch(() => undefined);
 }

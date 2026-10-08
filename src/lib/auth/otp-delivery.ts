@@ -90,6 +90,8 @@ export async function deliverInviteEmail(
   const result = await res.json().catch(() => null);
   if (!res.ok || !result?.id)
     throw new Error("Não foi possível enviar o e-mail de convite.");
+  // Resend's id, so the delivery can be read back later (invite-tracking.ts).
+  return String(result.id);
 }
 export async function deliverWhatsappOtp(phoneNumber: string, code: string) {
   if (

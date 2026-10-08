@@ -7,8 +7,7 @@ import { prepareSynovaTerms } from "@/lib/service-terms/terms-actions";
 /** Synova clients whose licence was signed outside the Console and still have no conditions. */
 export function SynovaTerms({ companies, drafts }: { companies: string[]; drafts: { companyId: string; company: string }[] }) {
   if (!companies.length && !drafts.length) return null;
-  if (!companies.length)
-    return (
+  const draftList = drafts.length > 0 && (
       <section aria-label="Condições do Synova a conferir" className="mb-6 rounded-xl border bg-card px-4 py-3 shadow-card">
         <p className="m-0 text-sm font-medium text-foreground">
           {drafts.length === 1 ? "1 rascunho" : `${drafts.length} rascunhos`} de condições do Synova a conferir
@@ -24,9 +23,11 @@ export function SynovaTerms({ companies, drafts }: { companies: string[]; drafts
           ))}
         </ul>
       </section>
-    );
+  );
+  if (!companies.length) return draftList;
   const count = companies.length === 1 ? "1 cliente" : `${companies.length} clientes`;
   return (
+    <>
     <section aria-label="Condições do Synova" className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-card">
       <div className="min-w-0 flex-1 text-sm">
         <p className="m-0 font-medium text-foreground">{count} do Synova sem condições de atendimento</p>
@@ -46,5 +47,7 @@ export function SynovaTerms({ companies, drafts }: { companies: string[]; drafts
         </Button>
       </ConfirmAction>
     </section>
+    {draftList}
+    </>
   );
 }

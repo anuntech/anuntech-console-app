@@ -32,7 +32,7 @@ export async function runNoticesTests({ database: db, ids, people, request, subm
   const validUntil = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + 2 * 864e5));
   await db.query(
     `insert into console_quotes(id,company_id,year,seq,title,content,author_id,status,published_version,valid_until,published_at,publication,document_hash)
-     values($1,$2,2098,$3,$4,$5,$6,'sent',1,$7,now(),$8,'x')`,
+     values($1,$2,2098,$3,$4,$5,$6,'sent',1,$7,now() - interval '2 days',$8,'x')`,
     [
       quote,
       ids.a,
@@ -89,18 +89,26 @@ export async function runNoticesTests({ database: db, ids, people, request, subm
   const overview = await request("/painel", "finance");
   ok(overview.text.includes("Entregas para você revisar"), "A Visão geral do cliente mostra as entregas para revisar");
 
-  // A ticket waiting on the client for 4 business days: the request goes again through the ticket notices, once.
+  // A ticket waiting on the client past half of its 2 days: the request goes again to whoever opened it, once.
   const waiting = randomUUID();
+  const terms = { termsId: randomUUID(), version: 1, label: "QA", preset: "support", personClient: false, publishAt: null, policy: { levels: false, response: { normal: { firstResponseMinutes: 540 } }, pausesWhileWaiting: false, clientResponseDays: 2, tacitAcceptance: false, outOfHours: "unspecified", includesDevelopment: false, clauses: {} } };
   await db.query(
-    "insert into console_tickets(id,company_id,subject,author_id,status,waiting_for,waiting_since) values($1,$2,$3,$4,'waiting_customer','A senha do servidor',now() - interval '10 days')",
-    [waiting, ids.a, `Waiting auto ${marker}`, people.admin.id],
+    "insert into console_tickets(id,company_id,subject,author_id,status,waiting_for,waiting_since,terms) values($1,$2,$3,$4,'waiting_customer','A senha do servidor',now() - interval '5 days' + interval '1 hour',$5)",
+    [waiting, ids.a, `Waiting auto ${marker}`, people.manager.id, JSON.stringify(terms)],
+  );
+  const old = randomUUID();
+  await db.query(
+    "insert into console_tickets(id,company_id,subject,author_id,status,waiting_for,waiting_since) values($1,$2,$3,$4,'waiting_customer','O print',now() - interval '40 days')",
+    [old, ids.a, `Waiting old ${marker}`, people.manager.id],
   );
   await cron("/api/cron/client-notices");
   await cron("/api/cron/client-notices");
   ok(
-    (await db.query("select id from console_audit_events where entity_id=$1 and action='ticket.client_reminded'", [waiting])).rowCount === 1,
-    "Chamado esperando o cliente recebe um lembrete automático, uma vez",
+    (await db.query("select id from console_audit_events where entity_id=$1 and action='ticket.client_reminded'", [waiting])).rowCount === 1 &&
+      (await db.query("select id from console_ticket_notices where ticket_id=$1 and destination=$2", [waiting, people.manager.email.toLowerCase()])).rowCount === 1,
+    "Chamado esperando o cliente recebe um lembrete automático, uma vez, de quem abriu",
   );
+  ok(!(await one("select 1 as ok from console_audit_events where entity_id=$1 and action='ticket.client_reminded'", [old])), "Espera antiga não vira lembrete em massa na primeira rodada");
 
   await db.query("delete from console_automation_events where entity_id like $1 or entity_id like $2 or entity_id like $3", [`${quote}%`, `${contract}%`, `${task}%`]);
   if (!hadProfile) await db.query("delete from console_environment_profile where id='console'");

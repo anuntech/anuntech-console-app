@@ -7,7 +7,7 @@ import { managedCompanyIds } from "../access/member-access";
 import { db } from "../db";
 import { preferenceKey } from "../notifications/notification-preferences";
 import { GUIDE_VERSION } from "./guide-content";
-import { milestonesOf } from "./milestones";
+import { milestoneAt, milestonesOf } from "./milestones";
 
 export type FirstStep = { key: string; title: string; href: string; done: boolean };
 /** `forced`: only the billing step is left after the card was hidden; it cannot be hidden. */
@@ -44,7 +44,14 @@ export async function firstStepsFor(actor: Actor): Promise<FirstSteps | null> {
     company && (recurrence || invoice) && billingReadiness(company).includes("address")
       ? { key: "billing", title: "Complete o endereço de cobrança da empresa", href: "/configuracoes/empresa", done: false }
       : null;
-  if (seen.has(`first_steps_hidden:${companyId}`)) return billing ? { companyId, steps: [billing], forced: true } : null;
+  // Every 6 months the Administrador reviews who has access again, even with the card hidden.
+  const reviewedAt = grant.role === "manager" ? await milestoneAt(actor.user.id, "members_reviewed", companyId) : null;
+  const review: FirstStep | null =
+    reviewedAt && Date.now() - reviewedAt.getTime() > 180 * 86_400_000
+      ? { key: "members", title: "Revise quem tem acesso: faz 6 meses desde a última revisão", href: "/configuracoes/membros", done: false }
+      : null;
+  const forced = [billing, review].filter((step): step is FirstStep => !!step);
+  if (seen.has(`first_steps_hidden:${companyId}`)) return forced.length ? { companyId, steps: forced, forced: true } : null;
   const guide: FirstStep = {
     key: "guide",
     title: `Leia como a Anuntech trabalha com a ${grant.company.name}`,
@@ -55,7 +62,7 @@ export async function firstStepsFor(actor: Actor): Promise<FirstSteps | null> {
     grant.role === "manager"
       ? [
           ...(billing ? [billing] : []),
-          { key: "members", title: "Revise quem tem acesso ao Console", href: "/configuracoes/membros", done: seen.has(`members_reviewed:${companyId}`) },
+          review ?? { key: "members", title: "Revise quem tem acesso ao Console", href: "/configuracoes/membros", done: seen.has(`members_reviewed:${companyId}`) },
           { key: "notices", title: "Escolha quem recebe os avisos de chamados", href: "/configuracoes/notificacoes", done: !!notices || seen.has(`notices_reviewed:${companyId}`) },
           guide,
         ]

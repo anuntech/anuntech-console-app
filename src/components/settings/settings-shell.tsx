@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import {
   BellIcon,
   Building2Icon,
+  EraserIcon,
   PaletteIcon,
   FileSignatureIcon,
   PackageIcon,
@@ -117,6 +118,12 @@ export async function SettingsShell({
                 href: "/configuracoes/automacoes",
                 label: "Automações",
                 icon: <WorkflowIcon />,
+              },
+              {
+                key: "cleanup" as const,
+                href: "/configuracoes/limpeza",
+                label: "Limpeza",
+                icon: <EraserIcon />,
               },
               {
                 key: "assistant" as const,

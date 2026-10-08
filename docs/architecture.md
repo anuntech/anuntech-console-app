@@ -52,9 +52,9 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | Pasta | Conteúdo |
 | --- | --- |
 | `auth/` | Better Auth (`auth.ts`, `auth-client.ts`), plugin de segurança e duas etapas, política de OTP, envio de códigos, sessões |
-| `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido, convite do Administrador no envio (`invite-manager.ts`) |
+| `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido, convite do Administrador no envio (`invite-manager.ts`), entrega e reenvio dos convites (`invite-tracking.ts`) |
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
-| `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela |
+| `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela; implantação (`onboarding.ts`), qualidade dos contatos (`contact-quality.ts`), lista de clientes da equipe (`clients-follow-up.ts`) e limpeza de registros de teste (`cleanup.ts`) |
 | `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cadastro pronto para cobrar (`billing-readiness.ts`), vigilância de dívidas e emissões (`billing-watch.ts`), origens de cobrança preparada (`charge-sources.ts`: dívida, entrada, saldo, contrato, cada uma uma vez), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
 | `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails; o que o orçamento aceito entrega aos próximos passos (`quote-handoff.ts`: campos do contrato por significado, entrada e saldo, quadro inicial) |

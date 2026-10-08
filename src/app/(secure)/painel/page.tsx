@@ -28,6 +28,7 @@ import { deliveryEventLabel } from "@/lib/notifications/ops-digest-text";
 import { interCertificateExpiry } from "@/lib/integrations/integrations";
 import { commercialFollowUp } from "@/lib/commercial/follow-up";
 import { supportFollowUp } from "@/lib/tickets/support-follow-up";
+import { clientsFollowUp } from "@/lib/companies/clients-follow-up";
 import { auditEvents, companies, contracts, invoices, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
 import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
@@ -404,9 +405,12 @@ export default async function Dashboard() {
       href: "/empresas",
     });
   // Sales and project work waiting on someone (the same groups the morning digest lists).
-  const followUp = new Map([...(await commercialFollowUp(today)), ...(await supportFollowUp(now))].map((group) => [group.key, group.items]));
+  const followUp = new Map(
+    (await Promise.all([commercialFollowUp(today), supportFollowUp(now), clientsFollowUp(now)])).flat().map((group) => [group.key, group.items]),
+  );
   const followItem = (keys: string[], item: Omit<AttentionItem, "count" | "href"> & { href: string }) => {
-    const items = keys.flatMap((key) => followUp.get(key) ?? []);
+    // One line per record, even when it falls in two groups (waiting past the deadline and with an estimate).
+    const items = [...new Map(keys.flatMap((key) => followUp.get(key) ?? []).map((item) => [item.href, item])).values()];
     if (items.length) candidates.push({ ...item, count: items.length, href: items.length === 1 ? items[0].href : item.href });
   };
   followItem(["awaiting-anuntech"], {
@@ -423,6 +427,35 @@ export default async function Dashboard() {
     tone: "warning",
     title: "Clientes sem Administrador",
     detail: "Têm contrato, orçamento ou cobrança, e ninguém para assinar ou responder",
+    href: "/empresas",
+  });
+  followItem(["stalled-invites"], {
+    key: "stalled-invites",
+    icon: <Building2Icon />,
+    tone: "warning",
+    title: "Convites sem primeiro acesso",
+    detail: "Há 3 dias ou mais; reenvie pelo menu da pessoa na empresa",
+    href: "/empresas",
+  });
+  followItem(["onboarding"], {
+    key: "onboarding",
+    icon: <Building2Icon />,
+    title: "Implantação pendente",
+    detail: "Clientes novos com passos faltando; a ficha está na página da empresa",
+    href: "/empresas",
+  });
+  followItem(["contacts"], {
+    key: "contacts",
+    icon: <Building2Icon />,
+    title: "Contatos para revisar",
+    detail: "Telefone fixo como WhatsApp, e-mail que não chega ou documento inválido",
+    href: "/empresas",
+  });
+  followItem(["idle-access", "archived-access", "idle-staff"], {
+    key: "access-review",
+    icon: <Building2Icon />,
+    title: "Acessos para revisar",
+    detail: "Sem entrar há 90 dias, ou em empresas arquivadas",
     href: "/empresas",
   });
   followItem(["accepted-no-contract"], {

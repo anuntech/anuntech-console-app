@@ -24,7 +24,7 @@ import { governingTerms, loadCalendar, snapshotOf } from "../service-terms/terms
 import { addBusinessMinutes, type Calendar } from "../service-terms/business-calendar";
 import { BUSINESS_DAY_MINUTES } from "../service-terms/terms-model";
 import { visibleToClient } from "../service-terms/ticket-clock";
-import { enqueueTicketNotice } from "../tickets/ticket-notifications";
+import { enqueueTicketNotice, ticketOpener } from "../tickets/ticket-notifications";
 import { quoteNumberLabel } from "../quotes/quote-model";
 import { automations } from "./automations";
 import type { AutomationKey } from "./automation-list";
@@ -90,7 +90,7 @@ export async function deliverContractSigned(contractId: string) {
     tag: "contract-signed",
     key: contractId,
     subject: `${noun === "aditivo" ? "Aditivo" : "Contrato"} assinado: ${c.title}`,
-    text: `O ${noun} "${c.title}" foi assinado pela ${row.company} e pela Anuntech.\n\nO PDF final, com as assinaturas, fica no Console: ${consoleUrl()}/contratos/${c.id}\n\nPróximos passos:\n- As cobranças aparecem em Financeiro: ${consoleUrl()}/financeiro\n- Acessos, dúvidas e pedidos seguem por chamado: ${consoleUrl()}/chamados\n- Como trabalhamos mostra os prazos e o que ajuda a equipe: ${consoleUrl()}/como-trabalhamos\n\nAnuntech`,
+    text: `O ${noun} "${c.title}" foi assinado pelas duas partes.\n\nO PDF final, com as assinaturas, fica no Console: ${consoleUrl()}/contratos/${c.id}\n\nPróximos passos:\n- As cobranças aparecem em Financeiro: ${consoleUrl()}/financeiro\n- Acessos, dúvidas e pedidos seguem por chamado: ${consoleUrl()}/chamados\n- Como trabalhamos mostra os prazos e o que ajuda a equipe: ${consoleUrl()}/como-trabalhamos\n\nAnuntech`,
   });
   if (!sent) await release("contract.signed_notice", contractId);
   else await audit(c.companyId, contractId, "contract.signed_notice_sent", { sent });
@@ -123,7 +123,9 @@ async function contractsSigned() {
 /** The 80% alert, as soon as a bank crosses the line, for conditions the client already sees. */
 async function hoursAlerts() {
   let sent = 0;
+  const archived = new Set((await db.select({ id: companies.id }).from(companies).where(eq(companies.archived, true))).map((c) => c.id));
   for (const bank of await banksAtAlert()) {
+    if (archived.has(bank.companyId)) continue;
     const result = await deliverBankAlert(bank.companyId, { actorId: null, automatic: true });
     if (result?.sent) sent += 1;
   }
@@ -156,7 +158,7 @@ async function hoursReports(today: string, cal: Calendar) {
 
 async function banksWithEntries(month: string) {
   const rows = await db.execute(
-    sql`select distinct company_id from console_time_entries where worked_on >= ${`${month}-01`}::date and worked_on < (${`${month}-01`}::date + interval '1 month')`,
+    sql`select distinct e.company_id from console_time_entries e join console_companies c on c.id = e.company_id where not c.archived and e.worked_on >= ${`${month}-01`}::date and e.worked_on < (${`${month}-01`}::date + interval '1 month')`,
   );
   return (rows.rows as { company_id: string }[]).map((row) => ({ companyId: row.company_id }));
 }
@@ -169,7 +171,16 @@ async function quoteReminders(today: string) {
     .select({ quote: quotes, company: companies.name })
     .from(quotes)
     .innerJoin(companies, eq(companies.id, quotes.companyId))
-    .where(and(eq(quotes.status, "sent"), eq(companies.archived, false), gte(quotes.validUntil, today), lte(quotes.validUntil, addDays(today, 3))));
+    // At least a day after the send, so the reminder never follows the proposal by minutes.
+    .where(
+      and(
+        eq(quotes.status, "sent"),
+        eq(companies.archived, false),
+        gte(quotes.validUntil, today),
+        lte(quotes.validUntil, addDays(today, 3)),
+        lte(quotes.publishedAt, sql`now() - interval '1 day'`),
+      ),
+    );
   let sent = 0;
   for (const { quote: q } of rows) {
     const entity = `${q.id}:${q.publishedVersion}`;
@@ -200,7 +211,9 @@ async function contractReminders() {
       and(
         eq(contracts.status, "sent"),
         eq(companies.archived, false),
+        // Sent 7 to 14 days ago: older ones were already chased by hand, not by a burst on the first run.
         lte(contracts.publishedAt, sql`now() - interval '7 days'`),
+        gte(contracts.publishedAt, sql`now() - interval '14 days'`),
         sql`not exists (select 1 from ${contractSignatures} s where s.contract_id = ${contracts.id} and s.document_hash = ${contracts.documentHash} and s.party = 'client')`,
       ),
     );
@@ -236,6 +249,8 @@ async function reviewNotices(now: Date, cal: Calendar) {
       and(
         eq(tasks.status, "review"),
         isNotNull(tasks.reviewSince),
+        // What entered Revisão in the last 3 days; older deliveries are the team's follow-up, not news.
+        gte(tasks.reviewSince, sql`now() - interval '3 days'`),
         eq(companies.archived, false),
         sql`not exists (select 1 from ${automationEvents} a where a.kind = 'task.review_notice' and a.entity_id = ${tasks.id} || ':' || to_char(${tasks.reviewSince} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS'))`,
       ),
@@ -287,18 +302,27 @@ async function waitingReminders(now: Date, cal: Calendar) {
   let sent = 0;
   for (const { ticket: t } of rows) {
     const days = t.terms?.policy.clientResponseDays ? Math.max(1, Math.floor(t.terms.policy.clientResponseDays / 2)) : 3;
-    if (addBusinessMinutes(t.waitingSince!, days * BUSINESS_DAY_MINUTES, cal) > now) continue;
-    // Not on top of a reminder the team sent by hand today.
+    const halfway = addBusinessMinutes(t.waitingSince!, days * BUSINESS_DAY_MINUTES, cal);
+    // Due, and not long past (5 days): a wait that started weeks ago is the team's follow-up, not a burst on the first run.
+    if (halfway > now || halfway.getTime() < now.getTime() - 5 * 86_400_000) continue;
     const entity = `${t.id}:${t.waitingSince!.toISOString().slice(0, 19)}`;
     if (!(await claim("ticket.waiting_reminder", entity, t.companyId))) continue;
-    await db.transaction(async (tx) => {
-      const [event] = await tx
-        .insert(auditEvents)
-        .values({ actorId, companyId: t.companyId, action: "ticket.client_reminded", entityId: t.id, details: { automatic: true } })
-        .returning({ id: auditEvents.id });
-      await enqueueTicketNotice(tx, event.id, t, "Anuntech", "Lembrete: a equipe ainda precisa de você", null, t.waitingFor ? `O que falta: ${t.waitingFor}` : null);
-    });
-    sent += 1;
+    // Not on top of a reminder the team sent by hand today; taking today's claim also keeps the button from repeating it.
+    if (!(await claim("ticket.client_reminder", `${t.id}:${saoPauloDate(now)}`, t.companyId))) continue;
+    const reached = await db
+      .transaction(async (tx) => {
+        const [event] = await tx
+          .insert(auditEvents)
+          .values({ actorId, companyId: t.companyId, action: "ticket.client_reminded", entityId: t.id, details: { automatic: true } })
+          .returning({ id: auditEvents.id });
+        // Whoever opened the ticket always hears it; the company's contacts follow their preferences.
+        const opener = await ticketOpener(tx, t, "");
+        const queued = await enqueueTicketNotice(tx, event.id, t, "Anuntech", "Lembrete: a equipe ainda precisa de você", opener, t.waitingFor ? `O que falta: ${t.waitingFor}` : null);
+        if (!queued) throw new Error("nobody");
+        return true;
+      })
+      .catch(() => false);
+    if (reached) sent += 1;
   }
   return sent;
 }
@@ -330,10 +354,10 @@ async function weeklySummaries(today: string, now: Date) {
       db.select({ id: tickets.id, subject: tickets.subject, waitingFor: tickets.waitingFor }).from(tickets).where(and(eq(tickets.companyId, company.id), eq(tickets.status, "waiting_customer"))),
       db.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.companyId, company.id), eq(tasks.status, "review"))),
       db
-        .select({ description: invoices.description, amountCents: invoices.amountCents, dueDate: invoices.dueDate })
+        .select({ description: invoices.description, amountCents: invoices.amountCents, dueDate: sql<string>`coalesce(${invoices.bankDueDate}, ${invoices.dueDate})::text` })
         .from(invoices)
         .where(and(eq(invoices.companyId, company.id), eq(invoices.status, "issued")))
-        .orderBy(asc(invoices.dueDate))
+        .orderBy(asc(sql`coalesce(${invoices.bankDueDate}, ${invoices.dueDate})`))
         .limit(1),
       bankMonth(company.id, monthOf(today), { client: true, now }),
     ]);
@@ -344,13 +368,17 @@ async function weeklySummaries(today: string, now: Date) {
         : null,
       review.length ? `Entregas em Revisão, esperando o seu teste: ${review.length}.` : null,
       bank ? `Banco de horas de ${monthOf(today).split("-").reverse().join("/")}: ${hoursLabel(bank.usedMinutes)} de ${hoursLabel(bank.includedMinutes)}.` : null,
-      nextInvoice ? `Próxima fatura: ${nextInvoice.description}, ${currency(nextInvoice.amountCents)}, vence em ${dateLabel(nextInvoice.dueDate)}.` : null,
+      nextInvoice
+        ? nextInvoice.dueDate < today
+          ? `Fatura em aberto: ${nextInvoice.description}, ${currency(nextInvoice.amountCents)}, venceu em ${dateLabel(nextInvoice.dueDate)}. Pague pelo Console: ${consoleUrl()}/financeiro`
+          : `Próxima fatura: ${nextInvoice.description}, ${currency(nextInvoice.amountCents)}, vence em ${dateLabel(nextInvoice.dueDate)}.`
+        : null,
     ].filter(Boolean);
     const delivered = await mailAdministrators(company.id, {
       tag: "weekly-summary",
       key: entity,
       subject: `Sua semana com a Anuntech: ${company.name}`,
-      text: `Resumo da semana da ${company.name} no Console da Anuntech.\n\n${sections.join("\n\n")}\n\nTudo isso fica na Visão geral: ${consoleUrl()}/painel\n\nAnuntech`,
+      text: `Resumo da semana no Console da Anuntech: ${company.name}.\n\n${sections.join("\n\n")}\n\nTudo isso fica na Visão geral: ${consoleUrl()}/painel\n\nAnuntech`,
     });
     if (!delivered) await release("weekly.summary", entity);
     else sent += 1;

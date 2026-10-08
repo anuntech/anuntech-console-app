@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { companies, messages, tickets, user } from "@/db/schema";
 import { db } from "../db";
 import { termsSummary } from "../service-terms/terms-text";
+import { visibleToClient } from "../service-terms/ticket-clock";
 import { ticketLabels } from "../format";
 import { assistantConfig } from "./assistant";
 
@@ -35,7 +36,8 @@ export async function draftTicketReply(ticketId: string) {
     .innerJoin(user, eq(user.id, messages.authorId))
     .where(eq(messages.ticketId, ticketId))
     .orderBy(asc(messages.createdAt));
-  const terms = row.ticket.terms ? termsSummary(row.ticket.terms) : null;
+  // Only what the client can already read; unpublished conditions are never quoted.
+  const terms = row.ticket.terms && visibleToClient(row.ticket.terms, new Date()) ? termsSummary(row.ticket.terms) : null;
   const context = [
     `Empresa: ${row.company}`,
     `Assunto: ${row.ticket.subject}`,

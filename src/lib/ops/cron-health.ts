@@ -53,7 +53,8 @@ async function runOutcome(response: Response): Promise<{ completed: boolean; err
   const body = (await response.clone().json().catch(() => null)) as Record<string, unknown> | null;
   const failed = typeof body?.failed === "number" ? body.failed : 0;
   return {
-    completed: !!body && Object.entries(body).some(([key, value]) => key !== "failed" && typeof value === "number" && value > 0),
+    // Counters of work done, never the per-step failure flags ("hoursReportFailed").
+    completed: !!body && Object.entries(body).some(([key, value]) => key !== "failed" && !key.endsWith("Failed") && typeof value === "number" && value > 0),
     error: `HTTP ${response.status}${failed ? `, ${failed} ${failed === 1 ? "falha" : "falhas"}` : ""}`,
   };
 }

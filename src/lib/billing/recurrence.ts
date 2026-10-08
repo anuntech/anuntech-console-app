@@ -27,6 +27,26 @@ export function issueDate(due: string, leadDays = 5): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * A paused recurrence resumed after its due date: the periods that went by
+ * without a charge (due on or before today, at most `cap`) and the first
+ * period still ahead, which the routine issues as usual.
+ */
+export function missedPeriods(
+  sub: { nextDueDate: string; interval: BillingInterval; anchorDay: number; anchorMonth: number },
+  today: string,
+  cap = 12,
+): { missed: string[]; next: string } {
+  const missed: string[] = [];
+  let due = sub.nextDueDate;
+  while (due <= today && missed.length < cap) {
+    missed.push(due);
+    due = nextDueDate(due, sub.interval, sub.anchorDay, sub.anchorMonth);
+  }
+  while (due <= today) due = nextDueDate(due, sub.interval, sub.anchorDay, sub.anchorMonth);
+  return { missed, next: due };
+}
+
 /** The first date on `day` of a month (the month's last day when shorter) that is on or after `from`. */
 export function monthlyDueOnOrAfter(day: number, from: string): string {
   const [year, month] = from.split("-").map(Number);

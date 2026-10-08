@@ -2,6 +2,7 @@
 import { SparklesIcon } from "lucide-react";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";
 import { updateTicket } from "@/lib/actions";
+import { dismissTriage } from "@/lib/tickets/ticket-follow-actions";
 import { priorityLabels } from "@/lib/format";
 import { ticketImpactLabels, ticketKindLabels } from "@/lib/tickets/ticket-intake";
 import type { TicketTriage } from "@/lib/tickets/ticket-triage";
@@ -15,13 +16,21 @@ export function TicketTriageNotice({ ticketId, triage }: { ticketId: string; tri
         O texto parece mais grave do que o marcado: {ticketKindLabels[triage.kind].toLowerCase()}
         {triage.kind === "problem" ? `, ${ticketImpactLabels[triage.impact].toLowerCase()}` : ""}. Sugestão do Jev: prioridade {priorityLabels[triage.priority]}.
       </span>
-      <ServerForm action={updateTicket}>
-        <input type="hidden" name="ticketId" value={ticketId} />
-        <input type="hidden" name="priority" value={triage.priority} />
-        <SubmitButton size="sm" variant="outline" pendingLabel="Aplicando…">
-          Aplicar {priorityLabels[triage.priority]}
-        </SubmitButton>
-      </ServerForm>
+      <span className="flex gap-2">
+        <ServerForm action={dismissTriage}>
+          <input type="hidden" name="ticketId" value={ticketId} />
+          <SubmitButton size="sm" variant="ghost" pendingLabel="Salvando…">
+            Manter a prioridade
+          </SubmitButton>
+        </ServerForm>
+        <ServerForm action={updateTicket}>
+          <input type="hidden" name="ticketId" value={ticketId} />
+          <input type="hidden" name="priority" value={triage.priority} />
+          <SubmitButton size="sm" variant="outline" pendingLabel="Aplicando…">
+            Aplicar {priorityLabels[triage.priority]}
+          </SubmitButton>
+        </ServerForm>
+      </span>
     </div>
   );
 }

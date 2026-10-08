@@ -212,6 +212,7 @@ export async function sendHoursReport(_: ActionState, form: FormData): Promise<A
     const input = z.object({ companyId: id, month: z.string().regex(/^\d{4}-\d{2}$/) }).parse(Object.fromEntries(form));
     const result = await deliverHoursReport(input.companyId, input.month, { actorId: actor.user.id });
     if (!result) return { error: "Esta empresa não tem banco de horas." };
+    if (result.failed) return { error: "O e-mail do relatório não saiu para nenhum Administrador. Nada foi registrado; tente de novo." };
     refresh(input.companyId);
     return {
       success: result.sent

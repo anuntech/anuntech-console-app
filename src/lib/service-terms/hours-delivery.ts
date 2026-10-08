@@ -5,7 +5,7 @@ import { db } from "../db";
 import { dateLabel } from "../format";
 import { companyAdministrators, sendClientMail } from "../notifications/client-mail";
 import { automationActorId } from "../ops/automation-actor";
-import { bankMonth, banksAtAlert, hoursLabel, monthOf, previousMonth } from "./hours-bank";
+import { bankMonth, banksAtAlert, finalReport, hoursLabel, lastLoggedAt, monthOf, previousMonth } from "./hours-bank";
 
 /*
  * The hours bank's two notices to the company's Administradores (SUP 3.3 and
@@ -72,8 +72,9 @@ export async function deliverBankAlert(companyId: string, who: Who): Promise<{ s
   }
   // Nobody got it: free the month so the team (or the next run) can try again.
   if (!sent) await db.delete(automationEvents).where(eq(automationEvents.id, claimed.id));
+  // A routine that reached nobody tries again later; only a send or a click goes in the history.
   const actorId = who.actorId ?? (await automationActorId());
-  if (actorId)
+  if (actorId && (sent || !who.automatic))
     await db.insert(auditEvents).values({ actorId, companyId, entityId: companyId, action: "hours.alert_sent", details: { month: data.month, sent, automatic: !!who.automatic } });
   return { sent };
 }
@@ -83,7 +84,7 @@ export async function deliverBankAlert(companyId: string, who: Who): Promise<{ s
  * window to contest it (SUP 3.4). Automatic sends go once, for a month with
  * work logged and no report yet; the team may send a partial or repeated one.
  */
-export async function deliverHoursReport(companyId: string, month: string, who: Who): Promise<{ sent: number; skipped?: string } | null> {
+export async function deliverHoursReport(companyId: string, month: string, who: Who): Promise<{ sent: number; skipped?: string; failed?: boolean } | null> {
   const data = await bankMonth(companyId, month, who.automatic ? { client: true } : {});
   if (!data) return null;
   if (who.automatic) {
@@ -104,7 +105,8 @@ export async function deliverHoursReport(companyId: string, month: string, who: 
     ? `\n\nVocê pode contestar este relatório no Console em até ${data.reportContestDays} dias úteis. Sem contestação, ele conta como aprovado.`
     : "";
   let sent = 0;
-  for (const person of await companyAdministrators(companyId)) {
+  const admins = await companyAdministrators(companyId);
+  for (const person of admins) {
     try {
       await sendClientMail({
         to: person.email,
@@ -121,6 +123,8 @@ export async function deliverHoursReport(companyId: string, month: string, who: 
   }
   const actorId = who.actorId ?? (await automationActorId());
   const now = new Date();
+  // Sending starts the client's window to contest: only a report that reached someone (or a company with nobody to receive it, by the team) counts.
+  if (!sent && admins.length && !who.automatic) return { sent: 0, failed: true };
   if (sent || !who.automatic)
     await db
       .insert(hoursMonths)
@@ -131,6 +135,15 @@ export async function deliverHoursReport(companyId: string, month: string, who: 
     await db.insert(auditEvents).values({ actorId, companyId, entityId: companyId, action: "hours.report_sent", details: { month, sent, automatic: !!who.automatic } });
   return { sent };
 }
+
+/** The closed months the lists look back on. */
+const CLOSED_MONTHS = 3;
+const closedMonths = () => {
+  const out: string[] = [];
+  let month = monthOf();
+  for (let i = 0; i < CLOSED_MONTHS; i++) out.push((month = previousMonth(month)));
+  return out;
+};
 
 /** Companies with a confirmed hours bank. */
 async function bankCompanies() {
@@ -152,15 +165,16 @@ async function bankCompanies() {
 /** What the team still owes the client this month: the 80% alert not sent, last month's report not sent. */
 export async function hoursPending() {
   const month = monthOf();
-  const last = previousMonth(month);
   const [atAlert, banks] = await Promise.all([banksAtAlert(), bankCompanies()]);
   const sent = await alertsSent(atAlert.map((b) => b.companyId), month);
   const names = new Map(banks.map((b) => [b.companyId, b.name]));
-  const reports: { companyId: string; company: string; month: string }[] = [];
-  for (const bank of banks) {
-    const data = await bankMonth(bank.companyId, last);
-    if (data && data.entries.length && !data.reportSentAt) reports.push({ companyId: bank.companyId, company: bank.name, month: last });
-  }
+  const reports: { companyId: string; company: string; month: string; again: boolean }[] = [];
+  for (const bank of banks)
+    for (const closed of closedMonths()) {
+      const data = await bankMonth(bank.companyId, closed);
+      if (!data || !data.entries.length || finalReport(data.reportSentAt, closed, await lastLoggedAt(bank.companyId, closed))) continue;
+      reports.push({ companyId: bank.companyId, company: bank.name, month: closed, again: !!data.reportSentAt });
+    }
   return {
     alerts: atAlert
       .filter((b) => !sent.has(b.companyId))
@@ -180,6 +194,8 @@ export async function overageCharge(companyId: string, month: string, now = new 
   if (!data || !price || month >= monthOf()) return null;
   const minutes = data.usedMinutes - data.includedMinutes;
   if (minutes <= 0 || !data.reportSentAt || data.contestedAt) return null;
+  // Only hours the client saw in a final report, after the window to contest it.
+  if (!finalReport(data.reportSentAt, month, await lastLoggedAt(companyId, month))) return null;
   if (data.contestUntil && new Date(data.contestUntil) > now) return null;
   return {
     minutes,
@@ -191,16 +207,30 @@ export async function overageCharge(companyId: string, month: string, now = new 
 
 /** Closed months whose overage is ready to bill and was not prepared yet, for the team's lists. */
 export async function overagesToBill(now = new Date()) {
-  const month = previousMonth(monthOf());
   const out: { companyId: string; company: string; month: string; amountCents: number; minutes: number }[] = [];
-  for (const bank of await bankCompanies()) {
-    const charge = await overageCharge(bank.companyId, month, now);
+  for (const bank of await bankCompanies())
+    for (const month of closedMonths()) {
+      const charge = await overageCharge(bank.companyId, month, now);
+      if (!charge) continue;
+      const [prepared] = await db
+        .select({ id: automationEvents.id })
+        .from(automationEvents)
+        .where(and(eq(automationEvents.kind, "hours.overage_billed"), eq(automationEvents.entityId, `${bank.companyId}:${month}`)));
+      if (!prepared) out.push({ companyId: bank.companyId, company: bank.name, month, amountCents: charge.amountCents, minutes: charge.minutes });
+    }
+  return out;
+}
+
+/** The first of the closed months whose overage is ready and not prepared, for one company's card. */
+export async function overageReady(companyId: string, now = new Date()) {
+  for (const month of closedMonths()) {
+    const charge = await overageCharge(companyId, month, now);
     if (!charge) continue;
     const [prepared] = await db
       .select({ id: automationEvents.id })
       .from(automationEvents)
-      .where(and(eq(automationEvents.kind, "hours.overage_billed"), eq(automationEvents.entityId, `${bank.companyId}:${month}`)));
-    if (!prepared) out.push({ companyId: bank.companyId, company: bank.name, month, amountCents: charge.amountCents, minutes: charge.minutes });
+      .where(and(eq(automationEvents.kind, "hours.overage_billed"), eq(automationEvents.entityId, `${companyId}:${month}`)));
+    if (!prepared) return { ...charge, month };
   }
-  return out;
+  return null;
 }

@@ -4,6 +4,7 @@ import { DOCUMENT_ATTACHMENTS } from "./tickets/attachment-rules";
 import { z } from "zod";
 import { and, eq, inArray, or, sql, isNull } from "drizzle-orm";
 import { chargeSourceEvent, chargeSourceKinds, preparedChargeEvents } from "./billing/charge-sources";
+import { releasePreparedCharges } from "./billing/prepared-release";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { jevEnabled } from "./assistant/jev";
@@ -22,10 +23,10 @@ import {
   subscriptions,
   auditEvents,
   attachments,
-  user,
   automationEvents,
   quotes,
   contracts,
+  memberships,
 } from "@/db/schema";
 import { expiredDebtCondition } from "./billing/billing-watch";
 import { usualAssignee } from "./tickets/ticket-watch";
@@ -36,6 +37,7 @@ import type { ActionState } from "./action-state";
 import { saveCompanyMember, revokeCompanyMember } from "./access/members-actions";
 import {
   enqueueTicketNotice,
+  ticketOpener,
   scheduleTicketNotices,
 } from "./tickets/ticket-notifications";
 import { dueLabel, priorityLabels, ticketLabels } from "./format";
@@ -343,16 +345,6 @@ export async function createTicket(
     return failure(e);
   }
 }
-/** The person who opened a ticket, so Anuntech's movements reach them directly; never the actor. */
-async function ticketOpener(
-  tx: Pick<typeof db, "select">,
-  ticket: { authorId: string },
-  actorEmail: string,
-): Promise<{ email: string; kind: "movement" } | null> {
-  const [opener] = await tx.select({ email: user.email }).from(user).where(eq(user.id, ticket.authorId));
-  if (!opener?.email || opener.email.toLowerCase() === actorEmail.toLowerCase()) return null;
-  return { email: opener.email, kind: "movement" };
-}
 /**
  * The ticket leaves "waiting for the client": the wait joins the pause where
  * the conditions pause the clock (SUP 5.3), and the deadlines move by it.
@@ -504,6 +496,8 @@ export async function updateTicket(
         assignedTo: z.union([mail, z.literal("")]).optional(),
         /** What the team needs from the client; required to wait for them. */
         waitingFor: z.string().trim().max(500, "Use até 500 caracteres para o que falta.").optional(),
+        /** A line for the client's notice of this move (resolved for no reply). */
+        notice: z.string().trim().max(300).optional(),
       })
       .parse(Object.fromEntries(form));
     const now = new Date();
@@ -612,7 +606,7 @@ export async function updateTicket(
             ]
               .filter(Boolean)
               .join("\n")
-          : null,
+          : input.notice || null,
       );
     });
     if (failed) return { error: failed };
@@ -820,9 +814,7 @@ export async function cancelDraft(
           })
           .where(eq(subscriptions.id, row.subscriptionId));
       // A draft prepared from a debt, a proposal or a contract gives that source back, to be prepared again.
-      await tx
-        .delete(automationEvents)
-        .where(and(inArray(automationEvents.kind, preparedChargeEvents), sql`${automationEvents.details}->>'invoiceId' = ${row.id}`));
+      await releasePreparedCharges(tx, row.id);
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.companyId,
@@ -1025,9 +1017,17 @@ export async function setCompanyArchived(
   if (!actor.admin) return blocked;
   try {
     const input = z
-      .object({ id, archived: z.enum(["yes", "no"]) })
+      .object({
+        id,
+        archived: z.enum(["yes", "no"]),
+        // Winding down with the archive: only what the person ticked.
+        pauseRecurrences: z.literal("yes").optional(),
+        completeEngagements: z.literal("yes").optional(),
+        revokeAccess: z.literal("yes").optional(),
+      })
       .parse(Object.fromEntries(form));
     const archived = input.archived === "yes";
+    const done: string[] = [];
     await db.transaction(async (tx) => {
       const [row] = await tx
         .update(companies)
@@ -1042,12 +1042,45 @@ export async function setCompanyArchived(
         companyId: row.id,
         action: archived ? "company.archived" : "company.restored",
         entityId: row.id,
+        details: archived ? { pauseRecurrences: !!input.pauseRecurrences, completeEngagements: !!input.completeEngagements, revokeAccess: !!input.revokeAccess } : undefined,
       });
+      if (!archived) return;
+      if (input.pauseRecurrences) {
+        const paused = await tx
+          .update(subscriptions)
+          .set({ status: "paused", lastError: "Pausada ao arquivar o cliente." })
+          .where(and(eq(subscriptions.companyId, row.id), eq(subscriptions.status, "active")))
+          .returning({ id: subscriptions.id });
+        for (const sub of paused)
+          await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: row.id, action: "subscription.status_changed", entityId: sub.id, details: { status: "paused", reason: "company_archived" } });
+        if (paused.length) done.push(paused.length === 1 ? "1 recorrência pausada" : `${paused.length} recorrências pausadas`);
+      }
+      if (input.completeEngagements) {
+        const completed = await tx
+          .update(engagements)
+          .set({ status: "completed" })
+          .where(and(eq(engagements.companyId, row.id), inArray(engagements.status, ["active", "paused"])))
+          .returning({ id: engagements.id });
+        for (const item of completed)
+          await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: row.id, action: "engagement.status_changed", entityId: item.id, details: { status: "completed", reason: "company_archived" } });
+        if (completed.length) done.push(completed.length === 1 ? "1 vínculo concluído" : `${completed.length} vínculos concluídos`);
+      }
     });
+    // Access goes through the members' own rules (one environment per account, the audit), one by one.
+    if (archived && input.revokeAccess) {
+      const people = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.companyId, input.id), eq(memberships.active, true)));
+      let revoked = 0;
+      for (const person of people) {
+        const access = new FormData();
+        access.set("id", person.id);
+        if (!(await revokeCompanyMember({}, access)).error) revoked += 1;
+      }
+      if (revoked) done.push(revoked === 1 ? "1 acesso revogado" : `${revoked} acessos revogados`);
+    }
     revalidatePath(`/empresas/${input.id}`);
     refresh();
     return {
-      success: archived ? "Cliente arquivado." : "Cliente restaurado.",
+      success: archived ? `Cliente arquivado.${done.length ? ` ${done.join(", ")}.` : ""}` : "Cliente restaurado.",
       href: archived ? "/empresas" : `/empresas/${input.id}`,
     };
   } catch (e) {

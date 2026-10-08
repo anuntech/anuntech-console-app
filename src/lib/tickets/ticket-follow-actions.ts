@@ -1,5 +1,5 @@
 "use server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auditEvents, automationEvents, messages, tickets } from "@/db/schema";
@@ -8,7 +8,10 @@ import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { updateTicket } from "../actions";
-import { enqueueTicketNotice, scheduleTicketNotices } from "./ticket-notifications";
+import { enqueueTicketNotice, scheduleTicketNotices, ticketOpener } from "./ticket-notifications";
+
+/** Rolls the reminder back (and frees the day) when no client destination was queued. */
+class NobodyToRemind extends Error {}
 
 /*
  * The team's follow-up on a ticket that waits: remind the client of what is
@@ -35,12 +38,15 @@ export async function remindClient(_: ActionState, form: FormData): Promise<Acti
         .values({ kind: "ticket.client_reminder", entityId: `${ticket.id}:${saoPauloDate()}`, companyId: ticket.companyId, actorId: actor.user.id })
         .onConflictDoNothing()
         .returning({ id: automationEvents.id });
-      if (!claimed) return { error: "O cliente já foi lembrado hoje." };
+      if (!claimed) return { error: "O cliente já foi lembrado hoje, pela equipe ou pela rotina." };
       const [event] = await tx
         .insert(auditEvents)
         .values({ actorId: actor.user.id, companyId: ticket.companyId, action: "ticket.client_reminded", entityId: ticket.id })
         .returning({ id: auditEvents.id });
-      await enqueueTicketNotice(tx, event.id, ticket, actor.user.name, "Lembrete: a equipe ainda precisa de você", null, ticket.waitingFor ? `O que falta: ${ticket.waitingFor}` : null);
+      // Whoever opened the ticket always hears it; the company's contacts follow their preferences.
+      const opener = await ticketOpener(tx, ticket, actor.user.email);
+      const queued = await enqueueTicketNotice(tx, event.id, ticket, actor.user.name, "Lembrete: a equipe ainda precisa de você", opener, ticket.waitingFor ? `O que falta: ${ticket.waitingFor}` : null);
+      if (!queued) throw new NobodyToRemind();
       return { success: "Lembrete enviado ao cliente." };
     });
     if ("success" in result) {
@@ -48,7 +54,8 @@ export async function remindClient(_: ActionState, form: FormData): Promise<Acti
       revalidatePath(`/chamados/${ticketId.data}`);
     }
     return result;
-  } catch {
+  } catch (error) {
+    if (error instanceof NobodyToRemind) return { error: "Ninguém do cliente recebe avisos deste chamado. Fale com a pessoa por outro canal." };
     return { error: "Não foi possível lembrar o cliente." };
   }
 }
@@ -69,6 +76,7 @@ export async function closeForNoReply(_: ActionState, form: FormData): Promise<A
   const moved = new FormData();
   moved.set("ticketId", ticketId.data);
   moved.set("status", "resolved");
+  moved.set("notice", "Resolvido por falta de resposta. Se ainda precisar, responda no chamado e ele volta para a equipe.");
   const result = await updateTicket({}, moved);
   return result.error ? result : { success: "Chamado resolvido por falta de resposta. Se o cliente responder, ele reabre." };
 }
@@ -88,4 +96,18 @@ export async function markNoHours(_: ActionState, form: FormData): Promise<Actio
   revalidatePath(`/chamados/${ticketId.data}`);
   revalidatePath("/painel");
   return { success: "Marcado como sem horas." };
+}
+
+/** "Manter a prioridade": the team saw Jev's suggestion and kept the ticket as it is. */
+export async function dismissTriage(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  const ticketId = id.safeParse(form.get("ticketId"));
+  if (!ticketId.success) return blocked;
+  await db
+    .update(automationEvents)
+    .set({ details: sql`${automationEvents.details} || jsonb_build_object('dismissedAt', now(), 'dismissedBy', ${actor.user.id}::text)` })
+    .where(and(eq(automationEvents.kind, "ticket.triage"), eq(automationEvents.entityId, ticketId.data)));
+  revalidatePath(`/chamados/${ticketId.data}`);
+  return { success: "Prioridade mantida." };
 }

@@ -9,11 +9,13 @@ import { getActor } from "../access/access";
 import { db } from "../db";
 import {
   auditEvents,
+  automationEvents,
   billingNotices,
   engagements,
   invoices,
   subscriptions,
 } from "@/db/schema";
+import { addDays, missedPeriods } from "./recurrence";
 import { processBillingNotices } from "./billing-notices";
 import { saoPauloDate } from "../dates";
 import type { ActionState } from "../action-state";
@@ -204,6 +206,7 @@ export async function changeSubscription(
     const status = z
       .enum(["paused", "active", "cancelled"])
       .parse(form.get("status"));
+    let drafted = 0;
     await db.transaction(async (tx) => {
       const [s] = await tx
         .select()
@@ -212,11 +215,53 @@ export async function changeSubscription(
         .for("update");
       if (!s || !["active", "paused"].includes(s.status))
         throw Error("Publique a primeira fatura para ativar a recorrência.");
-      if (status === "active" && s.nextDueDate <= saoPauloDate())
-        throw Error("Revise o próximo vencimento antes de reativar.");
+      const today = saoPauloDate();
+      let nextDueDate = s.nextDueDate;
+      if (status === "active" && s.nextDueDate <= today) {
+        // Resumed late: the months that went by are listed in the dialog; each can become a one-time draft, never issued here.
+        const catchUp = form.get("catchUp");
+        if (catchUp !== "drafts" && catchUp !== "skip") throw Error("Revise o próximo vencimento antes de reativar.");
+        const periods = missedPeriods(s, today);
+        nextDueDate = periods.next;
+        if (catchUp === "drafts")
+          for (const due of periods.missed) {
+            const [claimed] = await tx
+              .insert(automationEvents)
+              .values({ kind: "subscription.catchup", entityId: `${s.id}:${due}`, companyId: s.companyId, actorId: actor.user.id })
+              .onConflictDoNothing()
+              .returning({ id: automationEvents.id });
+            if (!claimed) continue;
+            const [draft] = await tx
+              .insert(invoices)
+              .values({
+                companyId: s.companyId,
+                engagementId: s.engagementId,
+                description: `${s.description} · vencimento de ${due.split("-").reverse().join("/")}`,
+                amountCents: s.amountCents,
+                dueDate: due,
+                bankDueDate: addDays(today, 7),
+                discountCents: s.discountCents,
+                fineBps: s.fineBps,
+                interestMonthlyBps: s.interestMonthlyBps,
+              })
+              .returning({ id: invoices.id });
+            await tx
+              .update(automationEvents)
+              .set({ details: { invoiceId: draft.id } })
+              .where(eq(automationEvents.id, claimed.id));
+            await tx.insert(auditEvents).values({
+              actorId: actor.user.id,
+              companyId: s.companyId,
+              action: "invoice.drafted",
+              entityId: draft.id,
+              details: { source: "catchup", subscriptionId: s.id, dueDate: due },
+            });
+            drafted += 1;
+          }
+      }
       await tx
         .update(subscriptions)
-        .set({ status, lastError: null })
+        .set({ status, lastError: null, nextDueDate })
         .where(eq(subscriptions.id, id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
@@ -228,7 +273,11 @@ export async function changeSubscription(
     });
     revalidatePath("/financeiro");
     revalidatePath("/financeiro/[id]", "page");
-    return { success: "Recorrência atualizada." };
+    return {
+      success: drafted
+        ? `Recorrência retomada. ${drafted === 1 ? "1 rascunho criado" : `${drafted} rascunhos criados`} para os vencimentos que ficaram sem cobrança; confira e emita cada um.`
+        : "Recorrência atualizada.",
+    };
   } catch (e) {
     return {
       error: e instanceof Error ? e.message : "Não foi possível atualizar.",

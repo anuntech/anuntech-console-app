@@ -123,6 +123,8 @@ export type InvoiceDetailData = {
     earlyReady: boolean;
     /** The next period, when it is already at the bank. */
     ahead: { id: string; dueDate: string; amountCents: number; status: "issued" | "paid" } | null;
+    /** Staff, paused past its due date: the due dates that went by and the next one ahead. */
+    resume?: { missed: string[]; next: string } | null;
     terms: ChargeTerms;
   } | null;
   /** Draft waiting for its automatic emission date. */
@@ -1199,9 +1201,31 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   ? sub.ahead?.status === "issued"
                     ? `As próximas emissões automáticas param. A fatura de ${dateLabel(sub.ahead.dueDate)} já está no Inter e continua valendo; se não for devida, abra essa fatura e use Cancelar no Inter.`
                     : "As próximas emissões automáticas param. Faturas já emitidas não mudam."
-                  : `As emissões e avisos voltam. Próximo vencimento: ${dateLabel(sub.nextDueDate)}, ${currency(sub.amountCents)}.`
+                  : sub.resume
+                    ? `Os vencimentos de ${sub.resume.missed.map((due) => dateLabel(due)).join(", ")} passaram sem cobrança. A recorrência volta no vencimento de ${dateLabel(sub.resume.next)}, ${currency(sub.amountCents)}.`
+                    : `As emissões e avisos voltam. Próximo vencimento: ${dateLabel(sub.nextDueDate)}, ${currency(sub.amountCents)}.`
               }
               confirmLabel={sub.status === "active" ? "Pausar" : "Retomar"}
+              extra={
+                sub.status !== "active" && sub.resume
+                  ? (formId) => (
+                      <fieldset className="grid gap-2 rounded-lg border bg-field/60 px-3 py-3 text-sm">
+                        <legend className="sr-only">O que fazer com os vencimentos que passaram</legend>
+                        <label className="flex items-start gap-2">
+                          <input type="radio" form={formId} name="catchUp" value="drafts" defaultChecked className="mt-1" />
+                          <span>
+                            Criar {sub.resume!.missed.length === 1 ? "um rascunho avulso" : `${sub.resume!.missed.length} rascunhos avulsos`} para cobrar esses vencimentos
+                            <span className="block text-xs text-muted-foreground">Cada um fica com o vencimento original e uma nova data para pagar. Nada vai ao Inter até você emitir.</span>
+                          </span>
+                        </label>
+                        <label className="flex items-start gap-2">
+                          <input type="radio" form={formId} name="catchUp" value="skip" className="mt-1" />
+                          <span>Seguir só a partir de {dateLabel(sub.resume!.next)}, sem cobrar o que passou</span>
+                        </label>
+                      </fieldset>
+                    )
+                  : undefined
+              }
             />
           )}
           <ConfirmDialog

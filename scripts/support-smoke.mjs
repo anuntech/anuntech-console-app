@@ -49,7 +49,7 @@ export async function runSupportTests({ database: db, ids, people, request, subm
   const waiting = randomUUID();
   await db.query(
     "insert into console_tickets(id,company_id,subject,author_id,status,waiting_for,waiting_since) values($1,$2,$3,$4,'waiting_customer','O print do erro',now() - interval '20 days')",
-    [waiting, ids.a, `Waiting ${marker}`, people.admin.id],
+    [waiting, ids.a, `Waiting ${marker}`, people.manager.id],
   );
   const waitingPage = await request(`/chamados/${waiting}`, "admin");
   ok(waitingPage.text.includes("Lembrar o cliente") && waitingPage.text.includes("Resolver por falta de resposta"), "Chamado parado no cliente oferece lembrar ou resolver");
@@ -59,8 +59,9 @@ export async function runSupportTests({ database: db, ids, people, request, subm
   await submitForm(`/chamados/${waiting}`, "admin", "admin", { action: "remindClient" }, { ticketId: waiting });
   ok(
     (await db.query("select id from console_automation_events where kind='ticket.client_reminder' and entity_id like $1", [`${waiting}:%`])).rowCount === 1 &&
-      (await db.query("select id from console_audit_events where entity_id=$1 and action='ticket.client_reminded'", [waiting])).rowCount === 1,
-    "Lembrar o cliente vale uma vez por dia",
+      (await db.query("select id from console_audit_events where entity_id=$1 and action='ticket.client_reminded'", [waiting])).rowCount === 1 &&
+      (await db.query("select id from console_ticket_notices where ticket_id=$1 and destination=$2", [waiting, people.manager.email.toLowerCase()])).rowCount === 1,
+    "Lembrar o cliente vale uma vez por dia e chega a quem abriu o chamado",
   );
   const painel = await request("/painel", "admin");
   ok(painel.text.includes("Chamados parados no cliente"), "O painel mostra o chamado parado no cliente");
@@ -105,8 +106,12 @@ export async function runSupportTests({ database: db, ids, people, request, subm
     const [y, m] = today.split("-").map(Number);
     return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
   })();
-  await db.query("insert into console_time_entries(id,company_id,author_id,minutes,note,worked_on,kind) values($1,$2,$3,690,'Mês cheio',$4,'bank')", [randomUUID(), ids.a, people.admin.id, `${last}-10`]);
-  await db.query("insert into console_hours_months(id,company_id,month,report_sent_at,report_sent_by) values($1,$2,$3,now() - interval '10 days',$4)", [randomUUID(), ids.a, last, people.admin.id]);
+  // Logged during the month, reported after it closed: the final report.
+  await db.query(
+    "insert into console_time_entries(id,company_id,author_id,minutes,note,worked_on,kind,created_at) values($1,$2,$3,690,'Mês cheio',$4,'bank',date_trunc('month', now()) - interval '2 days')",
+    [randomUUID(), ids.a, people.admin.id, `${last}-10`],
+  );
+  await db.query("insert into console_hours_months(id,company_id,month,report_sent_at,report_sent_by) values($1,$2,$3,date_trunc('month', now()) + interval '6 hours',$4)", [randomUUID(), ids.a, last, people.admin.id]);
   const card = await request(`/empresas/${ids.a}`, "admin");
   ok(card.text.includes("Excedente do mês passado") && card.text.includes(`/financeiro/nova?excedente=${ids.a}&amp;mes=${last}`), "O card do banco mostra o excedente pronto para cobrar");
   const overageForm = await request(`/financeiro/nova?excedente=${ids.a}&mes=${last}`, "admin");

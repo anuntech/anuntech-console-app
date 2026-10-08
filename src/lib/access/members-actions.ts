@@ -9,6 +9,7 @@ import { z } from "zod";
 import {
   accountEmails,
   auditEvents,
+  automationEvents,
   companies,
   consoleStaffMembers,
   memberships,
@@ -20,6 +21,7 @@ import type { ActionState } from "../action-state";
 import { getConsoleStaffAccess } from "./console-members";
 import { db } from "../db";
 import { deliverInviteEmail } from "../auth/otp-delivery";
+import { recordInvite } from "./invite-tracking";
 import { normalizeEmail } from "./permissions";
 import { canManageMembers, managedCompanyIds } from "./member-access";
 
@@ -340,10 +342,15 @@ export async function saveCompanyMember(
           .select({ name: companies.name })
           .from(companies)
           .where(eq(companies.id, input.companyId));
-        await deliverInviteEmail(input.email, {
+        const sent = await deliverInviteEmail(input.email, {
           kind: "company",
           companyName: company?.name || "sua empresa",
         });
+        const [member] = await db
+          .select({ id: memberships.id })
+          .from(memberships)
+          .where(and(eq(memberships.companyId, input.companyId), eq(memberships.email, input.email), eq(memberships.active, true)));
+        if (member) await recordInvite(sent, { membershipId: member.id, companyId: input.companyId, email: input.email });
       } catch {
         return {
           success:
@@ -419,5 +426,52 @@ export async function revokeCompanyMember(
     };
   } catch (error) {
     return failure(error);
+  }
+}
+
+/**
+ * Sends the invite again to someone who never signed in: the team or the
+ * company's Administrador, at most once a week per access.
+ */
+export async function resendInvite(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!canManageMembers(actor)) return blocked;
+  try {
+    const id = idInput.parse(form.get("id"));
+    const [entry] = await db
+      .select({ id: memberships.id, email: memberships.email, companyId: memberships.companyId, company: companies.name })
+      .from(memberships)
+      .innerJoin(companies, eq(companies.id, memberships.companyId))
+      .where(
+        and(
+          eq(memberships.id, id),
+          eq(memberships.active, true),
+          actor.admin ? undefined : inArray(memberships.companyId, managedCompanyIds(actor)),
+        ),
+      );
+    if (!entry) return blocked;
+    const monday = (() => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+      return d.toISOString().slice(0, 10);
+    })();
+    const [claimed] = await db
+      .insert(automationEvents)
+      .values({ kind: "invite.resend", entityId: `${entry.id}:${monday}`, companyId: entry.companyId, actorId: actor.user.id })
+      .onConflictDoNothing()
+      .returning({ id: automationEvents.id });
+    if (!claimed) return { error: "O convite já foi reenviado esta semana. Confira o e-mail com a pessoa." };
+    try {
+      const sent = await deliverInviteEmail(entry.email, { kind: "company", companyName: entry.company });
+      await recordInvite(sent, { membershipId: entry.id, companyId: entry.companyId, email: entry.email });
+    } catch {
+      await db.delete(automationEvents).where(eq(automationEvents.id, claimed.id));
+      return { error: "Não foi possível reenviar o convite agora. Tente de novo em instantes." };
+    }
+    await db.insert(auditEvents).values({ actorId: actor.user.id, companyId: entry.companyId, entityId: entry.id, action: "membership.invite_resent", details: { email: entry.email } });
+    refreshMembers();
+    return { success: `Convite reenviado para ${entry.email}.` };
+  } catch (e) {
+    return failure(e);
   }
 }

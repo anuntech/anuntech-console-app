@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { automationEvents } from "@/db/schema";
 import { db } from "../db";
 
@@ -11,14 +11,14 @@ import { db } from "../db";
 
 type OpsMail = { to: string; subject: string; status: "sent" | "delivered" | "failed"; event?: string };
 
-/** Reads back up to 10 recent alerts still without a final answer; called by the 5-minute cron. */
+/** Reads back up to 10 recent staff alerts and client invites still without a final answer; called by the 5-minute cron. */
 export async function checkOpsDeliveries(deadline = Date.now() + 30_000) {
   const rows = await db
     .select()
     .from(automationEvents)
     .where(
       and(
-        eq(automationEvents.kind, "ops-mail"),
+        inArray(automationEvents.kind, ["ops-mail", "invite.mail"]),
         sql`${automationEvents.details}->>'status' = 'sent'`,
         gte(automationEvents.createdAt, sql`now() - interval '3 days'`),
         sql`${automationEvents.createdAt} < now() - interval '2 minutes'`,

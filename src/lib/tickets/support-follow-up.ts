@@ -19,7 +19,10 @@ export async function supportFollowUp(now = new Date()): Promise<FollowUpGroup[]
     {
       key: "hours-reports",
       title: "Relatórios de horas a enviar",
-      items: hours.reports.map((r) => ({ line: `${r.company} · ${monthName(r.month)}`, href: `/empresas/${r.companyId}` })),
+      items: hours.reports.map((r) => ({
+        line: `${r.company} · ${monthName(r.month)}${r.again ? " · reenviar: o relatório saiu antes do fim do mês ou de horas registradas depois" : ""}`,
+        href: `/empresas/${r.companyId}`,
+      })),
     },
     {
       key: "hours-overage",

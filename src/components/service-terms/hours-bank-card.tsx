@@ -202,12 +202,12 @@ export function HoursBankCard({
         )}
         {viewer === "team" && (
           <div className="flex flex-wrap gap-2">
-            {prev && !prev.reportSentAt && (
+            {prev && !prev.final && (
               <ServerForm action={sendHoursReport}>
                 <input type="hidden" name="companyId" value={bank.companyId} />
                 <input type="hidden" name="month" value={prev.month} />
                 <SubmitButton size="sm" pendingLabel="Enviando…">
-                  Enviar relatório de {monthName(prev.month)}
+                  {prev.reportSentAt ? `Reenviar relatório final de ${monthName(prev.month)}` : `Enviar relatório de ${monthName(prev.month)}`}
                 </SubmitButton>
               </ServerForm>
             )}

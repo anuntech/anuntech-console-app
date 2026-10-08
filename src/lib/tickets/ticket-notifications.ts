@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, ne, lt, lte, sql } from "drizzle-orm";
 import { after } from "next/server";
 import { db } from "../db";
-import { companies, tickets, ticketNotices } from "@/db/schema";
+import { companies, tickets, ticketNotices, user } from "@/db/schema";
 import {
   lockTicketNotifications,
   ticketNotificationsEnabled,
@@ -45,7 +45,7 @@ export async function enqueueTicketNotice(
     .select({ name: companies.name, archived: companies.archived })
     .from(companies)
     .where(eq(companies.id, ticket.companyId));
-  if (!company || company.archived) return;
+  if (!company || company.archived) return 0;
   const recipients = await Promise.all(
     (operationalEnabled ? [null, ticket.companyId] : [ticket.companyId]).map(
       async (companyId) => ({
@@ -155,6 +155,8 @@ export async function enqueueTicketNotice(
         ),
       )
       .onConflictDoNothing();
+  // How many live notices reach someone on the client's side (the opener or the company's contacts).
+  return queued.filter((q) => q.status !== "cancelled" && q.preferenceKey !== "console:tickets").length;
 }
 
 export function scheduleTicketNotices() {
@@ -584,4 +586,15 @@ export async function processTicketNotices() {
     processed++;
   }
   return { processed };
+}
+
+/** The person who opened a ticket, so Anuntech's movements reach them directly; never the actor. */
+export async function ticketOpener(
+  tx: Pick<typeof db, "select">,
+  ticket: { authorId: string },
+  actorEmail: string,
+): Promise<{ email: string; kind: "movement" } | null> {
+  const [opener] = await tx.select({ email: user.email }).from(user).where(eq(user.id, ticket.authorId));
+  if (!opener?.email || opener.email.toLowerCase() === actorEmail.toLowerCase()) return null;
+  return { email: opener.email, kind: "movement" };
 }
