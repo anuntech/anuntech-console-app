@@ -29,6 +29,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 08/10/2026: campos do contrato no topo do rascunho, com sugestões do cadastro, do produto e do orçamento, aplicar e salvar.
 - [x] 07/10/2026: próxima fatura das recorrências mensais emitida assim que a atual é paga (aviso continua 5 dias antes), Próximas cobranças no Financeiro, na Visão geral e na fatura, recorrências pausadas em destaque e Cancelar no Inter.
 - [x] 06/10/2026: ditado por microfone no assistente e em Abrir chamado (`/api/transcricao`, OpenRouter com retenção zero, 2 minutos por gravação, 30 por hora por pessoa).
 - [x] 04/10/2026: Como trabalhamos, todas as fases: formulário de chamado guiado (tipo, impacto, produto, o que esperar), prioridade só da equipe com Crítica, Aguardando você com o que falta, condições de atendimento por empresa com fichas dos modelos e feriados da sede, relógio do chamado (resposta, meta, pausa), fila e resumo da equipe por prazo, página Como trabalhamos, Primeiros passos, Pedir orçamento, próximos passos, Sobre este projeto, regras do quadro e revisão de entregas, estimativa de melhoria, banco de horas com aprovação e relatório, duração das fases do orçamento e o assistente com o guia e as condições.

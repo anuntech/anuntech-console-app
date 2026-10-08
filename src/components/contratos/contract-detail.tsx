@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Building2Icon,
   CalendarRangeIcon,
@@ -12,7 +12,6 @@ import {
   MoreHorizontalIcon,
   SendIcon,
   Trash2Icon,
-  TriangleAlertIcon,
   Undo2Icon,
   XCircleIcon,
 } from "lucide-react";
@@ -71,6 +70,7 @@ import {
 } from "@/lib/contracts/contract-table";
 import { ContractKindChip, ContractStatusBadge, ContractTermBadge } from "./contract-badges";
 import { ContractText } from "./contract-text";
+import { ContractFieldsPanel, type FieldSuggestions } from "./contract-fields-panel";
 import {
   ClientRoundCard,
   ReviewHistory,
@@ -99,7 +99,8 @@ export type ContractDetailData = {
     sentAt: string | null;
     signedAt: string | null;
     createdAt: string;
-    pendingVariables: string[];
+    /** What the Console already knows for the open fields of a draft. */
+    fieldSuggestions: FieldSuggestions;
   };
   /** The contract this one amends, when it is an amendment. */
   parent: { id: string; title: string; status: ContractStatus } | null;
@@ -232,6 +233,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
   const [showChanges, setShowChanges] = useState(true);
   // Accepting a proposed text rewrites the saved draft: unsaved edits in the editor would be lost.
   const [dirtyRevision, setDirtyRevision] = useState<number | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const editorDirty = dirtyRevision === c.revision;
   const amendment = c.kind === "amendment";
   const noun = amendment ? "aditivo" : "contrato";
@@ -380,17 +382,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-5">
                   <FormError />
-                  {c.pendingVariables.length > 0 && (
-                    <div
-                      role="status"
-                      className="flex items-start gap-3 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
-                    >
-                      <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
-                      <span>
-                        Campos sem valor no texto: {c.pendingVariables.join(", ")}. Preencha ou remova antes de enviar.
-                      </span>
-                    </div>
-                  )}
+                  <ContractFieldsPanel bodyRef={bodyRef} initialBody={c.body} suggestions={c.fieldSuggestions} />
                   <div>
                     <Label htmlFor="contract-title" className="mb-1.5">
                       Título
@@ -412,6 +404,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                       Texto
                     </Label>
                     <Textarea
+                      ref={bodyRef}
                       id="contract-body"
                       name="body"
                       required
@@ -754,11 +747,13 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
         fields={{ id: c.id }}
         title={c.status === "in_review" ? `Enviar a versão ${c.version + 1}?` : "Enviar para assinatura?"}
         description={
-          c.status === "in_review"
+          // What goes out is the saved text, never the edits still open on the page.
+          (editorDirty ? "Há alterações no texto que ainda não foram salvas e não entram no envio. " : "") +
+          (c.status === "in_review"
             ? `O texto vira a versão ${c.version + 1}. O cliente recebe um aviso por e-mail, vê o que mudou e a resposta a cada pedido, e assina ou pede novas alterações.`
             : c.version > 0
               ? `O texto vira a versão ${c.version + 1}. O cliente recebe um aviso por e-mail, e as assinaturas da versão anterior deixam de valer.`
-              : "O texto é congelado e o cliente recebe um aviso por e-mail para ler e assinar no Console. Depois disso, o texto não muda mais."
+              : "O texto é congelado e o cliente recebe um aviso por e-mail para ler e assinar no Console. Depois disso, o texto não muda mais.")
         }
         confirmLabel="Enviar"
       />

@@ -16,7 +16,8 @@ import {
 import { getActor, canAccess } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { hasPermission } from "@/lib/access/permissions";
-import { pendingContractVariables } from "@/lib/contracts/contract-templates";
+import { contractFields } from "@/lib/contracts/contract-fields";
+import { contractFieldSuggestions } from "@/lib/contracts/contract-suggestions";
 import { CLIENT_CONTRACT_STATUSES } from "@/lib/contracts/contract-table";
 import { ContractDetail } from "@/components/contratos/contract-detail";
 export const metadata: Metadata = {
@@ -120,6 +121,10 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
   const party = actor.admin ? "anuntech" : grant && hasPermission(grant.role, "finance") ? "client" : null;
   // Staff edit the next version during a review; everyone else reads what was sent.
   const editing = actor.admin && (c.status === "draft" || c.status === "in_review");
+  // The draft's open fields, with what the Console already knows for them.
+  const fieldSuggestions = editing
+    ? await contractFieldSuggestions(c, { name: actor.user.name, email: actor.user.email }, contractFields(c.body).map((field) => field.key))
+    : {};
   const text = !editing && c.publication ? c.publication : { title: c.title, body: c.body };
   const current = signatures.filter((s) => s.documentHash === c.documentHash);
   return (
@@ -144,7 +149,7 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           sentAt: c.publishedAt?.toISOString() ?? null,
           signedAt: c.signedAt?.toISOString() ?? null,
           createdAt: c.createdAt.toISOString(),
-          pendingVariables: editing ? pendingContractVariables(c.body) : [],
+          fieldSuggestions,
         },
         parent,
         amendments: amendments.map((a) => ({ ...a, signedAt: a.signedAt?.toISOString() ?? null })),

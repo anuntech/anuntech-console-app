@@ -29,7 +29,7 @@ import { addressLabel } from "../companies/company-billing";
 import { formatDocument } from "../companies/company-input";
 import { contractPdf } from "./contract-pdf";
 import { deliverContractNotice } from "./contract-mail";
-import { fillContractTemplate } from "./contract-templates";
+import { fillContractTemplate, pendingContractVariables } from "./contract-templates";
 import { currency, longDateLabel } from "../format";
 import { hasPermission } from "../access/permissions";
 
@@ -430,6 +430,12 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, contractId)).for("update");
       if (!c) throw Error("Contrato não encontrado.");
       if (c.status !== "draft" && c.status !== "in_review") throw Error("Este contrato já foi enviado.");
+      // A legal text never goes out with an open {{field}} in it.
+      const open = pendingContractVariables(c.body);
+      if (open.length)
+        throw Error(
+          `O texto salvo ainda tem ${open.length === 1 ? "o campo" : `${open.length} campos`} ${open.slice(0, 3).join(", ")}${open.length > 3 ? "…" : ""}. Preencha ou remova em Campos do contrato e salve antes de enviar.`,
+        );
       // The client gets an answer to every request with the new version.
       const [{ pending }] = await tx
         .select({ pending: count() })

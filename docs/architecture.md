@@ -56,7 +56,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
 | `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela |
 | `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
-| `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), PDF, e-mails |
+| `contracts/` | modelos, contratos, versões, assinatura, aditivos, vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails |
 | `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela |
 | `projects/` | tarefas, quadro, comentários, revisão de entregas (`reviewTask`), exclusão de projetos e serviços |

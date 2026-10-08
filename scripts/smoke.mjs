@@ -788,6 +788,25 @@ try {
     );
     const contractPath = `/contratos/${contract.id}`;
     const contractPdfPath = `/api/contratos/${contract.id}/pdf`;
+    // Open {{fields}} are listed at the top of the draft, with what the Console already knows.
+    await database.query("update console_contracts set body=$2 where id=$1", [
+      contract.id,
+      "Proposta {{numero_proposta}} para {{empresa}}.\n\n1.2. Escopo: {{escopo_funcional}}",
+    ]);
+    const fieldsPage = await request(contractPath, "admin");
+    ok(
+      fieldsPage.text.includes("Campos do contrato") &&
+        fieldsPage.text.includes("Escopo funcional") &&
+        fieldsPage.text.includes("Cadastro da empresa") &&
+        fieldsPage.text.includes("Aplicar e salvar"),
+      "Rascunho mostra os campos sem valor no topo, com sugestão do cadastro",
+    );
+    ok(!(await request(contractPath, "manager")).text.includes("Campos do contrato"), "Cliente não vê os campos do rascunho");
+    await submitForm(contractPath, "admin", "admin", { action: "sendContract" }, { id: contract.id });
+    ok(
+      (await database.query("select status from console_contracts where id=$1", [contract.id])).rows[0].status === "draft",
+      "Contrato com {{campo}} aberto no texto não vai para assinatura",
+    );
     await submitForm(contractPath, "admin", "admin", { action: "saveContract" }, {
       id: contract.id,
       revision: String(contract.revision),

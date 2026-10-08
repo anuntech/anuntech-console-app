@@ -959,7 +959,7 @@ export default async function Preview({
       sentAt: contractStatus === "draft" ? null : ago(30),
       signedAt: contractStatus === "signed" ? ago(1) : null,
       createdAt: ago(72),
-      pendingVariables: contractStatus === "draft" ? ["{{data}}"] : [],
+      fieldSuggestions: { data: { value: "8 de outubro de 2026", source: "Hoje" } },
     },
     parent: null,
     amendments:

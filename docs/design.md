@@ -80,6 +80,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 | `Fact` | Par rótulo/valor dentro de `<dl>` nos cards de detalhe |
 | `MoneyField`, `DateField`, `CompanyField`, `PeopleField`, `MultiSelect`, `TokenChip` | Campos especiais: reais, data civil com calendário, empresa com busca, pessoas, múltipla escolha |
 | `AttachmentField`, `FileChip`, `FileRow`, `useStagedUploads`, `DownloadLink` | Anexos com envio em partes e download privado |
+| `ContractFieldsPanel` (contratos) | Campos `{{...}}` de um rascunho no topo da página: trecho, sugestão, aplicar e salvar sem descer até o texto |
 | `DictationButton`, `useDictation` | Ditado num campo de texto: Falar, Parar e Cancelar, tempo de gravação e o texto entra onde estava o cursor, sem enviar nada |
 | `PersonAvatar`, `AvatarStack`, `CompanyMark` | Pessoas e empresas |
 | `CopyButton`, `BackButton` | Copiar com confirmação; voltar com destino padrão |
