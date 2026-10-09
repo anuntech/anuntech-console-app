@@ -27,6 +27,7 @@ import {
   quotes,
   contracts,
   memberships,
+  journeys,
 } from "@/db/schema";
 import { expiredDebtCondition } from "./billing/billing-watch";
 import { lockEnvironmentAssignments } from "./access/environment-access";
@@ -102,7 +103,9 @@ export async function createCompany(
   if (!actor.admin) return blocked;
   try {
     const input = companyIdentity.parse(Object.fromEntries(form));
-    const company = await db.transaction(async (tx) => {
+    // Started from a project journey ("Cadastrar empresa"): the new company is linked to it, and the team goes back there.
+    const journeyId = z.union([z.string().uuid(), z.literal("")]).catch("").parse(form.get("journeyId") ?? "");
+    const { company, journey } = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(companies)
         .values({ ...input, ...companyBillingInput(form) })
@@ -113,10 +116,26 @@ export async function createCompany(
         action: "company.created",
         entityId: row.id,
       });
-      return row;
+      const [linked] = journeyId
+        ? await tx
+            .update(journeys)
+            .set({ companyId: row.id, updatedAt: new Date() })
+            .where(and(eq(journeys.id, journeyId), isNull(journeys.companyId)))
+            .returning({ id: journeys.id, title: journeys.title })
+        : [];
+      if (linked)
+        await tx.insert(auditEvents).values({
+          actorId: actor.user.id,
+          companyId: row.id,
+          entityId: linked.id,
+          action: "journey.linked",
+          details: { journey: linked.title, kind: "company", recordId: row.id, label: row.name },
+        });
+      return { company: row, journey: linked ?? null };
     });
     refresh();
-    return { success: "Empresa cadastrada.", href: `/empresas/${company.id}` };
+    if (journey) revalidatePath(`/jornadas/${journey.id}`);
+    return { success: "Empresa cadastrada.", href: journey ? `/jornadas/${journey.id}` : `/empresas/${company.id}` };
   } catch (e) {
     return failure(e);
   }

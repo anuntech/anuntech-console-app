@@ -58,6 +58,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cadastro pronto para cobrar (`billing-readiness.ts`), vigilância de dívidas e emissões (`billing-watch.ts`), origens de cobrança preparada (`charge-sources.ts`: dívida, entrada, saldo, contrato, excedente, cada uma uma vez; `prepared-release.ts` devolve a origem quando o rascunho sai), fila de atrasos (`collections.ts`), localização no Inter da emissão sem resposta (`billing-locate.ts`), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
 | `contracts/` | modelos, contratos, versões, assinatura, aditivos (prorrogação e reajuste pelo IPCA em `readjust.ts`), vigência, rodadas de revisão (`contract-review-actions.ts`), campos do rascunho (`contract-fields.ts`, sugestões em `contract-suggestions.ts`), PDF, e-mails |
 | `quotes/` | orçamentos, versões, respostas do cliente, PDF, e-mails; o que o orçamento aceito entrega aos próximos passos (`quote-handoff.ts`: campos do contrato por significado, entrada e saldo, quadro inicial) |
+| `journeys/` | jornada do projeto (só a equipe): modelo-padrão de etapas e passos, briefing e regras de cada passo, puros e testados (`journey-model.ts`); o que o Console sabe de cada jornada (`journey-facts.ts`); ações (`journey-actions.ts`), listas de leitura (`journey-queries.ts`) e os rascunhos da IA (`journey-ai.ts`, servidos por `/api/jornadas/[id]/sugestao`) |
 | `automations/` | os interruptores de Configurações → Automações (`automation-list.ts`, guardados em `environment_profile.automations`) e os avisos automáticos ao cliente (`client-automations.ts`: cada um reivindica um evento em `automation_events` antes de enviar) |
 | `commercial/` | seguimento comercial e de projetos para o resumo e o painel (`follow-up.ts`, limites em `FOLLOW_UP`) |
 | `tickets/` | situações, tipos e impacto (`ticket-intake.ts`), anexos, avisos de chamados, exclusão, tabela; vigilância da equipe (`ticket-watch.ts`: lembrete de primeira resposta, parados no cliente, estimativas, sem horas, responsável habitual), triagem do Jev (`ticket-triage.ts`), acompanhamento por clique (`ticket-follow-actions.ts`) e as listas de suporte do resumo (`support-follow-up.ts`) |
@@ -66,7 +67,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `guide/` | conteúdo de Como trabalhamos (`guide-content.ts`, versionado), marcos por pessoa e primeiros passos |
 | `catalog/` | catálogo de produtos e serviços |
 | `bookmarks/` | pastas, compartilhamento, links e arquivos |
-| `assistant/` | loop do assistente, ferramentas, consentimento, histórico, Jev, modelos do OpenRouter, rascunho de resposta de chamado (`draft-reply.ts`) e fases sugeridas de orçamento (`draft-phases.ts`) |
+| `assistant/` | loop do assistente, ferramentas, consentimento, histórico, Jev, modelos do OpenRouter, rascunho de resposta de chamado (`draft-reply.ts`), fases sugeridas de orçamento (`draft-phases.ts`) e a chamada única ao modelo com repetição e formato conferido (`one-shot.ts`) |
 | `voice/` | ditado por microfone: regras comuns (`voice-rules.ts`: formatos, limites, onde o texto entra) e a transcrição no servidor (`voice-server.ts`) |
 | `http/` | `same-origin.ts`, a checagem de origem dos route handlers que gravam ou custam dinheiro; `hourly-limit.ts`, limite por hora gravado no banco |
 | `ops/` | saúde das rotinas (`cron-health.ts`: `trackedCron` grava a última execução de cada cron) e quem assina na auditoria um passo automático (`automation-actor.ts`) |
@@ -78,8 +79,8 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 ## Rotas
 
 - **Públicas:** `/entrar`, `/verificar-acesso` (segunda etapa), `/acesso-pendente`, `/pagar/[publicId]` e `/pagar/[publicId]/boleto`.
-- **Autenticadas** (`(secure)`): `/painel`, `/empresas`, `/chamados`, `/projetos`, `/produtos`, `/financeiro` (e `/financeiro/envios`), `/contratos`, `/orcamentos`, `/bookmarks`, `/conta` e `/configuracoes/*`.
-- **Criação em painel lateral:** `/chamados/novo`, `/empresas/nova`, `/financeiro/nova`, `/contratos/novo`, `/orcamentos/novo`, `/produtos/novo` e `/projetos/novo` existem como página (acesso direto) e como rota interceptada em `@ticket/(.)…` (navegação interna abre o painel sobre a tela atual). O `@ticket/[...rest]` não renderiza nada nas outras URLs e deixa endereços desconhecidos chegarem ao `not-found` do app.
+- **Autenticadas** (`(secure)`): `/painel`, `/empresas`, `/chamados`, `/projetos`, `/produtos`, `/financeiro` (e `/financeiro/envios`), `/contratos`, `/orcamentos`, `/bookmarks`, `/jornadas` (só a equipe), `/conta` e `/configuracoes/*`.
+- **Criação em painel lateral:** `/chamados/novo`, `/empresas/nova`, `/financeiro/nova`, `/contratos/novo`, `/orcamentos/novo`, `/produtos/novo`, `/projetos/novo` e `/jornadas/nova` existem como página (acesso direto) e como rota interceptada em `@ticket/(.)…` (navegação interna abre o painel sobre a tela atual). O `@ticket/[...rest]` não renderiza nada nas outras URLs e deixa endereços desconhecidos chegarem ao `not-found` do app.
 - **Erros:** `app/not-found.tsx` (fora do app), `(secure)/not-found.tsx` (dentro do app, também usado quando o registro existe mas a pessoa não tem acesso), `error.tsx` nos dois níveis e `global-error.tsx` com HTML próprio.
 
 ## Dados
@@ -93,6 +94,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
   - **Projetos:** `tasks`, `task_assignees`, `task_comments` (anexos em `attachments.comment_id`).
   - **Financeiro:** `invoices`, `subscriptions` (recorrências), `billing_notices`, `email_deliveries`.
   - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures`, `contract_change_requests` (pedidos de alteração por cláusula e versão), `quotes`, `quote_versions`.
+  - **Jornadas:** `journeys` (projeto, empresa ou contato, pedido, orçamento, projeto, hospedagem, responsável, situação e briefing) e `journey_steps` (o que a equipe marcou em cada passo: situação, link, valor, data, anotação, responsável e o texto da IA guardado), migração 0039.
   - **Automação:** `cron_runs` (última execução e erro de cada rotina), `automation_events` (o que uma automação ou decisão já fez, único por tipo e registro: dívida encerrada ou cobrada de novo, alerta enviado com o id do Resend (`ops-mail`), convite enviado e reenviado (`invite.mail`, `invite.resend`), rascunho de vencimento perdido (`subscription.catchup`), registro mantido na Limpeza (`cleanup.keep`), reajuste preparado por contrato e aniversário (`contract.readjust`), fechamento do mês e IPCA do dia). Colunas de ligação `contracts.quote_id`, `quotes.ticket_id`, `engagements.quote_id`, `invoices.quote_id` e os interruptores em `environment_profile.automations` (migração 0038).
   - **Outros:** `bookmarks`, `bookmark_folders`, `bookmark_folder_shares`, `notification_settings`, `notification_preferences`, `assistant_settings`, `assistant_documents`, `assistant_conversations`, `assistant_messages`, `audit_events`.
 - Valores em centavos (`integer`). Vencimentos são datas civis (`date`, `YYYY-MM-DD`), sem conversão de fuso; "hoje" é calculado em America/Sao_Paulo (`lib/dates.ts`).
@@ -112,7 +114,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - Arquivos `"use server"` em `lib/<domínio>/*-actions.ts`. Assinatura padrão `(prev: ActionState, form: FormData) => Promise<ActionState>` com `{ success?, error?, href? }`.
 - A tela usa `ServerForm` (`components/console/server-form.tsx`), que mostra o toast de sucesso, mantém o erro no formulário e navega para `href`.
 - O Next só encontra uma action a partir de uma página que a renderiza: formulários dentro de painéis e diálogos continuam funcionando porque a página importa o componente.
-- Limite de corpo das actions: 2 MB (`next.config.ts`). O áudio do ditado vai por route handler (`/api/transcricao`, até 4 MB, abaixo dos 4,5 MB da Vercel), não por action: actions rodam uma por vez na página e não podem ser canceladas. Pelo mesmo motivo, as sugestões do modelo (`/api/chamados/[id]/sugestao` e `/api/orcamentos/[id]/fases`, só a equipe, com limite por hora) também são route handlers.
+- Limite de corpo das actions: 2 MB (`next.config.ts`). O áudio do ditado vai por route handler (`/api/transcricao`, até 4 MB, abaixo dos 4,5 MB da Vercel), não por action: actions rodam uma por vez na página e não podem ser canceladas. Pelo mesmo motivo, as sugestões do modelo (`/api/chamados/[id]/sugestao`, `/api/orcamentos/[id]/fases` e `/api/jornadas/[id]/sugestao`, só a equipe, com limite por hora) também são route handlers.
 - Anexos maiores sobem em partes de 1 MB por `/api/chamados/uploads` (`components/console/staged-uploads.ts`).
 
 ## Integrações

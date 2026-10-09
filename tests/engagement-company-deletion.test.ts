@@ -76,6 +76,7 @@ test("company deletion knows every table that points at a company", () => {
     "console_time_entries.company_id": "not null",
     "console_hours_months.company_id": "not null",
     "console_automation_events.company_id": "null",
+    "console_journeys.company_id": "null",
     // Kept, set to null: the history outlives the company.
     "console_audit_events.company_id": "null",
   });
@@ -93,6 +94,8 @@ test("the children deleted with a company or its work are all accounted for", ()
     // Kept, unlinked.
     "console_tickets.engagement_id": "null",
     "console_time_entries.engagement_id": "null",
+    "console_journeys.engagement_id": "null",
+    "console_journeys.hosting_engagement_id": "null",
   });
   assert.deepEqual(pointingAt(schema.tasks), {
     "console_task_assignees.task_id": "not null",
@@ -110,6 +113,19 @@ test("the children deleted with a company or its work are all accounted for", ()
     // Hours stay in the bank, unlinked; so does a proposal it asked for.
     "console_time_entries.ticket_id": "null",
     "console_quotes.ticket_id": "null",
+    "console_journeys.ticket_id": "null",
+  });
+  // A proposal's deletion unlinks what was made from it (quote-deletion.ts).
+  assert.deepEqual(pointingAt(schema.quotes), {
+    "console_contracts.quote_id": "null",
+    "console_engagements.quote_id": "null",
+    "console_invoices.quote_id": "null",
+    "console_quote_versions.quote_id": "not null",
+    "console_journeys.quote_id": "null",
+  });
+  // A journey's steps go with it (deleteJourney and company deletion).
+  assert.deepEqual(pointingAt(schema.journeys), {
+    "console_journey_steps.journey_id": "not null",
   });
   assert.deepEqual(pointingAt(schema.memberships), {
     "console_email_deliveries.membership_id": "not null",
@@ -128,6 +144,7 @@ test("the children deleted with a company or its work are all accounted for", ()
     schema.bookmarks,
     schema.bookmarkFolderShares,
     schema.notificationPreferences,
+    schema.journeySteps,
   ])
     assert.deepEqual(pointingAt(leaf), {}, getTableConfig(leaf).name);
 });

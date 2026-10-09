@@ -122,6 +122,75 @@ function decide(messages) {
   return reply(`Recebi: "${user}". Sou o mock do OpenRouter e só sei falar de boletos, chamados, projetos e resumos.`);
 }
 
+/**
+ * The journey drafts, deterministic and valid for their schemas. Notes with
+ * RESPOSTA-QUEBRADA get prose instead of JSON, to exercise "fora do formato".
+ */
+function journeyAnswer(system, user) {
+  if (system.startsWith("Você organiza o briefing")) {
+    if (user.includes("RESPOSTA-QUEBRADA")) return { kind: "briefing", content: "Não consegui organizar as notas." };
+    return {
+      kind: "briefing",
+      content: JSON.stringify({
+        objetivo: "Organizar os pedidos da equipe comercial num só lugar.",
+        problema: "Os pedidos chegam por planilha e se perdem.",
+        publico: "Equipe comercial e gestores",
+        tipoProjeto: "sistema",
+        funcionalidades: ["Cadastro de pedidos", "Painel de acompanhamento"],
+        integracoes: ["ERP atual"],
+        restricoes: [],
+        prazoDesejado: "Até março",
+        orcamentoCliente: "",
+        decisor: "Diretora comercial",
+        perguntasAbertas: ["Qual ERP a empresa usa e se ele tem API?"],
+        riscos: [],
+        proximosPassos: ["Enviar o orçamento"],
+      }),
+    };
+  }
+  if (system.startsWith("Você escreve o prompt de início do projeto"))
+    return {
+      kind: "prompt",
+      content: "# Prompt de início do projeto\nProjeto de teste\n\n## Contexto do projeto\nSistema de pedidos.\n\n## Setup\n1. `gh repo create anuntech/projeto-de-teste --private`",
+    };
+  if (system.startsWith("Você propõe a direção visual"))
+    return {
+      kind: "design",
+      content: JSON.stringify({
+        paleta: [
+          { nome: "Fundo", hex: "#FAFAF7", uso: "Fundo das telas" },
+          { nome: "Texto", hex: "#1C1B19", uso: "Texto principal" },
+          { nome: "Principal", hex: "#1F5EFF", uso: "Botões e links" },
+          { nome: "Destaque", hex: "#F2A93B", uso: "Avisos e selos" },
+        ],
+        fontes: { titulos: "Inter", texto: "Inter" },
+        raio: "medio",
+        tom: "Sóbrio e claro, com a cor principal só nas ações.",
+        justificativa: "Proposta a validar com o cliente: o público usa o sistema o dia todo, então o contraste vem primeiro.",
+      }),
+    };
+  if (system.startsWith("Você prepara a pauta"))
+    return { kind: "pauta", content: "## Pauta\n1. Apresentações (5 min)\n\n## Perguntas\n- Quem decide?\n\n## Materiais\n- O orçamento\n\n## Checklist\n- [ ] Enviar o resumo" };
+  if (system.startsWith("Você orienta um passo da jornada"))
+    return { kind: "passo", content: "## Como fazer\n1. Abra a ferramenta.\n\n## O que registrar na jornada\n- O link." };
+  if (system.startsWith("Você separa o retorno do cliente"))
+    return {
+      kind: "retorno",
+      content: "## Ajuste dentro do escopo\n- **Trocar a cor do botão** (fase Construção): já está no escopo.\n\n## Novo pedido (vira orçamento ou aditivo)\nNada neste grupo.\n\n## Dúvida ou decisão do cliente\nNada neste grupo.",
+    };
+  if (system.startsWith("Você aponta o que falta na jornada"))
+    return {
+      kind: "lacunas",
+      content: JSON.stringify({
+        passos: [
+          { titulo: "Migrar os pedidos da planilha", etapa: "setup", motivo: "O briefing cita pedidos em planilha." },
+          { titulo: "Testar com dois vendedores", etapa: "validacao", motivo: "O público usa o sistema o dia todo." },
+        ],
+      }),
+    };
+  return null;
+}
+
 globalThis.fetch = async function (input, init) {
   const url = typeof input === "string" ? input : input.url;
   // The model catalog comes from a saved copy, so the settings page works offline too.
@@ -208,6 +277,13 @@ globalThis.fetch = async function (input, init) {
       ),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
+  // The project journey's drafts (lib/journeys/journey-ai.ts): one-shot prompts matched by their opening words.
+  const journey = journeyAnswer(system, String(body.messages?.[1]?.content ?? ""));
+  if (journey) {
+    // What was asked is never logged; only which draft, and that the call refused data collection.
+    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), journey: journey.kind, model: body.model, dataCollection: body.provider?.data_collection ?? null, maxTokens: body.max_tokens }) + "\n");
+    return new Response(JSON.stringify(reply(journey.content)), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
   if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length }) + "\n");
   // A slow model on request, to watch the UI while the assistant works.
   const wait = Number(process.env.CONSOLE_TEST_ASSISTANT_DELAY_MS || 0);

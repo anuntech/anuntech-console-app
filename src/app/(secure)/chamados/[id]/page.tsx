@@ -29,7 +29,7 @@ import { commitmentLine } from "@/lib/service-terms/terms-text";
 import { bankTerms } from "@/lib/service-terms/hours-bank";
 import { saoPauloDate } from "@/lib/dates";
 import type { TicketHoursData } from "@/components/chamados/ticket-hours";
-import { automationEvents, timeEntries } from "@/db/schema";
+import { automationEvents, journeys, timeEntries } from "@/db/schema";
 import { ticketTriage } from "@/lib/tickets/ticket-triage";
 import { desc } from "drizzle-orm";
 export const metadata: Metadata = {
@@ -265,6 +265,10 @@ export default async function Ticket({
         viewer: { admin: actor.admin },
         replyDraft: actor.admin && typeof resposta === "string" ? resposta.slice(0, 2000) : undefined,
         triage: actor.admin && !["resolved", "closed"].includes(t.status) ? await ticketTriage(t.id, t.priority) : null,
+        journeyId:
+          actor.admin && t.kind === "new_project"
+            ? ((await db.select({ id: journeys.id }).from(journeys).where(eq(journeys.ticketId, t.id)))[0]?.id ?? null)
+            : null,
         followUp: actor.admin
           ? {
               waiting: t.status === "waiting_customer",

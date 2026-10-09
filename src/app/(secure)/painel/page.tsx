@@ -18,6 +18,7 @@ import {
   WalletIcon,
   ScaleIcon,
   ClockIcon,
+  RouteIcon,
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { expiredDebtCondition, expiredDebts, expiringCharges, failingRecurrences, leavingCharges } from "@/lib/billing/billing-watch";
@@ -31,7 +32,9 @@ import { supportFollowUp } from "@/lib/tickets/support-follow-up";
 import { clientsFollowUp } from "@/lib/companies/clients-follow-up";
 import { collectionFollowUp } from "@/lib/billing/collections";
 import { readjustFollowUp } from "@/lib/contracts/readjust";
-import { auditEvents, companies, contracts, invoices, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
+import { auditEvents, companies, contracts, invoices, journeys, quotes, serviceTerms, subscriptions, tickets, user } from "@/db/schema";
+import { JOURNEY_STALLED_DAYS } from "@/lib/journeys/journey-model";
+import { journeyMovedAt } from "@/lib/journeys/journey-queries";
 import { getActor } from "@/lib/access/access";
 import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
@@ -201,7 +204,8 @@ export default async function Dashboard() {
       .from(auditEvents)
       .leftJoin(actorUser, eq(actorUser.id, auditEvents.actorId))
       .leftJoin(companies, eq(companies.id, auditEvents.companyId))
-      .where(sql`${auditEvents.action} not like 'account.%'`)
+      // The journeys' day-to-day (each step ticked) stays on the journey; the feed keeps when one starts or ends.
+      .where(sql`${auditEvents.action} not like 'account.%' and (${auditEvents.action} not like 'journey.%' or ${auditEvents.action} in ('journey.created', 'journey.finished', 'journey.lost'))`)
       .orderBy(desc(auditEvents.createdAt))
       .limit(6),
     // Unanswered tickets whose first response is due within a business hour, or late.
@@ -568,6 +572,20 @@ export default async function Dashboard() {
     detail: "Pedidos do cliente no Backlog e entregas com o prazo de teste vencido",
     href: "/projetos",
   });
+  // Project journeys nobody moved for a while (the next step is on each one).
+  const [stalledJourneys] = await db
+    .select({ n: count() })
+    .from(journeys)
+    .where(and(eq(journeys.status, "active"), sql`${journeyMovedAt} < ${new Date(now.getTime() - JOURNEY_STALLED_DAYS * 86_400_000)}`));
+  if (stalledJourneys.n > 0)
+    candidates.push({
+      key: "journeys-stalled",
+      icon: <RouteIcon />,
+      title: "Jornadas paradas",
+      detail: `Sem mudança há mais de ${JOURNEY_STALLED_DAYS} dias; o próximo passo está em cada uma`,
+      count: stalledJourneys.n,
+      href: "/jornadas",
+    });
   const attention = candidates.filter((item): item is AttentionItem => item !== false);
 
   const feed: ActivityEntry[] = activity.map((event) => ({

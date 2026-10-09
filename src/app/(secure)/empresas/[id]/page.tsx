@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, or, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, isNull, or, sql, sum } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
@@ -86,7 +86,13 @@ export default async function Company({
         createdAt: auditEvents.createdAt,
       })
       .from(auditEvents)
-      .where(eq(auditEvents.companyId, id))
+      // A journey's day-to-day (each step ticked) stays on the journey, as on the Painel.
+      .where(
+        and(
+          eq(auditEvents.companyId, id),
+          sql`(${auditEvents.action} not like 'journey.%' or ${auditEvents.action} in ('journey.created', 'journey.finished', 'journey.lost'))`,
+        ),
+      )
       .orderBy(desc(auditEvents.createdAt))
       .limit(12),
     db

@@ -7,6 +7,8 @@ import {
   auditEvents,
   automationEvents,
   quotes,
+  journeys,
+  journeySteps,
   bookmarkFolderShares,
   bookmarkFolders,
   bookmarks,
@@ -118,6 +120,13 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
       await tx.delete(userMilestones).where(eq(userMilestones.companyId, company.id));
       // What the automations did for it (reminders sent, debts decided) goes with it.
       await tx.delete(automationEvents).where(eq(automationEvents.companyId, company.id));
+      // Its project journeys go with it; a journey elsewhere pointing at its records only loses the link.
+      const itsJourneys = tx.select({ id: journeys.id }).from(journeys).where(eq(journeys.companyId, company.id));
+      await tx.delete(journeySteps).where(inArray(journeySteps.journeyId, itsJourneys));
+      await tx.delete(journeys).where(eq(journeys.companyId, company.id));
+      await tx.update(journeys).set({ ticketId: null }).where(inArray(journeys.ticketId, itsTickets));
+      await tx.update(journeys).set({ engagementId: null }).where(inArray(journeys.engagementId, itsWork));
+      await tx.update(journeys).set({ hostingEngagementId: null }).where(inArray(journeys.hostingEngagementId, itsWork));
       // A proposal of another company asked for in one of its tickets only loses the link.
       await tx.update(quotes).set({ ticketId: null }).where(inArray(quotes.ticketId, itsTickets));
       const notices = await tx

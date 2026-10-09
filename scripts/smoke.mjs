@@ -5,6 +5,7 @@ import { runSupportTests } from "./support-smoke.mjs";
 import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
+import { runJourneyTests } from "./journey-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -2057,6 +2058,7 @@ try {
   await runNoticesTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
   await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
   await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
+  await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );
@@ -2089,6 +2091,15 @@ try {
   for (const table of ["console_time_entries", "console_hours_months", "console_service_terms"])
     await database.query(`delete from ${table} where company_id=any($1::text[])`, [companyIds]);
   await database.query("update console_engagements set quote_id=null where company_id=any($1::text[])", [companyIds]);
+  // Project journeys point at companies, proposals and people: they go first.
+  await database.query(
+    "delete from console_journey_steps where journey_id in (select id from console_journeys where company_id=any($1::text[]) or owner_id=any($2::text[]))",
+    [companyIds, Object.values(people).map((p) => p.id)],
+  );
+  await database.query("delete from console_journeys where company_id=any($1::text[]) or owner_id=any($2::text[])", [
+    companyIds,
+    Object.values(people).map((p) => p.id),
+  ]);
   await database.query("delete from console_automation_events where company_id=any($1::text[]) or actor_id=any($2::text[])", [
     companyIds,
     Object.values(people).map((p) => p.id),

@@ -45,7 +45,8 @@ export function CompanySheet({
 }
 
 /** /empresas/nova reached by navigation (dock, Painel, assistant). */
-export function NewCompanySheet() {
+/** `journeyId`: started from a project journey (`?jornada=`), so the company is linked to it and the team goes back there. */
+export function NewCompanySheet({ journeyId = "" }: { journeyId?: string }) {
   const sheet = useRouteSheet();
   return (
     <FormSheet
@@ -57,18 +58,20 @@ export function NewCompanySheet() {
       submitLabel="Cadastrar empresa"
       pendingLabel="Cadastrando…"
     >
+      {journeyId && <input type="hidden" name="journeyId" value={journeyId} />}
       <CompanyFields />
     </FormSheet>
   );
 }
 
 /** /empresas/nova on a direct load. */
-export function NewCompanyForm() {
+export function NewCompanyForm({ journeyId = "" }: { journeyId?: string }) {
   return (
     <Card className="max-w-2xl">
       <ServerForm action={createCompany} className="contents">
         <CardContent className="flex flex-col gap-5">
           <FormError />
+          {journeyId && <input type="hidden" name="journeyId" value={journeyId} />}
           <CompanyFields />
         </CardContent>
         <CardFooter className="justify-end gap-2 border-t">

@@ -820,6 +820,8 @@ export const destinations = {
   novo_contrato: { href: "/contratos/novo", label: "Novo contrato", staff: true },
   cadastrar_empresa: { href: "/empresas/nova", label: "Cadastrar empresa", staff: true },
   empresas: { href: "/empresas", label: "Empresas", staff: true },
+  jornadas: { href: "/jornadas", label: "Jornadas", staff: true },
+  nova_jornada: { href: "/jornadas/nova", label: "Nova jornada", staff: true },
 } satisfies Record<string, { href: string; label: string; staff?: boolean; area?: Area }>;
 export type Destination = keyof typeof destinations;
 

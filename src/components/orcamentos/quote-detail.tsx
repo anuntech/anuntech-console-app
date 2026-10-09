@@ -15,6 +15,7 @@ import {
   Trash2Icon,
   Undo2Icon,
   XCircleIcon,
+  RouteIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,8 @@ export type QuoteDetailData = {
   handoff?: QuoteHandoff;
   /** Staff, before sending: the company has no Administrador yet, and who to suggest. */
   invite?: { suggestion: string } | null;
+  /** Staff: the project journey this proposal belongs to, if any. */
+  journey?: { id: string } | null;
   now: string;
   today: string;
 };
@@ -198,7 +201,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
             )}
             {viewer.admin && q.status === "accepted" && (
               <Button asChild>
-                <Link href={`/contratos/novo?companyId=${q.companyId}`}>
+                <Link href={`/contratos/novo?orcamento=${q.id}`}>
                   <FoldersIcon />
                   Criar contrato
                 </Link>
@@ -218,6 +221,14 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                       Ver empresa
                     </Link>
                   </DropdownMenuItem>
+                  {q.status !== "cancelled" && (
+                    <DropdownMenuItem asChild>
+                      <Link href={data.journey ? `/jornadas/${data.journey.id}` : `/jornadas/nova?orcamento=${q.id}`}>
+                        <RouteIcon />
+                        {data.journey ? "Ver jornada do projeto" : "Começar jornada do projeto"}
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onSelect={menu(() => setDuplicating(true))}>
                     <CopyPlusIcon />
                     Duplicar como novo rascunho

@@ -4,6 +4,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Depende do Kauan
 
+- [ ] Jornada do projeto (08/10): escrever em Configurações → Assistente o documento "Padrão de projeto Anuntech" (stack e versões, pastas, AGENTS.md, padrões de Vercel, Neon e Cloudflare), que o prompt de início usa. Depois de 3 a 5 jornadas reais, revisar o modelo-padrão (passos que sobram ou faltam, variações por tipo de projeto) e decidir se a jornada começa sozinha com um pedido de projeto novo.
 - [ ] Apagar o repositório vazio `anuntech/anuntech-console-vazio`, que sobrou da transferência.
 - [ ] Trocar a chave do OpenRouter (foi colada numa conversa) e decidir entre créditos e modelo pago para o assistente.
 - [ ] Apagar pela interface os registros de teste criados em produção durante o QA. Desde 08/10, Configurações → Limpeza lista os candidatos, filhos antes da empresa.

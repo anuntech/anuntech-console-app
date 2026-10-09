@@ -12,6 +12,7 @@ export const LIST_LAYOUT_COOKIES = {
   contracts: "console-contracts-view",
   products: "console-products-view",
   companies: "console-companies-view",
+  journeys: "console-journeys-view",
 } as const;
 export type ListLayoutArea = keyof typeof LIST_LAYOUT_COOKIES;
 

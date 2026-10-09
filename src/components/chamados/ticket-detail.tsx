@@ -15,6 +15,7 @@ import {
   RotateCcwIcon,
   SendIcon,
   Trash2Icon,
+  RouteIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -140,6 +141,8 @@ export type TicketDetailData = {
   followUp?: TicketFollowUp;
   /** Staff: Jev read the text as worse than what was ticked; the suggested priority. */
   triage?: TicketTriage | null;
+  /** Staff, on a "projeto novo" request: the project journey it started, if any. */
+  journeyId?: string | null;
   /** Staff who can take the ticket; loaded only for admins. */
   assignees?: TicketAssignee[];
   clock?: TicketClock | null;
@@ -499,6 +502,14 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                     <Link href={`/orcamentos/novo?companyId=${ticket.companyId}&chamado=${ticket.id}`}>
                       <CalculatorIcon />
                       Criar orçamento deste pedido
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {ticket.kind === "new_project" && (
+                  <DropdownMenuItem asChild>
+                    <Link href={data.journeyId ? `/jornadas/${data.journeyId}` : `/jornadas/nova?chamado=${ticket.id}`}>
+                      <RouteIcon />
+                      {data.journeyId ? "Ver jornada do projeto" : "Começar jornada do projeto"}
                     </Link>
                   </DropdownMenuItem>
                 )}

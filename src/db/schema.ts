@@ -1161,3 +1161,65 @@ export const automationEvents = pgTable(
     index("console_automation_event_company_idx").on(t.companyId),
   ],
 );
+
+/**
+ * "Jornada do projeto" (staff only): one client project followed from the
+ * first contact to the hosting. The steps' template lives in code
+ * (lib/journeys/journey-model.ts); a journey stores only what the Console
+ * cannot see by itself, and links the records it can (company, request,
+ * proposal, project, hosting). Before the company exists it is a lead.
+ */
+export const journeys = pgTable(
+  "console_journeys",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    title: text("title").notNull(),
+    companyId: text("company_id").references(() => companies.id),
+    /** Who to talk to while there is no company record yet. */
+    lead: jsonb("lead").$type<{ name: string; contact?: string; email?: string; phone?: string } | null>(),
+    ticketId: text("ticket_id").references((): AnyPgColumn => tickets.id),
+    quoteId: text("quote_id").references((): AnyPgColumn => quotes.id),
+    /** The project, when it was not built from the linked proposal (engagements.quote_id says it otherwise). */
+    engagementId: text("engagement_id").references((): AnyPgColumn => engagements.id),
+    hostingEngagementId: text("hosting_engagement_id").references((): AnyPgColumn => engagements.id),
+    ownerId: text("owner_id").references(() => user.id),
+    template: text("template").notNull().default("projeto-v1"),
+    status: text("status", { enum: ["active", "paused", "done", "lost"] }).notNull().default("active"),
+    briefing: jsonb("briefing").$type<import("@/lib/journeys/journey-model").JourneyBriefing | null>(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: created(),
+  },
+  (t) => [
+    index("console_journeys_company_idx").on(t.companyId),
+    uniqueIndex("console_journeys_quote_unique").on(t.quoteId),
+  ],
+);
+
+/** What the team marked on a journey's step (template key, or "extra:<uuid>" for one it added). */
+export const journeySteps = pgTable(
+  "console_journey_steps",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    journeyId: text("journey_id")
+      .notNull()
+      .references(() => journeys.id),
+    key: text("key").notNull(),
+    /** Only for the steps the team added. */
+    title: text("title"),
+    stage: text("stage"),
+    status: text("status", { enum: ["todo", "doing", "done", "skipped"] }).notNull().default("todo"),
+    note: text("note"),
+    url: text("url"),
+    value: text("value"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    assigneeId: text("assignee_id").references(() => user.id),
+    doneBy: text("done_by").references(() => user.id),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    /** What the AI wrote for this step, kept when the team chose "Guardar na jornada". */
+    aiDraft: jsonb("ai_draft").$type<{ kind: string; text: string; at: string } | null>(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex("console_journey_steps_unique").on(t.journeyId, t.key)],
+);

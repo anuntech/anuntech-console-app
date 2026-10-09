@@ -21,7 +21,8 @@ export function isNewClient(company: { archived: boolean; createdAt: Date }, now
 /** `href` is where it gets fixed; without one, it happens outside the team's screens. */
 export type OnboardingStep = { key: string; label: string; href?: string };
 
-export async function onboardingMissing(companyId: string): Promise<OnboardingStep[]> {
+/** What the data says about a company's setup; the Implantação card and the project journey read it. */
+export async function companySetupFacts(companyId: string) {
   const [[company], managers, prefs, [item], [contract], [terms], [billed]] = await Promise.all([
     db.select().from(companies).where(eq(companies.id, companyId)),
     db
@@ -46,13 +47,30 @@ export async function onboardingMissing(companyId: string): Promise<OnboardingSt
       .limit(1)
       .then(async (rows) => (rows.length ? rows : db.select({ id: invoices.id }).from(invoices).where(and(eq(invoices.companyId, companyId), inArray(invoices.status, ["issued", "paid"]))).limit(1))),
   ]);
-  if (!company) return [];
+  if (!company) return null;
+  return {
+    company,
+    billingReady: billingReadiness(company).length === 0,
+    manager: managers.length > 0,
+    managerSignedIn: managers.some((m) => m.verified),
+    billingContacts: prefs.some((p) => p.topic === "billing"),
+    item: item ?? null,
+    contract: contract ?? null,
+    terms: !!terms,
+    billed: !!billed,
+  };
+}
+
+export async function onboardingMissing(companyId: string): Promise<OnboardingStep[]> {
+  const facts = await companySetupFacts(companyId);
+  if (!facts) return [];
+  const { item, contract, terms, billed } = facts;
   const page = `/empresas/${companyId}`;
   const steps: (OnboardingStep | false)[] = [
-    billingReadiness(company).length > 0 && { key: "billing", label: "Completar o cadastro para cobrar (documento e endereço)", href: `${page}?editar=1` },
-    !managers.length && { key: "manager", label: "Convidar o Administrador do cliente", href: `${page}#pessoas` },
-    managers.length > 0 && !managers.some((m) => m.verified) && { key: "manager-login", label: "O Administrador ainda não entrou: confira o e-mail ou reenvie o convite", href: `${page}#pessoas` },
-    !prefs.some((p) => p.topic === "billing") && { key: "billing-contacts", label: "O cliente ainda não escolheu quem recebe os avisos de cobrança (Notificações, no Console dele)" },
+    !facts.billingReady && { key: "billing", label: "Completar o cadastro para cobrar (documento e endereço)", href: `${page}?editar=1` },
+    !facts.manager && { key: "manager", label: "Convidar o Administrador do cliente", href: `${page}#pessoas` },
+    facts.manager && !facts.managerSignedIn && { key: "manager-login", label: "O Administrador ainda não entrou: confira o e-mail ou reenvie o convite", href: `${page}#pessoas` },
+    !facts.billingContacts && { key: "billing-contacts", label: "O cliente ainda não escolheu quem recebe os avisos de cobrança (Notificações, no Console dele)" },
     !item && { key: "engagement", label: "Vincular o produto, serviço ou projeto", href: `/produtos/novo?companyId=${companyId}` },
     !contract && { key: "contract", label: "Contrato assinado no Console", href: `/contratos/novo?companyId=${companyId}` },
     contract && contract.status !== "signed" && { key: "contract", label: "Contrato enviado, esperando a assinatura", href: `/contratos/${contract.id}` },

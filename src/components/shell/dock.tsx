@@ -6,6 +6,7 @@ import { Tooltip } from "@base-ui/react/tooltip";
 import {
   LayoutDashboard,
   Building2,
+  Route,
   FolderKanban,
   Package,
   Headset,
@@ -35,6 +36,7 @@ export type NavigationProps = {
 const items = [
   { href: "/painel", label: "Visão geral", short: "Início", icon: LayoutDashboard },
   { href: "/empresas", label: "Empresas", icon: Building2, admin: true },
+  { href: "/jornadas", label: "Jornadas", icon: Route, admin: true },
   { href: "/projetos", label: "Projetos", icon: FolderKanban },
   { href: "/produtos", label: "Produtos e serviços", short: "Produtos", icon: Package },
   {
@@ -141,6 +143,7 @@ export function Dock({
     { href: "/orcamentos/novo", label: "Novo orçamento", icon: Calculator, allowed: admin },
     { href: "/contratos/novo", label: "Novo contrato", icon: Folders, allowed: admin },
     { href: "/empresas/nova", label: "Cadastrar empresa", icon: Building2, allowed: admin },
+    { href: "/jornadas/nova", label: "Nova jornada", icon: Route, allowed: admin },
   ].filter((item) => item.allowed);
   return (
     <header className={styles.headerBar}>

@@ -5,8 +5,9 @@ import { NewCompanyForm } from "@/components/empresas/company-sheet";
 export const metadata: Metadata = { title: "Nova empresa" };
 
 /** Direct loads only; in-app navigation shows the sheet from @ticket instead. */
-export default async function NewCompany() {
+export default async function NewCompany({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireAdmin();
+  const { jornada } = await searchParams;
   return (
     <>
       <PageHeader
@@ -14,7 +15,7 @@ export default async function NewCompany() {
         title="Nova empresa"
         description="Informe os dados do cliente. O CNPJ preenche o restante."
       />
-      <NewCompanyForm />
+      <NewCompanyForm journeyId={typeof jornada === "string" && /^[0-9a-f-]{36}$/.test(jornada) ? jornada : ""} />
     </>
   );
 }

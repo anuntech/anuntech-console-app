@@ -27,7 +27,7 @@ export function DeleteCompanyDialog({
       action={deleteCompany}
       fields={fromList ? { id: company.id, from: "list" } : { id: company.id }}
       title="Excluir empresa?"
-      description={`${company.name} sai do Console com os acessos das pessoas, os chamados (conversas e anexos), os projetos, produtos e serviços (tarefas e anexos), os bookmarks e as preferências de aviso. O histórico de auditoria fica, sem o vínculo com a empresa. Isso não pode ser desfeito.`}
+      description={`${company.name} sai do Console com os acessos das pessoas, os chamados (conversas e anexos), os projetos, produtos e serviços (tarefas e anexos), os bookmarks, as preferências de aviso e as jornadas de projeto (briefing e anotações). O histórico de auditoria fica, sem o vínculo com a empresa. Isso não pode ser desfeito.`}
       confirmLabel="Excluir"
       destructive
     />

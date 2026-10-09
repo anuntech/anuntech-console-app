@@ -11,6 +11,7 @@ import {
   tickets,
   timeEntries,
   quotes,
+  journeys,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -59,6 +60,7 @@ export async function deleteTicket(_: ActionState, form: FormData): Promise<Acti
       await tx.update(timeEntries).set({ ticketId: null }).where(eq(timeEntries.ticketId, ticket.id));
       // A proposal it asked for stays, unlinked.
       await tx.update(quotes).set({ ticketId: null }).where(eq(quotes.ticketId, ticket.id));
+      await tx.update(journeys).set({ ticketId: null }).where(eq(journeys.ticketId, ticket.id));
       await tx.delete(ticketNotices).where(eq(ticketNotices.ticketId, ticket.id));
       await tx.delete(attachments).where(eq(attachments.ticketId, ticket.id));
       await tx.delete(messages).where(eq(messages.ticketId, ticket.id));
