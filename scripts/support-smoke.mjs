@@ -63,6 +63,17 @@ export async function runSupportTests({ database: db, ids, people, request, subm
       (await db.query("select id from console_ticket_notices where ticket_id=$1 and destination=$2", [waiting, people.manager.email.toLowerCase()])).rowCount === 1,
     "Lembrar o cliente vale uma vez por dia e chega a quem abriu o chamado",
   );
+  // Registered by the team for the client: the reminder is the client's, never the team member's.
+  const staffOpened = randomUUID();
+  await db.query(
+    "insert into console_tickets(id,company_id,subject,author_id,status,waiting_for,waiting_since,channel) values($1,$2,$3,$4,'waiting_customer','O acesso',now() - interval '20 days','whatsapp')",
+    [staffOpened, ids.a, `Staff opened ${marker}`, people.admin.id],
+  );
+  await submitForm(`/chamados/${staffOpened}`, "admin", "admin", { action: "remindClient" }, { ticketId: staffOpened });
+  ok(
+    !(await one("select 1 as ok from console_ticket_notices where ticket_id=$1 and destination=$2", [staffOpened, people.admin.email.toLowerCase()])),
+    "Chamado registrado pela equipe não manda o lembrete para quem é da equipe",
+  );
   const painel = await request("/painel", "admin");
   ok(painel.text.includes("Chamados parados no cliente"), "O painel mostra o chamado parado no cliente");
   await submitForm(`/chamados/${waiting}`, "admin", "admin", { action: "closeForNoReply" }, { ticketId: waiting });
@@ -112,8 +123,16 @@ export async function runSupportTests({ database: db, ids, people, request, subm
     [randomUUID(), ids.a, people.admin.id, `${last}-10`],
   );
   await db.query("insert into console_hours_months(id,company_id,month,report_sent_at,report_sent_by) values($1,$2,$3,date_trunc('month', now()) + interval '6 hours',$4)", [randomUUID(), ids.a, last, people.admin.id]);
-  const card = await request(`/empresas/${ids.a}`, "admin");
-  ok(card.text.includes("Excedente do mês passado") && card.text.includes(`/financeiro/nova?excedente=${ids.a}&amp;mes=${last}`), "O card do banco mostra o excedente pronto para cobrar");
+  // Conditions confirmed after the report and nothing kept of what it said: no price is guessed.
+  let card = await request(`/empresas/${ids.a}`, "admin");
+  ok(!card.text.includes(`/financeiro/nova?excedente=${ids.a}`), "Sem o banco do relatório e com condições mudadas depois, o excedente não sai com o preço de hoje");
+  // The report keeps the bank and the price the client saw.
+  await db.query(
+    "insert into console_audit_events(id,actor_id,company_id,action,entity_id,details,created_at) values($1,$2,$3,'hours.report_sent',$3,$4,date_trunc('month', now()) + interval '6 hours')",
+    [randomUUID(), people.admin.id, ids.a, JSON.stringify({ month: last, sent: 1, automatic: false, includedMinutes: 600, overageCents: 15000 })],
+  );
+  card = await request(`/empresas/${ids.a}`, "admin");
+  ok(card.text.includes("Excedente de ") && card.text.includes(`/financeiro/nova?excedente=${ids.a}&amp;mes=${last}`), "O card do banco mostra o excedente pronto para cobrar, com o mês");
   const overageForm = await request(`/financeiro/nova?excedente=${ids.a}&mes=${last}`, "admin");
   ok(overageForm.text.includes('value="overage"') && overageForm.text.includes("225.00"), "A cobrança do excedente sai com 1,5 h × R$ 150,00");
   const overage = {

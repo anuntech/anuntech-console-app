@@ -518,6 +518,7 @@ export default async function Preview({
         invoiceStatus === "draft" ? null : "https://console.anuntech.com/pagar/abc",
       publicEnabled: true,
       fiscalStatus: "not_requested",
+      fiscalUrl: null,
       editable:
         invoiceStatus === "draft" && tela !== "fatura-recorrente"
           ? "draft"

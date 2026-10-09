@@ -138,8 +138,15 @@ test("a recurrence resumed late lists the periods without a charge and the next 
   const { missedPeriods } = await import("../src/lib/billing/recurrence");
   assert.deepEqual(missedPeriods({ nextDueDate: "2026-08-10", interval: "monthly", anchorDay: 10, anchorMonth: 8 }, "2026-10-08"), {
     missed: ["2026-08-10", "2026-09-10"],
+    dropped: 0,
     next: "2026-10-10",
   });
-  assert.deepEqual(missedPeriods({ nextDueDate: "2026-10-20", interval: "monthly", anchorDay: 20, anchorMonth: 10 }, "2026-10-08"), { missed: [], next: "2026-10-20" });
+  assert.deepEqual(missedPeriods({ nextDueDate: "2026-10-20", interval: "monthly", anchorDay: 20, anchorMonth: 10 }, "2026-10-08"), { missed: [], dropped: 0, next: "2026-10-20" });
+  // A long pause keeps the latest periods (the likeliest to be owed) and says how many older ones were left out.
+  const long = missedPeriods({ nextDueDate: "2025-08-10", interval: "monthly", anchorDay: 10, anchorMonth: 8 }, "2026-10-08");
+  assert.equal(long.missed.length, 12);
+  assert.equal(long.missed[11], "2026-09-10");
+  assert.equal(long.dropped, 2);
+  assert.equal(long.next, "2026-10-10");
   assert.deepEqual(missedPeriods({ nextDueDate: "2026-01-31", interval: "monthly", anchorDay: 31, anchorMonth: 1 }, "2026-03-01").missed, ["2026-01-31", "2026-02-28"]);
 });

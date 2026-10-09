@@ -61,7 +61,7 @@ import {
 } from "@/lib/contracts/contract-actions";
 import { deleteContract } from "@/lib/contracts/contract-deletion";
 import { canDeleteContract } from "@/lib/deletion-rules";
-import { auditLabels, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
+import { auditLabels, currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
 import { formatDocument } from "@/lib/companies/company-input";
 import {
   contractStatusLabels,
@@ -110,6 +110,8 @@ export type ContractDetailData = {
   parent: { id: string; title: string; status: ContractStatus } | null;
   /** Amendments to this contract, oldest first. */
   amendments: { id: string; title: string; status: ContractStatus; signedAt: string | null; endsAt: string | null }[];
+  /** Staff, on a signed contract near its anniversary: the IPCA readjust to prepare. */
+  readjust?: { anniversary: string; currentCents: number; newCents: number; percent: number } | null;
   /** Every text sent so far, newest first; `current` is the one in force. */
   versions: { version: number; sentAt: string; hash: string; current: boolean; signedBy: ("client" | "anuntech")[] }[];
   signatures: {
@@ -207,7 +209,7 @@ function TermFields({
 }
 
 export function ContractDetail({ data }: { data: ContractDetailData }) {
-  const { contract: c, parent, amendments, versions, signatures, viewer, events, deletion, now, today } = data;
+  const { contract: c, parent, amendments, readjust, versions, signatures, viewer, events, deletion, now, today } = data;
   const [sending, setSending] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -633,6 +635,19 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                       </li>
                     ))}
                   </ol>
+                )}
+                {canAmend && readjust && (
+                  <div className="flex flex-col gap-2 rounded-lg border bg-field/60 px-3 py-2.5 text-sm">
+                    <span>
+                      {`Reajuste pelo IPCA ${readjust.anniversary < today ? "desde" : "em"} ${dateLabel(readjust.anniversary)}: ${currency(readjust.currentCents)} passa a ${currency(readjust.newCents)} (${String(readjust.percent).replace(".", ",")}%).`}
+                    </span>
+                    <Button size="sm" className="self-start" asChild>
+                      <Link href={`/contratos/novo?parentId=${c.id}&reajuste=1`}>
+                        <FilePlusIcon />
+                        Preparar reajuste
+                      </Link>
+                    </Button>
+                  </div>
                 )}
                 {canAmend && (
                   <Button variant="outline" size="sm" className="self-start" asChild>

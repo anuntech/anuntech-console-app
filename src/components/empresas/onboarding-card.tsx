@@ -13,16 +13,23 @@ export function OnboardingCard({ steps }: { steps: OnboardingStep[] }) {
         <SectionTitle title="Implantação" description={steps.length === 1 ? "Falta 1 passo." : `Faltam ${steps.length} passos.`} />
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
-        {steps.map((step) => (
-          <Link
-            key={step.key}
-            href={step.href}
-            className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent"
-          >
-            <CircleDashedIcon className="size-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0">{step.label}</span>
-          </Link>
-        ))}
+        {steps.map((step) =>
+          step.href ? (
+            <Link
+              key={step.key}
+              href={step.href}
+              className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent"
+            >
+              <CircleDashedIcon className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0">{step.label}</span>
+            </Link>
+          ) : (
+            <p key={step.key} className="m-0 flex min-h-10 items-center gap-3 px-3 py-2 text-sm text-muted-foreground">
+              <CircleDashedIcon className="size-4 shrink-0" />
+              <span className="min-w-0">{step.label}</span>
+            </p>
+          ),
+        )}
       </CardContent>
     </Card>
   );

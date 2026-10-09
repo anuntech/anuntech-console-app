@@ -52,7 +52,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | Pasta | Conteúdo |
 | --- | --- |
 | `auth/` | Better Auth (`auth.ts`, `auth-client.ts`), plugin de segurança e duas etapas, política de OTP, envio de códigos, sessões |
-| `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido, convite do Administrador no envio (`invite-manager.ts`), entrega e reenvio dos convites (`invite-tracking.ts`) |
+| `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido, convite do Administrador no envio (`invite-manager.ts`), registro da entrega dos convites e lista dos parados (`invite-tracking.ts`), reenvio do convite (`resendInvite` em `members-actions.ts`) |
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
 | `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela; implantação (`onboarding.ts`), qualidade dos contatos (`contact-quality.ts`), lista de clientes da equipe (`clients-follow-up.ts`) e limpeza de registros de teste (`cleanup.ts`) |
 | `billing/` | faturas, emissão no Inter, conciliação, recorrência (emissão no pagamento nas mensais), próximas cobranças (`upcoming-charges.ts`), cadastro pronto para cobrar (`billing-readiness.ts`), vigilância de dívidas e emissões (`billing-watch.ts`), origens de cobrança preparada (`charge-sources.ts`: dívida, entrada, saldo, contrato, excedente, cada uma uma vez; `prepared-release.ts` devolve a origem quando o rascunho sai), fila de atrasos (`collections.ts`), localização no Inter da emissão sem resposta (`billing-locate.ts`), cancelamento no Inter, condições (desconto, multa, juros), link público, avisos de cobrança |
@@ -70,7 +70,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `voice/` | ditado por microfone: regras comuns (`voice-rules.ts`: formatos, limites, onde o texto entra) e a transcrição no servidor (`voice-server.ts`) |
 | `http/` | `same-origin.ts`, a checagem de origem dos route handlers que gravam ou custam dinheiro; `hourly-limit.ts`, limite por hora gravado no banco |
 | `ops/` | saúde das rotinas (`cron-health.ts`: `trackedCron` grava a última execução de cada cron) e quem assina na auditoria um passo automático (`automation-actor.ts`) |
-| `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe, conferência da entrega dos alertas (`ops-delivery.ts`), fechamento do mês (`month-close.ts`) |
+| `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe, conferência da entrega dos alertas e dos convites (`ops-delivery.ts`, a cada 5 minutos), fechamento do mês (`month-close.ts`) |
 | `integrations/` | estado das integrações em Configurações |
 
 Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda server actions antigas de vários assuntos (empresas, chamados, faturas, vínculos) e deve ser dividido aos poucos (ver [task.md](task.md)).
@@ -93,7 +93,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
   - **Projetos:** `tasks`, `task_assignees`, `task_comments` (anexos em `attachments.comment_id`).
   - **Financeiro:** `invoices`, `subscriptions` (recorrências), `billing_notices`, `email_deliveries`.
   - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures`, `contract_change_requests` (pedidos de alteração por cláusula e versão), `quotes`, `quote_versions`.
-  - **Automação:** `cron_runs` (última execução e erro de cada rotina), `automation_events` (o que uma automação ou decisão já fez, único por tipo e registro: dívida encerrada ou cobrada de novo, alerta enviado com o id do Resend). Colunas de ligação `contracts.quote_id`, `quotes.ticket_id`, `engagements.quote_id`, `invoices.quote_id` e os interruptores em `environment_profile.automations` (migração 0038).
+  - **Automação:** `cron_runs` (última execução e erro de cada rotina), `automation_events` (o que uma automação ou decisão já fez, único por tipo e registro: dívida encerrada ou cobrada de novo, alerta enviado com o id do Resend (`ops-mail`), convite enviado e reenviado (`invite.mail`, `invite.resend`), rascunho de vencimento perdido (`subscription.catchup`), registro mantido na Limpeza (`cleanup.keep`), reajuste preparado por contrato e aniversário (`contract.readjust`), fechamento do mês e IPCA do dia). Colunas de ligação `contracts.quote_id`, `quotes.ticket_id`, `engagements.quote_id`, `invoices.quote_id` e os interruptores em `environment_profile.automations` (migração 0038).
   - **Outros:** `bookmarks`, `bookmark_folders`, `bookmark_folder_shares`, `notification_settings`, `notification_preferences`, `assistant_settings`, `assistant_documents`, `assistant_conversations`, `assistant_messages`, `audit_events`.
 - Valores em centavos (`integer`). Vencimentos são datas civis (`date`, `YYYY-MM-DD`), sem conversão de fuso; "hoje" é calculado em America/Sao_Paulo (`lib/dates.ts`).
 - Toda alteração relevante grava `audit_events` na mesma transação.

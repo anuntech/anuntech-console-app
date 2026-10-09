@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, ne, lt, lte, sql } from "drizzle-orm";
 import { after } from "next/server";
 import { db } from "../db";
-import { companies, tickets, ticketNotices, user } from "@/db/schema";
+import { companies, consoleStaffMembers, memberships, tickets, ticketNotices, user } from "@/db/schema";
+import { getAccountEmails } from "../account/account-identity";
 import {
   lockTicketNotifications,
   ticketNotificationsEnabled,
@@ -588,13 +589,31 @@ export async function processTicketNotices() {
   return { processed };
 }
 
-/** The person who opened a ticket, so Anuntech's movements reach them directly; never the actor. */
+/**
+ * The person who opened a ticket, so Anuntech's movements reach them directly; never the actor.
+ * Only while they still belong to the client: an ex-member, or someone of the team who registered
+ * the request for the client, is not the client's side.
+ */
 export async function ticketOpener(
   tx: Pick<typeof db, "select">,
-  ticket: { authorId: string },
+  ticket: { authorId: string; companyId: string },
   actorEmail: string,
 ): Promise<{ email: string; kind: "movement" } | null> {
   const [opener] = await tx.select({ email: user.email }).from(user).where(eq(user.id, ticket.authorId));
   if (!opener?.email || opener.email.toLowerCase() === actorEmail.toLowerCase()) return null;
+  const emails = await getAccountEmails(ticket.authorId, opener.email, tx);
+  const owner = process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase();
+  if (owner && emails.includes(owner)) return null;
+  const [member] = await tx
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(and(eq(memberships.companyId, ticket.companyId), inArray(memberships.email, emails), eq(memberships.active, true)))
+    .limit(1);
+  const [staff] = await tx
+    .select({ id: consoleStaffMembers.id })
+    .from(consoleStaffMembers)
+    .where(and(inArray(consoleStaffMembers.email, emails), eq(consoleStaffMembers.active, true)))
+    .limit(1);
+  if (!member || staff) return null;
   return { email: opener.email, kind: "movement" };
 }

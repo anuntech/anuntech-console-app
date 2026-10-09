@@ -30,7 +30,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
-- [x] 08/10/2026: automação, lote 6 (cobrança): fila de atrasos com texto pronto e registro de contato, pago fora do boleto, localizar no Inter a emissão sem resposta, retomada guiada da recorrência, fechamento do mês, fila de notas fiscais e reajuste pelo IPCA preparado.
+- [x] 08/10/2026: automação, lote 6 (cobrança): fila de atrasos com texto pronto e registro de contato, pago fora do boleto, localizar no Inter a emissão sem resposta, retomada guiada da recorrência, fechamento do mês, fila de notas fiscais e reajuste pelo IPCA preparado. Correções das revisões dos lotes 5 e 6 no mesmo dia.
 - [x] 08/10/2026: automação, lote 5 (clientes e operação): convites conferidos e reenviados, aviso quando o cliente muda o cadastro, implantação, contatos e acessos para revisar, revisão de acessos a cada 6 meses, Limpeza e encerramento guiado ao arquivar.
 - [x] 08/10/2026: automação, lotes 3 e 4 (suporte, banco de horas e avisos ao cliente): responsável na abertura, lembrete de primeira resposta, triagem do Jev, acompanhamento de chamados parados, aviso e relatório do banco uma vez por mês, excedente pronto para cobrar, horas pelo assistente, sugestões de resposta e de fases, e os avisos automáticos ao cliente com interruptor em Configurações → Automações.
 - [x] 08/10/2026: automação, lote 2 (contrato, orçamento e comercial): contrato, projeto e cobranças de entrada e saldo preparados a partir do orçamento aceito, orçamento ligado ao chamado com resposta pronta, recorrência, condições e prorrogação preparadas no contrato assinado, aviso quando o cliente assina, seguimento comercial no resumo e no painel, convite do Administrador no envio.

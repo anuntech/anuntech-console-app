@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { auditEvents, billingNotices, companies, invoices, user } from "@/db/schema";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
@@ -24,6 +24,8 @@ export const REMINDERS_END_DAY = 25;
 export type CollectionCase = {
   companyId: string;
   company: string;
+  /** An archived client still owing: the service ended, the money did not. */
+  archived: boolean;
   invoices: { id: string; description: string; amountCents: number; dueDate: string; days: number; link: string | null }[];
   totalCents: number;
   oldestDays: number;
@@ -49,10 +51,19 @@ export async function collectionQueue(today = saoPauloDate()): Promise<Collectio
       dueDate: invoices.dueDate,
       publicId: invoices.publicId,
       publicEnabled: invoices.publicEnabled,
+      archived: companies.archived,
     })
     .from(invoices)
     .innerJoin(companies, eq(companies.id, invoices.companyId))
-    .where(and(eq(invoices.status, "issued"), lt(invoices.dueDate, today), eq(companies.archived, false)))
+    .where(
+      and(
+        eq(invoices.status, "issued"),
+        // Late only once the boleto stops being payable (a charge billed again carries a later date to pay).
+        sql`coalesce(${invoices.bankDueDate}, ${invoices.dueDate}) < ${today}`,
+        // Marked as received at Inter: the team confirms it on the invoice; nobody asks the client to pay it.
+        or(isNull(invoices.bankStatus), ne(invoices.bankStatus, "MARCADO_RECEBIDO")),
+      ),
+    )
     .orderBy(asc(invoices.dueDate));
   if (!overdue.length) return [];
   const ids = overdue.map((i) => i.id);
@@ -75,6 +86,7 @@ export async function collectionQueue(today = saoPauloDate()): Promise<Collectio
   for (const companyId of companyIds) {
     const rows = overdue.filter((i) => i.companyId === companyId);
     const company = rows[0].company;
+    const archived = rows[0].archived;
     const list = rows.map((i) => ({
       id: i.id,
       description: i.description,
@@ -88,7 +100,7 @@ export async function collectionQueue(today = saoPauloDate()): Promise<Collectio
     const terms = snapshotOf(await governingTerms(companyId, null));
     const policy = terms && visibleToClient(terms, now) ? terms.policy : null;
     const suspension = policy?.suspensionDays ? { days: policy.suspensionDays, notice: !!policy.suspensionNotice, clause: policy.clauses.suspension ?? null } : null;
-    const canSuspend = !!suspension && oldestDays > suspension.days;
+    const canSuspend = !archived && !!suspension && oldestDays > suspension.days;
     const notice = notices.find((n) => rows.some((r) => r.id === n.invoiceId));
     const last = contacts.find((c) => c.companyId === companyId);
     const details = (last?.details ?? {}) as { note?: string; promiseDate?: string | null };
@@ -99,39 +111,53 @@ export async function collectionQueue(today = saoPauloDate()): Promise<Collectio
         ? `a fatura "${list[0].description}", vencida em ${dateLabel(list[0].dueDate)}, de ${currency(list[0].amountCents)}`
         : `${list.length} faturas vencidas desde ${dateLabel(list[0].dueDate)}, no total de ${currency(totalCents)}`;
     const links = list.filter((i) => i.link).map((i) => `${i.description}: ${i.link}`);
+    // The suspension sentence is the one the client reads in the published conditions, nothing beyond it.
     const message = [
-      `Olá, tudo bem? Consta em aberto ${what}, da ${company}.`,
+      `Olá, tudo bem? ${list.length === 1 ? "Consta" : "Constam"} em aberto ${what}, da ${company}.`,
       links.length ? `Você pode pagar com boleto ou Pix por aqui:\n${links.join("\n")}` : "Você pode pagar com boleto ou Pix pelo Console, em Financeiro.",
       canSuspend
-        ? `Pelo contrato${suspension!.clause ? ` (cláusula ${suspension!.clause})` : ""}, com mais de ${suspension!.days} dias de atraso o serviço pode ser suspenso${suspension!.notice ? " depois deste aviso" : ""}. Para evitar a suspensão, regularize o quanto antes ou me diga uma data para o pagamento.`
-        : "Se já pagou, me avise por aqui. Se precisar de outra data, combinamos.",
-    ].join("\n\n");
-    cases.push({ companyId, company, invoices: list, totalCents, oldestDays, suspension, canSuspend, lastNotice: notice ? { at: notice.at?.toISOString() ?? "", channel: notice.channel, status: notice.status } : null, contact, waitingPromise, message });
+        ? `Pelas condições do contrato${suspension!.clause ? ` (cláusula ${suspension!.clause})` : ""}, com mais de ${suspension!.days} dias de atraso o serviço pode ser suspenso ${suspension!.notice ? "depois de um aviso" : "até o pagamento"}.`
+        : null,
+      "Se já pagou ou precisa combinar uma data, me responda por aqui.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    cases.push({ companyId, company, archived, invoices: list, totalCents, oldestDays, suspension, canSuspend, lastNotice: notice ? { at: notice.at?.toISOString() ?? "", channel: notice.channel, status: notice.status } : null, contact, waitingPromise, message });
   }
   return cases.sort((a, b) => b.oldestDays - a.oldestDays);
+}
+
+/** Charges Inter shows as marked received (outside the boleto): the team confirms each on its invoice. */
+export async function markedReceived() {
+  return db
+    .select({ id: invoices.id, description: invoices.description, company: companies.name, amountCents: invoices.amountCents, dueDate: invoices.dueDate })
+    .from(invoices)
+    .innerJoin(companies, eq(companies.id, invoices.companyId))
+    .where(and(eq(invoices.status, "issued"), eq(invoices.bankStatus, "MARCADO_RECEBIDO")))
+    .orderBy(asc(invoices.dueDate));
 }
 
 /** For the digest and the Painel: clients past the automatic reminders, with no promise ahead; charges Inter shows as marked received. */
 export async function collectionFollowUp(today = saoPauloDate()) {
   const [queue, marked, fiscal] = await Promise.all([
     collectionQueue(today),
-    db
-      .select({ id: invoices.id, description: invoices.description, company: companies.name, amountCents: invoices.amountCents })
-      .from(invoices)
-      .innerJoin(companies, eq(companies.id, invoices.companyId))
-      .where(and(eq(invoices.status, "issued"), eq(invoices.bankStatus, "MARCADO_RECEBIDO"))),
+    markedReceived(),
     // Paid by clients set to get an invoice (NFS-e): the queue to issue by hand until Focus is connected.
     db
       .select({ id: invoices.id, description: invoices.description, company: companies.name, amountCents: invoices.amountCents })
       .from(invoices)
       .innerJoin(companies, eq(companies.id, invoices.companyId))
-      // The last 60 days: older ones were settled before this list existed.
+      // Paid in the last 60 days (a charge billed again is paid long after its due date); older ones were settled before this list existed.
       .where(
         and(
           eq(invoices.status, "paid"),
           eq(companies.autoIssueNfse, true),
           inArray(invoices.fiscalStatus, ["not_requested", "error"]),
-          gte(invoices.dueDate, addDays(today, -60)),
+          or(
+            gte(invoices.dueDate, addDays(today, -60)),
+            sql`exists (select 1 from ${auditEvents} a where a.entity_id = ${invoices.id} and a.created_at >= now() - interval '60 days'
+              and (a.action = 'invoice.paid_outside' or (a.action = 'invoice.bank_checked' and a.details->>'status' = 'RECEBIDO')))`,
+          ),
         ),
       ),
   ]);
@@ -144,7 +170,7 @@ export async function collectionFollowUp(today = saoPauloDate()) {
     },
     {
       key: "fiscal-queue",
-      title: "Notas fiscais a emitir (clientes com nota automática, faturas pagas)",
+      title: "Notas fiscais a emitir (clientes com nota automática, faturas pagas); emitida por fora, registre na fatura",
       items: fiscal.map((i) => ({ line: `${i.company} · ${i.description} · ${currency(i.amountCents)}`, href: `/financeiro/${i.id}` })),
     },
   ].filter((group) => group.items.length);
@@ -153,9 +179,9 @@ export async function collectionFollowUp(today = saoPauloDate()) {
         ...groups,
         {
           key: "collections",
-          title: `Clientes com atraso de mais de ${REMINDERS_END_DAY} dias, sem contato combinado`,
+          title: `Clientes com atraso de mais de ${REMINDERS_END_DAY} dias, sem data de pagamento combinada`,
           items: cases.map((c) => ({
-            line: `${c.company} · ${currency(c.totalCents)} · ${c.oldestDays} dias${c.canSuspend ? " · o contrato permite suspender" : ""}`,
+            line: `${c.company} · ${currency(c.totalCents)} · ${c.oldestDays} dias${c.archived ? " · cliente arquivado" : c.canSuspend ? ` · suspensão possível ${c.suspension!.notice ? "depois de um aviso" : "até o pagamento"}` : ""}`,
             href: "/financeiro/atrasos",
           })),
         },

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { auditEvents, automationEvents, companies, hoursMonths, serviceTerms } from "@/db/schema";
 import { db } from "../db";
 import { dateLabel } from "../format";
@@ -132,7 +132,14 @@ export async function deliverHoursReport(companyId: string, month: string, who: 
       .onConflictDoUpdate({ target: [hoursMonths.companyId, hoursMonths.month], set: { reportSentAt: now, reportSentBy: actorId, updatedAt: now } });
   else await db.delete(automationEvents).where(and(eq(automationEvents.kind, "hours.report"), eq(automationEvents.entityId, `${companyId}:${month}`)));
   if (actorId)
-    await db.insert(auditEvents).values({ actorId, companyId, entityId: companyId, action: "hours.report_sent", details: { month, sent, automatic: !!who.automatic } });
+    await db.insert(auditEvents).values({
+      actorId,
+      companyId,
+      entityId: companyId,
+      action: "hours.report_sent",
+      // The bank and the price the client saw: a later change of conditions does not reprice this month.
+      details: { month, sent, automatic: !!who.automatic, includedMinutes: data.includedMinutes, overageCents: data.terms.policy.hoursBank?.overageCents ?? null },
+    });
   return { sent };
 }
 
@@ -162,6 +169,17 @@ async function bankCompanies() {
   return rows;
 }
 
+/** One company's closed months with work logged and no final report: what its card offers to send. */
+export async function reportsToSend(companyId: string) {
+  const out: { month: string; again: boolean }[] = [];
+  for (const closed of closedMonths()) {
+    const data = await bankMonth(companyId, closed);
+    if (!data || !data.entries.length || finalReport(data.reportSentAt, closed, await lastLoggedAt(companyId, closed))) continue;
+    out.push({ month: closed, again: !!data.reportSentAt });
+  }
+  return out;
+}
+
 /** What the team still owes the client this month: the 80% alert not sent, last month's report not sent. */
 export async function hoursPending() {
   const month = monthOf();
@@ -170,11 +188,7 @@ export async function hoursPending() {
   const names = new Map(banks.map((b) => [b.companyId, b.name]));
   const reports: { companyId: string; company: string; month: string; again: boolean }[] = [];
   for (const bank of banks)
-    for (const closed of closedMonths()) {
-      const data = await bankMonth(bank.companyId, closed);
-      if (!data || !data.entries.length || finalReport(data.reportSentAt, closed, await lastLoggedAt(bank.companyId, closed))) continue;
-      reports.push({ companyId: bank.companyId, company: bank.name, month: closed, again: !!data.reportSentAt });
-    }
+    for (const pending of await reportsToSend(bank.companyId)) reports.push({ companyId: bank.companyId, company: bank.name, ...pending });
   return {
     alerts: atAlert
       .filter((b) => !sent.has(b.companyId))
@@ -190,10 +204,26 @@ export async function hoursPending() {
  */
 export async function overageCharge(companyId: string, month: string, now = new Date()) {
   const data = await bankMonth(companyId, month);
-  const price = data?.terms.policy.hoursBank?.overageCents;
-  if (!data || !price || month >= monthOf()) return null;
-  const minutes = data.usedMinutes - data.includedMinutes;
-  if (minutes <= 0 || !data.reportSentAt || data.contestedAt) return null;
+  if (!data || month >= monthOf() || !data.reportSentAt || data.contestedAt) return null;
+  // The bank and price of the report the client saw. A report kept without them counts only while today's conditions are the ones it was sent under.
+  const [report] = await db
+    .select({ details: auditEvents.details })
+    .from(auditEvents)
+    .where(and(eq(auditEvents.companyId, companyId), eq(auditEvents.action, "hours.report_sent"), sql`${auditEvents.details}->>'month' = ${month}`))
+    .orderBy(desc(auditEvents.createdAt))
+    .limit(1);
+  const seen = report?.details as { includedMinutes?: number; overageCents?: number | null } | undefined;
+  let included = data.includedMinutes;
+  let price = data.terms.policy.hoursBank?.overageCents ?? null;
+  if (typeof seen?.includedMinutes === "number") {
+    included = seen.includedMinutes;
+    price = seen.overageCents ?? null;
+  } else {
+    const [terms] = await db.select({ verifiedAt: serviceTerms.verifiedAt }).from(serviceTerms).where(eq(serviceTerms.id, data.terms.termsId));
+    if (!terms?.verifiedAt || terms.verifiedAt > new Date(data.reportSentAt)) return null;
+  }
+  const minutes = data.usedMinutes - included;
+  if (!price || minutes <= 0) return null;
   // Only hours the client saw in a final report, after the window to contest it.
   if (!finalReport(data.reportSentAt, month, await lastLoggedAt(companyId, month))) return null;
   if (data.contestUntil && new Date(data.contestUntil) > now) return null;
@@ -221,8 +251,9 @@ export async function overagesToBill(now = new Date()) {
   return out;
 }
 
-/** The first of the closed months whose overage is ready and not prepared, for one company's card. */
-export async function overageReady(companyId: string, now = new Date()) {
+/** The closed months whose overage is ready and not prepared, for one company's card (the same ones the lists show). */
+export async function overagesReady(companyId: string, now = new Date()) {
+  const out: (NonNullable<Awaited<ReturnType<typeof overageCharge>>> & { month: string })[] = [];
   for (const month of closedMonths()) {
     const charge = await overageCharge(companyId, month, now);
     if (!charge) continue;
@@ -230,7 +261,7 @@ export async function overageReady(companyId: string, now = new Date()) {
       .select({ id: automationEvents.id })
       .from(automationEvents)
       .where(and(eq(automationEvents.kind, "hours.overage_billed"), eq(automationEvents.entityId, `${companyId}:${month}`)));
-    if (!prepared) return { ...charge, month };
+    if (!prepared) out.push({ ...charge, month });
   }
-  return null;
+  return out;
 }

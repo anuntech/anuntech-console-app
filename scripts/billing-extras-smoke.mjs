@@ -32,6 +32,14 @@ export async function runBillingExtrasTests({ database: db, ids, people, request
   page = await request("/financeiro/atrasos", "admin");
   ok(page.text.includes("Falou com o financeiro, paga na sexta") && page.text.includes("Pagamento combinado para"), "O contato registrado fica no cliente, com a data combinada");
 
+  // Billed again with a new date to pay, still ahead: not late yet, so not in the queue.
+  await db.query(
+    "insert into console_invoices(id,company_id,description,amount_cents,due_date,bank_due_date,status,provider_id,bank_base) values($1,$2,$3,8800,$4,$5,'issued',$6,'https://cdpj.partners.bancointer.com.br')",
+    [randomUUID(), ids.a, `Rebilled QA ${marker}`, offset(-40), offset(5), randomUUID()],
+  );
+  page = await request("/financeiro/atrasos", "admin");
+  ok(!page.text.includes(`Rebilled QA ${marker}`), "Cobrança feita de novo com boleto ainda válido não entra nos atrasos");
+
   // Inter shows a charge as marked received by hand: the team confirms how the money came in.
   const marked = randomUUID();
   await db.query(
@@ -40,6 +48,8 @@ export async function runBillingExtrasTests({ database: db, ids, people, request
   );
   page = await request(`/financeiro/${marked}`, "admin");
   ok(page.text.includes("Marcada como recebida no Inter"), "A fatura marcada como recebida pede a confirmação da equipe");
+  page = await request("/financeiro/atrasos", "admin");
+  ok(page.text.includes("Marcadas como recebidas no Inter") && page.text.includes(`Marked QA ${marker}`), "Atrasos lista à parte o que o Inter mostra como recebido, para confirmar");
   await submitForm(`/financeiro/${marked}`, "admin", "manager", { action: "confirmPaidOutside" }, { id: marked, note: "Transferência" });
   ok((await one("select status from console_invoices where id=$1", [marked]))?.status === "issued", "Cliente não confirma pagamento fora do boleto");
   await submitForm(`/financeiro/${marked}`, "admin", "admin", { action: "confirmPaidOutside" }, { id: marked, note: "Transferência em 05/10" });
@@ -48,6 +58,17 @@ export async function runBillingExtrasTests({ database: db, ids, people, request
       (await one("select details->>'note' note from console_audit_events where entity_id=$1 and action='invoice.paid_outside'", [marked]))?.note === "Transferência em 05/10",
     "Confirmado, conta como paga com o motivo registrado",
   );
+  // The NFS-e issued by hand is recorded on the invoice, which leaves the list of notes to issue.
+  await submitForm(`/financeiro/${marked}`, "admin", "manager", { action: "markFiscalIssued" }, { id: marked, number: "123", url: "" });
+  await submitForm(`/financeiro/${marked}`, "admin", "admin", { action: "markFiscalIssued" }, { id: marked, number: "", url: "" });
+  ok((await one("select fiscal_status from console_invoices where id=$1", [marked]))?.fiscal_status === "not_requested", "Sem número nem link (ou pelo cliente), a nota não é registrada");
+  await submitForm(`/financeiro/${marked}`, "admin", "admin", { action: "markFiscalIssued" }, { id: marked, number: "NFS-e 4521", url: "" });
+  ok(
+    (await one("select fiscal_status from console_invoices where id=$1", [marked]))?.fiscal_status === "authorized" &&
+      (await one("select details->>'number' n from console_audit_events where entity_id=$1 and action='invoice.fiscal_recorded'", [marked]))?.n === "NFS-e 4521",
+    "A nota emitida por fora fica registrada na fatura, com o número",
+  );
+  ok((await request(`/financeiro/${marked}`, "manager")).text.includes("Nota fiscal emitida."), "O cliente vê que a nota foi emitida");
 
   // The bank took the charge but the answer never came: the Console finds it by its reference and links it.
   await submitForm("/financeiro/nova", "admin", "admin", "Criar rascunho", {
@@ -87,6 +108,27 @@ export async function runBillingExtrasTests({ database: db, ids, people, request
   const drafts = (await db.query("select due_date::text due, status from console_invoices where description like $1 and subscription_id is null", [`Paused plan ${marker} · vencimento de%`])).rows;
   ok(resumed.status === "active" && resumed.due > today && drafts.length === 1 && drafts[0].due === missedDue && drafts[0].status === "draft", "Retomar cria o rascunho do vencimento perdido e segue do próximo");
 
+  // The routine drafted the period and the bank refused it, then the recurrence paused: resuming uses that draft, never a second one.
+  const plan2 = randomUUID(), own = randomUUID();
+  const missed2 = offset(-15);
+  await db.query(
+    "insert into console_subscriptions(id,company_id,description,amount_cents,interval,anchor_day,anchor_month,next_due_date,status,actor_id) values($1,$2,$3,13000,'monthly',$4,$5,$6,'paused',$7)",
+    [plan2, ids.a, `Refused plan ${marker}`, Number(missed2.slice(8)), Number(missed2.slice(5, 7)), missed2, people.admin.id],
+  );
+  await db.query(
+    "insert into console_invoices(id,company_id,subscription_id,description,amount_cents,due_date,status) values($1,$2,$3,$4,13000,$5,'draft')",
+    [own, ids.a, plan2, `Refused plan ${marker} period`, missed2],
+  );
+  page = await request(`/financeiro/${own}`, "admin");
+  ok(/drafted\\?":\[\\?"/.test(page.text), "O diálogo sabe que o vencimento já tem o rascunho da rotina");
+  await submitForm(`/financeiro/${own}`, "admin", "admin", { action: "changeSubscription" }, { id: plan2, status: "active", catchUp: "drafts" });
+  const reused = await one("select subscription_id, bank_due_date::text pay, status from console_invoices where id=$1", [own]);
+  ok(
+    reused.subscription_id === null && reused.pay > today && reused.status === "draft" &&
+      (await one("select count(*)::int n from console_invoices where company_id=$1 and due_date=$2 and status <> 'cancelled' and description like $3", [ids.a, missed2, `Refused plan ${marker}%`]))?.n === 1,
+    "Retomar reaproveita o rascunho do período, com nova data para pagar, sem criar outro",
+  );
+
   // The month close goes once, from the daily digest (earlier tests already ran it; running again sends nothing new).
   await cron("/api/cron/ops-digest");
   await cron("/api/cron/ops-digest");
@@ -103,11 +145,21 @@ export async function runBillingExtrasTests({ database: db, ids, people, request
     "insert into console_contracts(id,company_id,title,body,author_id,engagement_id,status,kind,starts_at,signed_at,document_hash) values($1,$2,$3,'CONTRATO',$4,$5,'signed','contract',$6,now() - interval '1 year','x')",
     [contract, ids.a, `Readjust QA ${marker}`, people.admin.id, item, offset(-355)],
   );
+  ok((await request(`/contratos/${contract}`, "admin")).text.includes("Preparar reajuste"), "A página do contrato oferece o reajuste do aniversário");
   const form = await request(`/contratos/novo?parentId=${contract}&reajuste=1`, "admin");
-  ok(form.text.includes("Reajuste pelo IPCA") && form.text.includes('name="readjust"'), "O aditivo de reajuste abre com o IPCA e o novo valor");
+  ok(form.text.includes("Reajuste pelo IPCA") && form.text.includes('name="readjust"') && !form.text.includes('name="startsAt"'), "O aditivo de reajuste abre com o IPCA e o novo valor, sem mexer na vigência");
   await submitForm("/contratos/novo", "admin", "admin", { action: "createContract" }, { companyId: ids.a, parentId: contract, templateId: "", engagementId: item, title: "", startsAt: offset(10), endsAt: "", readjust: "yes" });
-  const amendment = await one("select body from console_contracts where parent_id=$1", [contract]);
-  ok(!!amendment && amendment.body.includes("REAJUSTE") && amendment.body.includes("R$") && !amendment.body.includes("{{novo_valor}}"), "O aditivo de reajuste nasce preenchido em rascunho");
+  const amendment = await one("select id, body, starts_at from console_contracts where parent_id=$1", [contract]);
+  ok(
+    !!amendment && amendment.body.includes("REAJUSTE") && amendment.body.includes(`Readjust item ${marker}`) && !/\{\{(objeto_reajuste|novo_valor|valor_atual|aniversario)\}\}/.test(amendment.body) && amendment.starts_at === null,
+    "O aditivo de reajuste nasce preenchido em rascunho, com o item e sem datas de vigência",
+  );
+  ok(
+    (await one("select details->>'amendmentId' a from console_automation_events where kind='contract.readjust' and entity_id like $1", [`${contract}:%`]))?.a === amendment.id,
+    "O reajuste preparado fica registrado para o aniversário",
+  );
+  ok(!(await request(`/contratos/${contract}`, "admin")).text.includes("Preparar reajuste"), "Com o aditivo em andamento, o reajuste não é oferecido de novo");
+  await db.query("delete from console_automation_events where kind='contract.readjust' and entity_id like $1", [`${contract}:%`]);
 
   await db.query("delete from console_contracts where parent_id=$1", [contract]);
   await db.query("delete from console_contracts where id=$1", [contract]);

@@ -166,6 +166,38 @@ export async function confirmPaidOutside(_: ActionState, form: FormData): Promis
   }
 }
 
+/**
+ * "Registrar nota emitida": until the fiscal integration exists, the team
+ * issues the NFS-e by hand and records it here, with its number or link, so
+ * the invoice leaves the queue. Only a paid invoice; the record says it was
+ * issued outside the Console.
+ */
+export async function markFiscalIssued(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return { error: "Acesso restrito à administração." };
+  try {
+    const id = uuid.parse(form.get("id"));
+    const number = z.string().trim().max(60).parse(form.get("number") ?? "");
+    const url = z.union([z.literal(""), z.url({ protocol: /^https$/, error: "Use um link https da nota." })]).parse(String(form.get("url") ?? "").trim());
+    if (!number && !url) return { error: "Informe o número ou o link da nota." };
+    const done = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(invoices)
+        .set({ fiscalStatus: "authorized", fiscalUrl: url || null })
+        .where(and(eq(invoices.id, id), eq(invoices.status, "paid"), inArray(invoices.fiscalStatus, ["not_requested", "error"])))
+        .returning({ id: invoices.id, companyId: invoices.companyId });
+      if (!row) return false;
+      await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: row.companyId, entityId: row.id, action: "invoice.fiscal_recorded", details: { number: number || null, url: url || null, manual: true } });
+      return true;
+    });
+    if (!done) return { error: "Só uma fatura paga, sem nota registrada, aceita o registro." };
+    refresh(id);
+    return { success: "Nota registrada. A fatura sai da lista de notas a emitir." };
+  } catch (e) {
+    return { error: e instanceof z.ZodError ? e.issues[0].message : "Não foi possível registrar agora." };
+  }
+}
+
 /** "Localizar no Inter": finds the charge of an issue that never got an answer, by its reference, and links it after the usual checks. */
 export async function locateCharge(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();

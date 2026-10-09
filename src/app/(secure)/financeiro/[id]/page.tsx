@@ -60,6 +60,14 @@ export default async function Invoice({
         .where(eq(subscriptions.id, i.subscriptionId))
     : [];
   const scheduled = i.status === "draft" && sub?.status === "active";
+  // Paused past its due date: the periods that went by, to bill as drafts when it resumes (a period the routine already drafted keeps its draft).
+  const missed = actor.admin && sub && sub.status === "paused" && sub.nextDueDate <= saoPauloDate() ? missedPeriods(sub, saoPauloDate()) : null;
+  const ownDrafts = missed?.missed.length
+    ? await db
+        .select({ dueDate: invoices.dueDate })
+        .from(invoices)
+        .where(and(eq(invoices.subscriptionId, sub!.id), inArray(invoices.dueDate, missed.missed), eq(invoices.status, "draft")))
+    : [];
   // Whether paying this invoice would issue the next period at once: the same rule the cron applies.
   const [otherOpen, engagement] = sub
     ? await Promise.all([
@@ -208,6 +216,7 @@ export default async function Invoice({
               : null,
           publicEnabled: i.publicEnabled,
           fiscalStatus: i.fiscalStatus,
+          fiscalUrl: i.fiscalUrl,
           editable:
             i.status === "draft" &&
             !i.bankRequest &&
@@ -248,9 +257,7 @@ export default async function Invoice({
               issueOnPayment: sub.interval === "monthly" ? sub.issueOnPayment : null,
               earlyReady,
               ahead: ahead ? { ...ahead, status: ahead.status as "issued" | "paid" } : null,
-              // Paused past its due date: the periods that went by, to bill as drafts when it resumes.
-              resume:
-                actor.admin && sub.status === "paused" && sub.nextDueDate <= today ? missedPeriods(sub, today) : null,
+              resume: missed ? { ...missed, drafted: ownDrafts.map((d) => d.dueDate) } : null,
               terms: {
                 discountCents: sub.discountCents,
                 fineBps: sub.fineBps,

@@ -31,6 +31,7 @@ import { billingProblemsLabel, billingReadiness } from "@/lib/billing/billing-re
 import { contractFieldSuggestions } from "@/lib/contracts/contract-suggestions";
 import { CLIENT_CONTRACT_STATUSES } from "@/lib/contracts/contract-table";
 import { ContractDetail } from "@/components/contratos/contract-detail";
+import { readjustFor } from "@/lib/contracts/readjust";
 export const metadata: Metadata = {
   title: "Contrato",
   description: "Leia, assine e acompanhe um contrato.",
@@ -129,6 +130,8 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
     previousQuery,
   ]);
   const handoff = actor.admin && c.status === "signed" && c.kind === "contract" ? await contractHandoff(c, row.template) : undefined;
+  // The yearly readjust, when its anniversary is near (or passed without one): the amendment comes prepared.
+  const readjust = actor.admin && c.status === "signed" && c.kind === "contract" ? await readjustFor(c.id) : null;
   const grant = actor.grants.find((g) => g.company.id === c.companyId);
   const party = actor.admin ? "anuntech" : grant && hasPermission(grant.role, "finance") ? "client" : null;
   // Staff edit the next version during a review; everyone else reads what was sent.
@@ -168,6 +171,7 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
         },
         parent,
         amendments: amendments.map((a) => ({ ...a, signedAt: a.signedAt?.toISOString() ?? null })),
+        readjust: readjust ? { anniversary: readjust.anniversary, currentCents: readjust.currentCents, newCents: readjust.newCents, percent: readjust.percent } : null,
         versions: versions.map((v) => ({
           version: v.version,
           sentAt: v.sentAt.toISOString(),

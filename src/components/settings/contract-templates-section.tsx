@@ -18,7 +18,8 @@ export async function ContractTemplatesSection() {
       description: contractTemplates.description,
       body: contractTemplates.body,
       active: contractTemplates.active,
-      uses: sql<number>`(select count(*)::int from ${contracts} where ${contracts.templateId} = ${contractTemplates.id})`,
+      // A one-table select writes its columns unqualified: the outer id is spelled out.
+      uses: sql<number>`(select count(*)::int from ${contracts} c where c.template_id = console_contract_templates.id)`,
     })
     .from(contractTemplates)
     .where(sql`true`)

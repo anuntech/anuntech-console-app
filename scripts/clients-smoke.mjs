@@ -83,18 +83,31 @@ export async function runClientsTests({ database: db, ids, people, request, subm
     "insert into console_subscriptions(id,company_id,description,amount_cents,interval,anchor_day,anchor_month,next_due_date,status,actor_id) values($1,$2,$3,9900,'monthly',10,1,current_date + 20,'active',$4)",
     [plan, leaving, `Leaving plan ${marker}`, people.admin.id],
   );
+  // The only Administrador and a Membro: "Revogar os acessos" takes both, the last Administrador included.
+  await db.query(
+    "insert into console_memberships(id,company_id,email,role,active) values($1,$2,$3,'manager',true),($4,$2,$5,'member',true)",
+    [randomUUID(), leaving, `leaving-boss-${marker}@example.invalid`, randomUUID(), `leaving-staff-${marker}@example.invalid`],
+  );
   const archive = await request(`/empresas/${leaving}`, "admin");
   ok(/recurrences\\?":1/.test(archive.text) && /engagements\\?":1/.test(archive.text), "A página da empresa sabe o que ainda está ativo para o arquivamento");
-  await submitForm(`/empresas/${leaving}`, "admin", "admin", { action: "setCompanyArchived" }, { id: leaving, archived: "yes", pauseRecurrences: "yes" });
+  ok(/archiveOpen\\?":true/.test((await request(`/empresas/${leaving}?arquivar=1`, "admin")).text), "A página abre o arquivamento pelo link do menu da lista (?arquivar=1)");
+  await submitForm(`/empresas/${leaving}`, "admin", "admin", { action: "setCompanyArchived" }, { id: leaving, archived: "yes", pauseRecurrences: "yes", revokeAccess: "yes" });
   ok(
     (await one("select status from console_subscriptions where id=$1", [plan]))?.status === "paused" &&
       (await one("select status from console_engagements where id=$1", [item]))?.status === "active" &&
       (await one("select archived from console_companies where id=$1", [leaving]))?.archived === true,
     "Arquivar pausa só o que foi marcado",
   );
+  ok(
+    (await one("select count(*)::int n from console_memberships where company_id=$1 and active", [leaving]))?.n === 0 &&
+      (await one("select count(*)::int n from console_audit_events where company_id=$1 and action='membership.revoked'", [leaving]))?.n === 2,
+    "Revogar os acessos ao arquivar tira todos, o último Administrador incluído",
+  );
+  ok(!(await request(`/empresas/${leaving}`, "admin")).text.includes("Faltam "), "Cliente arquivado não mostra a ficha de implantação");
   await db.query("delete from console_audit_events where company_id = any($1)", [[leaving, testCompany]]);
   await db.query("delete from console_subscriptions where company_id=$1", [leaving]);
   await db.query("delete from console_engagements where company_id=$1", [leaving]);
+  await db.query("delete from console_memberships where company_id=$1", [leaving]);
   await db.query("delete from console_automation_events where entity_id = $1", [testCompany]);
   await db.query("delete from console_companies where id = any($1)", [[leaving, testCompany]]);
 }

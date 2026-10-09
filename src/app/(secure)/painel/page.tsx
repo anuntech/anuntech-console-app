@@ -411,9 +411,10 @@ export default async function Dashboard() {
     (await Promise.all([collectionFollowUp(today), commercialFollowUp(today), readjustFollowUp(today), supportFollowUp(now), clientsFollowUp(now)])).flat().map((group) => [group.key, group.items]),
   );
   const followItem = (keys: string[], item: Omit<AttentionItem, "count" | "href"> & { href: string }) => {
-    // One line per record, even when it falls in two groups (waiting past the deadline and with an estimate).
-    const items = [...new Map(keys.flatMap((key) => followUp.get(key) ?? []).map((item) => [item.href, item])).values()];
-    if (items.length) candidates.push({ ...item, count: items.length, href: items.length === 1 ? items[0].href : item.href });
+    // One per record: a ticket can fall in two groups (waiting past the deadline and with an estimate); people and months share a page.
+    const items = [...new Map(keys.flatMap((key) => followUp.get(key) ?? []).map((item) => [item.href.startsWith("/chamados/") ? item.href : `${item.href}|${item.line}`, item])).values()];
+    const pages = new Set(items.map((entry) => entry.href));
+    if (items.length) candidates.push({ ...item, count: items.length, href: pages.size === 1 ? items[0].href : item.href });
   };
   followItem(["awaiting-anuntech"], {
     key: "awaiting-anuntech",
@@ -436,7 +437,7 @@ export default async function Dashboard() {
     icon: <WalletIcon />,
     tone: "critical",
     title: "Atrasos para cobrar",
-    detail: "Mais de 25 dias, sem contato combinado; o texto sai pronto",
+    detail: "Mais de 25 dias, sem data de pagamento combinada; o texto sai pronto",
     href: "/financeiro/atrasos",
   });
   followItem(["marked-received"], {
@@ -445,7 +446,7 @@ export default async function Dashboard() {
     tone: "warning",
     title: "Marcadas como recebidas no Inter",
     detail: "Pagas fora do boleto? Confirme na fatura para os lembretes pararem",
-    href: "/financeiro",
+    href: "/financeiro/atrasos",
   });
   followItem(["readjusts"], {
     key: "readjusts",
@@ -483,13 +484,17 @@ export default async function Dashboard() {
     detail: "Telefone fixo como WhatsApp, e-mail que não chega ou documento inválido",
     href: "/empresas",
   });
-  followItem(["idle-access", "archived-access", "idle-staff"], {
-    key: "access-review",
-    icon: <Building2Icon />,
-    title: "Acessos para revisar",
-    detail: "Sem entrar há 90 dias, ou em empresas arquivadas",
-    href: "/empresas",
-  });
+  {
+    // Where the records are: archived companies are off the default list, and the team lives in Membros.
+    const only = (key: string) => (followUp.get(key)?.length ?? 0) > 0 && ["idle-access", "archived-access", "idle-staff"].every((other) => other === key || !followUp.get(other)?.length);
+    followItem(["idle-access", "archived-access", "idle-staff"], {
+      key: "access-review",
+      icon: <Building2Icon />,
+      title: "Acessos para revisar",
+      detail: "Sem entrar há 90 dias, em empresas arquivadas ou da equipe",
+      href: only("archived-access") ? "/empresas?status=archived" : only("idle-staff") ? "/configuracoes/membros" : "/empresas",
+    });
+  }
   followItem(["accepted-no-contract"], {
     key: "accepted-no-contract",
     icon: <FileTextIcon />,

@@ -1,7 +1,7 @@
 "use server";
 import { enqueueBillingNotice } from "./billing-notice-queue";
 import { randomBytes } from "node:crypto";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -223,8 +223,43 @@ export async function changeSubscription(
         if (catchUp !== "drafts" && catchUp !== "skip") throw Error("Revise o próximo vencimento antes de reativar.");
         const periods = missedPeriods(s, today);
         nextDueDate = periods.next;
+        // The routine drafts a period before asking the bank: that draft is the period's, never a second one.
+        const own = periods.missed.length
+          ? await tx
+              .select()
+              .from(invoices)
+              .where(and(eq(invoices.subscriptionId, s.id), inArray(invoices.dueDate, periods.missed), ne(invoices.status, "cancelled")))
+              .for("update")
+          : [];
+        const tried = own.find((i) => i.bankRequest || i.providerId || i.status !== "draft");
+        if (tried)
+          throw Error(
+            `O vencimento de ${tried.dueDate.split("-").reverse().join("/")} já foi enviado ao Inter. Abra essa fatura e reconcilie a cobrança antes de retomar.`,
+          );
+        for (const draft of own) {
+          // Off the recurrence either way: cancelling it later must not pause the recurrence again.
+          await tx
+            .update(invoices)
+            .set(catchUp === "drafts" ? { subscriptionId: null, bankDueDate: addDays(today, 7) } : { subscriptionId: null, status: "cancelled" })
+            .where(eq(invoices.id, draft.id));
+          await tx.insert(auditEvents).values({
+            actorId: actor.user.id,
+            companyId: s.companyId,
+            action: catchUp === "drafts" ? "invoice.draft_updated" : "invoice.draft_cancelled",
+            entityId: draft.id,
+            details: { source: "catchup", subscriptionId: s.id, dueDate: draft.dueDate },
+          });
+          if (catchUp === "drafts") {
+            await tx
+              .insert(automationEvents)
+              .values({ kind: "subscription.catchup", entityId: `${s.id}:${draft.dueDate}`, companyId: s.companyId, actorId: actor.user.id, details: { invoiceId: draft.id } })
+              .onConflictDoNothing();
+            drafted += 1;
+          }
+        }
+        const covered = new Set(own.map((i) => i.dueDate));
         if (catchUp === "drafts")
-          for (const due of periods.missed) {
+          for (const due of periods.missed.filter((date) => !covered.has(date))) {
             const [claimed] = await tx
               .insert(automationEvents)
               .values({ kind: "subscription.catchup", entityId: `${s.id}:${due}`, companyId: s.companyId, actorId: actor.user.id })

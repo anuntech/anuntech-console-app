@@ -22,9 +22,9 @@ import { CompanyDetail } from "@/components/empresas/company-detail";
 import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { OnboardingCard } from "@/components/empresas/onboarding-card";
-import { onboardingMissing } from "@/lib/companies/onboarding";
+import { isNewClient, onboardingMissing } from "@/lib/companies/onboarding";
 import { bankCard } from "@/lib/service-terms/hours-bank";
-import { overageReady } from "@/lib/service-terms/hours-delivery";
+import { overagesReady, reportsToSend } from "@/lib/service-terms/hours-delivery";
 import { serviceTerms } from "@/db/schema";
 export const metadata = {
   title: "Detalhes da empresa",
@@ -136,9 +136,9 @@ export default async function Company({
       .orderBy(desc(contracts.updatedAt)),
   ]);
   const bank = await bankCard(id, company.name);
-  // A closed month's hours beyond the bank, once the client's window to contest closed: ready to bill, once.
-  const overage = bank ? await overageReady(id) : null;
-  const onboarding = await onboardingMissing(id);
+  // Closed months' hours beyond the bank, once the client's window to contest closed (ready to bill, once), and the reports still owed.
+  const [overages, reports] = bank ? await Promise.all([overagesReady(id), reportsToSend(id)]) : [[], []];
+  const onboarding = isNewClient(company) ? await onboardingMissing(id) : [];
   // What still runs, offered to wind down in the archive dialog.
   const [[recurrences], [runningItems], [signedContracts]] = await Promise.all([
     db.select({ n: count() }).from(subscriptions).where(and(eq(subscriptions.companyId, id), eq(subscriptions.status, "active"))),
@@ -151,6 +151,7 @@ export default async function Company({
   const termsCard = (
     <>
     <OnboardingCard steps={onboarding} />
+    <div id="condicoes" className="scroll-mt-24">
     <ServiceTermsCard
       companyId={id}
       items={termRows.map((t) => ({
@@ -171,11 +172,13 @@ export default async function Company({
       contracts={termContracts}
       now={new Date().toISOString()}
     />
+    </div>
     {bank && (
       <HoursBankCard
         viewer="team"
         bank={bank}
-        overage={overage ? { ...overage, href: `/financeiro/nova?excedente=${id}&mes=${overage.month}` } : null}
+        overages={overages.map((overage) => ({ ...overage, href: `/financeiro/nova?excedente=${id}&mes=${overage.month}` }))}
+        reports={reports}
       />
     )}
     </>
@@ -184,6 +187,7 @@ export default async function Company({
     <CompanyDetail
       termsCard={termsCard}
       editorOpen={typeof query.editar === "string"}
+      archiveOpen={typeof query.arquivar === "string"}
       data={{
         company: {
           id: company.id,

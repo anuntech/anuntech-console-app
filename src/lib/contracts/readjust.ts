@@ -1,6 +1,6 @@
 import "server-only";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { automationEvents, companies, contracts, engagements } from "@/db/schema";
+import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { automationEvents, companies, contracts, engagements, subscriptions } from "@/db/schema";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { currency } from "../format";
@@ -51,6 +51,9 @@ export type Readjust = {
   contractId: string;
   title: string;
   company: string;
+  /** The item and its billing cycle, named in the clause. */
+  item: string;
+  cycle: "mensal" | "anual" | null;
   anniversary: string;
   currentCents: number;
   newCents: number;
@@ -69,36 +72,81 @@ function anniversaryAfter(startsAt: string, from: string) {
   return at(year) >= from ? at(year) : at(year + 1);
 }
 
-/** Signed contracts whose anniversary comes within 30 days, with a priced item and no amendment in progress. */
+/** How far back a passed anniversary still waits for its readjust. */
+const LATE_DAYS = 60;
+
+/**
+ * Signed contracts whose anniversary comes within 30 days (or passed in the
+ * last 60 without a readjust), with a priced item and no amendment in
+ * progress. The price is what the recurrence bills, when there is one.
+ */
 export async function readjustsDue(today = saoPauloDate(), refresh = false): Promise<Readjust[]> {
   const index = await ipca12m({ refresh });
   if (!index) return [];
   const rows = await db
-    .select({ id: contracts.id, title: contracts.title, startsAt: contracts.startsAt, company: companies.name, amountCents: engagements.amountCents })
+    .select({
+      id: contracts.id,
+      title: contracts.title,
+      startsAt: contracts.startsAt,
+      signedAt: contracts.signedAt,
+      company: companies.name,
+      item: engagements.name,
+      amountCents: engagements.amountCents,
+      billed: subscriptions.amountCents,
+      interval: subscriptions.interval,
+    })
     .from(contracts)
     .innerJoin(companies, eq(companies.id, contracts.companyId))
     .innerJoin(engagements, eq(engagements.id, contracts.engagementId))
+    // Linked either way: the catalog writes engagements.subscription_id, Nova cobrança only subscriptions.engagement_id.
+    .leftJoin(
+      subscriptions,
+      and(or(eq(subscriptions.id, engagements.subscriptionId), eq(subscriptions.engagementId, engagements.id)), eq(subscriptions.status, "active")),
+    )
     .where(
       and(
         eq(contracts.status, "signed"),
         eq(contracts.kind, "contract"),
         eq(companies.archived, false),
         isNotNull(contracts.startsAt),
-        isNotNull(engagements.amountCents),
         sql`(${contracts.endsAt} is null or ${contracts.endsAt} >= ${today})`,
         sql`not exists (select 1 from ${contracts} c2 where c2.parent_id = ${contracts.id} and c2.status in ('draft', 'sent', 'in_review'))`,
       ),
     );
+  // Readjusts already prepared, per contract and anniversary (an amendment cancelled since does not count).
+  const done = new Set(
+    (
+      await db
+        .select({ entityId: automationEvents.entityId })
+        .from(automationEvents)
+        .where(
+          and(
+            eq(automationEvents.kind, "contract.readjust"),
+            sql`exists (select 1 from ${contracts} c3 where c3.id = ${automationEvents.details}->>'amendmentId' and c3.status <> 'cancelled')`,
+          ),
+        )
+    ).map((row) => row.entityId),
+  );
   const out: Readjust[] = [];
+  const seen = new Set<string>();
   for (const row of rows) {
-    const anniversary = anniversaryAfter(row.startsAt!, today);
-    // A year in force at least, and the anniversary within 30 days.
-    if (anniversary > addDays(today, 30) || anniversary < addDays(row.startsAt!, 360)) continue;
-    const current = row.amountCents!;
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    const current = row.billed ?? row.amountCents;
+    if (!current) continue;
+    // A renewal moves startsAt to the new term; the contract has been in force since it was first signed.
+    const signed = row.signedAt ? saoPauloDate(row.signedAt) : row.startsAt!;
+    const firstStart = signed < row.startsAt! ? signed : row.startsAt!;
+    const late = anniversaryAfter(row.startsAt!, addDays(today, -LATE_DAYS));
+    const anniversary = late < today && !done.has(`${row.id}:${late}`) ? late : anniversaryAfter(row.startsAt!, today);
+    // A year in force at least, within 30 days ahead, and not prepared yet.
+    if (anniversary > addDays(today, 30) || anniversary < addDays(firstStart, 360) || done.has(`${row.id}:${anniversary}`)) continue;
     out.push({
       contractId: row.id,
       title: row.title,
       company: row.company,
+      item: row.item,
+      cycle: row.interval === "yearly" ? "anual" : row.interval === "monthly" ? "mensal" : null,
       anniversary,
       currentCents: current,
       newCents: Math.round(current * (1 + index.percent / 100)),
@@ -121,9 +169,9 @@ export async function readjustFollowUp(today = saoPauloDate(), refresh = false) 
     ? [
         {
           key: "readjusts",
-          title: "Reajustes no aniversário do contrato, em até 30 dias (IPCA)",
+          title: "Reajustes no aniversário do contrato, em até 30 dias ou já passados (IPCA)",
           items: due.map((r) => ({
-            line: `${r.company} · ${r.title} · ${currency(r.currentCents)} → ${currency(r.newCents)} (${String(r.percent).replace(".", ",")}%) em ${r.anniversary.split("-").reverse().join("/")}`,
+            line: `${r.company} · ${r.title} · ${currency(r.currentCents)} → ${currency(r.newCents)} (${String(r.percent).replace(".", ",")}%) ${r.anniversary < today ? "desde" : "em"} ${r.anniversary.split("-").reverse().join("/")}`,
             href: `/contratos/novo?parentId=${r.contractId}&reajuste=1`,
           })),
         },

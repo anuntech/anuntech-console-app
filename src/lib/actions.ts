@@ -29,6 +29,7 @@ import {
   memberships,
 } from "@/db/schema";
 import { expiredDebtCondition } from "./billing/billing-watch";
+import { lockEnvironmentAssignments } from "./access/environment-access";
 import { usualAssignee } from "./tickets/ticket-watch";
 import { overageCharge } from "./service-terms/hours-delivery";
 import { normalizeEmail, moneyToCents } from "./access/permissions";
@@ -1029,6 +1030,8 @@ export async function setCompanyArchived(
     const archived = input.archived === "yes";
     const done: string[] = [];
     await db.transaction(async (tx) => {
+      // Same lock as the members' own changes, taken first so the two never wait on each other.
+      if (archived && input.revokeAccess) await lockEnvironmentAssignments(tx);
       const [row] = await tx
         .update(companies)
         .set({ archived })
@@ -1065,17 +1068,21 @@ export async function setCompanyArchived(
           await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: row.id, action: "engagement.status_changed", entityId: item.id, details: { status: "completed", reason: "company_archived" } });
         if (completed.length) done.push(completed.length === 1 ? "1 vínculo concluído" : `${completed.length} vínculos concluídos`);
       }
-    });
-    // Access goes through the members' own rules (one environment per account, the audit), one by one.
-    if (archived && input.revokeAccess) {
-      const people = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.companyId, input.id), eq(memberships.active, true)));
-      let revoked = 0;
-      for (const person of people) {
-        const access = new FormData();
-        access.set("id", person.id);
-        if (!(await revokeCompanyMember({}, access)).error) revoked += 1;
+      // Everyone leaves together, the last Administrador included: the "keep one manager" rule protects a company in use, not one being closed.
+      if (input.revokeAccess) {
+        const gone = await tx
+          .update(memberships)
+          .set({ active: false })
+          .where(and(eq(memberships.companyId, row.id), eq(memberships.active, true)))
+          .returning({ id: memberships.id, email: memberships.email });
+        for (const member of gone)
+          await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: row.id, action: "membership.revoked", entityId: member.id, details: { email: member.email, reason: "company_archived" } });
+        if (gone.length) done.push(gone.length === 1 ? "1 acesso revogado" : `${gone.length} acessos revogados`);
       }
-      if (revoked) done.push(revoked === 1 ? "1 acesso revogado" : `${revoked} acessos revogados`);
+    });
+    if (archived && input.revokeAccess) {
+      revalidatePath("/configuracoes/membros");
+      revalidatePath("/", "layout");
     }
     revalidatePath(`/empresas/${input.id}`);
     refresh();

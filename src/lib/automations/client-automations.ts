@@ -323,6 +323,11 @@ async function waitingReminders(now: Date, cal: Calendar) {
       })
       .catch(() => false);
     if (reached) sent += 1;
+    else {
+      // Nobody on the client's side got it: the team's button stays free today, and a later run (new contact) can try.
+      await release("ticket.client_reminder", `${t.id}:${saoPauloDate(now)}`);
+      await release("ticket.waiting_reminder", entity);
+    }
   }
   return sent;
 }

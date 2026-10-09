@@ -72,8 +72,15 @@ export async function sendMonthClose(today = saoPauloDate()) {
     .onConflictDoNothing()
     .returning({ id: automationEvents.id });
   if (!claimed) return false;
-  const { subject, text } = await monthCloseText(closed);
-  const delivered = await sendOpsMail(subject, text);
-  if (!delivered) await db.delete(automationEvents).where(eq(automationEvents.id, claimed.id));
-  return delivered > 0;
+  // Nobody got it, or it broke on the way: the next digest tries again.
+  const release = () => db.delete(automationEvents).where(eq(automationEvents.id, claimed.id));
+  try {
+    const { subject, text } = await monthCloseText(closed);
+    const delivered = await sendOpsMail(subject, text);
+    if (!delivered) await release();
+    return delivered > 0;
+  } catch (error) {
+    await release().catch(() => {});
+    throw error;
+  }
 }

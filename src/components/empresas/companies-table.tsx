@@ -120,20 +120,17 @@ function CompanyActions({
             description={`Você passa a ver e usar o Console exatamente como ${company.name}, com acesso completo. Suas telas de administrador ficam ocultas até você sair do modo assistido.`}
             confirmLabel="Entrar como esta empresa"
           />
-          <ConfirmDialog
-            open={confirm === "archive"}
-            onOpenChange={(open) => !open && setConfirm(null)}
-            action={setCompanyArchived}
-            fields={{ id: company.id, archived: company.archived ? "no" : "yes" }}
-            title={company.archived ? "Restaurar cliente?" : "Arquivar cliente?"}
-            description={
-              company.archived
-                ? `${company.name} volta para a lista de clientes ativos.`
-                : `${company.name} sai da lista de ativos. Histórico, acessos e cobranças são preservados e você pode restaurar depois.`
-            }
-            confirmLabel={company.archived ? "Restaurar" : "Arquivar"}
-            destructive={!company.archived}
-          />
+          {company.archived && (
+            <ConfirmDialog
+              open={confirm === "archive"}
+              onOpenChange={(open) => !open && setConfirm(null)}
+              action={setCompanyArchived}
+              fields={{ id: company.id, archived: "no" }}
+              title="Restaurar cliente?"
+              description={`${company.name} volta para a lista de clientes ativos.`}
+              confirmLabel="Restaurar"
+            />
+          )}
           {deletable && (
             <DeleteCompanyDialog
               company={company}
@@ -169,13 +166,20 @@ function CompanyActions({
         </DropdownMenuItem>
       )}
       <DropdownMenuSeparator />
-      <DropdownMenuItem
-        variant={company.archived ? "default" : "destructive"}
-        onSelect={() => ask("archive")}
-      >
-        {company.archived ? <ArchiveRestoreIcon /> : <ArchiveIcon />}
-        {company.archived ? "Restaurar cliente" : "Arquivar cliente"}
-      </DropdownMenuItem>
+      {company.archived ? (
+        <DropdownMenuItem onSelect={() => ask("archive")}>
+          <ArchiveRestoreIcon />
+          Restaurar cliente
+        </DropdownMenuItem>
+      ) : (
+        // Archiving shows what still runs and what to wind down with it: that lives on the company page.
+        <DropdownMenuItem variant="destructive" asChild>
+          <Link href={`/empresas/${company.id}?arquivar=1`}>
+            <ArchiveIcon />
+            Arquivar cliente
+          </Link>
+        </DropdownMenuItem>
+      )}
       {deletable && (
         <>
           <DropdownMenuSeparator />

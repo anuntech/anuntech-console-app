@@ -186,6 +186,7 @@ export const auditLabels: Record<string, string> = {
   "invoice.deleted": "Rascunho de fatura excluído",
   "invoice.bank_accepted": "Cobrança aceita pelo Inter",
   "invoice.bank_checked": "Cobrança consultada no Inter",
+  "invoice.fiscal_recorded": "Nota fiscal registrada pela equipe",
   "invoice.drafted": "Rascunho de fatura criado",
   "invoice.draft_updated": "Rascunho atualizado",
   "invoice.description_updated": "Descrição da fatura atualizada",

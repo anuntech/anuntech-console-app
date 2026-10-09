@@ -6,7 +6,7 @@ import { dateLabel } from "../format";
 import type { FollowUpGroup } from "../commercial/follow-up";
 import { inviteStatusLabel, stalledInvites } from "../access/invite-tracking";
 import { contactProblems, type NoticeContacts } from "./contact-quality";
-import { onboardingMissing } from "./onboarding";
+import { NEW_CLIENT_DAYS, onboardingMissing } from "./onboarding";
 
 /*
  * Clients and access, for the team: invites nobody accepted, accesses
@@ -15,7 +15,6 @@ import { onboardingMissing } from "./onboarding";
  */
 
 const IDLE_DAYS = 90;
-const NEW_CLIENT_DAYS = 90;
 
 /** The last time each e-mail signed in, from the sessions. */
 const lastSignIn = sql<Date | null>`(select max(s.created_at) from ${session} s inner join ${user} u on u.id = s.user_id where u.email = ${memberships.email})`;

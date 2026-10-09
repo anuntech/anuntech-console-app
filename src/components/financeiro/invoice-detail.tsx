@@ -45,7 +45,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { cancelDraft } from "@/lib/actions";
-import { cancelCharge, closeDebt, confirmPaidOutside, issueCharge, locateCharge, syncCharge } from "@/lib/billing/billing-actions";
+import { cancelCharge, closeDebt, confirmPaidOutside, issueCharge, locateCharge, markFiscalIssued, syncCharge } from "@/lib/billing/billing-actions";
 import {
   changePaymentLink,
   changeSubscription,
@@ -95,6 +95,7 @@ export type InvoiceDetailData = {
     publicUrl: string | null;
     publicEnabled: boolean;
     fiscalStatus: string;
+    fiscalUrl: string | null;
     editable: "draft" | "issued" | null;
     /** Staff only: a draft (or cancelled draft) that never reached the Inter. */
     deletable?: boolean;
@@ -124,7 +125,7 @@ export type InvoiceDetailData = {
     /** The next period, when it is already at the bank. */
     ahead: { id: string; dueDate: string; amountCents: number; status: "issued" | "paid" } | null;
     /** Staff, paused past its due date: the due dates that went by and the next one ahead. */
-    resume?: { missed: string[]; next: string } | null;
+    resume?: { missed: string[]; dropped: number; drafted: string[]; next: string } | null;
     terms: ChargeTerms;
   } | null;
   /** Draft waiting for its automatic emission date. */
@@ -262,6 +263,9 @@ function PaidOutsideCard({ invoiceId }: { invoiceId: string }) {
           <p className="m-0 text-sm text-muted-foreground">
             Se o pagamento entrou por outro meio (transferência, dinheiro), confirme aqui. A fatura passa a contar como paga e os lembretes param.
           </p>
+          <p className="m-0 text-xs text-muted-foreground">
+            Se o dinheiro não entrou, a baixa foi por engano e o boleto já não pode ser pago: confira com quem deu a baixa no Internet Banking e, se for o caso, cancele no Inter e crie outra cobrança.
+          </p>
           <div>
             <Label htmlFor={`outside-${invoiceId}`} className="mb-1.5">
               Como o pagamento entrou
@@ -328,6 +332,12 @@ function DebtCard({ invoiceId, debt, amountCents }: { invoiceId: string; debt: N
       </CardContent>
     </Card>
   );
+}
+
+/** "10/08/2026, 10/09/2026 e 10/10/2026". */
+function dateList(dates: string[]) {
+  const labels = dates.map((due) => dateLabel(due));
+  return labels.length > 1 ? `${labels.slice(0, -1).join(", ")} e ${labels[labels.length - 1]}` : (labels[0] ?? "");
 }
 
 export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
@@ -820,7 +830,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 <ServerForm action={locateCharge} className="flex flex-wrap items-center justify-between gap-3 border-t px-6 pt-4">
                   <input type="hidden" name="id" value={invoice.id} />
                   <p className="m-0 min-w-0 flex-1 text-xs text-muted-foreground">
-                    Sem o código? O Console procura no Inter a cobrança desta fatura pela referência, nos dias da emissão. A rotina também tenta a cada hora.
+                    Sem o código? O Console procura no Inter a cobrança desta fatura pela referência, nos dias do pedido. A rotina também tenta a cada hora, por 7 dias.
                   </p>
                   <SubmitButton variant="outline" size="sm" pendingLabel="Procurando…">
                     Localizar no Inter
@@ -1129,10 +1139,38 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <p className="text-muted-foreground">
-                {invoice.fiscalStatus === "not_requested"
-                  ? "Emissão ainda não solicitada."
-                  : "Emissão em andamento com a equipe da Anuntech."}
+                {invoice.fiscalStatus === "authorized" ? (
+                  <>
+                    Nota fiscal emitida.
+                    {invoice.fiscalUrl && (
+                      <>
+                        {" "}
+                        <a href={invoice.fiscalUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-primary">
+                          Abrir a nota
+                        </a>
+                      </>
+                    )}
+                  </>
+                ) : invoice.fiscalStatus === "not_requested" ? (
+                  "Emissão ainda não solicitada."
+                ) : (
+                  "Emissão em andamento com a equipe da Anuntech."
+                )}
               </p>
+              {admin && invoice.status === "paid" && (invoice.fiscalStatus === "not_requested" || invoice.fiscalStatus === "error") && (
+                <ServerForm action={markFiscalIssued} className="flex flex-col gap-2 rounded-lg border bg-field/60 px-3 py-3">
+                  <input type="hidden" name="id" value={invoice.id} />
+                  <FormError />
+                  <p className="m-0 text-xs text-muted-foreground">Emitiu a nota por fora? Registre o número ou o link e a fatura sai da lista de notas a emitir.</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Input name="number" aria-label="Número da nota" maxLength={60} placeholder="Número da nota" />
+                    <Input name="url" type="url" aria-label="Link da nota" placeholder="https://… (opcional)" />
+                  </div>
+                  <SubmitButton size="sm" variant="outline" className="self-start" pendingLabel="Registrando…">
+                    Registrar nota emitida
+                  </SubmitButton>
+                </ServerForm>
+              )}
               {admin && (
                 <p className="text-xs text-muted-foreground">
                   Nota fiscal automática{" "}
@@ -1243,7 +1281,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     ? `As próximas emissões automáticas param. A fatura de ${dateLabel(sub.ahead.dueDate)} já está no Inter e continua valendo; se não for devida, abra essa fatura e use Cancelar no Inter.`
                     : "As próximas emissões automáticas param. Faturas já emitidas não mudam."
                   : sub.resume
-                    ? `Os vencimentos de ${sub.resume.missed.map((due) => dateLabel(due)).join(", ")} passaram sem cobrança. A recorrência volta no vencimento de ${dateLabel(sub.resume.next)}, ${currency(sub.amountCents)}.`
+                    ? `${sub.resume.missed.length === 1 ? `O vencimento de ${dateLabel(sub.resume.missed[0])} passou` : `Os vencimentos de ${dateList(sub.resume.missed)} passaram`} sem cobrança.${sub.resume.dropped ? ` ${sub.resume.dropped === 1 ? "Um vencimento mais antigo fica" : `${sub.resume.dropped} vencimentos mais antigos ficam`} de fora; cobre à parte se for devido.` : ""} A recorrência volta no vencimento de ${dateLabel(sub.resume.next)}, ${currency(sub.amountCents)}.`
                     : `As emissões e avisos voltam. Próximo vencimento: ${dateLabel(sub.nextDueDate)}, ${currency(sub.amountCents)}.`
               }
               confirmLabel={sub.status === "active" ? "Pausar" : "Retomar"}
@@ -1253,15 +1291,29 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       <fieldset className="grid gap-2 rounded-lg border bg-field/60 px-3 py-3 text-sm">
                         <legend className="sr-only">O que fazer com os vencimentos que passaram</legend>
                         <label className="flex items-start gap-2">
-                          <input type="radio" form={formId} name="catchUp" value="drafts" defaultChecked className="mt-1" />
+                          <input type="radio" form={formId} name="catchUp" value="drafts" defaultChecked className="mt-1 size-4 min-h-0 shrink-0 p-0 accent-primary" />
                           <span>
-                            Criar {sub.resume!.missed.length === 1 ? "um rascunho avulso" : `${sub.resume!.missed.length} rascunhos avulsos`} para cobrar esses vencimentos
-                            <span className="block text-xs text-muted-foreground">Cada um fica com o vencimento original e uma nova data para pagar. Nada vai ao Inter até você emitir.</span>
+                            {sub.resume!.missed.length === 1
+                              ? sub.resume!.drafted.length
+                                ? "Cobrar esse vencimento com o rascunho que já existe"
+                                : "Criar um rascunho avulso para cobrar esse vencimento"
+                              : `Criar ${sub.resume!.missed.length} rascunhos avulsos para cobrar esses vencimentos`}
+                            <span className="block text-xs text-muted-foreground">
+                              {sub.resume!.missed.length === 1 ? "Fica" : "Cada um fica"} com o vencimento original e uma nova data para pagar.
+                              {sub.resume!.drafted.length && sub.resume!.missed.length > 1 ? ` ${dateList(sub.resume!.drafted)} ${sub.resume!.drafted.length === 1 ? "usa o rascunho" : "usam os rascunhos"} que já existe${sub.resume!.drafted.length === 1 ? "" : "m"}.` : ""} Nada vai ao Inter até você emitir.
+                            </span>
                           </span>
                         </label>
                         <label className="flex items-start gap-2">
-                          <input type="radio" form={formId} name="catchUp" value="skip" className="mt-1" />
-                          <span>Seguir só a partir de {dateLabel(sub.resume!.next)}, sem cobrar o que passou</span>
+                          <input type="radio" form={formId} name="catchUp" value="skip" className="mt-1 size-4 min-h-0 shrink-0 p-0 accent-primary" />
+                          <span>
+                            Seguir só a partir de {dateLabel(sub.resume!.next)}, sem cobrar o que passou
+                            {sub.resume!.drafted.length ? (
+                              <span className="block text-xs text-muted-foreground">
+                                {sub.resume!.drafted.length === 1 ? `O rascunho de ${dateLabel(sub.resume!.drafted[0])} é cancelado.` : `Os rascunhos de ${dateList(sub.resume!.drafted)} são cancelados.`}
+                              </span>
+                            ) : null}
+                          </span>
                         </label>
                       </fieldset>
                     )

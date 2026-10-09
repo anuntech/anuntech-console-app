@@ -59,7 +59,8 @@ export function NewContractFields({ companies, templates, engagements, companyId
   const [company, setCompany] = useState(parent?.companyId ?? quote?.companyId ?? only ?? companyId ?? companies[0]?.id ?? "");
   // From a proposal, only the development template is a safe start; otherwise the team picks.
   const [templateId, setTemplateId] = useState(parent ? "" : quote ? (preferred ?? "") : (preferred ?? templates[0]?.id ?? ""));
-  const [startsAt, setStartsAt] = useState(renewal?.startsAt ?? readjust?.anniversary ?? "");
+  // A readjust changes the price, not the term: no dates (the anniversary is in the clause).
+  const [startsAt, setStartsAt] = useState(renewal?.startsAt ?? "");
   const [endsAt, setEndsAt] = useState(renewal?.endsAt ?? "");
   const template = templates.find((t) => t.id === templateId);
   const items = engagements.filter((e) => e.companyId === company);
@@ -80,7 +81,7 @@ export function NewContractFields({ companies, templates, engagements, companyId
               <>
                 <input type="hidden" name="readjust" value="yes" />
                 <p className="mt-2 text-xs text-foreground">
-                  {`Reajuste pelo IPCA de ${readjust.period} (${String(readjust.percent).replace(".", ",")}%): ${currency(readjust.currentCents)} passa a ${currency(readjust.newCents)} a partir de ${dateLabel(readjust.anniversary)}. O texto sai em rascunho; a recorrência muda só quando você editar as próximas cobranças.`}
+                  {`Reajuste pelo IPCA de ${readjust.period} (${String(readjust.percent).replace(".", ",")}%): ${currency(readjust.currentCents)} passa a ${currency(readjust.newCents)} a partir de ${dateLabel(readjust.anniversary)}. O texto sai em rascunho para você revisar antes de enviar; a vigência não muda, e a recorrência muda só quando você editar as próximas cobranças.`}
                 </p>
               </>
             )}
@@ -159,24 +160,26 @@ export function NewContractFields({ companies, templates, engagements, companyId
           ))}
         </NativeSelect>
       </FormField>
-      <div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <FormField label={parent ? "Nova vigência: início" : "Início da vigência"} htmlFor="contract-starts">
-            <DateField id="contract-starts" name="startsAt" value={startsAt} onChange={setStartsAt} placeholder="Sem data" />
-          </FormField>
-          <FormField label={parent ? "Nova vigência: fim" : "Fim da vigência"} htmlFor="contract-ends">
-            <DateField id="contract-ends" name="endsAt" value={endsAt} onChange={setEndsAt} min={startsAt || undefined} placeholder="Sem data" />
-          </FormField>
+      {!readjust && (
+        <div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <FormField label={parent ? "Nova vigência: início" : "Início da vigência"} htmlFor="contract-starts">
+              <DateField id="contract-starts" name="startsAt" value={startsAt} onChange={setStartsAt} placeholder="Sem data" />
+            </FormField>
+            <FormField label={parent ? "Nova vigência: fim" : "Fim da vigência"} htmlFor="contract-ends">
+              <DateField id="contract-ends" name="endsAt" value={endsAt} onChange={setEndsAt} min={startsAt || undefined} placeholder="Sem data" />
+            </FormField>
+          </div>
+          {renewal && <input type="hidden" name="renewal" value="yes" />}
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {renewal
+              ? "A prorrogação começa no dia seguinte ao fim do contrato e dura o mesmo tempo. Assinado, o aditivo passa a valer para o original."
+              : parent
+              ? "Só se o aditivo prorrogar ou encurtar o contrato. Assinado, passa a valer para o original."
+              : "Preenche {{inicio}} e {{fim}} no modelo e dispara o alerta 30 dias antes do fim. Dá para ajustar depois."}
+          </p>
         </div>
-        {renewal && <input type="hidden" name="renewal" value="yes" />}
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          {renewal
-            ? "A prorrogação começa no dia seguinte ao fim do contrato e dura o mesmo tempo. Assinado, o aditivo passa a valer para o original."
-            : parent
-            ? "Só se o aditivo prorrogar ou encurtar o contrato. Assinado, passa a valer para o original."
-            : "Preenche {{inicio}} e {{fim}} no modelo e dispara o alerta 30 dias antes do fim. Dá para ajustar depois."}
-        </p>
-      </div>
+      )}
       <FormField label="Título" htmlFor="contract-title">
         <Input
           id="contract-title"

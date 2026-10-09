@@ -29,22 +29,23 @@ export function issueDate(due: string, leadDays = 5): string {
 
 /**
  * A paused recurrence resumed after its due date: the periods that went by
- * without a charge (due on or before today, at most `cap`) and the first
- * period still ahead, which the routine issues as usual.
+ * without a charge (due on or before today, the latest `cap`), how many
+ * older ones were left out, and the first period still ahead, which the
+ * routine issues as usual.
  */
 export function missedPeriods(
   sub: { nextDueDate: string; interval: BillingInterval; anchorDay: number; anchorMonth: number },
   today: string,
   cap = 12,
-): { missed: string[]; next: string } {
-  const missed: string[] = [];
+): { missed: string[]; dropped: number; next: string } {
+  const all: string[] = [];
   let due = sub.nextDueDate;
-  while (due <= today && missed.length < cap) {
-    missed.push(due);
+  while (due <= today) {
+    all.push(due);
     due = nextDueDate(due, sub.interval, sub.anchorDay, sub.anchorMonth);
   }
-  while (due <= today) due = nextDueDate(due, sub.interval, sub.anchorDay, sub.anchorMonth);
-  return { missed, next: due };
+  const missed = all.slice(-cap);
+  return { missed, dropped: all.length - missed.length, next: due };
 }
 
 /** The first date on `day` of a month (the month's last day when shorter) that is on or after `from`. */

@@ -39,5 +39,5 @@ export async function registerCollectionContact(_: ActionState, form: FormData):
   });
   revalidatePath("/financeiro/atrasos");
   revalidatePath("/painel");
-  return { success: input.promiseDate ? "Contato registrado. A empresa sai da fila até a data combinada." : "Contato registrado." };
+  return { success: input.promiseDate ? "Contato registrado. Até a data combinada, a empresa fica em Aguardando a data e sai do resumo e do painel." : "Contato registrado." };
 }

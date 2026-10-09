@@ -79,13 +79,16 @@ export function HoursBankCard({
   bank,
   viewer,
   showCompany = false,
-  overage = null,
+  overages = [],
+  reports = [],
 }: {
   bank: BankCard;
   viewer: "team" | "approver" | "member";
   showCompany?: boolean;
-  /** Team: last month's hours beyond the bank, ready to bill (the contest window closed). */
-  overage?: { minutes: number; priceCents: number; amountCents: number; href: string } | null;
+  /** Team: closed months' hours beyond the bank, ready to bill (the contest window closed). */
+  overages?: { month: string; minutes: number; priceCents: number; amountCents: number; href: string }[];
+  /** Team: closed months with work logged and no final report yet. */
+  reports?: { month: string; again: boolean }[];
 }) {
   const [approving, setApproving] = useState(false);
   const percent = bank.includedMinutes ? Math.round((bank.usedMinutes / bank.includedMinutes) * 100) : 0;
@@ -190,19 +193,21 @@ export function HoursBankCard({
           />
         )}
 
-        {viewer === "team" && overage && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-field/60 px-3 py-2 text-sm">
-            <span className="min-w-0">
-              Excedente do mês passado: {hours(overage.minutes)} × {currency(overage.priceCents)} = <strong className="font-semibold">{currency(overage.amountCents)}</strong>
-            </span>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={overage.href}>Preparar cobrança</Link>
-            </Button>
-          </div>
-        )}
+        {viewer === "team" &&
+          overages.map((overage) => (
+            <div key={overage.month} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-field/60 px-3 py-2 text-sm">
+              <span className="min-w-0">
+                Excedente de {monthName(overage.month)}: {hours(overage.minutes)} × {currency(overage.priceCents)} ={" "}
+                <strong className="font-semibold">{currency(overage.amountCents)}</strong>
+              </span>
+              <Button variant="outline" size="sm" asChild>
+                <Link href={overage.href}>Preparar cobrança</Link>
+              </Button>
+            </div>
+          ))}
         {viewer === "team" && (
           <div className="flex flex-wrap gap-2">
-            {prev && !prev.final && (
+            {prev && !prev.final && !reports.some((report) => report.month === prev.month) && (
               <ServerForm action={sendHoursReport}>
                 <input type="hidden" name="companyId" value={bank.companyId} />
                 <input type="hidden" name="month" value={prev.month} />
@@ -211,6 +216,15 @@ export function HoursBankCard({
                 </SubmitButton>
               </ServerForm>
             )}
+            {reports.map((report) => (
+              <ServerForm key={report.month} action={sendHoursReport}>
+                <input type="hidden" name="companyId" value={bank.companyId} />
+                <input type="hidden" name="month" value={report.month} />
+                <SubmitButton size="sm" pendingLabel="Enviando…">
+                  {report.again ? `Reenviar relatório final de ${monthName(report.month)}` : `Enviar relatório de ${monthName(report.month)}`}
+                </SubmitButton>
+              </ServerForm>
+            ))}
             <ServerForm action={sendHoursReport}>
               <input type="hidden" name="companyId" value={bank.companyId} />
               <input type="hidden" name="month" value={bank.month} />

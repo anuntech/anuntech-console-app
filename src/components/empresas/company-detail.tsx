@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArchiveIcon,
@@ -302,20 +302,32 @@ function MemberMenu({
 export function CompanyDetail({
   data,
   editorOpen = false,
+  archiveOpen = false,
   termsCard,
 }: {
   data: CompanyDetailData;
   editorOpen?: boolean;
+  /** `?arquivar=1`, from the list's row menu: opens the archive dialog with its wind-down choices. */
+  archiveOpen?: boolean;
   /** "Condições de atendimento", rendered by the page. */
   termsCard?: ReactNode;
 }) {
   const { company, members, events, relations, links, deleteLinks } = data;
   const router = useRouter();
   const pathname = usePathname();
-  // `?editar=1` deep-links into the sheet; the page remounts per company, so
-  // the initial value is all that matters.
+  // `?editar=1` deep-links into the sheet, also from a link on this same page
+  // (the Implantação card), which keeps the component: follow the prop.
   const [editing, setEditing] = useState(editorOpen);
-  const [confirm, setConfirm] = useState<null | "assist" | "archive" | "delete">(null);
+  const [deepLinked, setDeepLinked] = useState(editorOpen);
+  if (deepLinked !== editorOpen) {
+    setDeepLinked(editorOpen);
+    if (editorOpen) setEditing(true);
+  }
+  const [confirm, setConfirm] = useState<null | "assist" | "archive" | "delete">(archiveOpen && !company.archived ? "archive" : null);
+  // The dialog is open from the first render; the address goes back to the page's own, so a reload does not reopen it.
+  useEffect(() => {
+    if (archiveOpen) router.replace(pathname, { scroll: false });
+  }, [archiveOpen, router, pathname]);
   const closeEditor = (open: boolean) => {
     setEditing(open);
     if (!open && editorOpen) router.replace(pathname, { scroll: false });
@@ -488,7 +500,7 @@ export function CompanyDetail({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="pessoas" className="scroll-mt-24">
             <CardHeader>
               <SectionTitle
                 title={
@@ -694,7 +706,7 @@ export function CompanyDetail({
         description={
           company.archived
             ? `${company.name} volta para a lista de clientes ativos.`
-            : `${company.name} sai da lista de ativos. Histórico, acessos e cobranças são preservados e você pode restaurar depois.`
+            : `${company.name} sai da lista de ativos. O histórico fica guardado e você pode restaurar o cliente depois.`
         }
         confirmLabel={company.archived ? "Restaurar" : "Arquivar"}
         destructive={!company.archived}
@@ -728,7 +740,7 @@ function OffboardingChoices({ formId, data, members }: { formId: string; data: C
     <div className="grid gap-3 rounded-lg border bg-field/60 px-3 py-3 text-sm">
       {choices.length > 0 && (
         <div className="grid gap-2">
-          <p className="m-0 text-xs font-medium text-muted-foreground">Junto com o arquivamento</p>
+          <p className="m-0 text-xs font-medium text-muted-foreground">Junto com o arquivamento (só o que você marcar; restaurar não desfaz)</p>
           {choices.map((choice) => (
             <Label key={choice.name} className="flex items-start gap-2 font-normal">
               <Checkbox form={formId} name={choice.name} value="yes" className="mt-0.5" />

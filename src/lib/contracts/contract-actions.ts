@@ -12,6 +12,7 @@ import {
   auditEvents,
   catalogItems,
   companies,
+  automationEvents,
   contractChangeRequests,
   contractSignatures,
   contractTemplates,
@@ -235,7 +236,7 @@ const READJUST_SKELETON = [
   "TERMO ADITIVO DE REAJUSTE",
   "CONTRATANTE: {{empresa}}, CNPJ {{cnpj}}.\nCONTRATADA: {{anuntech}}, CNPJ {{anuntech_cnpj}}.",
   "As partes acima resolvem aditar o contrato “{{contrato}}”, assinado em {{contrato_data}}, nos seguintes termos:",
-  "CLÁUSULA 1 — REAJUSTE\nA partir de {{aniversario}}, o valor de {{valor_atual}} passa a {{novo_valor}}, corrigido pelo IPCA acumulado de {{periodo}} ({{percentual}}).",
+  "CLÁUSULA 1 — REAJUSTE\nA partir de {{aniversario}}, o valor {{objeto_reajuste}}, de {{valor_atual}}, passa a {{novo_valor}}, corrigido pelo IPCA acumulado de {{periodo}} ({{percentual}}).",
   "CLÁUSULA 2 — RATIFICAÇÃO\nPermanecem inalteradas as demais cláusulas e condições do contrato original.",
   "São Paulo, {{data}}.",
 ].join("\n\n");
@@ -344,6 +345,7 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         percentual: `${String(readjust.percent).replace(".", ",")}%`,
         periodo: readjust.period,
         aniversario: longDateLabel(readjust.anniversary),
+        objeto_reajuste: `${readjust.cycle ? `${readjust.cycle} ` : ""}de ${readjust.item}`,
       }).body;
     if (quote && body) {
       const accepted = quote.publication ?? { ...quote.content, title: quote.title };
@@ -362,12 +364,19 @@ export async function createContract(_: ActionState, form: FormData): Promise<Ac
         parentId: parent?.id ?? null,
         title,
         body: body || "Escreva o contrato.",
-        startsAt: input.startsAt || null,
-        endsAt: input.endsAt || null,
+        // A readjust changes the price, never the term: signing it must not move the contract's dates.
+        startsAt: readjust ? null : input.startsAt || null,
+        endsAt: readjust ? null : input.endsAt || null,
         authorId: actor.user.id,
         quoteId: quote?.id ?? null,
       })
       .returning({ id: contracts.id });
+    // This anniversary's readjust is prepared: it leaves the lists (an amendment cancelled later brings it back).
+    if (readjust && parent)
+      await db
+        .insert(automationEvents)
+        .values({ kind: "contract.readjust", entityId: `${parent.id}:${readjust.anniversary}`, companyId: company.id, actorId: actor.user.id, details: { amendmentId: row.id, percent: readjust.percent, newCents: readjust.newCents } })
+        .onConflictDoUpdate({ target: [automationEvents.kind, automationEvents.entityId], set: { details: { amendmentId: row.id, percent: readjust.percent, newCents: readjust.newCents }, createdAt: new Date() } });
     await db.insert(auditEvents).values({
       actorId: actor.user.id,
       companyId: company.id,
