@@ -265,6 +265,8 @@ try {
         CONSOLE_TEST_ASSISTANT_FILE: openRouterFile,
         CONSOLE_TEST_NOTICE_FILE: noticeFile,
         CONSOLE_TEST_NOTICE_FLAGS: noticeFlags,
+        // Notices go out at once at any hour (in production they wait for 08:00).
+        BILLING_NIGHT_HOLD: "off",
         CRON_SECRET: "test-cron-secret",
         FLW_TICKET_TEMPLATE_ID: "test-ticket-template",
         FLW_SYNOVA: "test",
@@ -463,12 +465,12 @@ try {
     r = await speak("support", audio());
     ok(r.status === 200 && JSON.parse(r.text).text === "Texto ditado de teste", "Cliente dita e recebe o texto");
     const heard = transcriptions().at(-1);
-    ok(heard?.model === "microsoft/mai-transcribe-2" && heard.format === "webm" && heard.zdr === true && heard.language === "pt" && heard.bytes === 3000, "Transcrição vai em português e só com provedores de retenção zero");
+    ok(heard?.model === "openai/whisper-large-v3-turbo" && heard.format === "webm" && heard.zdr === true && heard.language === "pt" && heard.bytes === 3000, "Transcrição vai em português e só com provedores de retenção zero");
     r = await speak("support", audio(), "audio/mp4");
     ok(r.status === 200 && transcriptions().at(-1)?.format === "m4a", "Áudio do iPhone (mp4) vai como m4a");
     const before = transcriptions().length;
     r = await speak("support", audio("FAILPRIMARY"));
-    ok(r.status === 200 && transcriptions().slice(before).map((e) => e.model).join() === "microsoft/mai-transcribe-2,mistralai/voxtral-mini-transcribe", "Se o primeiro modelo falha, o segundo transcreve");
+    ok(r.status === 200 && transcriptions().slice(before).map((e) => e.model).join() === "openai/whisper-large-v3-turbo,openai/whisper-large-v3", "Se o primeiro modelo falha, o segundo transcreve");
     r = await speak("support", audio("SILENCE"));
     ok(r.status === 422 && JSON.parse(r.text).error.includes("Não deu para entender"), "Áudio sem fala volta com aviso, sem texto");
     r = await speak("support", audio("FAILALL"));

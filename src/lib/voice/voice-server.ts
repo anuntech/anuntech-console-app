@@ -7,7 +7,7 @@ import { HOURLY_LIMIT, MAX_SECONDS, shouldFallback, transcriptionBody, voiceEnab
 /*
  * Speech to text through OpenRouter, with the key the assistant and Jev
  * already use. Jev itself only reads text and answers with decisions, so a
- * transcription model does this part: MAI-Transcribe-2, then Voxtral Mini.
+ * transcription model does this part: Whisper Large V3 Turbo, then Whisper Large V3.
  * Every call asks for providers with zero data retention, and the audio
  * lives only in this request: nothing is stored or logged but the numbers.
  */

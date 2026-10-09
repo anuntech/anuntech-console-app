@@ -51,8 +51,8 @@ test("dictation follows the OpenRouter key, with VOICE_INPUT=off as the switch",
   assert.equal(voiceEnabledFrom({ OPENROUTER_API_KEY: "k" }), true);
   assert.equal(voiceEnabledFrom({ OPENROUTER_API_KEY: "k", VOICE_INPUT: "off" }), false);
   assert.equal(voiceEnabledFrom({ VOICE_INPUT: "on" }), false);
-  assert.deepEqual(voiceModels({}), ["microsoft/mai-transcribe-2", "mistralai/voxtral-mini-transcribe"]);
-  assert.deepEqual(voiceModels({ VOICE_FALLBACK_MODEL: "off" }), ["microsoft/mai-transcribe-2"]);
+  assert.deepEqual(voiceModels({}), ["openai/whisper-large-v3-turbo", "openai/whisper-large-v3"]);
+  assert.deepEqual(voiceModels({ VOICE_FALLBACK_MODEL: "off" }), ["openai/whisper-large-v3-turbo"]);
   assert.deepEqual(voiceModels({ VOICE_MODEL: "a", VOICE_FALLBACK_MODEL: "a" }), ["a"]);
 });
 

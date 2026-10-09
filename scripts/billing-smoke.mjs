@@ -361,11 +361,12 @@ export async function runBillingTests({
   const beforeDateAdjustment = sentNotices().length;
   flags({ approved: true, bankUnpaid: true, billingBankDue: offset(1) });
   await drain();
+  // Before 08:00 in São Paulo the notice still waits for the sending hour ("waiting"); after it, for the bank's date ("pending"). Either way nothing goes out.
   ok(
     sentNotices().length === beforeDateAdjustment &&
       (await notices(i.id))
         .filter((n) => n.kind === "due")
-        .every((n) => n.status === "pending"),
+        .every((n) => n.status === "pending" || n.status === "waiting"),
     "Aviso vence hoje aguarda a data efetiva quando o Inter prorroga o vencimento",
   );
   // Historical dates are test fixtures only; the bank mock independently returns the matching due date.

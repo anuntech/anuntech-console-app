@@ -48,8 +48,13 @@ export function saoPauloTime(date: string, hour: number): Date {
   return new Date(guess.getTime() - (wall - guess.getTime()));
 }
 export const BILLING_SEND_HOUR = 8;
-/** Automatic client messages wait for the morning instead of going out at midnight. */
+/**
+ * Automatic client messages wait for the morning instead of going out at
+ * midnight. `BILLING_NIGHT_HOLD=off` lifts the wait on the test servers, so
+ * the suite gives the same result at any hour.
+ */
 export function billingSendTime(now: Date = new Date()): Date {
+  if (process.env.BILLING_NIGHT_HOLD === "off") return now;
   const morning = saoPauloTime(saoPauloDate(now), BILLING_SEND_HOUR);
   return now < morning ? morning : now;
 }

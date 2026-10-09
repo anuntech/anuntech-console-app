@@ -222,7 +222,7 @@ globalThis.fetch = async function (input, init) {
       );
     const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
     if (head.startsWith("FAILALL")) return json({ error: { message: "Provider unavailable" } }, 503);
-    if (head.startsWith("FAILPRIMARY") && req.model === "microsoft/mai-transcribe-2") return json({ error: { message: "Provider unavailable" } }, 503);
+    if (head.startsWith("FAILPRIMARY") && req.model === "openai/whisper-large-v3-turbo") return json({ error: { message: "Provider unavailable" } }, 503);
     if (head.startsWith("SILENCE")) return json({ text: "", usage: { seconds: 1, cost: 0 } });
     // LONG plays a recording of 5 minutes: it costs 3 of the hourly transcriptions.
     if (head.startsWith("LONG")) return json({ text: "Texto ditado de teste", usage: { seconds: 300, cost: 0 } });

@@ -125,7 +125,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 | Resend | E-mails transacionais: códigos, cobranças, chamados, contratos, orçamentos, alertas | `lib/auth/otp-delivery.ts`, `lib/billing/billing-notices.ts` e os `*-mail.ts` |
 | Synova (FLW/Helena) | WhatsApp: códigos de acesso, avisos de chamados e de cobrança; widget de suporte no site | `lib/auth/otp-delivery.ts`, `lib/tickets/ticket-notifications.ts`, `lib/billing/billing-notices.ts` |
 | Focus NFe | Notas fiscais. Só a autenticação é verificada; emissão ainda não existe | `lib/integrations/integrations.ts` |
-| OpenRouter | Modelo do assistente (padrão `anthropic/claude-sonnet-5`, trocável em Configurações) e Jev, que lê a intenção antes de ações. Também transcreve o ditado (`/api/v1/audio/transcriptions`): MAI-Transcribe-2 e, se falhar, Voxtral Mini, sempre com `provider.zdr`. O Jev não transcreve: só lê texto e responde com decisões | `lib/assistant/`, `lib/voice/` |
+| OpenRouter | Modelo do assistente (padrão `anthropic/claude-sonnet-5`, trocável em Configurações) e Jev, que lê a intenção antes de ações. Também transcreve o ditado (`/api/v1/audio/transcriptions`): Whisper Large V3 Turbo e, se falhar, Whisper Large V3, sempre com `provider.zdr` (`VOICE_MODEL` e `VOICE_FALLBACK_MODEL` trocam os modelos). O Jev não transcreve: só lê texto e responde com decisões | `lib/assistant/`, `lib/voice/` |
 | Vercel Blob | Fotos de perfil, store privada | `lib/account/profile-avatar.ts` |
 | CNPJ.ws e ViaCEP | Preenchimento de cadastro por CNPJ e CEP | `lib/companies/company-lookup.ts`, `/api/cadastro/consulta` |
 | Banco Central (SGS) | IPCA dos últimos 12 meses (série 433), lido uma vez por dia pela rotina do resumo | `lib/contracts/readjust.ts` |

@@ -34,8 +34,14 @@ export function voiceEnabledFrom(env: Record<string, string | undefined>) {
   return !!env.OPENROUTER_API_KEY && env.VOICE_INPUT !== "off";
 }
 
-export const DEFAULT_VOICE_MODEL = "microsoft/mai-transcribe-2";
-export const DEFAULT_VOICE_FALLBACK = "mistralai/voxtral-mini-transcribe";
+/*
+ * Whisper on providers with zero data retention (Groq, DeepInfra, Together),
+ * checked in production on 09/10/2026 with a Portuguese sample in webm and m4a.
+ * MAI-Transcribe-2 answered 400 for every format and language, and Voxtral's
+ * zero-retention endpoint sits behind a regional surcharge the account refuses.
+ */
+export const DEFAULT_VOICE_MODEL = "openai/whisper-large-v3-turbo";
+export const DEFAULT_VOICE_FALLBACK = "openai/whisper-large-v3";
 
 /** The models to try, in order: the fallback is skipped when "off" or the same as the first. */
 export function voiceModels(env: Record<string, string | undefined>) {
