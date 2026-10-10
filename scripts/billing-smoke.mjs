@@ -686,6 +686,8 @@ export async function runBillingTests({
   ok((await periods()).length === 1, "Sem pagamento, a próxima espera o dia de sempre");
   const upcomingPage = await request(`/financeiro?company=${ids.a}`, "manager");
   ok(upcomingPage.text.includes("Próximas cobranças") && upcomingPage.text.includes(`Early QA ${marker}`), "Cliente vê a próxima cobrança antes de ela ser emitida");
+  // The team sees only the recurrences that need someone, never the list of the ones that go out on their own.
+  ok(!(await request(`/financeiro?company=${ids.a}`, "admin")).text.includes("Próximas cobranças"), "A equipe não vê a lista das cobranças em dia, só as recorrências para corrigir");
   // Inter confirms the payment of the current period.
   flags({ approved: true, bankUnpaid: false });
   await submitForm(earlyPage, "admin", "admin", { action: "syncCharge" }, { id: early.id });

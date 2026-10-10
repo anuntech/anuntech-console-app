@@ -56,33 +56,32 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
 }
 
 /**
- * "Próximas cobranças": what each recurrence charges next, before the
- * invoice exists. The first few are open; the rest fold away.
+ * What each recurrence charges next, before the invoice exists. The client
+ * sees all of theirs ("Próximas cobranças"). The team sees only the ones
+ * that need someone, paused or about to fail, and nothing when every
+ * recurrence will go out on its own. The first few are open; the rest fold away.
  */
 export function UpcomingCharges({ charges, showCompany, team }: { charges: UpcomingCharge[]; showCompany: boolean; team: boolean }) {
-  if (!charges.length) return null;
   const paused = charges.filter((c) => c.status === "paused");
   const failing = charges.filter((c) => c.status !== "paused" && (c.lastError || c.problems));
-  // Paused and failing first: they are the ones that need someone.
-  const ordered = [...paused, ...failing, ...charges.filter((c) => c.status !== "paused" && !c.lastError && !c.problems)];
+  const ordered = team ? [...paused, ...failing] : charges;
+  if (!ordered.length) return null;
   const first = ordered.slice(0, SHOWN);
   const rest = ordered.slice(SHOWN);
   return (
     <Card className="mb-4 gap-4 py-5">
       <CardHeader>
         <SectionTitle
-          title="Próximas cobranças"
+          title={team ? "Recorrências para corrigir" : "Próximas cobranças"}
           description={
             !team
               ? "Você recebe o aviso por e-mail e WhatsApp 5 dias antes de cada vencimento."
-              : paused.length || failing.length
-                ? `${[
-                    paused.length ? (paused.length === 1 ? "1 recorrência pausada" : `${paused.length} recorrências pausadas`) : "",
-                    failing.length ? (failing.length === 1 ? "1 com emissão pendente de correção" : `${failing.length} com emissão pendente de correção`) : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" e ")}. As demais são emitidas sozinhas, e o aviso ao cliente vai 5 dias antes do vencimento.`
-                : "Emitidas sozinhas. O aviso ao cliente vai 5 dias antes do vencimento."
+              : `${[
+                  paused.length ? (paused.length === 1 ? "1 pausada" : `${paused.length} pausadas`) : "",
+                  failing.length ? (failing.length === 1 ? "1 com a emissão para corrigir" : `${failing.length} com a emissão para corrigir`) : "",
+                ]
+                  .filter(Boolean)
+                  .join(" e ")}. As outras são emitidas sozinhas, com o aviso ao cliente 5 dias antes do vencimento.`
           }
         />
       </CardHeader>
