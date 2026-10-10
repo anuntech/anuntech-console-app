@@ -283,7 +283,8 @@ export function GapsDialog({ journeyId, open, onOpenChange }: { journeyId: strin
   }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Up to 8 suggestions: the list scrolls inside the dialog, the title and the button stay in view. */}
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>O que está faltando?</DialogTitle>
           <DialogDescription>A IA lê o briefing, o orçamento e os passos e sugere o que esta jornada pode precisar. Acrescente só o que fizer sentido.</DialogDescription>
@@ -294,7 +295,7 @@ export function GapsDialog({ journeyId, open, onOpenChange }: { journeyId: strin
             Lendo a jornada…
           </p>
         ) : gaps && gaps.length ? (
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          <ul className="-mr-3 m-0 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto overscroll-contain p-0 pr-3">
             {gaps.map((gap) => {
               const done = added.includes(gap.titulo);
               return (
