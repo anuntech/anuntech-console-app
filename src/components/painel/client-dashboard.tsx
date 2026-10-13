@@ -25,6 +25,7 @@ import { allowedIds, canAccess, type Actor } from "@/lib/access/access";
 import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import { currency, dateLabel } from "@/lib/format";
+import { appForUrl, protectedApps } from "@/lib/apps/registry";
 import { saoPauloDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -169,6 +170,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   const canSupport = supportIds.length > 0;
   const canFinance = financeIds.length > 0;
   const manyCompanies = actor.grants.length > 1;
+  const apps = protectedApps();
   const none = sql`false`;
   const workScope = (column: typeof engagements.companyId) => (workIds.length ? inArray(column, workIds) : none);
   const scope = scopeOf(actor);
@@ -528,11 +530,13 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           {products.length ? (
             <ul className="divide-y border-t">
               {products.map((product) => {
-                const link = product.kind === "product" ? webUrl(product.url) : null;
+                // A protected app opens inside the Console; other products, their own link.
+                const app = product.kind === "product" && appForUrl(product.url, apps);
+                const link = product.kind === "product" && !app ? webUrl(product.url) : null;
                 return (
                   <Row
                     key={product.id}
-                    href={link ?? (product.kind === "service" ? `/produtos/${product.id}` : "/produtos")}
+                    href={app ? `/apps/${product.id}` : (link ?? (product.kind === "service" ? `/produtos/${product.id}` : "/produtos"))}
                     external={!!link}
                     leading={<Tile icon={<PackageIcon />} />}
                     title={product.name}

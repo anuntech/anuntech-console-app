@@ -73,13 +73,14 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 | `ops/` | saúde das rotinas (`cron-health.ts`: `trackedCron` grava a última execução de cada cron) e quem assina na auditoria um passo automático (`automation-actor.ts`) |
 | `notifications/` | preferências por empresa, controle da operação, alertas e resumo diário da equipe, conferência da entrega dos alertas e dos convites (`ops-delivery.ts`, a cada 5 minutos), fechamento do mês (`month-close.ts`) |
 | `integrations/` | estado das integrações em Configurações |
+| `apps/` | apps dos clientes que só abrem dentro do Console: o registro dos quatro apps (`registry.ts`: id, hosts, origem, entrada, papel mínimo e tenant por empresa; puro e testado), o passe RS256 (`pass-token.ts`, puro; `pass.ts` lê a chave do ambiente), quem abre o quê (`app-access.ts`), a action que assina o passe (`app-actions.ts`, `openApp`) e os textos de recusa (`app-texts.ts`) |
 
 Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda server actions antigas de vários assuntos (empresas, chamados, faturas, vínculos) e deve ser dividido aos poucos (ver [task.md](task.md)).
 
 ## Rotas
 
-- **Públicas:** `/entrar`, `/verificar-acesso` (segunda etapa), `/acesso-pendente`, `/pagar/[publicId]` e `/pagar/[publicId]/boleto`.
-- **Autenticadas** (`(secure)`): `/painel`, `/empresas`, `/chamados`, `/projetos`, `/produtos`, `/financeiro` (e `/financeiro/envios`), `/contratos`, `/orcamentos`, `/bookmarks` (e `/bookmarks/[id]/lousa`, a lousa em tela cheia), `/jornadas` (só a equipe), `/conta` e `/configuracoes/*`.
+- **Públicas:** `/entrar`, `/verificar-acesso` (segunda etapa), `/acesso-pendente`, `/pagar/[publicId]`, `/pagar/[publicId]/boleto` e `/.well-known/jwks.json` (chave pública do passe dos apps).
+- **Autenticadas** (`(secure)`): `/painel`, `/empresas`, `/chamados`, `/projetos`, `/produtos`, `/financeiro` (e `/financeiro/envios`), `/contratos`, `/orcamentos`, `/bookmarks` (e `/bookmarks/[id]/lousa`, a lousa em tela cheia), `/jornadas` (só a equipe), `/apps/[id]` (um app do cliente dentro do Console), `/conta` e `/configuracoes/*`.
 - **Criação em painel lateral:** `/chamados/novo`, `/empresas/nova`, `/financeiro/nova`, `/contratos/novo`, `/orcamentos/novo`, `/produtos/novo`, `/projetos/novo` e `/jornadas/nova` existem como página (acesso direto) e como rota interceptada em `@ticket/(.)…` (navegação interna abre o painel sobre a tela atual). O `@ticket/[...rest]` não renderiza nada nas outras URLs e deixa endereços desconhecidos chegarem ao `not-found` do app.
 - **Erros:** `app/not-found.tsx` (fora do app), `(secure)/not-found.tsx` (dentro do app, também usado quando o registro existe mas a pessoa não tem acesso), `error.tsx` nos dois níveis e `global-error.tsx` com HTML próprio.
 
@@ -117,6 +118,27 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - Limite de corpo das actions: 2 MB (`next.config.ts`). O áudio do ditado vai por route handler (`/api/transcricao`, até 4 MB, abaixo dos 4,5 MB da Vercel), não por action: actions rodam uma por vez na página e não podem ser canceladas. Pelo mesmo motivo, as sugestões do modelo (`/api/chamados/[id]/sugestao`, `/api/orcamentos/[id]/fases` e `/api/jornadas/[id]/sugestao`, só a equipe, com limite por hora) também são route handlers.
 - Anexos maiores sobem em partes de 1 MB por `/api/chamados/uploads` (`components/console/staged-uploads.ts`).
 - A lousa salva sozinha por `PUT /api/bookmarks/[id]/lousa` (cena até 3 MB mais o PNG do card, origem conferida por `sameOrigin`, só quem pode editar o bookmark); o card lê o PNG em `GET /api/bookmarks/[id]/preview`. O editor (`components/bookmarks/board-canvas.tsx`) carrega o Excalidraw só no navegador (`next/dynamic`, sem SSR), espera 1,2 s depois do último traço e tenta de novo sozinho quando a gravação falha. A lousa veste a identidade do Console: `board-theme.css` mapeia as variáveis do Excalidraw para os tokens de `globals.css` (fonte Sofia, azul da marca, cards, bordas e raios, nos dois temas), o menu e a tela inicial são próprios (exportar imagem, limpar, fundo, voltar aos bookmarks; símbolo da Anuntech) e a biblioteca, a ajuda e os links para o site do Excalidraw ficam de fora. O mesmo arquivo anula, só dentro do quadro, as regras de elemento da camada `legacy` (`input` com 42px, links e títulos), com `:where()` e `revert`, para não passar por cima dos estilos do próprio Excalidraw. Um botão no canto superior direito do quadro (`renderTopRightUI`) põe o quadro em tela cheia pela Fullscreen API; some onde o navegador não a oferece (iPhone). As fontes do Excalidraw vêm do CDN dele (esm.sh) por padrão; `window.EXCALIDRAW_ASSET_PATH` apontaria para uma cópia em `public/` se isso virar problema.
+
+## Apps dentro do Console
+
+O CMS do Espaço Absolut, o CMS da MulheresFM, o Roteiro Digital e a Base Pendente rodam em domínios próprios, mas só funcionam dentro do Console. Substitui o acesso pelo Workspace (iframe + JWT do workspace.anuntech.com), que esses apps deixam de aceitar.
+
+| App | `aud` | Origem | Entrada protegida | Papel mínimo |
+| --- | --- | --- | --- | --- |
+| CMS Espaço Absolut | `espaco-absolut-cms` | https://www.espacoabsolut.com (aceita também espacoabsolut.com) | `/admin` | Administrador |
+| CMS MulheresFM | `mulheresfm-cms` | https://www.mulheresfm.com.br (aceita também mulheresfm.com.br e mulheresfmanuntech.vercel.app) | `/admin` | Administrador |
+| Roteiro Digital | `brastemp-roteiro-digital` | https://brastemp-roteiro-digital.vercel.app | `/` | Membro |
+| Base Pendente | `brastemp-base-pendente` | https://brastemp-base-pendente.vercel.app | `/` | Membro, com `tenant` por empresa |
+
+- **Qual produto é um app:** `appForUrl` compara o `engagements.url` do produto com o registro: host da lista e caminho dentro da entrada (`https://www.espacoabsolut.com/admin/...` é o CMS; `https://www.espacoabsolut.com/` é o site e continua link externo). Não há coluna nova: o produto é um `engagement` do tipo `product` com `url`. Produtos e o painel do cliente levam esses produtos para `/apps/<id>`, na mesma aba.
+- **Quem abre:** `resolveAppOpening` (`app-access.ts`) confere `getActor`, `canAccess(empresa, "overview")` (fora dela, 404), produto ativo, URL no registro, papel mínimo (`canOpenApp`: equipe sempre, Administrador tudo, Membro só os apps de Membro) e, na Base Pendente, o tenant da empresa (hoje só a Alvitek, `b0101b2f-…` → `dfbi2Hn3rypBVlFSpKdKAfMd5BjXYQoY`). A página mostra o motivo de cada recusa com `StatusPage`.
+- **O passe nunca nasce no render.** A página só decide; `AppFrame` (`components/apps/app-frame.tsx`) chama a action `openApp` depois de montar, e a action confere tudo de novo, assina e devolve a `src` do iframe (`<origem><entrada>?console_pass=<passe>`). Assim o cache do roteador não reaproveita um passe vencido nem de outra pessoa. Recarregar pede outro passe. Cada passe grava `app.opened` em `audit_events` (detalhes: `app`, `engagement`).
+- **O passe:** JWT RS256 com `kid`, `iss` fixo `https://console.anuntech.com`, `aud` = id do app, `sub` (usuário), `email`, `name`, `company` (empresa no Console), `role` (`staff`, `manager` ou `member`; a equipe vai como `staff`, inclusive no acesso assistido), `tenant` só na Base Pendente, `iat`, `nbf`, `exp` = `iat` + 120 e `jti`. Assinado com `node:crypto`, sem dependência. `signPass` recusa claims faltando em vez de mandar um passe que o app rejeitaria.
+- **Chave:** `APP_PASS_PRIVATE_KEY` (RSA de 2048 bits ou mais, PKCS#8 em PEM, em base64) e `APP_PASS_KEY_ID`. Sem as duas, nada abre: a action responde com erro para a pessoa (o motivo vai para o log) e a JWKS responde 503. Trocar a chave invalida só os passes em voo (2 minutos); as sessões já abertas nos apps continuam até vencer.
+- **JWKS:** `GET /.well-known/jwks.json`, pública, `Cache-Control: public, max-age=300`, só `kty`, `n`, `e`, `kid`, `alg` e `use`. O proxy só atua em `/conta` e `/configuracoes`, então ela não passa por login.
+- **Iframe:** `sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"` e `allow="clipboard-write"`. O `frame-ancestors 'none'` do Console impede que o Console seja emoldurado; não limita o que ele emoldura.
+- **O lado de cada app** (nos repositórios de cada um): verifica o passe pela JWKS (só RS256, `iss`, `aud`, `exp`/`nbf` com 30 s de folga, `sub` e `company`), grava a própria sessão de 8 horas num cookie (`SameSite=None; Secure; Partitioned` em produção), responde 303 para a URL limpa e recusa navegação de topo (`Sec-Fetch-Dest: document`) com uma página "Abra pelo Console". Nas rotas protegidas usa `Content-Security-Policy: frame-ancestors https://console.anuntech.com`.
+- **Teste local:** `CONSOLE_APP_ORIGINS` (`{"<aud>": "http://localhost:PORTA"}`) troca a origem de um app e aceita esse host nas URLs dos produtos. É ignorada quando `VERCEL_ENV=production`.
 
 ## Integrações
 
@@ -173,8 +195,8 @@ Avisos também são processados logo após a ação, com `after()`; o cron garan
 
 ## Testes e CI
 
-- `npm test`: testes unitários em `tests/` (regras puras: cobrança, datas, permissões, tabelas, consentimento).
-- `npm run test:integration` (`scripts/test-isolated.mjs`): cria um banco `console_test_<aleatório>`, aplica todas as migrações, sobe `next start` e roda as suítes HTTP com provedores simulados: OTP, segurança, membros, conta, notificações, cobrança e regressão. Precisa de build prévio. `--members-only`, `--billing-only` etc. rodam uma suíte.
+- `npm test`: testes unitários em `tests/` (regras puras: cobrança, datas, permissões, tabelas, consentimento, registro e passe dos apps).
+- `npm run test:integration` (`scripts/test-isolated.mjs`): cria um banco `console_test_<aleatório>`, aplica todas as migrações, sobe `next start` e roda as suítes HTTP com provedores simulados: OTP, segurança, membros, conta, notificações, cobrança e regressão. Precisa de build prévio. `--members-only`, `--billing-only` etc. rodam uma suíte. A regressão gera uma chave de passe só para a rodada e termina com `scripts/apps-smoke.mjs`: JWKS, quem abre cada app, o passe verificado como um app verifica, a auditoria e os links. `CONSOLE_TEST_HTTP_PORT` troca a porta da regressão (padrão 3101).
 - Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa. A regressão carrega também `openrouter-mock.cjs`, que responde a transcrição pelos primeiros bytes do áudio (sucesso, falha do primeiro modelo, silêncio) e registra só modelo, formato e tamanho.
 - As suítes postam formulários pelo nome da server action (lido do manifesto do build), então não quebram quando um texto de botão muda.
 - GitHub Actions (`.github/workflows/checks.yml`) roda em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário.

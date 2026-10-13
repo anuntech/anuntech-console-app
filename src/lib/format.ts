@@ -161,6 +161,7 @@ export const auditLabels: Record<string, string> = {
   "engagement.status_changed": "Situação do produto ou projeto alterada",
   "engagement.updated": "Produto ou projeto atualizado",
   "engagement.deleted": "Produto ou projeto excluído",
+  "app.opened": "App aberto no Console",
   "catalog.created": "Item adicionado ao catálogo",
   "catalog.updated": "Item do catálogo atualizado",
   "task.created": "Tarefa criada",

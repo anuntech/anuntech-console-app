@@ -6,8 +6,9 @@ import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
+import { runAppsTests } from "./apps-smoke.mjs";
 import assert from "node:assert/strict";
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, generateKeyPairSync, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -38,6 +39,11 @@ const ids = {
   attachment: randomUUID(),
 };
 const people = {};
+// A pass key made for this run only; the apps suite checks passes against the JWKS it publishes.
+const passKeyId = `console-test-${marker}`;
+const passKey = Buffer.from(
+  generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ format: "pem", type: "pkcs8" }),
+).toString("base64");
 const noticeDir = mkdtempSync(join(tmpdir(), "console-notices-"));
 const noticeFile = join(noticeDir, "messages.jsonl"),
   noticeFlags = join(noticeDir, "flags.json"),
@@ -274,6 +280,9 @@ try {
         RESEND_API_KEY: "test",
         EMAIL_FROM: "Console <test@example.invalid>",
         INTER_API_BASE_URL: "https://cdpj.partners.bancointer.com.br",
+        APP_PASS_PRIVATE_KEY: passKey,
+        APP_PASS_KEY_ID: passKeyId,
+        CONSOLE_APP_ORIGINS: "",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -2095,6 +2104,7 @@ try {
   await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
   await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
   await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
+  await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );
