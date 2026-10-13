@@ -10,7 +10,10 @@ type Frame = { phase: "opening" } | { phase: "ready"; src: string } | { phase: "
 
 // What the apps need inside the frame: their own cookie and scripts, forms,
 // links and files that open outside, downloads (exports). Nothing else.
-const SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads";
+// allow-top-navigation-by-user-activation: the app's "Ir para o Console" link (shown when the browser
+// blocks its cookie) may leave the frame, but only on a click.
+const SANDBOX =
+  "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-top-navigation-by-user-activation";
 
 export type AppFrameData = {
   /** The product (engagement) the app belongs to. */
