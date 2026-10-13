@@ -109,3 +109,82 @@
   font-family: var(--font-sans);
   color: var(--muted-foreground);
 }
+
+/* The Console's legacy element rules (globals.css, @layer legacy) give every
+   input a 42px box, a border and a field background, and restyle links and
+   headings. Inside the board they must not apply: these unlayered rules win
+   over the layer, and :where() keeps their specificity below Excalidraw's
+   own class rules, so `revert` lands on the browser default the package
+   expects, not on top of its styles. */
+:where(.anuntech-board .excalidraw) :where(input, select, textarea) {
+  width: revert;
+  min-width: revert;
+  min-height: revert;
+  padding: revert;
+  border: revert;
+  border-radius: revert;
+  background: revert;
+  color: revert;
+  line-height: revert;
+  transition: revert;
+}
+:where(.anuntech-board .excalidraw) :where(input, select, textarea):where(:hover, :focus, :disabled) {
+  border-color: revert;
+  box-shadow: revert;
+  background: revert;
+  color: revert;
+  cursor: revert;
+}
+:where(.anuntech-board .excalidraw) :where(input, select, textarea):focus-visible,
+:where(.anuntech-board .excalidraw) :focus-visible {
+  outline: revert;
+  outline-offset: revert;
+}
+:where(.anuntech-board .excalidraw) a,
+:where(.anuntech-board .excalidraw) a:hover {
+  color: revert;
+  text-decoration: revert;
+  text-underline-offset: revert;
+}
+:where(.anuntech-board .excalidraw) :where(h1, h2, h3, p) {
+  font-size: revert;
+  line-height: revert;
+  font-weight: revert;
+  letter-spacing: revert;
+  overflow-wrap: revert;
+}
+:where(.anuntech-board .excalidraw) button:disabled {
+  cursor: revert;
+  opacity: revert;
+}
+
+/* Full screen: the frame is the whole display, so no rounding, border or measured height. */
+.board-frame:fullscreen {
+  height: 100% !important;
+  margin: 0 !important;
+  border: 0;
+  border-radius: 0;
+  background: var(--card);
+}
+
+/* The full-screen toggle sits in Excalidraw's top-right slot and dresses like its islands. */
+.anuntech-board .excalidraw .board-fullscreen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--lg-button-size, 2.25rem);
+  height: var(--lg-button-size, 2.25rem);
+  border: 0;
+  border-radius: var(--border-radius-lg);
+  background: var(--island-bg-color);
+  box-shadow: var(--shadow-island);
+  color: var(--icon-fill-color);
+  cursor: pointer;
+}
+.anuntech-board .excalidraw .board-fullscreen:hover {
+  background: var(--button-hover-bg);
+}
+.anuntech-board .excalidraw .board-fullscreen svg {
+  width: 1rem;
+  height: 1rem;
+}

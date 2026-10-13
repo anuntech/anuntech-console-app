@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { Excalidraw, MainMenu, WelcomeScreen, exportToBlob, getSceneVersion, serializeAsJSON } from "@excalidraw/excalidraw";
+import { MaximizeIcon, MinimizeIcon } from "lucide-react";
 import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 import "./board-theme.css";
@@ -47,6 +48,8 @@ export default function BoardCanvas({
   scene,
   editable,
   onStatus,
+  fullscreen,
+  onToggleFullscreen,
 }: {
   id: string;
   /** Names the image the person exports. */
@@ -54,6 +57,9 @@ export default function BoardCanvas({
   scene: BoardScene;
   editable: boolean;
   onStatus: (status: SaveStatus) => void;
+  fullscreen: boolean;
+  /** Absent where the browser cannot put an element in full screen (iPhone). */
+  onToggleFullscreen?: () => void;
 }) {
   const { theme } = useAppearance();
   const prefersDark = useSyncExternalStore(subscribeToScheme, systemPrefersDark, () => false);
@@ -175,6 +181,20 @@ export default function BoardCanvas({
         langCode="pt-BR"
         name={title}
         autoFocus={editable}
+        renderTopRightUI={() =>
+          onToggleFullscreen ? (
+            <button
+              type="button"
+              className="board-fullscreen"
+              onClick={onToggleFullscreen}
+              title={fullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              aria-label={fullscreen ? "Sair da tela cheia" : "Tela cheia"}
+              aria-pressed={fullscreen}
+            >
+              {fullscreen ? <MinimizeIcon aria-hidden="true" /> : <MaximizeIcon aria-hidden="true" />}
+            </button>
+          ) : null
+        }
         UIOptions={{
           canvasActions: {
             loadScene: false,

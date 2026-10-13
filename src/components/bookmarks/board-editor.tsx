@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CheckIcon, CloudOffIcon, EyeIcon, LoaderCircleIcon } from "lucide-react";
 import { cn } from "cn";
 import { PageHeader } from "@/components/console/page-header";
@@ -38,6 +38,18 @@ export function BoardEditor({ data }: { data: BoardEditorData }) {
   // Measured once for the loading text and the canvas alike, so nothing jumps when Excalidraw lands.
   const frame = useRef<HTMLDivElement>(null);
   const fit = useFillViewport(frame, { min: 420 });
+  // Full screen is the frame itself, so the canvas takes the whole display; Esc leaves it.
+  const canFullscreen = useSyncExternalStore(noSubscribe, () => document.fullscreenEnabled, () => false);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setFullscreen(!!frame.current && document.fullscreenElement === frame.current);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void frame.current?.requestFullscreen();
+  }, []);
   const crumbs = [
     { label: "Bookmarks", href: "/bookmarks" },
     ...(data.folder ? [{ label: data.folder.name, href: `/bookmarks?pasta=${data.folder.id}` }] : []),
@@ -63,17 +75,28 @@ export function BoardEditor({ data }: { data: BoardEditorData }) {
       <div
         ref={frame}
         data-fill-viewport=""
-        className="overflow-hidden rounded-xl border bg-card shadow-card"
-        style={{
-          height: fit?.height ?? "max(420px, calc(100dvh - 190px))",
-          marginBottom: fit?.clearance || undefined,
-        }}
+        className="board-frame overflow-hidden rounded-xl border bg-card shadow-card"
+        style={
+          fullscreen
+            ? undefined
+            : { height: fit?.height ?? "max(420px, calc(100dvh - 190px))", marginBottom: fit?.clearance || undefined }
+        }
       >
-        <BoardCanvas id={data.id} title={data.title} scene={data.scene} editable={data.editable} onStatus={onStatus} />
+        <BoardCanvas
+          id={data.id}
+          title={data.title}
+          scene={data.scene}
+          editable={data.editable}
+          onStatus={onStatus}
+          fullscreen={fullscreen}
+          onToggleFullscreen={canFullscreen ? toggleFullscreen : undefined}
+        />
       </div>
     </>
   );
 }
+
+const noSubscribe = () => () => {};
 
 /** What happened to the last stroke, in a few words. */
 function Status({ status, now }: { status: SaveStatus; now: string }) {
