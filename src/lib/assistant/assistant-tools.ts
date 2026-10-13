@@ -30,6 +30,7 @@ import { createQuote } from "../quotes/quote-actions";
 import { DEFAULT_QUOTE_NOTES, hoursLabel, quoteNumberLabel, quoteStatusLabels, quoteTotals, type QuoteContent } from "../quotes/quote-model";
 import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
 import { OPEN_TICKET_STATUSES } from "../tickets/ticket-status";
+import { appForUrl, protectedApps } from "../apps/registry";
 
 /* ---------- plumbing (shared with assistant-tools-extra) ---------- */
 import { fold, id, limit, resolvePeople, scopeOf, submit, tool, ToolError, within, type AnyTool, type ToolArea, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
@@ -395,6 +396,8 @@ const listWorks = tool({
       .where(and(within(engagements.companyId, ids), tipo === "all" ? undefined : eq(engagements.kind, tipo)))
       .orderBy(asc(engagements.name))
       .limit(60);
+    // A product that is a protected app opens inside the Console; its own URL refuses the address bar.
+    const apps = protectedApps();
     return {
       result: rows.map((w) => ({
         engagementId: w.id,
@@ -403,7 +406,14 @@ const listWorks = tool({
         tipo: engagementLabels[w.kind] ?? w.kind,
         situacao: engagementLabels[w.status] ?? w.status,
         descricao: w.description?.slice(0, 300) ?? null,
-        link: w.kind === "project" ? `/projetos/${w.id}` : w.kind === "service" ? `/produtos/${w.id}` : (w.url ?? "/produtos"),
+        link:
+          w.kind === "project"
+            ? `/projetos/${w.id}`
+            : w.kind === "service"
+              ? `/produtos/${w.id}`
+              : appForUrl(w.url, apps)
+                ? `/apps/${w.id}`
+                : (w.url ?? "/produtos"),
       })),
       summary: "Consultei projetos e produtos",
     };
