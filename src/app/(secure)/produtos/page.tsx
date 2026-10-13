@@ -9,6 +9,7 @@ import { getActor } from "@/lib/access/access";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { companyShortcuts, projectListQuery } from "@/lib/projects/project-table";
 import { engagementLinks } from "@/lib/record-links";
+import { appForUrl, protectedApps } from "@/lib/apps/registry";
 import { Button } from "@/components/ui/button";
 import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
@@ -89,6 +90,8 @@ export default async function Products({
   ]);
   // Staff see "Excluir" only where nothing billed or signed points at the item.
   const links = actor.admin ? await engagementLinks(rows.map((row) => row.id)) : null;
+  // Products whose URL is an app that only runs inside the Console open there.
+  const apps = protectedApps();
   return (
     <>
       <PageHeader
@@ -111,6 +114,7 @@ export default async function Products({
         rows={rows.map((row) => ({
           ...row,
           kind: row.kind === "service" ? "service" : "product",
+          appPage: row.kind === "product" && appForUrl(row.url, apps) ? `/apps/${row.id}` : null,
           links: links?.get(row.id),
         }))}
         query={paging}

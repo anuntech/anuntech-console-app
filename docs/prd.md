@@ -88,6 +88,13 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Projetos têm quadro Kanban: backlog, a fazer, em andamento, revisão e concluído. Tarefa criada pelo cliente entra no Backlog como pedido até a equipe aceitar; só a equipe conclui; em Revisão, um Administrador da empresa aprova ou aponta um problema, com o prazo de teste do contrato quando houver. "Sobre este projeto" mostra o objetivo e as regras do quadro. Tarefas com prioridade, prazo, etiquetas, estimativa, responsáveis (membros da empresa e equipe), anexos e comentários (com anexos, edição e exclusão pelo autor).
 - O catálogo da equipe define produtos e serviços com preço e periodicidade. Vincular um item a uma empresa cria o vínculo e, se for o caso, a cobrança.
 
+### Apps dentro do Console
+
+- O CMS do Espaço Absolut, o CMS da MulheresFM, o Roteiro Digital e a Base Pendente só abrem dentro do Console (desde 13/10/2026). O Workspace deixa de dar acesso a eles. As partes públicas dos sites (tudo fora de `/admin`) continuam abertas como antes.
+- Um produto cujo endereço é um desses apps abre na mesma aba, em `/apps/<produto>`: o app ocupa a área de conteúdo, com uma barra mínima (voltar, nome do produto, empresa e Recarregar). Os outros produtos continuam abrindo o próprio link em nova aba.
+- Quem abre: a equipe Anuntech, sempre; o Administrador da empresa, todos os apps; o Membro, só o Roteiro Digital e a Base Pendente. Produto pausado ou concluído não abre. A Base Pendente só abre para a empresa cujos dados já estão nela (hoje, a Alvitek). Quem não pode vê o motivo na própria página; produto de outra empresa responde como inexistente.
+- Cada abertura (e cada Recarregar) gera um passe de 2 minutos só para aquele app, com a pessoa, a empresa e o papel, e fica na auditoria (`app.opened`). O app troca o passe por uma sessão própria de 8 horas e recusa ser aberto direto pela barra de endereço.
+
 ### Financeiro
 
 - A equipe cria cada cobrança manualmente: única ou recorrente (mensal ou anual), com cliente, produto, valor, vencimento e condições (desconto até o vencimento, multa e juros ao mês).

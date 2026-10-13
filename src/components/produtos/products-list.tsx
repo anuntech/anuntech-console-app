@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import {
+  AppWindowIcon,
   Building2Icon,
   CircleCheckIcon,
   ExternalLinkIcon,
@@ -72,6 +73,8 @@ export type ProductRow = {
   interval: "monthly" | "yearly" | null;
   nextDueDate: string | null;
   subscriptionId?: string | null;
+  /** Set when the URL is an app that only runs inside the Console (lib/apps/registry.ts). */
+  appPage?: string | null;
   companyId: string;
   company: string;
   /** Staff only: what points at it, so "Excluir" shows only when it can go. */
@@ -97,17 +100,26 @@ function webUrl(url: string | null) {
   }
 }
 
+/**
+ * Where a row opens: a service's page, a protected app inside the Console
+ * (it refuses to open on its own), or the product's own link in a new tab.
+ */
+function opensAt(row: ProductRow) {
+  const page = row.kind === "service" ? `/produtos/${row.id}` : (row.appPage ?? null);
+  return { page, link: page ? null : row.kind === "product" ? webUrl(row.url) : null };
+}
+
 function ProductRowActions({
   row,
   admin,
-  servicePage,
+  consolePage,
   link,
   onEdit,
   onStatus,
 }: {
   row: ProductRow;
   admin: boolean;
-  servicePage: string | null;
+  consolePage: string | null;
   link: string | null;
   onEdit: (values: ProductFormValues) => void;
   onStatus: (id: string, status: EngagementStatus, name?: string) => void;
@@ -128,11 +140,11 @@ function ProductRowActions({
         )
       }
     >
-      {servicePage ? (
+      {consolePage ? (
         <DropdownMenuItem asChild>
-          <Link href={servicePage}>
-            <WrenchIcon />
-            Abrir serviço
+          <Link href={consolePage}>
+            {row.kind === "service" ? <WrenchIcon /> : <AppWindowIcon />}
+            {row.kind === "service" ? "Abrir serviço" : "Abrir produto"}
           </Link>
         </DropdownMenuItem>
       ) : link ? (
@@ -326,13 +338,12 @@ export function ProductsList({
       {rows.length && layout === "grid" ? (
         <CardGrid>
           {rows.map((row) => {
-            const servicePage = row.kind === "service" ? `/produtos/${row.id}` : null;
-            const link = row.kind === "product" ? webUrl(row.url) : null;
+            const { page: consolePage, link } = opensAt(row);
             return (
               <GridCard
                 key={row.id}
-                href={servicePage ?? link}
-                external={!servicePage}
+                href={consolePage ?? link}
+                external={!consolePage}
                 leading={<CardTile>{row.kind === "service" ? <WrenchIcon /> : <PackageIcon />}</CardTile>}
                 title={row.name}
                 subtitle={subtitle(row, true)}
@@ -340,7 +351,7 @@ export function ProductsList({
                   <ProductRowActions
                     row={row}
                     admin={admin}
-                    servicePage={servicePage}
+                    consolePage={consolePage}
                     link={link}
                     onEdit={setEditing}
                     onStatus={change}
@@ -381,12 +392,11 @@ export function ProductsList({
           </TableHeader>
           <TableBody>
             {rows.map((row) => {
-              // Services have a page in the Console; products open their own link.
-              const servicePage = row.kind === "service" ? `/produtos/${row.id}` : null;
-              const link = row.kind === "product" ? webUrl(row.url) : null;
+              // Services and protected apps open in the Console; other products, their own link.
+              const { page: consolePage, link } = opensAt(row);
               const cells = (
                 <>
-                  <PrimaryCell href={servicePage ?? link} external={!servicePage} title={row.name} subtitle={subtitle(row)} />
+                  <PrimaryCell href={consolePage ?? link} external={!consolePage} title={row.name} subtitle={subtitle(row)} />
                   {companyColumn && (
                     <CompanyCell>{row.company}</CompanyCell>
                   )}
@@ -411,7 +421,7 @@ export function ProductsList({
                   <ProductRowActions
                     row={row}
                     admin={admin}
-                    servicePage={servicePage}
+                    consolePage={consolePage}
                     link={link}
                     onEdit={setEditing}
                     onStatus={change}
@@ -419,7 +429,7 @@ export function ProductsList({
                 </>
               );
               return (
-                <LinkRow key={row.id} href={servicePage ?? link} external={!servicePage}>
+                <LinkRow key={row.id} href={consolePage ?? link} external={!consolePage}>
                   {cells}
                 </LinkRow>
               );
