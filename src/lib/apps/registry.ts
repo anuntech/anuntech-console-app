@@ -133,6 +133,18 @@ export function appForUrl(url: string | null | undefined, apps: readonly Protect
   return apps.find((app) => app.hosts.includes(host) && underEntry(parsed.pathname, app.entry)) ?? null;
 }
 
+/**
+ * A client's role in one company. An account may hold a membership per
+ * verified email in the same company; the strongest counts, as in canAccess.
+ */
+export function companyRole(
+  grants: readonly { company: { id: string }; role: "manager" | "member" }[],
+  companyId: string,
+): "manager" | "member" | null {
+  const roles = grants.filter((grant) => grant.company.id === companyId).map((grant) => grant.role);
+  return roles.includes("manager") ? "manager" : roles.includes("member") ? "member" : null;
+}
+
 /** The team opens every app; an Administrator too; a Member only the apps meant for members. */
 export function canOpenApp(role: PassRole, app: Pick<ProtectedApp, "minRole">) {
   return role === "staff" || role === "manager" || app.minRole === "member";

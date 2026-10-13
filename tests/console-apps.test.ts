@@ -6,6 +6,7 @@ import {
   appFrameSrc,
   appTenant,
   canOpenApp,
+  companyRole,
   decideAppOpening,
   protectedApps,
   type PassRole,
@@ -74,6 +75,16 @@ test("the team and Administrators open every app; Members only the apps meant fo
   assert.deepEqual(byRole("staff"), all);
   assert.deepEqual(byRole("manager"), all);
   assert.deepEqual(byRole("member"), ["brastemp-base-pendente", "brastemp-roteiro-digital"]);
+});
+
+test("with two memberships in the same company, the pass carries the strongest role", () => {
+  const grant = (id: string, role: "manager" | "member") => ({ company: { id }, role });
+  // The order the database returns them in does not matter.
+  assert.equal(companyRole([grant("a", "member"), grant("a", "manager")], "a"), "manager");
+  assert.equal(companyRole([grant("a", "manager"), grant("a", "member")], "a"), "manager");
+  assert.equal(companyRole([grant("a", "member"), grant("b", "manager")], "a"), "member");
+  assert.equal(companyRole([grant("b", "manager")], "a"), null);
+  assert.equal(companyRole([], "a"), null);
 });
 
 test("opening a product as an app checks kind, URL, status, role and tenant", () => {

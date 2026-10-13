@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { companies, engagements } from "@/db/schema";
 import { db } from "../db";
 import { canAccess, type Actor } from "../access/access";
-import { decideAppOpening, type AppBlock, type PassRole, type ProtectedApp } from "./registry";
+import { companyRole, decideAppOpening, type AppBlock, type PassRole, type ProtectedApp } from "./registry";
 
 /**
  * How the person shows up in the pass: the team as "staff" (assisted access
@@ -12,7 +12,7 @@ import { decideAppOpening, type AppBlock, type PassRole, type ProtectedApp } fro
  */
 export function passRole(actor: Actor, companyId: string): PassRole | null {
   if (actor.realAdmin) return "staff";
-  return actor.grants.find((grant) => grant.company.id === companyId)?.role ?? null;
+  return companyRole(actor.grants, companyId);
 }
 
 export type AppOpening =
