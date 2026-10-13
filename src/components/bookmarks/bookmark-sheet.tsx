@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { FileIcon, LinkIcon } from "lucide-react";
+import { FileIcon, LinkIcon, PresentationIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   NativeSelect,
@@ -13,6 +13,7 @@ import { FormField } from "@/components/console/form-field";
 import { FormSheet } from "@/components/console/form-sheet";
 import { ConfirmDialog } from "@/components/console/server-form";
 import { deleteBookmark, saveBookmark, updateBookmark } from "@/lib/bookmarks/bookmark-actions";
+import { kindOf, type BookmarkKind } from "@/lib/bookmarks/board-rules";
 import { BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
 import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
@@ -21,14 +22,20 @@ export type BookmarkEditor =
   | { mode: "create"; companyId: string; folderId: string }
   | { mode: "edit"; item: BookmarkView };
 
-type Kind = "link" | "file";
 const fileLimit = limitLabel(BOOKMARK_FILE.maxBytes);
-const KINDS: { value: Kind; label: string; hint: string; icon: ReactNode }[] = [
+const KINDS: { value: BookmarkKind; label: string; hint: string; icon: ReactNode }[] = [
   { value: "link", label: "Link", hint: "Um endereço na web", icon: <LinkIcon /> },
   { value: "file", label: "Arquivo", hint: `Qualquer tipo, até ${fileLimit}`, icon: <FileIcon /> },
+  { value: "board", label: "Lousa", hint: "Um quadro para desenhar", icon: <PresentationIcon /> },
 ];
 
-/** Create or edit: company, folder, title and a link (or a small file when creating). */
+/** What stays as it is when editing: the file or the drawing. */
+export function deleteNote(item: BookmarkView) {
+  const kind = kindOf(item);
+  return kind === "file" ? ", com o arquivo" : kind === "board" ? ", com o desenho" : "";
+}
+
+/** Create or edit: company, folder, title and a link, a small file or a new whiteboard. */
 export function BookmarkSheet({
   editor,
   onClose,
@@ -41,11 +48,16 @@ export function BookmarkSheet({
   companies: CompanyOption[];
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [kind, setKind] = useState<BookmarkKind>("link");
   // The sheet keeps showing what it had while it slides out after closing.
   const [shown, setShown] = useState(editor);
-  if (editor && editor !== shown) setShown(editor);
+  if (editor && editor !== shown) {
+    setShown(editor);
+    setKind("link");
+  }
   const current = editor ?? shown;
   const item = current?.mode === "edit" ? current.item : null;
+  const itemKind = item ? kindOf(item) : null;
   const initialCompany = item
     ? (item.companyId ?? "")
     : current?.mode === "create"
@@ -58,23 +70,29 @@ export function BookmarkSheet({
         open={editor !== null}
         onOpenChange={(open) => !open && onClose()}
         size="md"
-        title={item ? "Editar bookmark" : "Novo bookmark"}
+        title={item ? "Editar bookmark" : kind === "board" ? "Nova lousa" : "Novo bookmark"}
         description={
           !item
-            ? `Um link ou um arquivo de até ${fileLimit}.`
-            : item.fileName
+            ? kind === "board"
+              ? "Um quadro em branco para desenhar e anotar. Ele abre em seguida."
+              : `Um link ou um arquivo de até ${fileLimit}.`
+            : itemKind === "file"
               ? "Mude o título ou a pasta; o arquivo fica como está."
-              : "Mude o título, o link ou a pasta."
+              : itemKind === "board"
+                ? "Mude o título ou a pasta; o desenho fica como está."
+                : "Mude o título, o link ou a pasta."
         }
         action={item ? updateBookmark : saveBookmark}
         onSuccess={onClose}
         formKey={item?.id ?? `new-${folderId}-${initialCompany}`}
-        submitLabel={item ? "Salvar" : "Adicionar bookmark"}
-        pendingLabel={item ? "Salvando…" : "Adicionando…"}
+        submitLabel={item ? "Salvar" : kind === "board" ? "Criar lousa" : "Adicionar bookmark"}
+        pendingLabel={item ? "Salvando…" : kind === "board" ? "Criando…" : "Adicionando…"}
         onDelete={item ? () => setDeleting(true) : undefined}
       >
         <BookmarkFields
           item={item}
+          kind={kind}
+          onKind={setKind}
           initialCompany={initialCompany}
           folderId={folderId}
           folders={folders}
@@ -88,7 +106,7 @@ export function BookmarkSheet({
           action={deleteBookmark}
           fields={{ id: item.id }}
           title="Excluir bookmark?"
-          description={`"${item.title}" sai da lista${item.fileName ? ", com o arquivo" : ""}. Isso não pode ser desfeito.`}
+          description={`"${item.title}" sai da lista${deleteNote(item)}. Isso não pode ser desfeito.`}
           confirmLabel="Excluir"
           destructive
           onSuccess={onClose}
@@ -98,23 +116,27 @@ export function BookmarkSheet({
   );
 }
 
-/** The fields, remounted with the form so the company and the kind start fresh. */
+/** The fields, remounted with the form so the company starts fresh. */
 function BookmarkFields({
   item,
+  kind,
+  onKind,
   initialCompany,
   folderId,
   folders,
   companies,
 }: {
   item: BookmarkView | null;
+  kind: BookmarkKind;
+  onKind: (kind: BookmarkKind) => void;
   initialCompany: string;
   folderId: string;
   folders: FolderView[];
   companies: CompanyOption[];
 }) {
   const [company, setCompany] = useState(initialCompany);
-  const [kind, setKind] = useState<Kind>("link");
   const options = folders.filter((folder) => (folder.companyId ?? "") === company);
+  const itemKind = item ? kindOf(item) : null;
   const linkField = (
     <FormField label="Link" htmlFor="bookmark-url">
       <Input
@@ -154,31 +176,36 @@ function BookmarkFields({
           maxLength={160}
           autoFocus
           defaultValue={item?.title ?? ""}
-          placeholder="Ex.: Identidade visual no Drive"
+          placeholder={kind === "board" && !item ? "Ex.: Fluxo do onboarding" : "Ex.: Identidade visual no Drive"}
         />
       </FormField>
       {item ? (
-        item.fileName ? (
+        itemKind === "file" ? (
           <div>
             <p className="mb-1.5 text-sm leading-none font-medium">Arquivo</p>
             <FileChips>
               <li>
                 <FileChip
-                  file={{ name: item.fileName, size: item.fileSize }}
+                  file={{ name: item.fileName ?? item.title, size: item.fileSize }}
                   href={`/api/bookmarks/${item.id}`}
                 />
               </li>
             </FileChips>
           </div>
+        ) : itemKind === "board" ? (
+          <p className="flex items-center gap-2 rounded-lg border bg-field px-3 py-2.5 text-sm text-muted-foreground">
+            <PresentationIcon aria-hidden="true" className="size-4 shrink-0" />
+            Lousa desenhada no Console.
+          </p>
         ) : (
           linkField
         )
       ) : (
         <>
-          {/* One or the other: the server takes a link or a file, never both. */}
+          {/* One of the three: the server takes a link, a file or starts a blank whiteboard. */}
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium text-foreground">Tipo</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               {KINDS.map((option) => (
                 <label
                   key={option.value}
@@ -190,7 +217,7 @@ function BookmarkFields({
                     value={option.value}
                     className="sr-only"
                     checked={kind === option.value}
-                    onChange={() => setKind(option.value)}
+                    onChange={() => onKind(option.value)}
                   />
                   <span className="mt-0.5 text-muted-foreground [&_svg]:size-4">{option.icon}</span>
                   <span className="min-w-0">
@@ -203,11 +230,11 @@ function BookmarkFields({
           </fieldset>
           {kind === "link" ? (
             linkField
-          ) : (
+          ) : kind === "file" ? (
             <FormField label="Arquivo" htmlFor="bookmark-file">
               <AttachmentField id="bookmark-file" name="file" rules={BOOKMARK_FILE} />
             </FormField>
-          )}
+          ) : null}
         </>
       )}
       <FormField label="Pasta" htmlFor="bookmark-folder">

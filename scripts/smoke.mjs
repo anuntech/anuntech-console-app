@@ -631,6 +631,40 @@ try {
     ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 1, "Outro membro não remove bookmark de terceiro");
     await submitForm("/bookmarks", "support", "support", { action: "deleteBookmark" }, { id: bookmark.id });
     ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 0, "Autor pode remover seu bookmark");
+    const boardTitle = `Lousa ${marker}`;
+    await submitForm("/bookmarks", "support", "support", { action: "saveBookmark" }, { companyId: ids.a, engagementId: "", title: boardTitle, url: "", kind: "board" });
+    const board = (await database.query("select id, board from console_bookmarks where title=$1", [boardTitle])).rows[0];
+    ok(Array.isArray(board?.board?.elements) && board.board.elements.length === 0, "Lousa nasce vazia na empresa autorizada");
+    r = await request(`/bookmarks/${board.id}/lousa`, "support");
+    ok(r.status === 200 && r.text.includes(boardTitle), "Quem criou a lousa abre a página dela");
+    ok(notFoundPage(await request(`/bookmarks/${board.id}/lousa`, "outsider")), "Outra conta não abre a lousa");
+    const scene = JSON.stringify({ type: "excalidraw", version: 2, elements: [{ id: "r1", type: "rectangle", x: 0, y: 0, width: 10, height: 10, version: 1, isDeleted: false }], appState: { viewBackgroundColor: "#ffffff" }, files: {} });
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const boardBody = (first = true) => {
+      const body = new FormData();
+      body.set("scene", scene);
+      if (first) body.set("first", "1");
+      body.set("preview", new File([png], "lousa.png", { type: "image/png" }));
+      return body;
+    };
+    const draw = (who, body, origin = base) =>
+      request(`/api/bookmarks/${board.id}/lousa`, who, { method: "PUT", body, headers: origin ? { Origin: origin } : {} });
+    ok((await draw("support", boardBody())).status === 200, "Quem criou a lousa grava o desenho");
+    ok((await draw("support", boardBody(false))).status === 200, "A gravação seguinte da mesma sessão também entra");
+    const drawn = (await database.query("select board, preview, updated_at > created_at as touched from console_bookmarks where id=$1", [board.id])).rows[0];
+    ok(drawn.board.elements.length === 1 && drawn.preview?.length === png.length && drawn.touched, "Desenho e miniatura ficam no banco");
+    ok((await database.query("select id from console_audit_events where action='bookmark.board_edited' and entity_id=$1", [board.id])).rowCount === 1, "Uma sessão de desenho gera um registro na auditoria");
+    ok((await draw("finance", boardBody())).status === 403, "Outro membro da empresa só lê a lousa");
+    ok((await draw("outsider", boardBody())).status === 404, "Outra conta não grava na lousa");
+    ok((await draw("support", boardBody(), null)).status === 403, "Gravar na lousa exige a origem do Console");
+    const unreadable = new FormData();
+    unreadable.set("scene", "{");
+    ok((await draw("support", unreadable)).status === 400, "Desenho ilegível é recusado");
+    const preview = await request(`/api/bookmarks/${board.id}/preview`, "finance");
+    ok(preview.status === 200 && preview.headers.get("content-type") === "image/png" && preview.headers.get("cache-control") === "private, no-store", "Miniatura da lousa aparece para quem vê o bookmark");
+    ok((await request(`/api/bookmarks/${board.id}/preview`, "outsider")).status === 404, "Outra conta não vê a miniatura");
+    r = await request("/bookmarks", "finance");
+    ok(r.text.includes(`/bookmarks/${board.id}/lousa`) && r.text.includes(`/api/bookmarks/${board.id}/preview`), "A lista mostra a lousa com a miniatura");
     const pressed = (html, label) =>
       new RegExp(`<button[^>]*aria-label="${label}"[^>]*aria-pressed="true"|<button[^>]*aria-pressed="true"[^>]*aria-label="${label}"`).test(html);
     r = await request("/bookmarks", "support");

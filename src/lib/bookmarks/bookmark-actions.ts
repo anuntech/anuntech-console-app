@@ -1,5 +1,5 @@
 "use server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -11,11 +11,14 @@ import {
 import { db } from "../db";
 import { getActor, canAccess, type Actor } from "../access/access";
 import { bookmarkInput, safeFileName } from "./bookmark-validation";
+import { boardHref, bookmarkKinds, EMPTY_BOARD } from "./board-rules";
 import { personInScope, scopeOf, searchBookmarkPeople } from "./bookmarks";
 import type { ActionState } from "../action-state";
 import { BOOKMARK_FILE, limitLabel } from "../tickets/attachment-rules";
 
 const id = z.string().uuid();
+/** The sheet's "Tipo"; older forms (and the smoke suite) post none and mean a link. */
+const kindField = z.enum(bookmarkKinds).catch("link");
 const companyField = z.union([id, z.literal("")]).default("");
 const visibility = z.enum(["company", "people"]).default("company");
 const folderName = z
@@ -80,6 +83,7 @@ async function editableBookmark(actor: Actor, bookmarkId: string) {
       folderOwner: bookmarkFolders.ownerId,
       title: bookmarks.title,
       fileName: bookmarks.fileName,
+      board: sql<boolean>`(${bookmarks.board} is not null)`,
     })
     .from(bookmarks)
     .leftJoin(bookmarkFolders, eq(bookmarkFolders.id, bookmarks.folderId))
@@ -217,10 +221,13 @@ export async function saveBookmark(_: ActionState, form: FormData): Promise<Acti
   const parsed = bookmarkInput.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const input = parsed.data;
+  const kind = kindField.parse(form.get("kind") ?? "link");
   const file = form.get("file");
-  const uploaded = file instanceof File && file.size > 0 ? file : null;
-  if (!input.url && !uploaded) return { error: "Informe um link ou selecione um arquivo." };
-  if (input.url && uploaded) return { error: "Salve um link ou um arquivo por vez." };
+  // A whiteboard starts empty: no link and no file, whatever else the form carried.
+  const uploaded = kind !== "board" && file instanceof File && file.size > 0 ? file : null;
+  const url = kind === "board" ? "" : input.url;
+  if (kind !== "board" && !url && !uploaded) return { error: "Informe um link ou selecione um arquivo." };
+  if (url && uploaded) return { error: "Salve um link ou um arquivo por vez." };
   if (uploaded && uploaded.size > MAX_FILE)
     return { error: `Escolha um arquivo de até ${limitLabel(MAX_FILE)}.` };
   try {
@@ -238,13 +245,15 @@ export async function saveBookmark(_: ActionState, form: FormData): Promise<Acti
         companyId,
         folderId: input.folderId || null,
         title: input.title,
-        url: input.url || null,
+        url: url || null,
         fileName: uploaded ? safeFileName(uploaded.name) : null,
         content,
+        board: kind === "board" ? EMPTY_BOARD : null,
       })
       .returning({ id: bookmarks.id });
-    await audit(actor, "bookmark.created", item.id, companyId, { title: input.title });
+    await audit(actor, "bookmark.created", item.id, companyId, { title: input.title, kind });
     refresh();
+    if (kind === "board") return { success: "Lousa criada.", href: boardHref(item.id) };
     return { success: "Bookmark salvo." };
   } catch {
     return { error: "Não foi possível salvar o bookmark. Tente novamente." };
@@ -261,7 +270,8 @@ export async function updateBookmark(_: ActionState, form: FormData): Promise<Ac
     const input = parsed.data;
     const item = await editableBookmark(actor, bookmarkId);
     if (!item) return blocked;
-    if (!item.fileName && !input.url) return { error: "Informe um link." };
+    const keepsContent = !!item.fileName || item.board;
+    if (!keepsContent && !input.url) return { error: "Informe um link." };
     let companyId = item.companyId;
     if (input.folderId && input.folderId !== item.folderId) {
       const folder = await loadFolder(input.folderId);
@@ -272,7 +282,7 @@ export async function updateBookmark(_: ActionState, form: FormData): Promise<Ac
       .update(bookmarks)
       .set({
         title: input.title,
-        url: item.fileName ? null : input.url,
+        url: keepsContent ? null : input.url,
         folderId: input.folderId || null,
         companyId,
         updatedAt: new Date(),

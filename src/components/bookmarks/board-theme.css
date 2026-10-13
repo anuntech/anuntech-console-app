@@ -1,0 +1,111 @@
+/*
+ * The whiteboard dressed as the Console: Excalidraw's own variables resolve to
+ * the brand tokens from globals.css, which already flip in the dark theme, so
+ * one block covers both. The selectors start with .anuntech-board to beat the
+ * package's defaults.
+ */
+.anuntech-board .excalidraw,
+.anuntech-board .excalidraw.theme--dark {
+  --ui-font: var(--font-sans);
+
+  --color-primary: var(--primary);
+  --color-primary-darker: var(--primary-hover);
+  --color-primary-darkest: var(--foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--accent);
+  --color-primary-light-darker: var(--secondary);
+  --color-brand-hover: var(--primary-hover);
+  --color-brand-active: var(--foreground);
+  --color-surface-primary-container: var(--accent);
+  --color-on-primary-container: var(--accent-foreground);
+
+  --color-on-surface: var(--foreground);
+  --color-surface-lowest: var(--card);
+  --color-surface-low: var(--secondary);
+  --color-surface-mid: var(--secondary);
+  --color-surface-high: var(--accent);
+  --color-muted: var(--muted-foreground);
+  --color-muted-darker: var(--secondary-foreground);
+  --color-muted-darkest: var(--foreground);
+  --color-muted-background: var(--secondary);
+  --color-muted-background-darker: var(--field-border);
+  --color-border-outline: var(--border);
+  --color-border-outline-variant: var(--field-border);
+
+  --island-bg-color: var(--card);
+  --popup-bg-color: var(--card);
+  --popup-secondary-bg-color: var(--secondary);
+  --popup-text-color: var(--foreground);
+  --popup-text-inverted-color: var(--primary-foreground);
+  --sidebar-bg-color: var(--card);
+  --sidebar-border-color: var(--border);
+  --default-bg-color: var(--card);
+  --default-border-color: var(--border);
+  --dialog-border-color: var(--border);
+  --list-border-color: var(--border);
+  --overlay-bg-color: color-mix(in srgb, var(--foreground) 32%, transparent);
+
+  --text-primary-color: var(--foreground);
+  --icon-fill-color: var(--foreground);
+  --label-color: var(--foreground);
+  --input-label-color: var(--foreground);
+  --placeholder: var(--muted-foreground);
+  --keybinding-color: var(--muted-foreground);
+  --link-color: var(--primary);
+
+  --button-gray-1: var(--secondary);
+  --button-gray-2: var(--field-border);
+  --button-gray-3: var(--input);
+  --button-hover-bg: var(--secondary);
+  --button-active-bg: var(--accent);
+  --button-active-border: var(--primary);
+  --button-destructive-bg-color: var(--destructive-bg);
+  --button-destructive-color: var(--destructive);
+  --input-bg-color: var(--field-background);
+  --input-border-color: var(--field-border);
+  --input-hover-bg-color: var(--field-background);
+
+  --color-selection: var(--primary);
+  --focus-highlight-color: var(--ring);
+  --select-highlight-color: var(--ring);
+  --color-danger: var(--destructive);
+  --color-danger-text: var(--destructive);
+  --color-danger-background: var(--destructive-bg);
+  --color-success: var(--success);
+  --color-success-text: var(--success);
+  --color-warning: var(--warning);
+  --color-text-warning: var(--warning);
+  --color-warning-background: var(--warning-bg);
+
+  --border-radius-md: var(--radius-md);
+  --border-radius-lg: var(--radius-lg);
+  --shadow-island: var(--shadow-card);
+  --modal-shadow: var(--shadow-float);
+  --library-dropdown-shadow: var(--shadow-float);
+  --sidebar-shadow: var(--shadow-float);
+  --scrollbar-thumb: var(--field-border);
+  --scrollbar-thumb-hover: var(--input);
+}
+
+/* The parts that belong to Excalidraw's own world, not to the Console: its
+   library of shapes, the help dialog with links to its site, and the
+   shortcut for the command palette that lists them. */
+.anuntech-board .excalidraw .default-sidebar-trigger,
+.anuntech-board .excalidraw .help-icon,
+.anuntech-board .excalidraw .layer-ui__wrapper__footer-right .help-icon {
+  display: none;
+}
+
+/* The welcome screen: the Console's symbol instead of the Excalidraw mark. */
+.anuntech-board .excalidraw .welcome-screen-center__logo {
+  color: var(--foreground);
+}
+.anuntech-board .excalidraw .welcome-screen-center__logo img {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+}
+.anuntech-board .excalidraw .welcome-screen-center__heading {
+  font-family: var(--font-sans);
+  color: var(--muted-foreground);
+}

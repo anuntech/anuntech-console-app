@@ -1015,7 +1015,11 @@ export const bookmarkFolderShares = pgTable(
     index("console_bookmark_share_user_idx").on(t.userId),
   ],
 );
-/** A link or a small file of a company (companyId null = Anuntech's own). */
+/**
+ * A link, a small file or a whiteboard of a company (companyId null =
+ * Anuntech's own). One of `url`, `fileName` or `board` is set: a whiteboard
+ * keeps its Excalidraw scene in `board` and a PNG of it in `preview`.
+ */
 export const bookmarks = pgTable(
   "console_bookmarks",
   {
@@ -1027,6 +1031,8 @@ export const bookmarks = pgTable(
     url: text("url"),
     fileName: text("file_name"),
     content: bytea("content"),
+    board: jsonb("board"),
+    preview: bytea("preview"),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

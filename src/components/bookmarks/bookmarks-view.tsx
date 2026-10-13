@@ -14,6 +14,7 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
+  PresentationIcon,
   Share2Icon,
   Trash2Icon,
   UsersIcon,
@@ -58,12 +59,13 @@ import {
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
 import { moveBookmark, deleteBookmark } from "@/lib/bookmarks/bookmark-actions";
+import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { ListLayout } from "@/lib/list-layout";
 import { CardGrid, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { dateTimeLabel, fileSizeLabel, relativeLabel } from "@/lib/format";
 import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
-import { BookmarkSheet, type BookmarkEditor } from "./bookmark-sheet";
+import { BookmarkSheet, deleteNote, type BookmarkEditor } from "./bookmark-sheet";
 import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
 
 export type BookmarksViewData = {
@@ -102,6 +104,13 @@ function hostOf(url: string) {
 /** A letter tile stands in for the favicon, without calling anyone. */
 function Tile({ item, large = false }: { item: BookmarkView; large?: boolean }) {
   const size = large ? "size-10 rounded-lg" : "size-8 rounded-md";
+  const kind = kindOf(item);
+  if (kind === "board")
+    return (
+      <span className={cn("flex shrink-0 items-center justify-center bg-accent text-primary", size)}>
+        <PresentationIcon className={large ? "size-5" : "size-4"} />
+      </span>
+    );
   if (!item.url)
     return (
       <span className={cn("flex shrink-0 items-center justify-center bg-secondary text-muted-foreground", size)}>
@@ -282,8 +291,8 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   /** Link host or file name and size; the company too when the list spans several and has no column for it. */
   const subtitleFor = (item: BookmarkView, withCompany: boolean) =>
     [
-      item.url ? hostOf(item.url) : item.fileName,
-      !item.url && item.fileSize ? fileSizeLabel(item.fileSize) : null,
+      kindOf(item) === "board" ? "Lousa" : item.url ? hostOf(item.url) : item.fileName,
+      kindOf(item) === "file" && item.fileSize ? fileSizeLabel(item.fileSize) : null,
       withCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
     ]
       .filter(Boolean)
@@ -294,7 +303,14 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   /** The "…" menu of a bookmark, the same in the list and in the grid. */
   const actionsFor = (item: BookmarkView) => (
     <>
-      {item.url ? (
+      {kindOf(item) === "board" ? (
+        <DropdownMenuItem asChild>
+          <Link href={boardHref(item.id)}>
+            <PresentationIcon />
+            Abrir lousa
+          </Link>
+        </DropdownMenuItem>
+      ) : item.url ? (
         <DropdownMenuItem asChild>
           <a href={item.url} target="_blank" rel="noopener noreferrer">
             <ExternalLinkIcon />
@@ -364,17 +380,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           const folder = item.folderId ? folderById.get(item.folderId) : undefined;
           const company = companyName.get(item.companyId ?? "") ?? null;
           const subtitle = subtitleFor(item, showCompany && !companyColumn);
+          const board = kindOf(item) === "board";
           return (
             <LinkRow
               key={item.id}
-              href={item.url}
-              external
-              onOpen={item.url ? undefined : () => download(item)}
+              href={board ? boardHref(item.id) : item.url}
+              external={!board}
+              onOpen={board || item.url ? undefined : () => download(item)}
             >
               <PrimaryCell
-                href={item.url}
-                external
-                onOpen={item.url ? undefined : () => download(item)}
+                href={board ? boardHref(item.id) : item.url}
+                external={!board}
+                onOpen={board || item.url ? undefined : () => download(item)}
                 leading={<Tile item={item} />}
                 title={item.title}
                 subtitle={subtitle || undefined}
@@ -408,12 +425,13 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     <CardGrid>
       {items.map((item) => {
         const folder = item.folderId ? folderById.get(item.folderId) : undefined;
+        const board = kindOf(item) === "board";
         return (
           <GridCard
             key={item.id}
-            href={item.url}
-            external
-            onOpen={item.url ? undefined : () => download(item)}
+            href={board ? boardHref(item.id) : item.url}
+            external={!board}
+            onOpen={board || item.url ? undefined : () => download(item)}
             leading={<Tile item={item} large />}
             title={item.title}
             subtitle={subtitleFor(item, showCompany) || undefined}
@@ -431,7 +449,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 </time>
               </>
             }
-          />
+          >
+            {board && item.preview && (
+              // The PNG is private and changes with every stroke: a plain image, no optimizer.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`/api/bookmarks/${item.id}/preview?v=${encodeURIComponent(item.updatedAt ?? "")}`}
+                alt=""
+                loading="lazy"
+                className="aspect-[16/9] w-full rounded-md border bg-white object-contain"
+              />
+            )}
+          </GridCard>
         );
       })}
     </CardGrid>
@@ -634,7 +663,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           action={deleteBookmark}
           fields={{ id: removing.id }}
           title="Excluir bookmark?"
-          description={`"${removing.title}" sai da lista${removing.fileName ? ", com o arquivo" : ""}. Isso não pode ser desfeito.`}
+          description={`"${removing.title}" sai da lista${deleteNote(removing)}. Isso não pode ser desfeito.`}
           confirmLabel="Excluir"
           destructive
           onSuccess={() => setRemoving(null)}

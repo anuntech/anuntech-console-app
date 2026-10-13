@@ -17,6 +17,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 - [ ] Webhook do Inter para confirmar pagamento na hora: com a emissão no pagamento, a próxima fatura sairia em segundos em vez de até 10 minutos.
 - [ ] Automação (08/10): o que depende de terceiros fica preparado. Reajuste anual por IPCA precisa da cláusula do advogado; a cópia de segurança semanal precisa do destino e da credencial; a triagem de pedidos por WhatsApp precisa do webhook da FLW (Synova); o webhook do Inter precisa do cadastro na conta Inter.
 - [ ] Cadastrar as condições de atendimento de cada empresa (página da empresa), começando pelas 12 do Synova, conferindo com o contrato assinado. Sem isso, nenhum prazo aparece para o cliente. Desde 08/10, Configurações → Modelos de contrato prepara os rascunhos do Synova de uma vez; falta conferir cada um.
+- [ ] Lousa (13/10): levar a migração 0040 (`board` e `preview` em `console_bookmarks`) para produção pelo procedimento de [rules.md](rules.md#migrações-em-produção), antes de publicar a tela. Depois, decidir se vale a colaboração ao vivo (servidor `excalidraw-room`) e se as fontes do Excalidraw devem sair do CDN dele para `public/`.
 
 ## Engenharia
 
@@ -31,6 +32,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 13/10/2026: Lousa nos bookmarks: terceiro tipo ao lado de link e arquivo, com o Excalidraw em tela cheia dentro do Console, autosave a cada traço, miniatura no card, modo leitura para quem não edita, migração 0040 e cobertura na integração.
 - [x] 08/10/2026: automação, lote 6 (cobrança): fila de atrasos com texto pronto e registro de contato, pago fora do boleto, localizar no Inter a emissão sem resposta, retomada guiada da recorrência, fechamento do mês, fila de notas fiscais e reajuste pelo IPCA preparado. Correções das revisões dos lotes 5 e 6 no mesmo dia.
 - [x] 08/10/2026: automação, lote 5 (clientes e operação): convites conferidos e reenviados, aviso quando o cliente muda o cadastro, implantação, contatos e acessos para revisar, revisão de acessos a cada 6 meses, Limpeza e encerramento guiado ao arquivar.
 - [x] 08/10/2026: automação, lotes 3 e 4 (suporte, banco de horas e avisos ao cliente): responsável na abertura, lembrete de primeira resposta, triagem do Jev, acompanhamento de chamados parados, aviso e relatório do banco uma vez por mês, excedente pronto para cobrar, horas pelo assistente, sugestões de resposta e de fases, e os avisos automáticos ao cliente com interruptor em Configurações → Automações.

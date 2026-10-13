@@ -13,6 +13,7 @@ import {
   PackageIcon,
   PenLineIcon,
   PlusIcon,
+  PresentationIcon,
   ReceiptTextIcon,
   WalletIcon,
   Clock3Icon,
@@ -22,6 +23,7 @@ import { db } from "@/lib/db";
 import { companies, contractSignatures, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
 import { allowedIds, canAccess, type Actor } from "@/lib/access/access";
 import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
+import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import { currency, dateLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -570,16 +572,17 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           {bookmarkPage.items.length ? (
             <ul className="divide-y border-t">
               {bookmarkPage.items.map((item) => {
-                const link = webUrl(item.url);
+                const board = kindOf(item) === "board";
+                const link = board ? null : webUrl(item.url);
                 return (
                   <Row
                     key={item.id}
-                    href={link ?? (item.fileName ? `/api/bookmarks/${item.id}` : "/bookmarks")}
+                    href={board ? boardHref(item.id) : (link ?? (item.fileName ? `/api/bookmarks/${item.id}` : "/bookmarks"))}
                     external={!!link}
-                    download={!link && item.fileName ? item.fileName : undefined}
-                    leading={<Tile icon={link ? <BookmarkIcon /> : <FileTextIcon />} />}
+                    download={!board && !link && item.fileName ? item.fileName : undefined}
+                    leading={<Tile icon={board ? <PresentationIcon /> : link ? <BookmarkIcon /> : <FileTextIcon />} />}
                     title={item.title}
-                    detail={[link ? new URL(link).hostname : item.fileName, item.folderId ? folderName.get(item.folderId) : null].filter(Boolean).join(" · ")}
+                    detail={[board ? "Lousa" : link ? new URL(link).hostname : item.fileName, item.folderId ? folderName.get(item.folderId) : null].filter(Boolean).join(" · ")}
                   />
                 );
               })}

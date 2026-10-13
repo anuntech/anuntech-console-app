@@ -21,7 +21,7 @@ import {
   memberships,
   user,
 } from "@/db/schema";
-import type { Actor } from "../access/access";
+import { canAccess, type Actor } from "../access/access";
 import { getAccountEmails } from "../account/account-identity";
 import { hasConsoleStaffAccess } from "../access/console-members";
 import { db } from "../db";
@@ -53,10 +53,16 @@ export type BookmarkView = {
   fileName: string | null;
   /** Bytes of the saved file; null for links. Optional so fixtures without it still type. */
   fileSize?: number | null;
+  /** A whiteboard, drawn in the Console. Optional so fixtures without it still type. */
+  board?: boolean;
+  /** Whether a PNG of the whiteboard exists, for the card. */
+  preview?: boolean;
   folderId: string | null;
   companyId: string | null;
   ownerId: string;
   createdAt: string;
+  /** Last change (a whiteboard's last stroke); busts the preview's cache. */
+  updatedAt?: string;
 };
 /** `company`: "all", "internal" (Anuntech's own) or a company id. */
 export type BookmarkQuery = { folder: string; search: string; company: string };
@@ -219,10 +225,14 @@ export async function bookmarksFor(
           fileName: bookmarks.fileName,
           // octet_length reads the stored size without loading the bytes.
           fileSize: sql<number | null>`octet_length(${bookmarks.content})`,
+          // Flags only: the scene and its PNG stay in the database until opened.
+          board: sql<boolean>`(${bookmarks.board} is not null)`,
+          preview: sql<boolean>`(${bookmarks.preview} is not null)`,
           folderId: bookmarks.folderId,
           companyId: bookmarks.companyId,
           ownerId: bookmarks.ownerId,
           createdAt: bookmarks.createdAt,
+          updatedAt: bookmarks.updatedAt,
         })
         .from(bookmarks)
         .where(matchingWhere)
@@ -233,7 +243,11 @@ export async function bookmarksFor(
         .offset(offsetOf(shown))
     : [];
   return {
-    items: items.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() })),
+    items: items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    })),
     rootCount: counts?.root ?? 0,
     total: counts?.total ?? 0,
     matching,
@@ -316,4 +330,76 @@ export async function searchBookmarkPeople(
   return [...people.values()]
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
     .slice(0, limit);
+}
+
+export type BookmarkRecord = {
+  id: string;
+  title: string;
+  companyId: string | null;
+  folderId: string | null;
+  ownerId: string;
+  url: string | null;
+  fileName: string | null;
+  /** The whiteboard scene, as stored; null for links and files. */
+  board: unknown;
+  updatedAt: Date;
+  folderName: string | null;
+  /** Staff, the person who saved it, or the owner of its folder may change it. */
+  editable: boolean;
+};
+
+/**
+ * One bookmark, if the viewer may see it: in a company they can access (or
+ * Anuntech's own space, for staff) and, inside a folder, one open to the
+ * company, theirs, or shared with them. Null reads as "does not exist".
+ * The same rule as `/api/bookmarks/[id]`, which downloads the file.
+ */
+export async function bookmarkFor(actor: Actor, bookmarkId: string): Promise<BookmarkRecord | null> {
+  const [item] = await db
+    .select({
+      id: bookmarks.id,
+      title: bookmarks.title,
+      companyId: bookmarks.companyId,
+      folderId: bookmarks.folderId,
+      ownerId: bookmarks.ownerId,
+      url: bookmarks.url,
+      fileName: bookmarks.fileName,
+      board: bookmarks.board,
+      updatedAt: bookmarks.updatedAt,
+      folderName: bookmarkFolders.name,
+      folderVisibility: bookmarkFolders.visibility,
+      folderOwner: bookmarkFolders.ownerId,
+      sharedWithMe: bookmarkFolderShares.userId,
+    })
+    .from(bookmarks)
+    .leftJoin(bookmarkFolders, eq(bookmarkFolders.id, bookmarks.folderId))
+    .leftJoin(
+      bookmarkFolderShares,
+      and(
+        eq(bookmarkFolderShares.folderId, bookmarks.folderId),
+        eq(bookmarkFolderShares.userId, actor.user.id),
+      ),
+    )
+    .where(eq(bookmarks.id, bookmarkId));
+  if (!item) return null;
+  const inCompany = item.companyId ? canAccess(actor, item.companyId, "overview") : actor.admin;
+  const folderOpen =
+    !item.folderVisibility ||
+    item.folderVisibility === "company" ||
+    item.folderOwner === actor.user.id ||
+    !!item.sharedWithMe;
+  if (!actor.admin && !(inCompany && folderOpen)) return null;
+  return {
+    id: item.id,
+    title: item.title,
+    companyId: item.companyId,
+    folderId: item.folderId,
+    ownerId: item.ownerId,
+    url: item.url,
+    fileName: item.fileName,
+    board: item.board,
+    updatedAt: item.updatedAt,
+    folderName: item.folderName,
+    editable: actor.admin || item.ownerId === actor.user.id || item.folderOwner === actor.user.id,
+  };
 }

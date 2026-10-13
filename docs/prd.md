@@ -145,7 +145,8 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 
 ### Bookmarks
 
-- Links e arquivos privados organizados em pastas pessoais. Uma pasta pode ser vista pela empresa inteira ou só por pessoas escolhidas.
+- Links, arquivos e lousas privados organizados em pastas pessoais. Uma pasta pode ser vista pela empresa inteira ou só por pessoas escolhidas.
+- Lousa: um quadro para desenhar e anotar (Excalidraw) que abre em tela cheia dentro do Console. Nasce em branco, salva sozinha a cada traço e mostra uma miniatura no card. Quem vê o bookmark abre a lousa; só quem a criou, o dono da pasta ou a equipe desenha nela (os outros veem em modo leitura). Limite de 3 MB por lousa, contadas as imagens coladas.
 - Busca, paginação (10, 25, 50 ou 100 por página) e visualização em lista ou grade. A escolha de visualização fica salva para a pessoa.
 
 ### Assistente
