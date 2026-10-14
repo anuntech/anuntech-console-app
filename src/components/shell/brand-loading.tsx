@@ -1,43 +1,56 @@
+"use client";
+import { useLayoutEffect } from "react";
+import styles from "./brand-loading.module.css";
 /**
  * Vinheta da Anuntech como tela de carregamento.
  *
  * Só entra nos dois momentos combinados: ao confirmar o acesso (tela cheia,
- * marinho) e nas rotas pesadas do Console (dentro da página, no fundo do
- * tema). Nunca na navegação comum, que continua com o esqueleto.
+ * marinho, com o vídeo gerado a partir do logotipo) e nas rotas pesadas do
+ * Console (dentro da página, no fundo do tema, o logotipo real animado em
+ * CSS). Nunca na navegação comum, que continua com o esqueleto.
  *
- * Os vídeos vêm de `public/brand/vinheta/` (gerados a partir do logotipo real;
- * ver `videos/vinheta/README.md`). Quem pede movimento reduzido vê só o
- * primeiro quadro, que é o logotipo parado.
+ * O vídeo vem de `public/brand/vinheta/` (ver `videos/vinheta/README.md`).
+ * Quem pede movimento reduzido vê o logotipo parado.
  */
 const BASE = "/brand/vinheta";
+/** Quando a vinheta de página apareceu pela última vez (`BrandLoadingHold` lê). */
+let shownAt = 0;
+export function takeShownAt() {
+  const value = shownAt;
+  shownAt = 0;
+  return value;
+}
 
-function Sting({
-  tone,
-  rounded = false,
-}: {
-  tone: "navy" | "light";
-  rounded?: boolean;
-}) {
-  const shape = rounded ? " rounded-[28px]" : "";
+/** Logotipo real, cor do tema, faixa amarela percorrendo o símbolo. */
+export function BrandLockup() {
+  return (
+    <div className={styles.lockup} aria-hidden="true">
+      <span className={styles.base} />
+      <span className={styles.sweep} />
+    </div>
+  );
+}
+
+function NavySting() {
   return (
     <>
       <video
-        className={`aspect-square w-[min(60vw,320px)] motion-reduce:hidden${shape}`}
+        className="aspect-square w-[min(60vw,320px)] motion-reduce:hidden"
         autoPlay
         muted
         loop
         playsInline
         preload="auto"
-        poster={`${BASE}/${tone}-poster.png`}
+        poster={`${BASE}/navy-poster.png`}
         aria-hidden="true"
       >
-        <source src={`${BASE}/${tone}.webm`} type="video/webm" />
-        <source src={`${BASE}/${tone}.mp4`} type="video/mp4" />
+        <source src={`${BASE}/navy.webm`} type="video/webm" />
+        <source src={`${BASE}/navy.mp4`} type="video/mp4" />
       </video>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        className={`hidden aspect-square w-[min(60vw,320px)] motion-reduce:block${shape}`}
-        src={`${BASE}/${tone}-poster.png`}
+        className="hidden aspect-square w-[min(60vw,320px)] motion-reduce:block"
+        src={`${BASE}/navy-poster.png`}
         alt=""
         aria-hidden="true"
       />
@@ -54,6 +67,9 @@ export function BrandLoading({
   /** Texto para leitores de tela. */
   label?: string;
 }) {
+  useLayoutEffect(() => {
+    if (!fullscreen) shownAt = performance.now();
+  }, [fullscreen]);
   if (fullscreen)
     return (
       <div
@@ -62,7 +78,7 @@ export function BrandLoading({
         className="fixed inset-0 z-[60] grid place-items-center bg-[#0a1d42]"
       >
         <span className="sr-only">{label}</span>
-        <Sting tone="navy" />
+        <NavySting />
       </div>
     );
   return (
@@ -72,12 +88,7 @@ export function BrandLoading({
       className="animate-in fade-in fill-mode-both grid min-h-[60vh] place-items-center delay-150 duration-300"
     >
       <span className="sr-only">{label}</span>
-      <div className="dark:hidden">
-        <Sting tone="light" />
-      </div>
-      <div className="hidden dark:block">
-        <Sting tone="navy" rounded />
-      </div>
+      <BrandLockup />
     </div>
   );
 }
