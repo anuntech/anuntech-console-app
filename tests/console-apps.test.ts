@@ -2,10 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createPublicKey, generateKeyPairSync, verify } from "node:crypto";
 import {
+  appById,
   appForUrl,
   appFrameSrc,
   appTenant,
   canOpenApp,
+  chooseAppProduct,
   companyRole,
   decideAppOpening,
   protectedApps,
@@ -115,6 +117,58 @@ test("opening a product as an app checks kind, URL, status, role and tenant", ()
   assert.ok(!("blocked" in cmsOpening) && cmsOpening.tenant === undefined);
   // An inherited property is not a tenant.
   assert.equal(appTenant({ tenants: {} }, "toString"), null);
+});
+
+test("a link to an app knows only the apps in the registry", () => {
+  assert.equal(appById("espaco-absolut-cms", apps)?.name, "CMS Espaço Absolut");
+  assert.equal(appById("brastemp-base-pendente", apps)?.id, "brastemp-base-pendente");
+  for (const id of ["", "nao-existe", "ESPACO-ABSOLUT-CMS", "espaco-absolut-cms ", "toString", "__proto__"])
+    assert.equal(appById(id, apps), null, id);
+});
+
+test("a link to an app opens the one product pointing at it, lists several, and refuses none", () => {
+  const cms = appById("espaco-absolut-cms", apps)!;
+  const product = (id: string, url: string | null, extra: Partial<{ kind: string; status: string }> = {}) => ({
+    id,
+    kind: "product",
+    status: "active",
+    url,
+    ...extra,
+  });
+  // Exactly one: that product's page in the Console, which checks the role.
+  assert.deepEqual(chooseAppProduct(cms, [product("p1", "https://www.espacoabsolut.com/admin")], apps), {
+    kind: "one",
+    id: "p1",
+    href: "/apps/p1",
+  });
+  // Products that are not this app, not active, not a product, or the public site do not count.
+  const noise = [
+    product("site", "https://www.espacoabsolut.com/"),
+    product("paused", "https://www.espacoabsolut.com/admin", { status: "paused" }),
+    product("done", "https://espacoabsolut.com/admin", { status: "completed" }),
+    product("service", "https://www.espacoabsolut.com/admin", { kind: "service" }),
+    product("other-app", "https://www.mulheresfm.com.br/admin"),
+    product("no-url", null),
+    product("look-alike", "https://espacoabsolut.com.evil.test/admin"),
+  ];
+  assert.deepEqual(chooseAppProduct(cms, [...noise, product("p1", "https://espacoabsolut.com/admin/eventos")], apps), {
+    kind: "one",
+    id: "p1",
+    href: "/apps/p1",
+  });
+  // The same product twice (two memberships) is still one.
+  assert.equal(
+    chooseAppProduct(cms, [product("p1", "https://www.espacoabsolut.com/admin"), product("p1", "https://www.espacoabsolut.com/admin")], apps).kind,
+    "one",
+  );
+  // Several: the product list, searched by the app's name.
+  assert.deepEqual(
+    chooseAppProduct(cms, [product("p1", "https://www.espacoabsolut.com/admin"), product("p2", "https://espacoabsolut.com/admin")], apps),
+    { kind: "many", href: "/produtos?q=CMS%20Espa%C3%A7o%20Absolut" },
+  );
+  // None: nothing that is this app, or nothing at all.
+  assert.deepEqual(chooseAppProduct(cms, noise, apps), { kind: "none" });
+  assert.deepEqual(chooseAppProduct(cms, [], apps), { kind: "none" });
 });
 
 test("the iframe opens the app's canonical entry with the pass", () => {

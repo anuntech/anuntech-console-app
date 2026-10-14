@@ -19,6 +19,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 - [ ] Cadastrar as condições de atendimento de cada empresa (página da empresa), começando pelas 12 do Synova, conferindo com o contrato assinado. Sem isso, nenhum prazo aparece para o cliente. Desde 08/10, Configurações → Modelos de contrato prepara os rascunhos do Synova de uma vez; falta conferir cada um.
 - [ ] Lousa (13/10): levar a migração 0040 (`board` e `preview` em `console_bookmarks`) para produção pelo procedimento de [rules.md](rules.md#migrações-em-produção), antes de publicar a tela. Depois, decidir se vale a colaboração ao vivo (servidor `excalidraw-room`) e se as fontes do Excalidraw devem sair do CDN dele para `public/`.
 - [ ] Apps dentro do Console (13/10): antes de publicar, gerar a chave de produção (`openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 | base64 | tr -d '\n'`) e cadastrar `APP_PASS_PRIVATE_KEY` e `APP_PASS_KEY_ID` na Vercel só no ambiente Production (nunca em Preview, que assinaria passes válidos nos apps); conferir que `console.anuntech.com/.well-known/jwks.json` responde 200. Conferir no Console que o endereço de cada produto aponta para o app (`https://www.espacoabsolut.com/admin`, `https://www.mulheresfm.com.br/admin`, os dois `*.vercel.app` da Brastemp); um produto com o endereço do site público continua abrindo em nova aba. Publicar o Console antes dos apps, para nenhum ficar sem porta de entrada. Depois, tirar esses apps do Workspace.
+- [ ] Link direto dos apps (14/10): publicar o Console com `/abrir/[app]` antes dos apps que passam a redirecionar para lá (senão o 307 cai num 404). Com mais de um produto do mesmo app, `/abrir` leva a Produtos buscando pelo nome do app ("CMS Espaço Absolut", "Roteiro Digital"…), e a busca de Produtos procura no nome do produto e da empresa: conferir se os nomes cadastrados contêm o nome do app ou decidir outra busca.
 
 ## Engenharia
 
@@ -33,6 +34,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 14/10/2026: link direto dos apps: `/abrir/[app]` leva ao produto da pessoa (login com caminho de volta, um produto, vários, nenhum, 404), `?volta=` com lista fechada no login, no Google e na segunda etapa, testes unitários e cobertura na regressão e na suíte de segurança.
 - [x] 13/10/2026: apps dos clientes só dentro do Console: registro dos quatro apps, passe RS256 de 2 minutos, JWKS pública, `/apps/[id]` com o app em iframe e Recarregar, links internos em Produtos e no painel, auditoria `app.opened`, testes unitários e cobertura na regressão.
 - [x] 13/10/2026: Lousa nos bookmarks: terceiro tipo ao lado de link e arquivo, com o Excalidraw em tela cheia dentro do Console, autosave a cada traço, miniatura no card, modo leitura para quem não edita, migração 0040 e cobertura na integração.
 - [x] 08/10/2026: automação, lote 6 (cobrança): fila de atrasos com texto pronto e registro de contato, pago fora do boleto, localizar no Inter a emissão sem resposta, retomada guiada da recorrência, fechamento do mês, fila de notas fiscais e reajuste pelo IPCA preparado. Correções das revisões dos lotes 5 e 6 no mesmo dia.
