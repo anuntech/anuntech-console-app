@@ -38,14 +38,47 @@
     background-position: 0 0;
   }
 }
+
+/* Tela cheia: cinza bem claro. No tema escuro, o próprio fundo do tema
+ * (o logotipo já vira claro). Dentro da página não há caixa: a vinheta fica
+ * no fundo do Console, e a sobreposição usa esse mesmo fundo. */
+.splash {
+  background: #f3f4f6;
+}
+:global(:root[data-theme="dark"]) .splash {
+  background: var(--background);
+}
+@media (prefers-color-scheme: dark) {
+  :global(:root[data-theme="system"]) .splash {
+    background: var(--background);
+  }
+}
+.hold {
+  background: var(--background);
+}
+
+/* Dentro da página: ocupa a área visível acima do dock e centraliza ali. */
+.page {
+  display: grid;
+  place-items: center;
+  min-height: calc(100dvh - 160px);
+}
+
+/* Segura a vinheta por cima da página que acabou de chegar. O logotipo fica
+ * preso no meio da área visível mesmo quando a página é longa. */
 .hold {
   position: absolute;
   inset: 0;
   z-index: 30;
+  min-height: calc(100dvh - 160px);
+  transition: opacity 320ms ease;
+}
+.holdCenter {
+  position: sticky;
+  top: 0;
   display: grid;
   place-items: center;
-  background: var(--background);
-  transition: opacity 320ms ease;
+  height: calc(100dvh - 160px);
 }
 .holdOut {
   opacity: 0;

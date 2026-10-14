@@ -38,7 +38,9 @@ export function BrandLoadingHold({ children }: { children: React.ReactNode }) {
           className={`${styles.hold} ${phase === "out" ? styles.holdOut : ""}`}
           aria-hidden="true"
         >
-          <BrandLockup />
+          <div className={styles.holdCenter}>
+            <BrandLockup />
+          </div>
         </div>
       )}
     </div>
