@@ -30,7 +30,7 @@ export type BankAudience = {
   engagements?: EngagementScope;
 };
 
-/** The company's conditions that hold an hours bank (SUP 3.1), if any. */
+/** The company's conditions that hold an hours bank (SUP 4.1), if any. */
 export async function bankTerms(companyId: string, audience: BankAudience = {}, executor: Executor = db): Promise<TermsSnapshot | null> {
   const rows = await executor
     .select()
@@ -69,7 +69,7 @@ export type BankMonth = {
   contestedAt: string | null;
   contestNote: string | null;
   reportContestDays: number | null;
-  /** Last instant the client may contest the sent report (SUP 3.4); null when the contract sets no window. */
+  /** Last instant the client may contest the sent report (SUP 4.7); null when the contract sets no window. */
   contestUntil: string | null;
   terms: TermsSnapshot;
 };

@@ -368,7 +368,7 @@ export async function createTicket(
 }
 /**
  * The ticket leaves "waiting for the client": the wait joins the pause where
- * the conditions pause the clock (SUP 5.3), and the deadlines move by it.
+ * the conditions pause the clock (SUP 6.4), and the deadlines move by it.
  */
 async function resumeClock(
   ticket: typeof tickets.$inferSelect,

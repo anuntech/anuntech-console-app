@@ -16,7 +16,7 @@ export type TicketHoursData = {
   bank: boolean;
   entries: { id: string; minutes: number; note: string; workedOn: string; kind: string }[];
   estimate: { minutes: number | null; status: "proposed" | "approved" | "declined" | null };
-  /** Improvements up to this size come out of the bank (SUP 4.1). */
+  /** Improvements up to this size come out of the bank (SUP 5.1). */
   improvementLimitMinutes: number | null;
   /** Client side: an Administrador answers for the company. */
   canApprove: boolean;
@@ -64,7 +64,7 @@ export function TicketHoursCard({ ticketId, data }: { ticketId: string; data: Ti
                 <Input id="hours-note" name="note" required maxLength={500} />
               </FormField>
               <FormField label="Conta como" htmlFor="hours-kind">
-                {/* An improvement uses the bank only with its estimate approved (SUP 4.1). */}
+                {/* An improvement uses the bank only with its estimate approved (SUP 5.1). */}
                 <NativeSelect id="hours-kind" name="kind" required defaultValue={data.estimate.status === "proposed" || data.estimate.status === "declined" ? "" : "bank"}>
                   <NativeSelectOption value="" disabled>
                     Escolha

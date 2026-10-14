@@ -1133,7 +1133,7 @@ export const timeEntries = pgTable(
     minutes: integer("minutes").notNull(),
     note: text("note").notNull(),
     workedOn: date("worked_on").notNull(),
-    /** bank: counts against the month; warranty: free fix (SUP 4.4); critical: done before approval (SUP 3.3). */
+    /** bank: counts against the month; warranty: free fix (SUP 5.4); critical: done before approval (SUP 4.5). */
     kind: text("kind", { enum: ["bank", "warranty", "critical"] }).notNull().default("bank"),
     createdAt: created(),
   },

@@ -69,7 +69,7 @@ function ReportLine({
 }
 
 /**
- * The month's hours bank (SUP 3.1 to 3.4): what was used of what is
+ * The month's hours bank (SUP 4.1 to 4.7): what was used of what is
  * included, the approval of hours beyond it and the monthly report. The
  * client's Administrador approves and contests; the team sends the report
  * and the 80% notice by click. Last month stays here while its report is

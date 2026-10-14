@@ -207,7 +207,7 @@ export default async function Ticket({
       clientFrom: actor.admin && !visibleToClient(t.terms, now) ? t.terms.publishAt : null,
     };
   }
-  // Hours bank and improvement estimate, where the company's conditions have them (SUP 3 and 4).
+  // Hours bank and improvement estimate, where the company's conditions have them (SUP 4 and 5).
   const bank = await bankTerms(t.companyId, { client: !actor.admin, now });
   const improvementLimit = t.terms?.policy.improvementBankLimitMinutes ?? bank?.policy.improvementBankLimitMinutes ?? null;
   const hours: TicketHoursData | null =
