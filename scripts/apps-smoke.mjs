@@ -1,5 +1,6 @@
 import { createPublicKey, randomUUID, verify } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { serializeSignedCookie } from "better-call";
 
 /**
  * Apps inside the Console (CMS, Roteiro Digital, Base Pendente): the public
@@ -163,4 +164,126 @@ export async function runAppsTests({ database: db, ids, people, request, ok, mar
   );
   const dashboard = await request("/painel", "manager");
   ok(dashboard.text.includes(`href="/apps/${app.cms}"`) && !dashboard.text.includes('href="https://www.espacoabsolut.com/admin"'), "O painel abre o CMS dentro do Console");
+
+  await runOpenLinkTests({ db, ids, people, request, ok, marker, base, notFoundPage, app });
+}
+
+/**
+ * /abrir/<app>: where an app sends someone who opened it straight from the
+ * address bar. Sign-in with the way back, the person's product for that app,
+ * a clear refusal when there is none, 404 for an app outside the registry.
+ */
+async function runOpenLinkTests({ db, ids, people, request, ok, marker, base, notFoundPage, app }) {
+  const where = (r) => {
+    const location = r.headers.get("location");
+    if (!location) return null;
+    const url = new URL(location, base);
+    return url.origin === base ? url.pathname + url.search : url.toString();
+  };
+  const redirected = (r, to) => r.status === 307 && where(r) === to;
+  const noStore = (r) => /no-store/.test(r.headers.get("cache-control") ?? "");
+  const refused = (r, appName) =>
+    r.status === 200 && r.text.includes("Este app não está liberado para você") && r.text.includes(appName);
+  // A manager of company B only: the "other company" for the apps of A.
+  const companyB = { id: randomUUID(), email: `qa-company-b-${marker}@example.invalid` };
+  const tokenB = randomUUID();
+  await db.query("insert into console_user (id,name,email,email_verified) values ($1,$2,$3,true)", [companyB.id, "QA B", companyB.email]);
+  await db.query("insert into console_session (id,token,user_id,expires_at) values ($1,$2,$3,$4)", [
+    randomUUID(),
+    tokenB,
+    companyB.id,
+    new Date(Date.now() + 3600000),
+  ]);
+  await db.query("insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')", [randomUUID(), ids.b, companyB.email]);
+  people.companyB = {
+    ...companyB,
+    cookie: (await serializeSignedCookie("anuntech-console.session_token", tokenB, process.env.BETTER_AUTH_SECRET, { path: "/" })).split(";")[0],
+  };
+
+  // No session: sign-in, with the way back to this link.
+  const anonymous = await request("/abrir/espaco-absolut-cms");
+  ok(
+    redirected(anonymous, "/entrar?volta=/abrir/espaco-absolut-cms") && noStore(anonymous),
+    "Sem sessão, o link do app leva ao login com o caminho de volta",
+  );
+  ok(
+    redirected(await request("/abrir/brastemp-roteiro-digital", "expired"), "/entrar?volta=/abrir/brastemp-roteiro-digital"),
+    "Sessão vencida também leva ao login com o caminho de volta",
+  );
+  // The sign-in screens keep only a path to an app, checked on the server.
+  const returnTo = (text, path) => new RegExp(`returnTo\\\\?":\\\\?"${path.replaceAll("/", "\\/")}\\\\?"`).test(text);
+  const signIn = await request("/entrar?volta=/abrir/espaco-absolut-cms");
+  ok(signIn.status === 200 && returnTo(signIn.text, "/abrir/espaco-absolut-cms"), "O login guarda o caminho de volta para o app");
+  const encoded = await request(`/entrar?volta=${encodeURIComponent(`/apps/${app.cms}`)}`);
+  ok(returnTo(encoded.text, `/apps/${app.cms}`), "O login aceita o caminho de volta para /apps/<produto>");
+  for (const volta of ["//evil.com", "/\\evil.com", "https://evil.com", "/abrir/x?y", "/painel", "/abrir/../x", "%2F%2Fevil", ""]) {
+    const page = await request(`/entrar?volta=${encodeURIComponent(volta)}`);
+    ok(
+      page.status === 200 && /returnTo\\?":null/.test(page.text) && !/returnTo\\?":\\?"/.test(page.text),
+      `O login ignora o caminho de volta ${JSON.stringify(volta)}`,
+    );
+  }
+  const second = await request("/verificar-acesso?volta=/abrir/espaco-absolut-cms");
+  ok(second.status === 200 && returnTo(second.text, "/abrir/espaco-absolut-cms"), "A segunda etapa guarda o caminho de volta");
+  const secondEvil = await request(`/verificar-acesso?volta=${encodeURIComponent("//evil.com")}`);
+  ok(/returnTo\\?":null/.test(secondEvil.text), "A segunda etapa ignora caminho de volta fora da lista");
+
+  // A person of the app's company goes to their product; /apps checks the role.
+  const managerLink = await request("/abrir/espaco-absolut-cms", "manager");
+  ok(redirected(managerLink, `/apps/${app.cms}`) && noStore(managerLink), "O Administrador da empresa do app vai direto para o app no Console");
+  ok(
+    redirected(await request("/abrir/brastemp-roteiro-digital", "support"), `/apps/${app.roteiro}`),
+    "O Membro da empresa vai direto para o Roteiro Digital",
+  );
+  ok(
+    redirected(await request("/abrir/espaco-absolut-cms", "support"), `/apps/${app.cms}`),
+    "O Membro também chega à página do CMS, que mostra por que não abre",
+  );
+  ok(
+    redirected(await request("/abrir/mulheresfm-cms", "companyB"), `/apps/${app.other}`),
+    "Quem é da empresa B vai para o app da empresa B",
+  );
+  ok(redirected(await request("/abrir/mulheresfm-cms", "admin"), `/apps/${app.other}`), "A equipe vai para o único produto daquele app");
+
+  // Another company, a paused product, or no company at all: the app is not theirs.
+  const otherCompany = await request("/abrir/espaco-absolut-cms", "companyB");
+  ok(
+    refused(otherCompany, "CMS Espaço Absolut") && otherCompany.text.includes(companyB.email) && !otherCompany.text.includes(app.cms),
+    "Quem é de outra empresa vê que o app não está liberado, sem o produto da outra empresa",
+  );
+  ok(refused(await request("/abrir/mulheresfm-cms", "manager"), "CMS MulheresFM"), "Produto pausado não conta: o app não está liberado");
+  ok(refused(await request("/abrir/espaco-absolut-cms", "outsider"), "CMS Espaço Absolut"), "Conta sem empresa vê que o app não está liberado");
+
+  // Several products for the same app: the list, searched by the app's name.
+  const extra = randomUUID();
+  await db.query("insert into console_engagements(id,company_id,name,kind,status,url) values($1,$2,$3,'product','active',$4)", [
+    extra,
+    ids.b,
+    `0 CMS B ${marker}`,
+    "https://espacoabsolut.com/admin/eventos",
+  ]);
+  try {
+    ok(
+      redirected(await request("/abrir/espaco-absolut-cms", "admin"), `/produtos?q=${encodeURIComponent("CMS Espaço Absolut")}`),
+      "Com mais de um produto do app, a equipe vai para a lista buscando pelo app",
+    );
+    ok(
+      redirected(await request("/abrir/espaco-absolut-cms", "manager"), `/apps/${app.cms}`),
+      "O produto de outra empresa não entra na escolha do Administrador",
+    );
+    ok(redirected(await request("/abrir/espaco-absolut-cms", "companyB"), `/apps/${extra}`), "Cada empresa vai para o próprio produto do app");
+  } finally {
+    await db.query("delete from console_engagements where id=$1", [extra]);
+  }
+
+  // Outside the registry, the link does not exist, with or without a session.
+  for (const [path, who] of [
+    ["/abrir/nao-existe", "manager"],
+    ["/abrir/nao-existe", undefined],
+    ["/abrir/ESPACO-ABSOLUT-CMS", "manager"],
+    ["/abrir/espaco-absolut-cms.evil", undefined],
+  ]) {
+    const r = await request(path, who);
+    ok(notFoundPage(r) && !r.headers.get("location"), `App fora do registro responde 404 (${path}, ${who ?? "sem sessão"})`);
+  }
 }

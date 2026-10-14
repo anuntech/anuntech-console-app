@@ -1,9 +1,17 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { companies, engagements } from "@/db/schema";
 import { db } from "../db";
-import { canAccess, type Actor } from "../access/access";
-import { companyRole, decideAppOpening, type AppBlock, type PassRole, type ProtectedApp } from "./registry";
+import { allowedIds, canAccess, type Actor } from "../access/access";
+import {
+  chooseAppProduct,
+  companyRole,
+  decideAppOpening,
+  type AppBlock,
+  type AppProductChoice,
+  type PassRole,
+  type ProtectedApp,
+} from "./registry";
 
 /**
  * How the person shows up in the pass: the team as "staff" (assisted access
@@ -76,4 +84,27 @@ export async function resolveAppOpening(actor: Actor, id: string): Promise<AppOp
     engagement: { id: row.id, name: row.name, url: row.url },
     company,
   };
+}
+
+/**
+ * Where /abrir/<app> sends `actor`: among the active products of the
+ * companies they reach (every company for the team), the ones whose URL is
+ * this app. The role is not checked here; /apps/<id> checks it again and
+ * says why when it refuses.
+ */
+export async function resolveAppLink(actor: Actor, app: ProtectedApp): Promise<AppProductChoice> {
+  const companyIds = allowedIds(actor, "overview");
+  if (!actor.admin && !companyIds.length) return { kind: "none" };
+  const products = await db
+    .select({ id: engagements.id, kind: engagements.kind, status: engagements.status, url: engagements.url })
+    .from(engagements)
+    .where(
+      and(
+        eq(engagements.kind, "product"),
+        eq(engagements.status, "active"),
+        isNotNull(engagements.url),
+        actor.admin ? undefined : inArray(engagements.companyId, companyIds),
+      ),
+    );
+  return chooseAppProduct(app, products);
 }

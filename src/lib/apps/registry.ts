@@ -133,6 +133,43 @@ export function appForUrl(url: string | null | undefined, apps: readonly Protect
   return apps.find((app) => app.hosts.includes(host) && underEntry(parsed.pathname, app.entry)) ?? null;
 }
 
+/** The app whose id (the pass's `aud`) is `id`, or null when the registry has none. */
+export function appById(id: string, apps: readonly ProtectedApp[] = protectedApps()) {
+  return apps.find((app) => app.id === id) ?? null;
+}
+
+export type AppProductChoice =
+  | { kind: "one"; id: string; href: string }
+  | { kind: "many"; href: string }
+  | { kind: "none" };
+
+/**
+ * Where a link to an app (/abrir/<app>) takes someone, given the products of
+ * the companies they reach. One active product pointing at the app: that
+ * product's page in the Console, which checks the role and says why when it
+ * refuses. Several: the product list, searched by the app's name, to pick
+ * one. None: the app is not theirs.
+ */
+export function chooseAppProduct(
+  app: Pick<ProtectedApp, "id" | "name">,
+  products: readonly { id: string; kind: string; status: string; url: string | null }[],
+  apps: readonly ProtectedApp[] = protectedApps(),
+): AppProductChoice {
+  const ids = [
+    ...new Set(
+      products
+        .filter(
+          (product) =>
+            product.kind === "product" && product.status === "active" && appForUrl(product.url, apps)?.id === app.id,
+        )
+        .map((product) => product.id),
+    ),
+  ];
+  if (ids.length === 1) return { kind: "one", id: ids[0], href: `/apps/${ids[0]}` };
+  if (ids.length > 1) return { kind: "many", href: `/produtos?q=${encodeURIComponent(app.name)}` };
+  return { kind: "none" };
+}
+
 /**
  * A client's role in one company. An account may hold a membership per
  * verified email in the same company; the strongest counts, as in canAccess.
