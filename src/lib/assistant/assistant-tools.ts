@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { allowedIds, canAccess } from "../access/access";
+import { allowedIds, canAccess, canSeeEngagement, canSeeMoney, canSeeTicket, engagementWhere, ticketWhere } from "../access/access";
 import {
   assistantDocuments,
   companies,
@@ -25,7 +25,7 @@ import { formatDocument } from "../companies/company-input";
 import { CLIENT_CONTRACT_STATUSES, contractStatusLabels } from "../contracts/contract-table";
 import { currency, engagementLabels, priorityLabels, ticketLabels } from "../format";
 import { ticketImpacts, ticketKinds } from "../tickets/ticket-intake";
-import { hasPermission, type Area } from "../access/permissions";
+import type { Area } from "../access/permissions";
 import { createQuote } from "../quotes/quote-actions";
 import { DEFAULT_QUOTE_NOTES, hoursLabel, quoteNumberLabel, quoteStatusLabels, quoteTotals, type QuoteContent } from "../quotes/quote-model";
 import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
@@ -86,16 +86,28 @@ const companyOverview = tool({
     if (!canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
     if (!company) throw new ToolError("Empresa não encontrada.");
-    const finance = actor.admin || hasPermission(actor.grants.find((g) => g.company.id === companyId)!.role, "finance");
+    const finance = canSeeMoney(actor, companyId);
     const [openTickets, openInvoices, works, signed, waitingQuotes] = await Promise.all([
-      db.select({ id: tickets.id }).from(tickets).where(and(eq(tickets.companyId, companyId), inArray(tickets.status, [...OPEN_TICKET_STATUSES]))),
+      db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.companyId, companyId),
+            inArray(tickets.status, [...OPEN_TICKET_STATUSES]),
+            ticketWhere(actor, { company: tickets.companyId, engagement: tickets.engagementId, author: tickets.authorId }),
+          ),
+        ),
       finance
         ? db
             .select({ amount: invoices.amountCents, dueDate: invoices.dueDate })
             .from(invoices)
             .where(and(eq(invoices.companyId, companyId), eq(invoices.status, "issued")))
         : [],
-      db.select({ kind: engagements.kind, status: engagements.status }).from(engagements).where(eq(engagements.companyId, companyId)),
+      db
+        .select({ kind: engagements.kind, status: engagements.status })
+        .from(engagements)
+        .where(and(eq(engagements.companyId, companyId), engagementWhere(actor, engagements.id, engagements.companyId))),
       finance ? db.select({ id: contracts.id }).from(contracts).where(and(eq(contracts.companyId, companyId), eq(contracts.status, "signed"))) : [],
       finance ? db.select({ id: quotes.id }).from(quotes).where(and(eq(quotes.companyId, companyId), eq(quotes.status, "sent"))) : [],
     ]);
@@ -283,7 +295,13 @@ const listTickets = tool({
       .select({ id: tickets.id, subject: tickets.subject, status: tickets.status, priority: tickets.priority, company: companies.name, updatedAt: tickets.updatedAt })
       .from(tickets)
       .innerJoin(companies, eq(companies.id, tickets.companyId))
-      .where(and(within(tickets.companyId, ids), situacao === "abertos" ? inArray(tickets.status, [...OPEN_TICKET_STATUSES]) : undefined))
+      .where(
+        and(
+          within(tickets.companyId, ids),
+          ticketWhere(actor, { company: tickets.companyId, engagement: tickets.engagementId, author: tickets.authorId }),
+          situacao === "abertos" ? inArray(tickets.status, [...OPEN_TICKET_STATUSES]) : undefined,
+        ),
+      )
       .orderBy(desc(tickets.updatedAt))
       .limit(limite);
     return {
@@ -308,7 +326,7 @@ const readTicket = tool({
   input: z.object({ chamadoId: id }),
   run: async ({ actor }, { chamadoId }) => {
     const [t] = await db.select().from(tickets).where(eq(tickets.id, chamadoId));
-    if (!t || !canAccess(actor, t.companyId, "support")) throw new ToolError("Chamado não encontrado.");
+    if (!t || !canSeeTicket(actor, t)) throw new ToolError("Chamado não encontrado.");
     const thread = await db
       .select({ body: messages.body, author: user.name, email: user.email, at: messages.createdAt })
       .from(messages)
@@ -376,8 +394,11 @@ const answerTicket = tool({
   input: z.object({ chamadoId: id, mensagem: z.string().trim().min(1).max(10000) }),
   write: true,
   run: async ({ actor }, { chamadoId, mensagem }) => {
-    const [t] = await db.select({ companyId: tickets.companyId, subject: tickets.subject }).from(tickets).where(eq(tickets.id, chamadoId));
-    if (!t || !canAccess(actor, t.companyId, "support")) throw new ToolError("Chamado não encontrado.");
+    const [t] = await db
+      .select({ companyId: tickets.companyId, subject: tickets.subject, engagementId: tickets.engagementId, authorId: tickets.authorId })
+      .from(tickets)
+      .where(eq(tickets.id, chamadoId));
+    if (!t || !canSeeTicket(actor, t)) throw new ToolError("Chamado não encontrado.");
     await submit(replyTicket, { ticketId: chamadoId, body: mensagem });
     return { result: { enviado: true, link: `/chamados/${chamadoId}` }, summary: `Respondi o chamado "${t.subject}"` };
   },
@@ -393,7 +414,13 @@ const listWorks = tool({
       .select({ id: engagements.id, name: engagements.name, kind: engagements.kind, status: engagements.status, description: engagements.description, url: engagements.url, company: companies.name })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
-      .where(and(within(engagements.companyId, ids), tipo === "all" ? undefined : eq(engagements.kind, tipo)))
+      .where(
+        and(
+          within(engagements.companyId, ids),
+          engagementWhere(actor, engagements.id, engagements.companyId),
+          tipo === "all" ? undefined : eq(engagements.kind, tipo),
+        ),
+      )
       .orderBy(asc(engagements.name))
       .limit(60);
     // A product that is a protected app opens inside the Console; its own URL refuses the address bar.
@@ -422,7 +449,7 @@ const listWorks = tool({
 
 async function projectAccess(actor: Actor, engagementId: string) {
   const [work] = await db.select({ id: engagements.id, name: engagements.name, companyId: engagements.companyId, kind: engagements.kind }).from(engagements).where(eq(engagements.id, engagementId));
-  if (!work || !canAccess(actor, work.companyId, "overview")) throw new ToolError("Projeto não encontrado.");
+  if (!work || !canSeeEngagement(actor, work)) throw new ToolError("Projeto não encontrado.");
   return work;
 }
 
@@ -813,12 +840,12 @@ const openSupport = tool({
 
 export const destinations = {
   painel: { href: "/painel", label: "Visão geral" },
-  financeiro: { href: "/financeiro", label: "Financeiro" },
+  financeiro: { href: "/financeiro", label: "Financeiro", area: "finance" as const },
   chamados: { href: "/chamados", label: "Chamados" },
   projetos: { href: "/projetos", label: "Projetos" },
   produtos: { href: "/produtos", label: "Produtos e serviços" },
-  contratos: { href: "/contratos", label: "Contratos" },
-  orcamentos: { href: "/orcamentos", label: "Orçamentos" },
+  contratos: { href: "/contratos", label: "Contratos", area: "finance" as const },
+  orcamentos: { href: "/orcamentos", label: "Orçamentos", area: "finance" as const },
   bookmarks: { href: "/bookmarks", label: "Bookmarks" },
   conta: { href: "/conta", label: "Minha conta" },
   membros: { href: "/configuracoes/membros", label: "Membros" },

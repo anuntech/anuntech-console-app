@@ -7,8 +7,8 @@ import {
   MoreHorizontalIcon,
   ReceiptTextIcon,
   Trash2Icon,
-  WrenchIcon,
 } from "lucide-react";
+import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { ProductIcon } from "@/components/console/product-icon";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
 import { DeleteEngagementDialog } from "@/components/projetos/delete-engagement-dialog";
 import { currency, dateLabel } from "@/lib/format";
@@ -32,10 +33,14 @@ export type ServiceDetailData = {
     description: string | null;
     companyId: string;
     company: string;
-    amountCents: number | null;
-    interval: "monthly" | "yearly" | null;
-    nextDueDate: string | null;
-    subscriptionId: string | null;
+    /** The catalog item's icon, or null for initials. */
+    icon: string | null;
+    /** Present only for viewers who see money (the team and the company's Administradores). */
+    billing?: {
+      amountCents: number | null;
+      interval: "monthly" | "yearly" | null;
+      nextDueDate: string | null;
+    };
     /** Staff only: what points at it, so "Excluir" shows only when it can go. */
     links?: EngagementLinks;
   };
@@ -56,9 +61,10 @@ const SECTIONS = [
 ] as const;
 const intervalLabel = { monthly: "por mês", yearly: "por ano" } as const;
 
-/** What a contracted service is, in the four fixed sections, plus its billing. */
+/** What a contracted service is, in the four fixed sections, plus its billing for those who see money. */
 export function ServiceDetail({ data }: { data: ServiceDetailData }) {
   const { service, sections, viewer } = data;
+  const billing = service.billing;
   const filled = SECTIONS.filter(([key]) => sections[key]);
   const [deleting, setDeleting] = useState(false);
   const deletable = viewer.admin && canDeleteEngagement(service.links);
@@ -67,11 +73,7 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
       <PageHeader
         crumbs={[{ label: "Produtos e serviços", href: "/produtos" }, { label: service.name }]}
         title={service.name}
-        leading={
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent text-primary [&_svg]:size-5">
-            <WrenchIcon />
-          </span>
-        }
+        leading={<ProductIcon src={service.icon} name={service.name} size={44} />}
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <EngagementStatusBadge status={service.status} />
@@ -128,7 +130,7 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
           )
         }
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+      <div className={cn("grid gap-6 lg:items-start", billing && "lg:grid-cols-[minmax(0,1fr)_300px]")}>
         <div className="flex min-w-0 flex-col gap-6">
           {filled.length ? (
             filled.map(([key, title]) => (
@@ -151,38 +153,40 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
             </Card>
           )}
         </div>
-        <aside className="flex min-w-0 flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <SectionTitle title="Cobrança" />
-            </CardHeader>
-            <CardContent>
-              {service.amountCents != null ? (
-                <dl className="grid gap-4">
-                  <Fact label="Valor">
-                    {currency(service.amountCents)}
-                    {service.interval && (
-                      <span className="text-muted-foreground"> {intervalLabel[service.interval]}</span>
+        {billing && (
+          <aside className="flex min-w-0 flex-col gap-6">
+            <Card>
+              <CardHeader>
+                <SectionTitle title="Cobrança" />
+              </CardHeader>
+              <CardContent>
+                {billing.amountCents != null ? (
+                  <dl className="grid gap-4">
+                    <Fact label="Valor">
+                      {currency(billing.amountCents)}
+                      {billing.interval && (
+                        <span className="text-muted-foreground"> {intervalLabel[billing.interval]}</span>
+                      )}
+                    </Fact>
+                    {billing.nextDueDate && (
+                      <Fact label="Próximo vencimento">{dateLabel(billing.nextDueDate)}</Fact>
                     )}
-                  </Fact>
-                  {service.nextDueDate && (
-                    <Fact label="Próximo vencimento">{dateLabel(service.nextDueDate)}</Fact>
-                  )}
-                </dl>
-              ) : (
-                <p className="text-sm text-muted-foreground">Sem cobrança vinculada.</p>
-              )}
-              {viewer.admin && (
-                <Button variant="ghost" size="sm" className="mt-3 -ml-2" asChild>
-                  <Link href={`/financeiro?company=${service.companyId}`}>
-                    <ReceiptTextIcon />
-                    Ver no Financeiro
-                  </Link>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </aside>
+                  </dl>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sem cobrança vinculada.</p>
+                )}
+                {viewer.admin && (
+                  <Button variant="ghost" size="sm" className="mt-3 -ml-2" asChild>
+                    <Link href={`/financeiro?company=${service.companyId}`}>
+                      <ReceiptTextIcon />
+                      Ver no Financeiro
+                    </Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </aside>
+        )}
       </div>
       {deletable && (
         <DeleteEngagementDialog

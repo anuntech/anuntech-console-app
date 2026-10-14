@@ -183,6 +183,9 @@ export const memberships = pgTable(
     email: text("email").notNull(),
     role: text("role", { enum: ["manager", "member"] }).notNull(),
     active: boolean("active").notNull().default(true),
+    /** Membros: "all" sees every product, service and project of the company;
+        "selected" only the ones in console_membership_engagements. Administradores always see all. */
+    engagementAccess: text("engagement_access", { enum: ["all", "selected"] }).notNull().default("all"),
     createdAt: created(),
   },
   (t) => [
@@ -481,6 +484,9 @@ export const catalogItems = pgTable("console_catalog_items", {
   expectedResults: text("expected_results"),
   deadlines: text("deadlines"),
   active: boolean("active").notNull().default(true),
+  /** A bundled gallery path ("/brand/catalog-icons/x.webp") or a private blob
+      pathname ("catalog-icons/<id>/<uuid>.webp"); see src/lib/catalog/catalog-icons.ts. */
+  icon: text("icon"),
   createdAt: created(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -510,6 +516,23 @@ export const engagements = pgTable(
     createdAt: created(),
   },
   (t) => [index("console_engagement_company_idx").on(t.companyId)],
+);
+/** What a Membro with engagement_access "selected" sees. */
+export const membershipEngagements = pgTable(
+  "console_membership_engagements",
+  {
+    membershipId: text("membership_id")
+      .notNull()
+      .references(() => memberships.id, { onDelete: "cascade" }),
+    engagementId: text("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    createdAt: created(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.membershipId, t.engagementId] }),
+    index("console_membership_engagements_engagement_idx").on(t.engagementId),
+  ],
 );
 /** Work inside a project: one card on the board. `company_id` mirrors the
     project's company so access checks never need a join. */

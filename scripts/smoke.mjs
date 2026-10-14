@@ -7,6 +7,8 @@ import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
+import { runMemberScopeTests } from "./member-scope-smoke.mjs";
+import { runCatalogIconTests } from "./catalog-icons-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -118,7 +120,10 @@ function actionBody(name, values) {
   body.set("$ACTION_REF_1", "");
   body.set("$ACTION_1:0", JSON.stringify({ id: found[0][0], bound: "$@1" }));
   body.set("$ACTION_1:1", "[null]");
-  for (const [key, value] of Object.entries(values)) body.set(key, value);
+  // An array posts the field once per value, like checkboxes of the same name.
+  for (const [key, value] of Object.entries(values))
+    if (Array.isArray(value)) for (const each of value) body.append(key, each);
+    else body.set(key, value);
   return body;
 }
 async function submitForm(page, reader, sender, identifier, values) {
@@ -2105,6 +2110,8 @@ try {
   await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
   await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
   await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
+  await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
+  await runMemberScopeTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );
@@ -2136,7 +2143,8 @@ try {
   // Conditions point at contracts, links point at proposals; automation records go before companies and people.
   for (const table of ["console_time_entries", "console_hours_months", "console_service_terms"])
     await database.query(`delete from ${table} where company_id=any($1::text[])`, [companyIds]);
-  await database.query("update console_engagements set quote_id=null where company_id=any($1::text[])", [companyIds]);
+  // Products point at recurrences (and proposals): unlink before deleting those.
+  await database.query("update console_engagements set quote_id=null, subscription_id=null where company_id=any($1::text[])", [companyIds]);
   // Project journeys point at companies, proposals and people: they go first.
   await database.query(
     "delete from console_journey_steps where journey_id in (select id from console_journeys where company_id=any($1::text[]) or owner_id=any($2::text[]))",

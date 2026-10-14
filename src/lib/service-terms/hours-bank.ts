@@ -1,4 +1,5 @@
 import "server-only";
+import { scopeIncludes, type EngagementScope } from "../access/engagement-scope";
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { automationEvents, hoursMonths, serviceTerms, timeEntries, tickets, user } from "@/db/schema";
 import { db } from "../db";
@@ -22,7 +23,12 @@ export const nextMonth = (month: string) => {
 };
 
 /** Who looks: a client sees the bank only once its conditions are published; the team sees it a week earlier. */
-export type BankAudience = { client?: boolean; now?: Date };
+export type BankAudience = {
+  client?: boolean;
+  now?: Date;
+  /** A Membro with a selection: the lines about other products and projects stay out (the totals do not change). */
+  engagements?: EngagementScope;
+};
 
 /** The company's conditions that hold an hours bank (SUP 3.1), if any. */
 export async function bankTerms(companyId: string, audience: BankAudience = {}, executor: Executor = db): Promise<TermsSnapshot | null> {
@@ -47,7 +53,18 @@ export type BankMonth = {
   usedMinutes: number;
   overageApprovedMinutes: number;
   alertPercent: number;
-  entries: { id: string; minutes: number; note: string; workedOn: string; kind: string; ticketId: string | null; ticket: string | null; author: string }[];
+  entries: {
+    id: string;
+    minutes: number;
+    note: string;
+    workedOn: string;
+    kind: string;
+    ticketId: string | null;
+    ticket: string | null;
+    author: string;
+    /** The product or project the hours were about (the entry's, else its ticket's). */
+    engagementId: string | null;
+  }[];
   reportSentAt: string | null;
   contestedAt: string | null;
   contestNote: string | null;
@@ -73,6 +90,7 @@ export async function bankMonth(companyId: string, month = monthOf(), audience: 
         ticketId: timeEntries.ticketId,
         ticket: tickets.subject,
         author: user.name,
+        engagementId: sql<string | null>`coalesce(${timeEntries.engagementId}, ${tickets.engagementId})`,
       })
       .from(timeEntries)
       .innerJoin(user, eq(user.id, timeEntries.authorId))
@@ -122,7 +140,7 @@ export function finalReport(reportSentAt: string | null, month: string, lastLogg
 export type BankCard = Omit<BankMonth, "terms" | "entries"> & {
   companyId: string;
   companyName: string;
-  entries: Omit<BankMonth["entries"][number], "ticketId">[];
+  entries: Omit<BankMonth["entries"][number], "ticketId" | "engagementId">[];
   /** When this month's 80% alert went out (once a month; see hours-delivery.ts). */
   alertSentAt: string | null;
   /** Last month, while its report waits to be sent (team) or can still be contested (client). */
@@ -153,7 +171,9 @@ export async function bankCard(companyId: string, companyName: string, audience:
     companyId,
     companyName,
     alertSentAt: alert?.at.toISOString() ?? null,
-    entries: entries.map(({ ticketId: _ticket, ...e }) => (void _ticket, e)),
+    entries: entries
+      .filter((e) => !audience.engagements || !e.engagementId || scopeIncludes(audience.engagements, e.engagementId))
+      .map(({ ticketId: _ticket, engagementId: _engagement, ...e }) => (void _ticket, void _engagement, e)),
     previous: lastOpen && last
       ? { month: last.month, usedMinutes: last.usedMinutes, includedMinutes: last.includedMinutes, overageApprovedMinutes: last.overageApprovedMinutes, reportSentAt: last.reportSentAt, contestedAt: last.contestedAt, contestUntil: last.contestUntil, final: lastFinal }
       : null,

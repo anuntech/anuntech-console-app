@@ -96,6 +96,8 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_time_entries.engagement_id": "null",
     "console_journeys.engagement_id": "null",
     "console_journeys.hosting_engagement_id": "null",
+    // Gone with it by the database (on delete cascade): a Membro's selection.
+    "console_membership_engagements.engagement_id": "not null",
   });
   assert.deepEqual(pointingAt(schema.tasks), {
     "console_task_assignees.task_id": "not null",
@@ -129,6 +131,8 @@ test("the children deleted with a company or its work are all accounted for", ()
   });
   assert.deepEqual(pointingAt(schema.memberships), {
     "console_email_deliveries.membership_id": "not null",
+    // On delete cascade.
+    "console_membership_engagements.membership_id": "not null",
   });
   assert.deepEqual(pointingAt(schema.bookmarkFolders), {
     "console_bookmark_folder_shares.folder_id": "not null",
@@ -145,6 +149,7 @@ test("the children deleted with a company or its work are all accounted for", ()
     schema.bookmarkFolderShares,
     schema.notificationPreferences,
     schema.journeySteps,
+    schema.membershipEngagements,
   ])
     assert.deepEqual(pointingAt(leaf), {}, getTableConfig(leaf).name);
 });

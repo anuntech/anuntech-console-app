@@ -12,6 +12,7 @@ import { FormField } from "@/components/console/form-field";
 import { FormSheet } from "@/components/console/form-sheet";
 import { MoneyField } from "@/components/console/money-field";
 import { saveCatalogItem } from "@/lib/catalog/catalog-actions";
+import { CatalogIconField } from "./catalog-icon-field";
 
 export type CatalogItemValues = {
   id?: string;
@@ -25,6 +26,8 @@ export type CatalogItemValues = {
   whatWeNeed: string | null;
   expectedResults: string | null;
   deadlines: string | null;
+  /** A gallery path or a stored blob pathname; see lib/catalog/catalog-icons.ts. */
+  icon: string | null;
 };
 
 const KINDS = [
@@ -44,10 +47,13 @@ export function CatalogSheet({
   open,
   onOpenChange,
   item,
+  iconAi = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: CatalogItemValues | null;
+  /** Offers "Gerar com IA" in the icon field (existing items only). */
+  iconAi?: boolean;
 }) {
   return (
     <FormSheet
@@ -63,14 +69,16 @@ export function CatalogSheet({
       pendingLabel={item ? "Salvando…" : "Adicionando…"}
     >
       {item?.id && <input type="hidden" name="id" value={item.id} />}
-      <CatalogFields item={item} />
+      <CatalogFields item={item} iconAi={iconAi} />
     </FormSheet>
   );
 }
 
 /* Lives inside the form so the chosen kind starts over with each item. */
-function CatalogFields({ item }: { item: CatalogItemValues | null }) {
+function CatalogFields({ item, iconAi }: { item: CatalogItemValues | null; iconAi: boolean }) {
   const [kind, setKind] = useState<"product" | "service">(item?.kind ?? "product");
+  // Follows the field, for the icon preview (initials, or the gallery icon a new item will get).
+  const [name, setName] = useState(item?.name ?? "");
   return (
     <>
       <fieldset className="min-w-0">
@@ -108,6 +116,7 @@ function CatalogFields({ item }: { item: CatalogItemValues | null }) {
           maxLength={160}
           autoFocus
           defaultValue={item?.name ?? ""}
+          onChange={(event) => setName(event.target.value)}
           placeholder={kind === "product" ? "Ex.: Synova" : "Ex.: Gestão de tráfego"}
         />
       </FormField>
@@ -122,6 +131,7 @@ function CatalogFields({ item }: { item: CatalogItemValues | null }) {
           className="min-h-20"
         />
       </FormField>
+      <CatalogIconField itemId={item?.id} name={name} initialIcon={item?.icon ?? null} iconAi={iconAi} />
       {kind === "product" && (
         <FormField label="Link do produto" htmlFor="catalog-url">
           <Input

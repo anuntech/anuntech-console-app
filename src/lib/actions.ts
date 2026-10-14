@@ -13,7 +13,7 @@ import { automationOn } from "./automations/automations";
 import { db } from "./db";
 import { resolveBankDueDate } from "./billing/billing-notice-rules";
 import { saoPauloDate } from "./dates";
-import { getActor, canAccess } from "./access/access";
+import { getActor, canAccess, canSeeEngagement, canSeeTicket } from "./access/access";
 import {
   companies,
   engagements,
@@ -294,7 +294,8 @@ export async function createTicket(
               eq(engagements.companyId, input.companyId),
             ),
           );
-        if (!eng) throw Error();
+        // A forged id never opens a request about a product the person does not see.
+        if (!eng || !canSeeEngagement(actor, eng, "support")) throw Error();
       }
       // The conditions in force now stay with the ticket, so a later change never moves a deadline already given.
       const terms = snapshotOf(await governingTerms(input.companyId, input.engagementId || null, tx));
@@ -413,7 +414,7 @@ export async function replyTicket(
         .from(tickets)
         .where(eq(tickets.id, input.ticketId))
         .for("update");
-      if (!ticket || !canAccess(actor, ticket.companyId, "support"))
+      if (!ticket || !canSeeTicket(actor, ticket))
         return blocked;
       if (ticket.status === "closed")
         return {

@@ -3,6 +3,7 @@ import { asc } from "drizzle-orm";
 import { catalogItems } from "@/db/schema";
 import { requireAdmin } from "@/lib/access/access";
 import { db } from "@/lib/db";
+import { iconAiEnabled } from "@/lib/catalog/icon-ai";
 import { CatalogTable } from "./catalog-table";
 
 /** Everything Anuntech offers, for staff to keep current. */
@@ -22,8 +23,11 @@ export async function CatalogSection() {
       expectedResults: catalogItems.expectedResults,
       deadlines: catalogItems.deadlines,
       active: catalogItems.active,
+      icon: catalogItems.icon,
     })
     .from(catalogItems)
     .orderBy(asc(catalogItems.active), asc(catalogItems.name));
-  return <CatalogTable rows={rows.sort((a, b) => Number(b.active) - Number(a.active))} />;
+  return (
+    <CatalogTable rows={rows.sort((a, b) => Number(b.active) - Number(a.active))} iconAi={iconAiEnabled()} />
+  );
 }

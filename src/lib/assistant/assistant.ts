@@ -5,7 +5,7 @@ import { visibleToClient } from "../service-terms/ticket-clock";
 import { termsSummary } from "../service-terms/terms-text";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
-import type { Actor } from "../access/access";
+import { canSeeEngagement, type Actor } from "../access/access";
 import { assistantDocuments, assistantSettings } from "@/db/schema";
 import { saoPauloDate } from "../dates";
 import { longDateLabel } from "../format";
@@ -96,6 +96,8 @@ async function termsText(actor: Actor) {
   for (const grant of actor.grants) {
     const rows = await companyTerms(grant.company.id);
     for (const row of rows) {
+      // A product's own conditions only for those who see that product.
+      if (row.engagementId && !canSeeEngagement(actor, { id: row.engagementId, companyId: grant.company.id })) continue;
       const snapshot = snapshotOf(row);
       if (!snapshot || !visibleToClient(snapshot, now)) continue;
       const { promises, asks } = termsSummary(snapshot);

@@ -23,7 +23,7 @@ Cada conta pertence a um ambiente só: a operação Anuntech ou uma empresa clie
 | Dono do Console | Anuntech | Tudo, e é o único que concede ou retira administração da equipe |
 | Equipe Anuntech | Anuntech | Todos os clientes e todas as áreas, catálogo, modelos, integrações e assistente |
 | Administrador da empresa | Cliente | Tudo da própria empresa: financeiro, contratos, orçamentos, membros, dados e notificações |
-| Membro da empresa | Cliente | Visão geral, chamados, projetos, produtos e bookmarks da própria empresa |
+| Membro da empresa | Cliente | Visão geral, chamados, projetos, produtos e bookmarks da própria empresa, sem valores nem vencimentos; o Administrador pode limitar a alguns produtos, serviços e projetos |
 
 Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa adicionar a pessoa. Toda leitura e toda alteração é autorizada no servidor.
 
@@ -61,6 +61,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Adicionar uma pessoa envia um e-mail com o link de entrada. Ela aparece como convidada até o primeiro acesso. O Console confere a entrega do convite (entregue, não chegou); "Reenviar convite", no menu da pessoa, vale uma vez por semana. Convites sem primeiro acesso há 3 dias entram no painel e no resumo da equipe.
 - A cada 6 meses, o passo "Revise quem tem acesso" volta para o Administrador do cliente, mesmo com os Primeiros passos ocultos.
 - Ninguém remove nem rebaixa o próprio acesso, e ninguém remove o último administrador de uma empresa.
+- "O que esta pessoa vê" (no convite, em Editar permissão e no menu da pessoa, para Membros; o Administrador em Configurações → Membros e a equipe na página da empresa): Tudo da empresa (o padrão, inclusive o que entrar depois) ou Só o que eu escolher, marcando produtos, serviços e projetos. Com escolha, a pessoa só vê esses itens em Produtos, apps abertos no Console (`/apps`, `/abrir`), Projetos (quadro, tarefas, anexos e responsáveis), Visão geral, formulário de chamado, Como trabalhamos, banco de horas e assistente; chamados sobre os outros itens somem, menos os que ela abriu, e chamados sem produto continuam visíveis. Nada marcado mostra nada, nunca tudo. Item novo só aparece quando o Administrador marca. Salvar o papel sem mexer na escolha a mantém; remover o acesso a apaga. A lista mostra "Vê: Tudo da empresa" ou "Vê: 3 itens".
 
 ### Chamados
 
@@ -86,8 +87,10 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 ### Projetos, produtos e serviços
 
 - Cada empresa tem vínculos do tipo produto, projeto ou serviço, com situação ativa, pausada ou concluída.
+- Produtos e serviços, para o cliente: um lançador com o ícone do item, o nome, uma linha e o que o clique faz (Abrir ↗ para produto com link, Ver detalhes para serviço, Link em breve sem link), sem valor e sem menu; a situação aparece só quando não está ativo. No celular viram linhas. Lista curta sem nada pausado não mostra busca nem filtro. Valor e próximo vencimento só para a equipe e para o Administrador da empresa (na Lista e na página do serviço); um Membro não recebe esses dados nem nos dados da página.
 - Projetos têm quadro Kanban: backlog, a fazer, em andamento, revisão e concluído. Tarefa criada pelo cliente entra no Backlog como pedido até a equipe aceitar; só a equipe conclui; em Revisão, um Administrador da empresa aprova ou aponta um problema, com o prazo de teste do contrato quando houver. "Sobre este projeto" mostra o objetivo e as regras do quadro. Tarefas com prioridade, prazo, etiquetas, estimativa, responsáveis (membros da empresa e equipe), anexos e comentários (com anexos, edição e exclusão pelo autor).
 - O catálogo da equipe define produtos e serviços com preço e periodicidade. Vincular um item a uma empresa cria o vínculo e, se for o caso, a cobrança.
+- Cada item do catálogo tem um ícone, que aparece para todos os clientes do item: galeria da Anuntech (o logo oficial do Synova e ícones gerados no Higgsfield), imagem enviada (PNG, JPEG ou WebP, convertida para 256 px) ou Gerar com IA (4 opções a partir do nome e da descrição; as não escolhidas são descartadas). Item novo sem ícone recebe um da galeria pelo nome. Sem item do catálogo, o vínculo mostra as iniciais.
 
 ### Apps dentro do Console
 

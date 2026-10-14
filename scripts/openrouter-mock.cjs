@@ -4,8 +4,79 @@
 // last user message, so the assistant's tool loop, permissions and UI can be
 // exercised without a real model. Records every request for inspection.
 const fs = require("node:fs");
+const { MockAgent, setGlobalDispatcher } = require("undici");
 const originalFetch = globalThis.fetch;
 const log = process.env.CONSOLE_TEST_ASSISTANT_FILE;
+
+/*
+ * Vercel Blob stand-in, in memory: uploaded catalog icons (and anything else on
+ * Blob) never reach a real store from the test server. @vercel/blob calls
+ * undici's own fetch, not globalThis.fetch, and undici reads its global
+ * dispatcher, so a MockAgent answers the Blob API and the store hosts and lets
+ * every other request through untouched. The token only names a fake store.
+ */
+process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_consoletest_mock";
+const blobs = new Map();
+const blobAgent = new MockAgent();
+blobAgent.enableNetConnect();
+const blobJson = (statusCode, value) => ({ statusCode, data: JSON.stringify(value), responseOptions: { headers: { "content-type": "application/json" } } });
+const blobHeader = (headers, name) => {
+  const entries = Array.isArray(headers) ? Object.fromEntries(headers.reduce((pairs, value, index) => (index % 2 ? pairs : [...pairs, [headers[index], headers[index + 1]]]), [])) : headers ?? {};
+  const key = Object.keys(entries).find((k) => k.toLowerCase() === name);
+  return key ? String(entries[key]) : "";
+};
+const blobBytes = (body) => (typeof body === "string" ? Buffer.from(body) : ArrayBuffer.isView(body) ? Buffer.from(body.buffer, body.byteOffset, body.byteLength) : null);
+const blobApi = blobAgent.get("https://vercel.com");
+blobApi
+  .intercept({ path: (path) => /^\/api\/blob\/?\?/.test(path), method: "PUT" })
+  .reply((opts) => {
+    const pathname = new URL(opts.path, "https://vercel.com").searchParams.get("pathname");
+    const body = blobBytes(opts.body);
+    if (!pathname || !body) return blobJson(400, { error: { code: "bad_request", message: "Invalid upload" } });
+    if (blobs.has(pathname) && blobHeader(opts.headers, "x-allow-overwrite") !== "1")
+      return blobJson(400, { error: { code: "bad_request", message: "This blob already exists" } });
+    const contentType = blobHeader(opts.headers, "x-content-type") || "application/octet-stream";
+    blobs.set(pathname, { body, contentType });
+    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), blob: "put", pathname, bytes: body.length }) + "\n");
+    const url = `https://consoletest.${blobHeader(opts.headers, "x-vercel-blob-access") || "private"}.blob.vercel-storage.com/${pathname}`;
+    return blobJson(200, { url, downloadUrl: `${url}?download=1`, pathname, contentType, contentDisposition: "inline", etag: '"mock"' });
+  })
+  .persist();
+blobApi
+  .intercept({ path: (path) => /^\/api\/blob\/delete\b/.test(path), method: "POST" })
+  .reply((opts) => {
+    const { urls = [] } = JSON.parse(blobBytes(opts.body)?.toString("utf8") || "{}");
+    for (const value of urls) {
+      const pathname = /^https?:\/\//.test(value) ? decodeURIComponent(new URL(value).pathname.slice(1)) : value;
+      blobs.delete(pathname);
+      if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), blob: "delete", pathname }) + "\n");
+    }
+    return blobJson(200, {});
+  })
+  .persist();
+blobAgent
+  .get(/^https:\/\/[a-z0-9-]+\.(?:private|public)\.blob\.vercel-storage\.com$/)
+  .intercept({ path: () => true, method: "GET" })
+  .reply((opts) => {
+    const blob = blobs.get(decodeURIComponent(new URL(opts.path, "https://store.invalid").pathname.slice(1)));
+    if (!blob) return { statusCode: 404, data: "" };
+    return { statusCode: 200, data: blob.body, responseOptions: { headers: { "content-type": blob.contentType, "content-length": String(blob.body.length) } } };
+  })
+  .persist();
+setGlobalDispatcher(blobAgent);
+
+/** Small valid PNGs in different colors, standing in for generated icons. */
+async function mockImages(n) {
+  const sharp = require("sharp");
+  const colors = ["#1a428a", "#0f766e", "#b45309", "#7c3aed", "#be123c", "#0369a1"];
+  return Promise.all(
+    Array.from({ length: n }, (_, index) =>
+      sharp({ create: { width: 64, height: 64, channels: 3, background: colors[index % colors.length] } })
+        .png()
+        .toBuffer(),
+    ),
+  );
+}
 
 const call = (name, args) => ({
   id: `call_${Math.random().toString(36).slice(2, 10)}`,
@@ -202,13 +273,32 @@ globalThis.fetch = async function (input, init) {
   if (
     !url.includes("openrouter.ai/api/v1/chat/completions") &&
     !url.includes("openrouter.ai/api/v1/systemone") &&
-    !url.includes("openrouter.ai/api/v1/audio/transcriptions")
+    !url.includes("openrouter.ai/api/v1/audio/transcriptions") &&
+    !url.includes("openrouter.ai/api/v1/images")
   )
     return originalFetch.apply(this, arguments);
   // Live mode: let the real OpenRouter answer, bypassing the OTP harness's outbound block.
   if (process.env.CONSOLE_TEST_OPENROUTER_LIVE === "1" && globalThis.__nativeFetch) {
     if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), live: true, url, model: JSON.parse(init.body).model }) + "\n");
     return globalThis.__nativeFetch.apply(this, arguments);
+  }
+  if (url.includes("/api/v1/images")) {
+    // Catalog icons: n small PNGs. The prompt is never logged, only its size.
+    // A hint with FALHA-ICONE fails every model; UM-POR-VEZ refuses n > 1, like single-image providers.
+    const req = JSON.parse(init.body);
+    const prompt = String(req.prompt ?? "");
+    const n = Math.max(1, Math.min(Number(req.n) || 1, 10));
+    if (log)
+      fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), images: true, model: req.model, n, aspectRatio: req.aspect_ratio, promptChars: prompt.length }) + "\n");
+    const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+    if (prompt.includes("FALHA-ICONE")) return json({ error: { message: "Provider unavailable" } }, 503);
+    if (prompt.includes("UM-POR-VEZ") && n > 1) return json({ error: { message: "n must be 1 for this model" } }, 400);
+    const images = await mockImages(n);
+    return json({
+      created: Math.floor(Date.now() / 1000),
+      data: images.map((image) => ({ b64_json: image.toString("base64"), media_type: "image/png" })),
+      usage: { cost: 0.001 * n },
+    });
   }
   if (url.includes("/audio/transcriptions")) {
     // Speech to text: logs what was asked (never the audio) and answers by the first bytes.

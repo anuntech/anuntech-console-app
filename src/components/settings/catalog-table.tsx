@@ -7,7 +7,6 @@ import {
   PackageIcon,
   PencilIcon,
   PlusIcon,
-  WrenchIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -22,8 +21,10 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/console/page-header";
 import { LinkRow, ListCard, PrimaryCell, RowActions } from "@/components/console/list-view";
+import { ProductIcon } from "@/components/console/product-icon";
 import { ServerForm } from "@/components/console/server-form";
 import { toggleCatalogItem } from "@/lib/catalog/catalog-actions";
+import { catalogIconSrc } from "@/lib/catalog/catalog-icons";
 import { currency } from "@/lib/format";
 import { CatalogSheet, type CatalogItemValues } from "./catalog-sheet";
 
@@ -58,7 +59,7 @@ export function NewCatalogItemButton() {
 }
 
 /** The catalog as the standard list table, with a sheet for editing. */
-export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
+export function CatalogTable({ rows, iconAi = false }: { rows: CatalogRow[]; iconAi?: boolean }) {
   // The item stays set while the sheet slides out, so its fields don't blank.
   const [editor, setEditor] = useState<{ open: boolean; item: CatalogRow | null }>({ open: false, item: null });
   const formRef = useRef<HTMLFormElement>(null);
@@ -97,11 +98,7 @@ export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
                     ]
                       .filter(Boolean)
                       .join(" · ")}
-                    leading={
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
-                        {row.kind === "product" ? <PackageIcon /> : <WrenchIcon />}
-                      </span>
-                    }
+                    leading={<ProductIcon src={catalogIconSrc(row.id, row.icon)} name={row.name} size={32} />}
                   />
                   <TableCell>
                     <ActiveStatus active={row.active} />
@@ -146,6 +143,7 @@ export function CatalogTable({ rows }: { rows: CatalogRow[] }) {
         open={editor.open}
         onOpenChange={(open) => setEditor((current) => ({ ...current, open }))}
         item={editor.item}
+        iconAi={iconAi}
       />
       <ServerForm ref={formRef} action={toggleCatalogItem}>
         <input type="hidden" name="id" value={toggling} />

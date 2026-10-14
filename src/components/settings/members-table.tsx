@@ -19,6 +19,7 @@ import { roleLabels } from "@/lib/format";
 import { clampPage, DEFAULT_PAGE_SIZE, offsetOf, pageCountOf, type PageQuery } from "@/lib/list-query";
 import { IllustratedAvatar } from "./illustrated-avatar";
 import { InviteForm, MemberMenu } from "./member-actions";
+import { scopeSummary, type MemberScope, type ScopeEngagement } from "./member-access-fields";
 
 export type Person = {
   key: string;
@@ -31,6 +32,8 @@ export type Person = {
   role: string;
   /** Rows nobody can act on (the Console owner). */
   fixed?: string;
+  /** A Membro's products, services and projects (company environments only). */
+  scope?: MemberScope;
 };
 
 const pill = "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap";
@@ -57,12 +60,15 @@ export function MembersTable({
   companyId,
   staff,
   canAct,
+  engagements,
 }: {
   people: Person[];
   companyId?: string;
   staff: boolean;
   /** May invite, change and remove people. */
   canAct: boolean;
+  /** The company's products, services and projects, to choose what each Membro sees. */
+  engagements?: ScopeEngagement[];
 }) {
   const [paging, setPaging] = useState<PageQuery>({ page: 1, pageSize: DEFAULT_PAGE_SIZE });
   // After a removal the last page can empty out; show the one before it.
@@ -74,7 +80,7 @@ export function MembersTable({
       toolbar={
         canAct && (
           <div className="w-full py-1">
-            <InviteForm companyId={companyId} staff={staff} />
+            <InviteForm companyId={companyId} staff={staff} engagements={engagements} />
           </div>
         )
       }
@@ -135,9 +141,14 @@ export function MembersTable({
                   </span>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  <Badge variant={person.role === "manager" || person.fixed ? "default" : "secondary"}>
-                    {person.fixed || roleLabels[person.role] || person.role}
-                  </Badge>
+                  <span className="flex flex-col items-start gap-1">
+                    <Badge variant={person.role === "manager" || person.fixed ? "default" : "secondary"}>
+                      {person.fixed || roleLabels[person.role] || person.role}
+                    </Badge>
+                    {person.role === "member" && person.scope && (
+                      <span className="text-xs text-muted-foreground">{`Vê: ${scopeSummary(person.scope)}`}</span>
+                    )}
+                  </span>
                 </TableCell>
                 {/* MemberMenu brings RowActions' own trigger and its dialogs. */}
                 <TableCell className="w-12 pr-3 text-right" data-row-ignore>
@@ -149,6 +160,8 @@ export function MembersTable({
                       role={person.role}
                       pending={person.pending}
                       staff={staff}
+                      engagements={engagements}
+                      scope={person.scope}
                     />
                   )}
                 </TableCell>

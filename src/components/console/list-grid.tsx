@@ -57,8 +57,8 @@ export function ViewToggle({ view, onChange }: { view: ListLayout; onChange: (vi
 }
 
 /** The cards, in as many columns as fit. */
-export function CardGrid({ children }: { children: ReactNode }) {
-  return <ul className="m-0 grid list-none gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{children}</ul>;
+export function CardGrid({ children, className }: { children: ReactNode; className?: string }) {
+  return <ul className={cn("m-0 grid list-none gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4", className)}>{children}</ul>;
 }
 
 const InCard = createContext(false);

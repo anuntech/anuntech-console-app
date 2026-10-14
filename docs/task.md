@@ -10,6 +10,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 - [ ] Apagar pela interface os registros de teste criados em produção durante o QA. Desde 08/10, Configurações → Limpeza lista os candidatos, filhos antes da empresa.
 - [ ] Passar os parâmetros fiscais da contabilidade para ligar a emissão de NFS-e pela Focus.
 - [ ] Especificar Relatórios.
+- [ ] Ícones do catálogo (14/10): conferir em Configurações → Catálogo o ícone que cada item recebeu pelo nome (a migração escolheu da galeria) e trocar os que não combinarem; o Synova usa o logo oficial. Depois, revisar com os clientes que têm mais de uma pessoa quem deve ver só alguns produtos ("O que esta pessoa vê", em Membros).
 
 - [ ] Como trabalhamos: marcar no documento do plano as decisões D1 a D24 (as recomendações foram aplicadas por padrão). O e-mail automático de 80% do banco (D19) foi autorizado no pedido de 08/10 e entra com o interruptor em Configurações → Automações. Falta definir a cidade da sede e os feriados em Configurações → Dados da empresa (D6), e levar ao advogado as mudanças de texto dos modelos (D1, D2, D8, D10, D16).
 - [ ] Ditado por microfone: testar no próprio iPhone e num Android logo depois da publicação (assistente e Abrir chamado) e conferir o custo no OpenRouter depois das primeiras gravações. Decidir se o microfone também entra na resposta do chamado.
@@ -24,6 +25,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 ## Engenharia
 
 - [ ] Dividir `src/lib/actions.ts` (empresas, vínculos, chamados, faturas) entre as pastas de domínio.
+- [ ] O que um Membro vê (14/10): quando a equipe cria um projeto a partir de um pedido "App ou projeto novo" de um Membro com escolha, ele não vê o projeto até o Administrador marcar. Avaliar oferecer "dar acesso a quem pediu" na criação. Os e-mails de chamado ainda citam o assunto, que pode nomear um produto fora da escolha (vão só para quem abriu e para os contatos de aviso).
 - [ ] Levar o CSS antigo para Tailwind: `@layer legacy` em `src/app/globals.css` (cerca de 1.400 linhas), `components/shell/dock.module.css`, `components/shell/public-layout.module.css` e a tela `/acesso-pendente`. No fim, remover a camada `legacy`.
 - [ ] Webhook do Inter para confirmar pagamento na hora, mantendo a conciliação a cada 5 minutos como garantia.
 - [ ] Testes de navegador (Playwright como dependência de desenvolvimento) para dock, painéis laterais, assistente e tema escuro. Os antigos foram removidos em 28/09 porque dependiam de uma instalação que o projeto nunca teve.

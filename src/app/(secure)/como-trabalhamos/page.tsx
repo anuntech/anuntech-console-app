@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { inArray } from "drizzle-orm";
 import { engagements } from "@/db/schema";
 import { db } from "@/lib/db";
-import { getActor } from "@/lib/access/access";
+import { canSeeEngagement, getActor } from "@/lib/access/access";
 import { companyTerms, snapshotOf } from "@/lib/service-terms/terms";
 import { visibleToClient } from "@/lib/service-terms/ticket-clock";
 import { termsSummary } from "@/lib/service-terms/terms-text";
@@ -31,6 +31,8 @@ export default async function HowWeWork() {
       company: company.name,
       items: rows
         .filter((r) => r.companyId === company.id)
+        // A product's own conditions only for those who see that product.
+        .filter((r) => !r.engagementId || canSeeEngagement(actor, { id: r.engagementId, companyId: company.id }))
         .map((r) => ({ row: r, snapshot: snapshotOf(r) }))
         .filter(({ snapshot }) => snapshot && visibleToClient(snapshot, now))
         .map(({ row, snapshot }) => ({

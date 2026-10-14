@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { catalogItems, companies, engagements, subscriptions } from "@/db/schema";
 import { productNextDueDate } from "@/lib/billing/product-due";
-import { getActor, canAccess } from "@/lib/access/access";
+import { canSeeEngagement, canSeeMoney, getActor } from "@/lib/access/access";
+import { catalogIconSrc } from "@/lib/catalog/catalog-icons";
 import { engagementLinks } from "@/lib/record-links";
 import { ServiceDetail } from "@/components/produtos/service-detail";
 export const metadata: Metadata = { title: "Serviço" };
@@ -27,10 +28,11 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
     .leftJoin(catalogItems, eq(catalogItems.id, engagements.catalogItemId))
     .leftJoin(subscriptions, eq(subscriptions.id, engagements.subscriptionId))
     .where(eq(engagements.id, id));
-  if (!row) notFound();
+  // Access first, so a redirect never tells someone what a hidden id is.
+  if (!row || !canSeeEngagement(actor, row.engagement)) notFound();
   if (row.engagement.kind === "project") redirect(`/projetos/${id}`);
   if (row.engagement.kind === "product") redirect("/produtos");
-  if (!canAccess(actor, row.engagement.companyId, "overview")) notFound();
+  const money = canSeeMoney(actor, row.engagement.companyId);
   // Staff see "Excluir" only when nothing billed or signed points at it.
   const links = actor.admin ? (await engagementLinks([id])).get(id) : undefined;
   return (
@@ -43,10 +45,15 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
           description: row.engagement.description,
           companyId: row.engagement.companyId,
           company: row.company,
-          amountCents: row.subscriptionAmount ?? row.engagement.amountCents,
-          interval: row.subscriptionInterval ?? row.item?.interval ?? null,
-          nextDueDate: row.nextDueDate,
-          subscriptionId: row.engagement.subscriptionId,
+          icon: catalogIconSrc(row.item?.id, row.item?.icon),
+          // Only where the viewer sees money; a Membro gets no billing at all.
+          billing: money
+            ? {
+                amountCents: row.subscriptionAmount ?? row.engagement.amountCents,
+                interval: row.subscriptionInterval ?? row.item?.interval ?? null,
+                nextDueDate: row.nextDueDate,
+              }
+            : undefined,
           links,
         },
         sections: {

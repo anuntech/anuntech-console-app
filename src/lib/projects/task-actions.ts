@@ -13,7 +13,7 @@ import {
   taskComments,
   tasks,
 } from "@/db/schema";
-import { getActor, canAccess } from "../access/access";
+import { getActor, canAccess, canSeeEngagement } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { assigneeAllowed } from "./tasks";
@@ -45,14 +45,14 @@ function refresh(engagementId: string) {
 /** Spaced positions let a card slot between two others without renumbering. */
 const STEP = 1024;
 
-/** Anyone who can open the project's company can work on its board. */
+/** Anyone who sees the project (its company and, for a Membro with a selection, the project itself) works on its board. */
 async function projectFor(engagementId: string) {
   const actor = await getActor();
   const [project] = await db
     .select({ id: engagements.id, companyId: engagements.companyId, name: engagements.name })
     .from(engagements)
     .where(eq(engagements.id, engagementId));
-  if (!project || !canAccess(actor, project.companyId, "overview")) return null;
+  if (!project || !canSeeEngagement(actor, project)) return null;
   return { actor, project };
 }
 
@@ -79,12 +79,20 @@ const canRemoveFile = (
   task: { createdBy: string | null },
 ) => actor.admin || file.authorId === actor.user.id || task.createdBy === actor.user.id;
 
-/** People picked in the sheet; ids come from better-auth, so they are not UUIDs. */
-async function parseAssignees(values: FormDataEntryValue[], companyId: string) {
+/**
+ * People picked in the sheet; ids come from better-auth, so they are not UUIDs.
+ * Someone already on the task stays without a new check: a Membro narrowed to
+ * other projects (or removed) must not block every later save of the card.
+ */
+async function parseAssignees(
+  values: FormDataEntryValue[],
+  project: { id: string; companyId: string },
+  already: ReadonlySet<string> = new Set(),
+) {
   const ids = [...new Set(values.map((v) => String(v).trim()).filter((v) => v && v.length <= 128))];
   if (ids.length > MAX_ASSIGNEES) throw new Error(`Até ${MAX_ASSIGNEES} pessoas por tarefa.`);
   for (const userId of ids)
-    if (!(await assigneeAllowed(userId, companyId)))
+    if (!already.has(userId) && !(await assigneeAllowed(userId, project.companyId, project.id)))
       throw new Error("Uma das pessoas escolhidas não participa deste projeto.");
   return ids;
 }
@@ -128,7 +136,7 @@ export async function createTask(
     const context = await projectFor(input.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
-    const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project.companyId);
+    const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project);
     // A task the client creates is a request: it waits in the Backlog until the team takes it into the work.
     if (!actor.admin) input.status = "backlog";
     let direct: Awaited<ReturnType<typeof prepareTicketFiles>>;
@@ -206,7 +214,8 @@ export async function updateTask(
     const context = await projectFor(current.engagementId);
     if (!context) return blocked;
     const { actor, project } = context;
-    const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project.companyId);
+    const assigned = await db.select({ userId: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, current.id));
+    const assigneeIds = await parseAssignees(form.getAll("assigneeIds"), project, new Set(assigned.map((a) => a.userId)));
     const refused = statusRefusal(actor.admin, current, input.status);
     if (refused) return { error: refused };
     // Saved files the sheet marked for removal go only when the task saves.

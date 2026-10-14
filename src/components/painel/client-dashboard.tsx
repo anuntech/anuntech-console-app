@@ -20,8 +20,10 @@ import {
   CheckCircle2Icon,
 } from "lucide-react";
 import { db } from "@/lib/db";
-import { companies, contractSignatures, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
-import { allowedIds, canAccess, type Actor } from "@/lib/access/access";
+import { catalogItems, companies, contractSignatures, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
+import { catalogIconSrc } from "@/lib/catalog/catalog-icons";
+import { ProductIcon } from "@/components/console/product-icon";
+import { allowedIds, canAccess, engagementWhere, ticketWhere, type Actor } from "@/lib/access/access";
 import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import { currency, dateLabel } from "@/lib/format";
@@ -172,7 +174,11 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   const manyCompanies = actor.grants.length > 1;
   const apps = protectedApps();
   const none = sql`false`;
-  const workScope = (column: typeof engagements.companyId) => (workIds.length ? inArray(column, workIds) : none);
+  // The company and, for a Membro with a selection, only the products and projects chosen for them.
+  const workScope = () => (workIds.length ? (engagementWhere(actor, engagements.id, engagements.companyId) ?? none) : none);
+  // Requests about products left out of a Membro's selection stay out, except the ones they opened.
+  const ticketScope = () =>
+    and(inArray(tickets.companyId, supportIds), ticketWhere(actor, { company: tickets.companyId, engagement: tickets.engagementId, author: tickets.authorId }));
   const scope = scopeOf(actor);
 
   const [
@@ -209,10 +215,10 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           .where(and(inArray(invoices.companyId, financeIds), eq(invoices.status, "issued")))
       : [{ n: 0, total: "0", overdueN: 0, overdueTotal: "0" }],
     canSupport
-      ? db.select({ n: count() }).from(tickets).where(and(inArray(tickets.companyId, supportIds), inArray(tickets.status, ["open", "in_progress", "waiting_customer"])))
+      ? db.select({ n: count() }).from(tickets).where(and(ticketScope(), inArray(tickets.status, ["open", "in_progress", "waiting_customer"])))
       : [{ n: 0 }],
     canSupport
-      ? db.select({ n: count() }).from(tickets).where(and(inArray(tickets.companyId, supportIds), eq(tickets.status, "waiting_customer")))
+      ? db.select({ n: count() }).from(tickets).where(and(ticketScope(), eq(tickets.status, "waiting_customer")))
       : [{ n: 0 }],
     canFinance
       ? db
@@ -237,26 +243,35 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
       .select({ id: engagements.id, name: engagements.name, status: engagements.status, company: companies.name })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
-      .where(and(workScope(engagements.companyId), eq(engagements.kind, "project"), inArray(engagements.status, ["active", "paused"])))
+      .where(and(workScope(), eq(engagements.kind, "project"), inArray(engagements.status, ["active", "paused"])))
       .orderBy(asc(engagements.status), asc(engagements.name))
       .limit(4),
     db
-      .select({ id: engagements.id, name: engagements.name, kind: engagements.kind, url: engagements.url, company: companies.name })
+      .select({
+        id: engagements.id,
+        name: engagements.name,
+        kind: engagements.kind,
+        url: engagements.url,
+        company: companies.name,
+        catalogItemId: engagements.catalogItemId,
+        icon: catalogItems.icon,
+      })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
-      .where(and(workScope(engagements.companyId), inArray(engagements.kind, ["product", "service"]), eq(engagements.status, "active")))
+      .leftJoin(catalogItems, eq(catalogItems.id, engagements.catalogItemId))
+      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), eq(engagements.status, "active")))
       .orderBy(asc(engagements.name))
       .limit(5),
     db
       .select({ n: count() })
       .from(engagements)
-      .where(and(workScope(engagements.companyId), inArray(engagements.kind, ["product", "service"]), eq(engagements.status, "active"))),
+      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), eq(engagements.status, "active"))),
     canSupport
       ? db
           .select({ ticket: tickets, company: companies.name })
           .from(tickets)
           .innerJoin(companies, eq(companies.id, tickets.companyId))
-          .where(inArray(tickets.companyId, supportIds))
+          .where(ticketScope())
           .orderBy(desc(tickets.updatedAt))
           .limit(5)
       : [],
@@ -282,7 +297,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
     })
     .from(engagements)
     .leftJoin(tasks, eq(tasks.engagementId, engagements.id))
-    .where(and(workScope(engagements.companyId), eq(engagements.kind, "project"), eq(engagements.status, "active")));
+    .where(and(workScope(), eq(engagements.kind, "project"), eq(engagements.status, "active")));
   const bookmarkPage = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: "", company: "all" }, { page: 1, pageSize: 5 });
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
 
@@ -326,7 +341,11 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   const [nextCharge] = canFinance && !dueTotals.n ? await upcomingCharges({ admin: false, companyIds: financeIds }) : [];
   // Each company's hours bank, once its conditions are published, and estimates waiting for an Administrador.
   const banks = (
-    await Promise.all(actor.grants.map((g) => bankCard(g.company.id, g.company.name, { client: true, now })))
+    await Promise.all(
+      actor.grants.map((g) =>
+        bankCard(g.company.id, g.company.name, { client: true, now, engagements: g.engagements === "all" ? undefined : g.engagements }),
+      ),
+    )
   ).filter((b): b is BankCard => !!b);
   const [estimates] = canFinance
     ? await db
@@ -538,7 +557,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                     key={product.id}
                     href={app ? `/apps/${product.id}` : (link ?? (product.kind === "service" ? `/produtos/${product.id}` : "/produtos"))}
                     external={!!link}
-                    leading={<Tile icon={<PackageIcon />} />}
+                    leading={<ProductIcon src={catalogIconSrc(product.catalogItemId, product.icon)} name={product.name} size={32} />}
                     title={product.name}
                     detail={[product.kind === "product" ? "Produto" : "Serviço", manyCompanies ? product.company : null].filter(Boolean).join(" · ")}
                   />

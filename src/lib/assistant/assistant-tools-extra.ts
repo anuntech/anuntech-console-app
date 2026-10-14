@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { canAccess, type Actor } from "../access/access";
+import { canAccess, canSeeEngagement, canSeeMoney, type Actor } from "../access/access";
 import {
   attachments,
   billingNotices,
@@ -42,7 +42,6 @@ import { logTime } from "../service-terms/hours-actions";
 import { addressLabel } from "../companies/company-billing";
 import { formatDocument, formatPhone } from "../companies/company-input";
 import { currency, engagementLabels, priorityLabels, roleLabels, ticketLabels } from "../format";
-import { hasPermission } from "../access/permissions";
 import { quoteTotals, type QuoteContent } from "../quotes/quote-model";
 import { estimateLabel, minutesToHours, TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
 import { civilDate, id, limit, reais, resolvePeople, scopeOf, submit, tool, ToolError, within, fold } from "./assistant-tools-kit";
@@ -64,7 +63,7 @@ const readCompany = tool({
     if (!canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
     const [c] = await db.select().from(companies).where(eq(companies.id, companyId));
     if (!c) throw new ToolError("Empresa não encontrada.");
-    const finance = actor.admin || hasPermission(actor.grants.find((g) => g.company.id === companyId)!.role, "finance");
+    const finance = canSeeMoney(actor, companyId);
     const people = managerOf(actor, companyId)
       ? await db
           .select({ email: memberships.email, role: memberships.role, active: memberships.active, name: user.name })
@@ -101,10 +100,10 @@ const readProject = tool({
   input: z.object({ engagementId: id }),
   run: async ({ actor }, { engagementId }) => {
     const [w] = await db.select({ e: engagements, company: companies.name }).from(engagements).innerJoin(companies, eq(companies.id, engagements.companyId)).where(eq(engagements.id, engagementId));
-    if (!w || !canAccess(actor, w.e.companyId, "overview")) throw new ToolError("Projeto não encontrado.");
+    if (!w || !canSeeEngagement(actor, w.e)) throw new ToolError("Projeto não encontrado.");
     const [board, people] =
       w.e.kind === "project"
-        ? await Promise.all([db.select({ status: tasks.status }).from(tasks).where(eq(tasks.engagementId, engagementId)), projectPeople(w.e.companyId)])
+        ? await Promise.all([db.select({ status: tasks.status }).from(tasks).where(eq(tasks.engagementId, engagementId)), projectPeople(w.e.companyId, w.e.id)])
         : [[], []];
     const counts = Object.fromEntries(TASK_STATUSES.map((s) => [taskStatusLabels[s], board.filter((t) => t.status === s).length]));
     return {
@@ -117,7 +116,8 @@ const readProject = tool({
         situacao: engagementLabels[w.e.status] ?? w.e.status,
         descricao: w.e.description,
         url: w.e.url,
-        valor: w.e.amountCents ? currency(w.e.amountCents) : null,
+        // Money only for those who see it (the team and the company's Administradores).
+        ...(canSeeMoney(actor, w.e.companyId) ? { valor: w.e.amountCents ? currency(w.e.amountCents) : null } : {}),
         ...(w.e.kind === "project"
           ? { tarefasPorColuna: counts, totalTarefas: board.length, pessoas: people.map((p) => ({ userId: p.id, nome: p.name || p.email, email: p.email })) }
           : {}),
@@ -130,7 +130,7 @@ const readProject = tool({
 
 async function taskWithAccess(actor: Actor, taskId: string) {
   const [t] = await db.select().from(tasks).where(eq(tasks.id, taskId));
-  if (!t || !canAccess(actor, t.companyId, "overview")) throw new ToolError("Tarefa não encontrada.");
+  if (!t || !canSeeEngagement(actor, { id: t.engagementId, companyId: t.companyId })) throw new ToolError("Tarefa não encontrada.");
   return t;
 }
 

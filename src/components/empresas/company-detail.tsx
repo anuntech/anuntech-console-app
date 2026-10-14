@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  EyeIcon,
   ArchiveIcon,
   ArchiveRestoreIcon,
   CalculatorIcon,
@@ -63,6 +64,7 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { RoleSelect } from "@/components/settings/member-actions";
+import { EngagementScopeField, scopeSummary, type MemberScope, type ScopeEngagement } from "@/components/settings/member-access-fields";
 import { CompanySheet } from "./company-sheet";
 import { companyInitials, StatusDot } from "./companies-table";
 import { DeleteCompanyDialog } from "./delete-company-dialog";
@@ -105,7 +107,11 @@ export type CompanyDetailData = {
     name: string | null;
     role: string;
     verified: boolean;
+    /** What a Membro sees of the company's products, services and projects. */
+    scope?: MemberScope;
   }[];
+  /** The company's products, services and projects, for "O que esta pessoa vê". */
+  scopeEngagements: ScopeEngagement[];
   events: { id: string; action: string; createdAt: string }[];
   relations: {
     openTickets: number;
@@ -166,21 +172,30 @@ function RelationRow({
 function GrantAccessDialog({
   companyId,
   companyName,
+  engagements,
 }: {
   companyId: string;
   companyName: string;
+  engagements: ScopeEngagement[];
 }) {
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState("member");
+  // The choice is sent only when opened: someone who already has access keeps what they see.
+  const [choosing, setChoosing] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <PlusIcon />
         Liberar acesso
       </Button>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
         <ServerForm
           action={saveMembership}
-          onSuccess={() => setOpen(false)}
+          onSuccess={() => {
+            setOpen(false);
+            setRole("member");
+            setChoosing(false);
+          }}
           className="flex flex-col gap-5"
         >
           <input type="hidden" name="companyId" value={companyId} />
@@ -205,8 +220,19 @@ function GrantAccessDialog({
               />
             </FormField>
             <FormField label="Permissão" htmlFor="grant-role">
-              <RoleSelect id="grant-role" />
+              <RoleSelect id="grant-role" onValueChange={setRole} />
             </FormField>
+            {role === "member" &&
+              (choosing ? (
+                <EngagementScopeField engagements={engagements} defaultValue={{ access: "selected", ids: [] }} />
+              ) : (
+                <p className="m-0 text-xs text-muted-foreground">
+                  Um Membro vê todos os produtos, serviços e projetos da empresa (quem já tem acesso mantém o que vê).{" "}
+                  <button type="button" onClick={() => setChoosing(true)} className="font-medium text-primary underline-offset-4 hover:underline">
+                    Escolher o que ele vê
+                  </button>
+                </p>
+              ))}
           </div>
           <DialogFooter>
             <DialogClose asChild>
@@ -226,12 +252,17 @@ function GrantAccessDialog({
 
 function MemberMenu({
   member,
+  companyId,
   companyName,
+  engagements,
 }: {
   member: CompanyDetailData["members"][number];
+  companyId: string;
   companyName: string;
+  engagements: ScopeEngagement[];
 }) {
   const [confirm, setConfirm] = useState<null | "notice" | "revoke" | "resend">(null);
+  const [scoping, setScoping] = useState(false);
   const ask = (which: "notice" | "revoke" | "resend") =>
     setTimeout(() => setConfirm(which), 0);
   return (
@@ -257,6 +288,12 @@ function MemberMenu({
               Reenviar convite
             </DropdownMenuItem>
           )}
+          {member.role === "member" && (
+            <DropdownMenuItem onSelect={() => setTimeout(() => setScoping(true), 0)}>
+              <EyeIcon />
+              O que esta pessoa vê
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
@@ -267,6 +304,35 @@ function MemberMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {member.role === "member" && (
+        <Dialog open={scoping} onOpenChange={setScoping}>
+          <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
+            <ServerForm action={saveMembership} onSuccess={() => setScoping(false)} className="flex min-h-0 flex-col gap-5">
+              <input type="hidden" name="companyId" value={companyId} />
+              <input type="hidden" name="email" value={member.email} />
+              <input type="hidden" name="role" value="member" />
+              <DialogHeader>
+                <DialogTitle>O que esta pessoa vê</DialogTitle>
+                <DialogDescription>
+                  {member.email} em {companyName}
+                </DialogDescription>
+              </DialogHeader>
+              <FormError />
+              <div className="-mx-1 min-h-0 overflow-y-auto px-1">
+                <EngagementScopeField engagements={engagements} defaultValue={member.scope} hideLegend />
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Cancelar
+                  </Button>
+                </DialogClose>
+                <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
+              </DialogFooter>
+            </ServerForm>
+          </DialogContent>
+        </Dialog>
+      )}
       <ConfirmDialog
         open={confirm === "notice"}
         onOpenChange={(open) => !open && setConfirm(null)}
@@ -516,6 +582,7 @@ export function CompanyDetail({
                   <GrantAccessDialog
                     companyId={company.id}
                     companyName={company.name}
+                    engagements={data.scopeEngagements}
                   />
                 }
               />
@@ -554,15 +621,20 @@ export function CompanyDetail({
                           </span>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              member.role === "manager"
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {roleLabels[member.role] || member.role}
-                          </Badge>
+                          <span className="flex flex-col items-start gap-1">
+                            <Badge
+                              variant={
+                                member.role === "manager"
+                                  ? "default"
+                                  : "secondary"
+                              }
+                            >
+                              {roleLabels[member.role] || member.role}
+                            </Badge>
+                            {member.role === "member" && member.scope && (
+                              <span className="text-xs text-muted-foreground">{`Vê: ${scopeSummary(member.scope)}`}</span>
+                            )}
+                          </span>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {member.verified
@@ -572,7 +644,9 @@ export function CompanyDetail({
                         <TableCell className="pr-4 text-right">
                           <MemberMenu
                             member={member}
+                            companyId={company.id}
                             companyName={company.name}
+                            engagements={data.scopeEngagements}
                           />
                         </TableCell>
                       </TableRow>

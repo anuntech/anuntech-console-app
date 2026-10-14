@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { MailIcon, MoreHorizontalIcon, ShieldCheckIcon, UserRoundXIcon } from "lucide-react";
+import { EyeIcon, MailIcon, MoreHorizontalIcon, ShieldCheckIcon, UserRoundXIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,17 +37,21 @@ import {
   saveCompanyMember,
   saveConsoleStaffMember,
 } from "@/lib/access/members-actions";
+import { EngagementScopeField, type MemberScope, type ScopeEngagement } from "./member-access-fields";
 
 /** The company permission picker; also used by the company page's "Liberar acesso". */
 export function RoleSelect({
   id,
   defaultValue = "member",
+  onValueChange,
 }: {
   id?: string;
   defaultValue?: string;
+  /** Lets the form show "O que esta pessoa vê" only for a Membro. */
+  onValueChange?: (role: string) => void;
 }) {
   return (
-    <NativeSelect id={id} name="role" defaultValue={defaultValue} required>
+    <NativeSelect id={id} name="role" defaultValue={defaultValue} required onChange={(event) => onValueChange?.(event.target.value)}>
       <NativeSelectOption value="member">Membro — chamados, bookmarks e projetos</NativeSelectOption>
       <NativeSelectOption value="manager">Administrador — tudo, inclusive financeiro</NativeSelectOption>
     </NativeSelect>
@@ -61,14 +65,20 @@ export function RoleSelect({
 export function InviteForm({
   companyId,
   staff = false,
+  engagements,
 }: {
   companyId?: string;
   staff?: boolean;
+  /** The company's products, services and projects, to choose what a Membro sees. */
+  engagements?: ScopeEngagement[];
 }) {
+  const [role, setRole] = useState("member");
+  const [choosing, setChoosing] = useState(false);
   return (
     <ServerForm
       action={staff ? saveConsoleStaffMember : saveCompanyMember}
       reset
+      onSuccess={() => setChoosing(false)}
       className="flex flex-col gap-3"
     >
       {companyId && <input type="hidden" name="companyId" value={companyId} />}
@@ -87,11 +97,25 @@ export function InviteForm({
         </FormField>
         {!staff && (
           <FormField label="Permissão" htmlFor="invite-role" className="sm:w-72">
-            <RoleSelect id="invite-role" />
+            <RoleSelect id="invite-role" onValueChange={setRole} />
           </FormField>
         )}
         <SubmitButton pendingLabel="Convidando…">Convidar pessoa</SubmitButton>
       </div>
+      {!staff && engagements && role === "member" && (
+        choosing ? (
+          <div className="max-w-xl">
+            <EngagementScopeField engagements={engagements} defaultValue={{ access: "selected", ids: [] }} />
+          </div>
+        ) : (
+          <p className="m-0 text-xs text-muted-foreground">
+            Um Membro vê todos os produtos, serviços e projetos da empresa.{" "}
+            <button type="button" onClick={() => setChoosing(true)} className="font-medium text-primary underline-offset-4 hover:underline">
+              Escolher o que ele vê
+            </button>
+          </p>
+        )
+      )}
       <p className="text-xs text-muted-foreground">
         {staff
           ? "A pessoa passa a administrar o Console inteiro e recebe um e-mail para entrar."
@@ -108,6 +132,8 @@ export function MemberMenu({
   role,
   pending,
   staff = false,
+  engagements,
+  scope,
 }: {
   memberId: string;
   email: string;
@@ -115,8 +141,13 @@ export function MemberMenu({
   role: string;
   pending: boolean;
   staff?: boolean;
+  /** The company's products, services and projects; with them, a Membro's access can be narrowed. */
+  engagements?: ScopeEngagement[];
+  scope?: MemberScope;
 }) {
   const [editing, setEditing] = useState(false);
+  const [scoping, setScoping] = useState(false);
+  const [editRole, setEditRole] = useState(role);
   const [revoking, setRevoking] = useState(false);
   const [resending, setResending] = useState(false);
   return (
@@ -129,14 +160,25 @@ export function MemberMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           {!staff && !pending && (
-            <>
-              <DropdownMenuItem onSelect={() => setTimeout(() => setEditing(true), 0)}>
-                <ShieldCheckIcon />
-                Editar permissão
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
+            <DropdownMenuItem
+              onSelect={() =>
+                setTimeout(() => {
+                  setEditRole(role);
+                  setEditing(true);
+                }, 0)
+              }
+            >
+              <ShieldCheckIcon />
+              Editar permissão
+            </DropdownMenuItem>
           )}
+          {!staff && engagements && role === "member" && (
+            <DropdownMenuItem onSelect={() => setTimeout(() => setScoping(true), 0)}>
+              <EyeIcon />
+              O que esta pessoa vê
+            </DropdownMenuItem>
+          )}
+          {!staff && (!pending || (engagements && role === "member")) && <DropdownMenuSeparator />}
           {!staff && pending && (
             <>
               <DropdownMenuItem onSelect={() => setTimeout(() => setResending(true), 0)}>
@@ -157,7 +199,7 @@ export function MemberMenu({
       </DropdownMenu>
       {!staff && companyId && (
         <Dialog open={editing} onOpenChange={setEditing}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
             <ServerForm
               action={saveCompanyMember}
               onSuccess={() => setEditing(false)}
@@ -171,8 +213,40 @@ export function MemberMenu({
               </DialogHeader>
               <FormError />
               <FormField label="Permissão" htmlFor={`role-${memberId}`}>
-                <RoleSelect id={`role-${memberId}`} defaultValue={role} />
+                <RoleSelect id={`role-${memberId}`} defaultValue={role} onValueChange={setEditRole} />
               </FormField>
+              {engagements && editRole === "member" && <EngagementScopeField engagements={engagements} defaultValue={scope} />}
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Cancelar
+                  </Button>
+                </DialogClose>
+                <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
+              </DialogFooter>
+            </ServerForm>
+          </DialogContent>
+        </Dialog>
+      )}
+      {!staff && companyId && engagements && role === "member" && (
+        <Dialog open={scoping} onOpenChange={setScoping}>
+          <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
+            <ServerForm
+              action={saveCompanyMember}
+              onSuccess={() => setScoping(false)}
+              className="flex min-h-0 flex-col gap-5"
+            >
+              <input type="hidden" name="companyId" value={companyId} />
+              <input type="hidden" name="email" value={email} />
+              <input type="hidden" name="role" value="member" />
+              <DialogHeader>
+                <DialogTitle>O que esta pessoa vê</DialogTitle>
+                <DialogDescription>{email}</DialogDescription>
+              </DialogHeader>
+              <FormError />
+              <div className="-mx-1 min-h-0 overflow-y-auto px-1">
+                <EngagementScopeField engagements={engagements} defaultValue={scope} hideLegend />
+              </div>
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="outline">

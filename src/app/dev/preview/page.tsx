@@ -235,6 +235,7 @@ export default async function Preview({
         verified: true,
       },
     ],
+    scopeEngagements: [],
     events: [
       { id: "e1", action: "membership.granted", createdAt: "2026-09-20" },
       { id: "e2", action: "invoice.bank_accepted", createdAt: "2026-09-15" },
@@ -622,9 +623,8 @@ export default async function Preview({
       status: "active",
       description: "Atendimento automático no WhatsApp com relatórios semanais.",
       url: "https://app.synova.com.br",
-      amountCents: 29700,
-      interval: "monthly" as const,
-      nextDueDate: day(12),
+      money: { amountCents: 29700, interval: "monthly" as const, nextDueDate: day(12), subscriptionId: null },
+      icon: "/brand/catalog-icons/synova.webp",
       companyId: "a2",
       company: "Paróquia Santa Rita",
     },
@@ -635,9 +635,8 @@ export default async function Preview({
       status: "active",
       description: "Campanhas no Google e Meta com relatório mensal.",
       url: null,
-      amountCents: 150000,
-      interval: "monthly" as const,
-      nextDueDate: day(5),
+      money: { amountCents: 150000, interval: "monthly" as const, nextDueDate: day(5), subscriptionId: null },
+      icon: null,
       companyId: "a1",
       company: "Maxipark Estacionamentos",
     },
@@ -648,9 +647,8 @@ export default async function Preview({
       status: "paused",
       description: null,
       url: null,
-      amountCents: null,
-      interval: null,
-      nextDueDate: null,
+      money: { amountCents: null, interval: null, nextDueDate: null, subscriptionId: null },
+      icon: "/brand/catalog-icons/infra.webp",
       companyId: "a3",
       company: "Instituto Vida Plena",
     },
@@ -1197,10 +1195,8 @@ export default async function Preview({
               description: "Campanhas no Google e Meta com relatório mensal.",
               companyId: "a1",
               company: "Maxipark Estacionamentos",
-              amountCents: 150000,
-              interval: "monthly",
-              nextDueDate: day(5),
-              subscriptionId: "s1",
+              icon: null,
+              billing: { amountCents: 150000, interval: "monthly", nextDueDate: day(5) },
             },
             sections: {
               whatWeDo:
@@ -1240,6 +1236,7 @@ export default async function Preview({
             pageCount={1}
             admin
             showCompany
+            showMoney
           />
         </>
       ) : tela.startsWith("projetos") ? (

@@ -1,11 +1,13 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth/auth";
 import { db } from "@/lib/db";
-import { attachments, tasks, tickets, memberships } from "@/db/schema";
-import { and, eq, inArray } from "drizzle-orm";
-import { hasPermission, type Area } from "@/lib/access/permissions";
+import { attachments, tasks, tickets } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { hasPermission } from "@/lib/access/permissions";
 import { getConsoleStaffAccess } from "@/lib/access/console-members";
 import { getAccountEmails } from "@/lib/account/account-identity";
+import { loadGrants } from "@/lib/access/grants";
+import { scopeIncludes } from "@/lib/access/engagement-scope";
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -13,11 +15,16 @@ export async function GET(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user.emailVerified) return new Response(null, { status: 401 });
   const { id } = await params;
-  // A file belongs to a ticket (support access) or to a task (any company access).
+  // A file belongs to a ticket (support access) or to a task (whoever sees its project),
+  // with the same rules as the pages (lib/access): a Membro with a selection sees only
+  // the boards chosen for them, and requests about other products only if they opened them.
   const [meta] = await db
     .select({
       ticketCompany: tickets.companyId,
+      ticketEngagement: tickets.engagementId,
+      ticketAuthor: tickets.authorId,
       taskCompany: tasks.companyId,
+      taskEngagement: tasks.engagementId,
     })
     .from(attachments)
     .leftJoin(tickets, eq(tickets.id, attachments.ticketId))
@@ -25,21 +32,15 @@ export async function GET(
     .where(eq(attachments.id, id));
   const companyId = meta?.ticketCompany ?? meta?.taskCompany;
   if (!meta || !companyId) return new Response(null, { status: 404 });
-  const area: Area = meta.ticketCompany ? "support" : "overview";
   if (!(await getConsoleStaffAccess(session.user.email)).admin) {
     const emails = await getAccountEmails(session.user.id, session.user.email);
-    const grants = await db
-      .select()
-      .from(memberships)
-      .where(
-        and(
-          eq(memberships.companyId, companyId),
-          inArray(memberships.email, emails),
-          eq(memberships.active, true),
-        ),
-      );
-    if (!grants.some((grant) => hasPermission(grant.role, area)))
-      return new Response(null, { status: 404 });
+    const grants = await loadGrants(emails, companyId);
+    const scope = grants[0]?.engagements;
+    const allowed = meta.ticketCompany
+      ? grants.some((grant) => hasPermission(grant.role, "support")) &&
+        (!meta.ticketEngagement || meta.ticketAuthor === session.user.id || scopeIncludes(scope, meta.ticketEngagement))
+      : grants.length > 0 && !!meta.taskEngagement && scopeIncludes(scope, meta.taskEngagement);
+    if (!allowed) return new Response(null, { status: 404 });
   }
   const [file] = await db
     .select()

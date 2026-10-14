@@ -7,7 +7,7 @@ import { and, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import { companies, engagements, tickets, user } from "@/db/schema";
-import { getActor, allowedIds } from "@/lib/access/access";
+import { getActor, allowedIds, ticketWhere } from "@/lib/access/access";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { TicketsTable } from "@/components/chamados/tickets-table";
@@ -59,11 +59,8 @@ export default async function Tickets({
   const statuses = ticketFilterStatuses(query.status);
   const where =
     and(
-      actor.admin
-        ? undefined
-        : ids.length
-          ? inArray(tickets.companyId, ids)
-          : sql`false`,
+      // The company's support area; a Membro with a selection skips requests about products left out (except their own).
+      ticketWhere(actor, { company: tickets.companyId, engagement: tickets.engagementId, author: tickets.authorId }),
       statuses ? inArray(tickets.status, statuses) : undefined,
       query.company ? eq(tickets.companyId, query.company) : undefined,
       search
