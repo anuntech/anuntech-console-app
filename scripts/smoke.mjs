@@ -7,6 +7,7 @@ import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
+import { runWorkspaceDomainTests } from "./workspace-domain-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -2105,6 +2106,7 @@ try {
   await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
   await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
   await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
+  await runWorkspaceDomainTests({ people, ok, base, notFoundPage, passKeyId });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );
