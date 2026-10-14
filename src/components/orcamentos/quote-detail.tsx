@@ -54,6 +54,7 @@ import { QuoteDocument } from "./quote-document";
 import { QuoteEditor } from "./quote-editor";
 import { QuoteHandoffCard, type QuoteHandoff } from "./quote-handoff-card";
 import { InviteManagerField } from "@/components/console/invite-manager-field";
+import { HelpLink } from "@/components/console/help-link";
 
 export type QuoteDetailData = {
   quote: {
@@ -108,7 +109,14 @@ function AnswerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <ServerForm key={open ? "open" : "closed"} action={answerQuote} onSuccess={() => onOpenChange(false)} className="flex flex-col gap-5">
+        <ServerForm
+          key={open ? "open" : "closed"}
+          action={answerQuote}
+          onSuccess={() => onOpenChange(false)}
+          className="flex flex-col gap-5"
+          // The answer is the client's own: the assistant leaves it alone.
+          data-assistant-ignore=""
+        >
           <input type="hidden" name="id" value={quoteId} />
           <input type="hidden" name="decision" value={decision} />
           {byStaff && accepting && <input type="hidden" name="consent" value="yes" />}
@@ -354,7 +362,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                   </div>
                 )}
                 {canAnswer && (
-                  <ServerForm action={answerQuote} className="flex flex-col gap-3 border-t pt-5">
+                  <ServerForm action={answerQuote} className="flex flex-col gap-3 border-t pt-5" data-assistant-ignore="">
                     <input type="hidden" name="id" value={q.id} />
                     <input type="hidden" name="decision" value="accept" />
                     <FormError />
@@ -374,6 +382,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                       Recusar
                     </Button>
                     <p className="m-0 text-xs text-muted-foreground">Ficam registrados seu nome, e-mail, data, IP e o hash da proposta.</p>
+                    <HelpLink slug="responder-um-orcamento">Como funciona o aceite</HelpLink>
                   </ServerForm>
                 )}
               </CardContent>

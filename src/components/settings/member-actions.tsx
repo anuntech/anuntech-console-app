@@ -38,6 +38,7 @@ import {
   saveConsoleStaffMember,
 } from "@/lib/access/members-actions";
 import { EngagementScopeField, type MemberScope, type ScopeEngagement } from "./member-access-fields";
+import { HelpLink } from "@/components/console/help-link";
 
 /** The company permission picker; also used by the company page's "Liberar acesso". */
 export function RoleSelect({
@@ -120,6 +121,12 @@ export function InviteForm({
         {staff
           ? "A pessoa passa a administrar o Console inteiro e recebe um e-mail para entrar."
           : "A pessoa recebe um e-mail para entrar e aparece aqui como convidada até o primeiro acesso."}
+        {!staff && (
+          <>
+            {" "}
+            <HelpLink slug="membro-ou-administrador">Membro ou Administrador</HelpLink>
+          </>
+        )}
       </p>
     </ServerForm>
   );

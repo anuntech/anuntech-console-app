@@ -28,6 +28,12 @@ export type PublicInvoiceView = {
   /** The boleto's date when the obligation is already past due. */
   bankDueDate?: string | null;
   status: "issued" | "paid" | "cancelled";
+  /**
+   * Why a cancelled charge is closed when it was not the Anuntech's cancel:
+   * the boleto and the Pix ran out unpaid (the amount is still owed), or a
+   * new charge replaced this one (lib/billing/invoice-debt.ts).
+   */
+  closure?: "expired" | "replaced" | null;
   pix: string | null;
   boletoLine: string | null;
   terms?: ChargeTerms;
@@ -120,7 +126,7 @@ export function PaymentView({
   const lateFees = lateFeesLabel(terms);
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 sm:py-10">
-      <PaymentStatusAnnouncer status={i.status} ready={ready} />
+      <PaymentStatusAnnouncer status={i.status} closure={i.closure ?? null} ready={ready} />
       <header className="mb-8 flex items-center justify-between gap-4">
         <Image
           src="/brand/logo-anuntech.png"
@@ -213,7 +219,11 @@ export function PaymentView({
           {!paid && (
             <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
               {cancelled
-                ? "Esta cobrança foi cancelada pela Anuntech."
+                ? i.closure === "expired"
+                  ? "O prazo do boleto e do Pix acabou sem pagamento."
+                  : i.closure === "replaced"
+                    ? "Esta cobrança foi substituída por uma nova."
+                    : "Esta cobrança foi cancelada pela Anuntech."
                 : display === "overdue"
                   ? "O vencimento passou, mas o boleto e o Pix continuam válidos para pagamento."
                   : "Confira os dados e escolha como prefere pagar."}
@@ -232,6 +242,14 @@ export function PaymentView({
               title="Pagamento confirmado"
             >
               <p>O Banco Inter confirmou o pagamento. Obrigado.</p>
+            </Outcome>
+          ) : cancelled && i.closure === "expired" ? (
+            <Outcome icon={<CircleSlashIcon />} tone="muted" title="Boleto e Pix vencidos">
+              <p>O valor continua em aberto. Fale com a Anuntech para receber uma nova forma de pagamento.</p>
+            </Outcome>
+          ) : cancelled && i.closure === "replaced" ? (
+            <Outcome icon={<CircleSlashIcon />} tone="muted" title="Cobrança substituída">
+              <p>A Anuntech mandou uma nova cobrança no lugar desta. Use o link que chegou com ela.</p>
             </Outcome>
           ) : cancelled ? (
             <Outcome icon={<CircleSlashIcon />} tone="muted" title="Fatura cancelada">

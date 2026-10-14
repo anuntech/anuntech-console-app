@@ -226,7 +226,8 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           .from(quotes)
           .where(and(inArray(quotes.companyId, financeIds), eq(quotes.status, "sent"), sql`(${quotes.validUntil} is null or ${quotes.validUntil} >= ${today})`))
       : [{ n: 0 }],
-    // Only what still waits for the client's signature, not what waits for Anuntech's.
+    // Only what still waits for the client's signature, not what waits for Anuntech's;
+    // a signature of an earlier version of the text does not count (contract-actions.ts).
     canFinance
       ? db
           .select({ n: count() })
@@ -235,7 +236,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             and(
               inArray(contracts.companyId, financeIds),
               eq(contracts.status, "sent"),
-              sql`not exists (select 1 from ${contractSignatures} where ${contractSignatures.contractId} = ${contracts.id} and ${contractSignatures.party} = 'client')`,
+              sql`not exists (select 1 from ${contractSignatures} where ${contractSignatures.contractId} = ${contracts.id} and ${contractSignatures.party} = 'client' and ${contractSignatures.documentHash} = ${contracts.documentHash})`,
             ),
           )
       : [{ n: 0 }],

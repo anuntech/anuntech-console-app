@@ -208,7 +208,7 @@ export function TaskSheet({
             <FormField label="Coluna" htmlFor="task-status">
               <NativeSelect id="task-status" name="status" defaultValue={status}>
                 {/* Only the team concludes; in Revisão the client approves instead. */}
-                {TASK_STATUSES.filter((value) => viewer.admin || value === status || (value !== "done" && value !== "review" && status !== "review")).map((value) => (
+                {TASK_STATUSES.filter((value) => viewer.admin || value === status || (value !== "done" && value !== "review" && status !== "review" && status !== "done")).map((value) => (
                   <NativeSelectOption key={value} value={value}>
                     {taskStatusLabels[value]}
                   </NativeSelectOption>

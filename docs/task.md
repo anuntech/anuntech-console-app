@@ -24,6 +24,8 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Engenharia
 
+- [ ] Ajuda (14/10): quando um tutorial for regravado, rodar `python3 scripts/help-videos.py` num checkout com a pasta `videos/` (gera a versão leve com hash no nome e atualiza `src/lib/help/tutorials.ts`), rodar os testes e publicar. Textos de tela que a escrita da ajuda achou errados ou confusos, a corrigir: "Remover foto?" promete as iniciais, mas o Console sorteia um avatar ilustrado; em Segurança, "Escolha por onde ele chega" só vale para quem entra pelo Google; "Confirme seu acesso" diz que o código é enviado antes de a pessoa pedir; as mensagens de entrada dizem "Abrindo o painel" e a tela se chama Visão geral; o rótulo "Membro — chamados, bookmarks e projetos" deixa de fora Visão geral e Produtos; `/acesso-pendente` diz que só a equipe libera o e-mail, mas o Administrador também libera em Membros; uma conta no limite de 5 e-mails não tem como remover os antigos.
+
 - [ ] Dividir `src/lib/actions.ts` (empresas, vínculos, chamados, faturas) entre as pastas de domínio.
 - [ ] O que um Membro vê (14/10): quando a equipe cria um projeto a partir de um pedido "App ou projeto novo" de um Membro com escolha, ele não vê o projeto até o Administrador marcar. Avaliar oferecer "dar acesso a quem pediu" na criação. Os e-mails de chamado ainda citam o assunto, que pode nomear um produto fora da escolha (vão só para quem abriu e para os contatos de aviso).
 - [ ] Levar o CSS antigo para Tailwind: `@layer legacy` em `src/app/globals.css` (cerca de 1.400 linhas), `components/shell/dock.module.css`, `components/shell/public-layout.module.css` e a tela `/acesso-pendente`. No fim, remover a camada `legacy`.

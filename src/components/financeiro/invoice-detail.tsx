@@ -70,6 +70,7 @@ import {
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
 import { hasTerms, lateFeesLabel, type ChargeTerms } from "@/lib/billing/billing-terms";
 import { billingTypeLabel, DeleteInvoiceDialog } from "./invoices-table";
+import { HelpLink } from "@/components/console/help-link";
 
 export type InvoiceDetailData = {
   invoice: {
@@ -566,6 +567,11 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       {late === 1 ? "1 dia de atraso" : `${late} dias de atraso`}
                     </p>
                   )}
+                  {!admin && invoice.status === "issued" && (
+                    <HelpLink slug="pagar-uma-fatura" className="mt-1">
+                      Como pagar
+                    </HelpLink>
+                  )}
                   {scheduled && scheduledIssueDate && (
                     <p className={cn("text-xs", scheduledIssueDate <= today ? "text-warning" : "text-muted-foreground")}>
                       {scheduledIssueDate <= today
@@ -885,7 +891,8 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 {processing && (
                   <Notice icon={<Loader2Icon className="animate-spin" />}>
                     Boleto e Pix aparecem aqui assim que o Inter concluir a
-                    emissão. Esta página atualiza sozinha.
+                    emissão. {/* Only the team's view polls the bank (BankSync). */}
+                    {admin ? "Esta página atualiza sozinha." : "Atualize a página em alguns minutos."}
                   </Notice>
                 )}
                 {issued && invoice.pixCopyPaste && (

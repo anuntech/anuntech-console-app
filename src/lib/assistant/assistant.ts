@@ -15,6 +15,7 @@ import { approveAction, intents, jevEnabled, routeIntent } from "./jev";
 import { plainApproval } from "./assistant-consent";
 import { modelSupportsReasoning } from "./openrouter-models";
 import { describePage, type PageSnapshot, areaOfPath } from "./page-snapshot";
+import { HELP_ARTICLES } from "../help/articles";
 
 export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
@@ -86,6 +87,11 @@ function guideText() {
       return `### ${s.title}\n${s.lead}\n${body}`;
     })
     .join("\n\n");
+}
+
+/** One line per help article, so the model knows what exists; buscar_ajuda brings the content. */
+function helpIndex() {
+  return HELP_ARTICLES.map((a) => `- ${a.title} (/ajuda/${a.slug})${a.audience === "administrador" ? " · Administrador" : ""}`).join("\n");
 }
 
 /** Each company's published conditions, as its people may read them (the team reads them all on the company page). */
@@ -176,6 +182,9 @@ export async function systemPrompt(actor: Actor, custom: string, page?: PageSnap
     actor.admin
       ? "- Para a equipe da Anuntech, consultas sem empresa definida valem para todas as empresas: chame a ferramenta sem companyId em vez de perguntar qual. Você também organiza trabalho: pode montar um projeto inteiro (criar_projeto e depois uma criar_tarefa por tarefa, com prioridade, prazo, estimativa e responsáveis) a partir de uma descrição, alterar tarefas em lote com atualizar_tarefa, criar orçamentos em rascunho com criar_orcamento (fases com horas, tarefas, taxa/hora, entrada e validade; o envio ao cliente é na tela) e responder chamados em nome da equipe. Apresente o plano antes de criar e execute quando a pessoa aprovar."
       : "",
+    "",
+    "Ajuda do Console (/ajuda): um artigo para cada coisa que o cliente faz, com passos, regras, quem pode e perguntas frequentes. Para 'como faço', 'onde fica', 'quem pode' ou 'por que' sobre o Console, use buscar_ajuda, responda com os passos em poucas linhas e termine com o link do artigo em Markdown, como [Pagar com Pix ou boleto](/ajuda/pagar-uma-fatura). Quando o artigo tem vídeo, ofereça o vídeo. Não invente passos que não estejam no artigo. Artigos:",
+    helpIndex(),
     "",
     "Como a Anuntech trabalha (página Como trabalhamos, /como-trabalhamos; é o processo de todos os clientes):",
     guideText(),

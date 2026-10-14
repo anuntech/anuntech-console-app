@@ -440,6 +440,8 @@ function statusRefusal(admin: boolean, current: typeof tasks.$inferSelect, next:
   // Only the team says a delivery is ready; in Revisão the client answers through Revisar.
   if (next === "review") return "Só a equipe coloca uma entrega em Revisão.";
   if (current.status === "review") return "Esta entrega está em Revisão: use Revisar para aprovar ou apontar um problema.";
+  // Leaving Concluído would erase who approved and when; reopening a delivery is the team's call.
+  if (current.status === "done") return "Esta tarefa está concluída. Para reabrir, comente na tarefa ou abra um chamado.";
   if (current.requested && current.status === "backlog")
     return "Este pedido fica no Backlog até a equipe confirmar se ele faz parte do combinado.";
   return null;

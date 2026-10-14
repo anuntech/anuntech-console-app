@@ -10,6 +10,7 @@ Valem para qualquer pessoa ou agente que mexa no Console. As regras de produto r
 4. Preservar `.env.local` e nunca versionar segredos.
 5. Testes de integração criam dados num banco descartável. Nunca rodar contra produção nem com clientes reais.
 6. Manter as decisões de negócio coerentes com o código. Mudou uma regra, atualize [prd.md](prd.md) no mesmo commit.
+7. Mudou algo que o cliente vê (tela, botão, regra, limite, aviso)? Atualize o artigo da Ajuda (`src/lib/help/articles/`) no mesmo commit. O texto da ajuda é o que o cliente e o assistente leem.
 
 ## Segurança
 

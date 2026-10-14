@@ -22,6 +22,7 @@ import { MobileTabBar } from "./mobile-tab-bar";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { EnergyOrb, type EnergyOrbElement } from "@/components/ui/energy-orb";
 import styles from "./dock.module.css";
+import { OPEN_ASSISTANT_EVENT } from "./assistant-events";
 
 export type NavigationProps = {
   admin: boolean;
@@ -117,6 +118,12 @@ export function Dock({
   const { position } = useAppearance();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantBusy, setAssistantBusy] = useState(false);
+  // Pages open it too ("Perguntar ao assistente" in Ajuda).
+  useEffect(() => {
+    const open = () => setAssistantOpen(true);
+    window.addEventListener(OPEN_ASSISTANT_EVENT, open);
+    return () => window.removeEventListener(OPEN_ASSISTANT_EVENT, open);
+  }, []);
   // The orb mirrors the assistant: calm at rest, brighter while open, fast while
   // it works, and a pulse when the answer lands.
   const orb = useRef<EnergyOrbElement>(null);
@@ -165,7 +172,7 @@ export function Dock({
         finance={finance}
         support={support}
         userName={userName}
-        shortcuts={actions.map(({ href, label }) => ({ href, label }))}
+        shortcuts={[...actions.map(({ href, label }) => ({ href, label })), { href: "/ajuda", label: "Ajuda" }]}
         voice={voice}
       />
       <div className={styles.floating}>

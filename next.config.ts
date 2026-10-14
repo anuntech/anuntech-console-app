@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Tutorial videos of the help center: the name carries the file's hash (lib/help/tutorials.ts).
+        source: "/ajuda/videos/:file",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "X-Robots-Tag", value: "noindex" },
+        ],
+      },
+      {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },

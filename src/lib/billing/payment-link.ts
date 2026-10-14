@@ -23,6 +23,8 @@ export async function publicInvoice(publicId: string) {
       dueDate: invoices.dueDate,
       bankDueDate: invoices.bankDueDate,
       status: invoices.status,
+      bankStatus: invoices.bankStatus,
+      providerId: invoices.providerId,
       pix: invoices.pixCopyPaste,
       boletoLine: invoices.boletoLine,
       bankCheckedAt: invoices.bankCheckedAt,

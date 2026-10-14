@@ -11,7 +11,7 @@ import {
   SparklesIcon,
   UserRoundIcon,
   UsersIcon,
-  type LucideIcon, BookOpenIcon } from "lucide-react";
+  type LucideIcon, LifeBuoyIcon } from "lucide-react";
 import { cn } from "cn";
 import {
   Sheet,
@@ -232,8 +232,8 @@ export function MobileTabBar({
                   Membros
                 </Row>
               )}
-              <Row href="/como-trabalhamos" icon={BookOpenIcon} onClick={close}>
-                Como trabalhamos
+              <Row href="/ajuda" icon={LifeBuoyIcon} onClick={close}>
+                Ajuda
               </Row>
               <Row
                 icon={MessageCircleQuestionIcon}

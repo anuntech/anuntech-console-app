@@ -78,9 +78,15 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - A equipe registra horas também pelo assistente (registrar_horas), por texto ou ditado, com as mesmas regras do formulário. Chamados terminados sem horas em empresas com banco aparecem no resumo e no painel por 7 dias, e no chamado até alguém registrar ou marcar "Não houve horas neste chamado".
 - Quem abre recebe um recibo por e-mail e é avisado das movimentações. A operação Anuntech recebe avisos por e-mail e WhatsApp de toda movimentação (liga e desliga em Configurações → Notificações). A empresa pode escolher contatos para receber os avisos dela.
 
+### Ajuda
+
+- Página /ajuda (menu da conta e folha Mais, no lugar de "Como trabalhamos"; sem botão próprio no dock): um artigo para cada coisa que o cliente faz no Console, com o que é, quem pode (o que só o Administrador faz fica marcado; o Membro lê tudo para entender o processo), onde fica, o passo a passo com os nomes da tela, as regras e as perguntas frequentes. Busca sem acento, com sinônimos ("boleto" acha o pagamento). Tutoriais em vídeo com os passos como capítulos, velocidade e o texto da narração; os vídeos só mostram dados fictícios.
+- Como a ajuda chega a quem precisa: no formulário de chamado, "Talvez isto responda" mostra até 3 artigos pelo assunto e pela descrição (abrem por cima, sem perder o que foi escrito, e nunca impedem o envio); o assistente procura na ajuda (buscar_ajuda) e responde com os passos e o link do artigo; links curtos nas telas (Como pagar, Como funciona o aceite, Como assinar, Membro ou Administrador, Quando cada aviso chega); "Ajuda" nos atalhos do assistente.
+- Prazos nunca ficam escritos na ajuda: o artigo leva a Como trabalhamos, que mostra os do contrato da empresa.
+
 ### Como trabalhamos
 
-- Página /como-trabalhamos (menu da conta e folha Mais): quando abrir chamado, prazos e como o tempo conta, o que ajuda a equipe, projetos e como contratar algo novo. Para o cliente, mostra "Seus prazos" e "O que o seu contrato pede" das condições publicadas. Nenhum número fica escrito no texto: os prazos vêm das condições.
+- Página /como-trabalhamos (na Ajuda e nos links de chamado, projeto e contrato): quando abrir chamado, prazos e como o tempo conta, o que ajuda a equipe, projetos e como contratar algo novo. Para o cliente, mostra "Seus prazos" e "O que o seu contrato pede" das condições publicadas. Nenhum número fica escrito no texto: os prazos vêm das condições.
 - Primeiros passos na Visão geral do cliente (Administrador: revisar acessos, escolher quem recebe avisos, ler o guia; Membro: completar nome e WhatsApp, ler o guia). Sai quando termina ou é ocultado.
 - Pedir orçamento abre um chamado do tipo "App ou projeto novo" (fora do relógio de suporte). Depois do aceite e da assinatura, o cliente vê os próximos passos.
 
@@ -88,7 +94,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 
 - Cada empresa tem vínculos do tipo produto, projeto ou serviço, com situação ativa, pausada ou concluída.
 - Produtos e serviços, para o cliente: um lançador com o ícone do item, o nome, uma linha e o que o clique faz (Abrir ↗ para produto com link, Ver detalhes para serviço, Link em breve sem link), sem valor e sem menu; a situação aparece só quando não está ativo. No celular viram linhas. Lista curta sem nada pausado não mostra busca nem filtro. Valor e próximo vencimento só para a equipe e para o Administrador da empresa (na Lista e na página do serviço); um Membro não recebe esses dados nem nos dados da página.
-- Projetos têm quadro Kanban: backlog, a fazer, em andamento, revisão e concluído. Tarefa criada pelo cliente entra no Backlog como pedido até a equipe aceitar; só a equipe conclui; em Revisão, um Administrador da empresa aprova ou aponta um problema, com o prazo de teste do contrato quando houver. "Sobre este projeto" mostra o objetivo e as regras do quadro. Tarefas com prioridade, prazo, etiquetas, estimativa, responsáveis (membros da empresa e equipe), anexos e comentários (com anexos, edição e exclusão pelo autor).
+- Projetos têm quadro Kanban: backlog, a fazer, em andamento, revisão e concluído. Tarefa criada pelo cliente entra no Backlog como pedido até a equipe aceitar; só a equipe conclui e só a equipe reabre uma tarefa concluída (tirar de Concluído apagaria quem aprovou e quando); em Revisão, um Administrador da empresa aprova ou aponta um problema, com o prazo de teste do contrato quando houver. "Sobre este projeto" mostra o objetivo e as regras do quadro. Tarefas com prioridade, prazo, etiquetas, estimativa, responsáveis (membros da empresa e equipe), anexos e comentários (com anexos, edição e exclusão pelo autor).
 - O catálogo da equipe define produtos e serviços com preço e periodicidade. Vincular um item a uma empresa cria o vínculo e, se for o caso, a cobrança.
 - Cada item do catálogo tem um ícone, que aparece para todos os clientes do item: galeria da Anuntech (o logo oficial do Synova e ícones gerados no Higgsfield), imagem enviada (PNG, JPEG ou WebP, convertida para 256 px) ou Gerar com IA (4 opções a partir do nome e da descrição; as não escolhidas são descartadas). Item novo sem ícone recebe um da galeria pelo nome. Sem item do catálogo, o vínculo mostra as iniciais.
 
@@ -108,7 +114,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Próximas cobranças: o Financeiro e a Visão geral mostram ao cliente o próximo vencimento de cada recorrência antes de a fatura existir, com valor e o dia em que boleto e Pix saem. No Financeiro, a equipe vê só "Recorrências para corrigir" (pausadas ou com a emissão que vai falhar, com o motivo), e nada quando todas saem sozinhas.
 - "Cancelar no Inter" (só a equipe) cancela uma cobrança emitida e em aberto, por exemplo a próxima de um cliente que encerrou o serviço. Não tem volta; os avisos dela param e a recorrência fica pausada até alguém retomar.
 - Vencimento no passado exige uma data futura para o boleto; a fatura fica registrada como vencida desde a data original.
-- Cada cobrança emitida tem um link público `/pagar/<id>` com QR Code Pix, copia e cola e boleto em PDF. O link não mostra documento nem e-mail do cliente e pode ser desativado. Pago, a página troca sozinha para "Pagamento confirmado".
+- Cada cobrança emitida tem um link público `/pagar/<id>` com QR Code Pix, copia e cola e boleto em PDF. O link não mostra documento nem e-mail do cliente e pode ser desativado. Pago, a página troca sozinha para "Pagamento confirmado". Fechada, ela diz o motivo certo: "Boleto e Pix vencidos" (o Inter encerrou sem pagamento e o valor continua em aberto), "Cobrança substituída" (a equipe cobrou de novo) ou "Fatura cancelada" com "Não é necessário pagar" só quando a equipe cancelou ou encerrou a dívida (`lib/billing/invoice-debt.ts`, a mesma regra da página da fatura da equipe).
 - Avisos por e-mail e WhatsApp: fatura disponível, vence hoje e lembretes de atraso nos dias 5, 10, 15, 20 e 25. Antes de cada aviso o Console consulta o Inter para não cobrar quem já pagou.
 - Só o Inter confirma pagamento (situação `RECEBIDO`), por consulta manual ou pela conciliação a cada 5 minutos. O navegador nunca confirma pagamento.
 - Editar uma cobrança emitida (valor, vencimento ou condições) cancela o boleto e o Pix atuais e emite novos; o link continua o mesmo.
@@ -166,6 +172,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Chat em todas as telas, aberto pelo botão do dock. Em telas largas fica ao lado do conteúdo.
 - Responde e age com o acesso da pessoa: consulta empresas, faturas, chamados, projetos, contratos e orçamentos; abre chamados, cria tarefas, comenta, rascunha cobranças, contratos e orçamentos; preenche a tela atual.
 - Antes de alterar qualquer dado, pergunta. Um "sim" direto aprova; respostas com condição passam por uma segunda leitura (Jev).
+- Nunca aceita nem recusa orçamento e nunca assina contrato pela pessoa: esses formulários ficam fora do que ele lê, preenche e clica na tela (`data-assistant-ignore`, como o microfone). Bookmarks pelo assistente seguem a mesma regra da página (pasta só de pessoas escolhidas fica fora para os demais).
 - Microfone no campo de mensagem: a pessoa fala, o texto aparece no campo e ela envia quando quiser. Depois de enviado, vale como mensagem digitada (o Jev lê a intenção).
 - A equipe escolhe o modelo, escreve instruções extras e sobe documentos de conhecimento em Configurações → Assistente.
 

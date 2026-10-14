@@ -39,6 +39,9 @@ export type { AnyTool, ClientAction, ToolArea, ToolContext, ToolOutcome } from "
 export { toolAreas } from "./assistant-tools-kit";
 import type { Actor } from "../access/access";
 import { extraTools } from "./assistant-tools-extra";
+import { HELP_ARTICLES } from "../help/articles";
+import { plainText } from "../help/help-model";
+import { searchHelp } from "../help/help-search";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid"
@@ -849,6 +852,8 @@ export const destinations = {
   bookmarks: { href: "/bookmarks", label: "Bookmarks" },
   conta: { href: "/conta", label: "Minha conta" },
   membros: { href: "/configuracoes/membros", label: "Membros" },
+  ajuda: { href: "/ajuda", label: "Ajuda" },
+  como_trabalhamos: { href: "/como-trabalhamos", label: "Como trabalhamos" },
   abrir_chamado: { href: "/chamados/novo", label: "Abrir chamado", area: "support" as const },
   nova_cobranca: { href: "/financeiro/nova", label: "Nova cobrança", staff: true },
   novo_projeto: { href: "/projetos/novo", label: "Novo projeto", staff: true },
@@ -903,6 +908,34 @@ const searchKnowledge = tool({
   },
 });
 
+const searchHelpCenter = tool({
+  name: "buscar_ajuda",
+  description:
+    "Procura na Ajuda do Console (artigos para clientes: como fazer cada coisa, regras, quem pode, perguntas frequentes) e devolve os artigos mais próximos com os passos e o link. Use para qualquer 'como faço', 'onde fica', 'por que', 'quem pode' sobre o Console.",
+  input: z.object({ consulta: z.string().trim().min(2).max(200) }),
+  run: async (_ctx, { consulta }) => {
+    const found = searchHelp(HELP_ARTICLES, consulta, { limit: 4 });
+    return {
+      result: found.map(({ article }) => ({
+        titulo: article.title,
+        link: `/ajuda/${article.slug}`,
+        resumo: article.summary,
+        quemFaz: article.audience === "administrador" ? "Só o Administrador da empresa" : "Administrador e Membro",
+        passos: article.sections.flatMap((s) => s.blocks).find((b) => b.kind === "steps")?.items.map(plainText) ?? [],
+        regras: article.sections
+          .flatMap((s) => s.blocks)
+          .filter((b) => b.kind === "list" || b.kind === "note")
+          .flatMap((b) => (b.kind === "list" ? b.items : b.kind === "note" ? [b.text] : []))
+          .map(plainText)
+          .slice(0, 8),
+        perguntas: (article.faq ?? []).slice(0, 4).map((f) => ({ pergunta: f.q, resposta: plainText(f.a) })),
+        ...(article.video ? { video: `/ajuda/${article.slug}#video` } : {}),
+      })),
+      summary: found.length ? `Procurei na Ajuda: ${found[0].article.title}` : "Procurei na Ajuda",
+    };
+  },
+});
+
 export const assistantTools: AnyTool[] = [
   listCompanies,
   companyOverview,
@@ -927,6 +960,7 @@ export const assistantTools: AnyTool[] = [
   openSupport,
   openScreen,
   searchKnowledge,
+  searchHelpCenter,
   ...extraTools,
 ];
 

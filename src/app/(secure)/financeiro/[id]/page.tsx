@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { and, asc, desc, eq, gt, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, ne } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
   auditEvents,
-  automationEvents,
   billingNotices,
   companies,
   engagements,
@@ -19,6 +18,7 @@ import { interBase } from "@/lib/integrations/integrations";
 import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
 import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
 import { paymentUrl } from "@/lib/billing/payment-link";
+import { invoiceDebt } from "@/lib/billing/invoice-debt";
 import { missedPeriods, addDays, earlyIssueAllowed, issueDate } from "@/lib/billing/recurrence";
 import {
   InvoiceDetail,
@@ -83,33 +83,7 @@ export default async function Invoice({
     : [[], []];
   const today = saoPauloDate();
   // A charge Inter closed unpaid is still a debt until someone bills it again or writes it off (staff only).
-  let debt: InvoiceDetailData["debt"] = null;
-  if (actor.admin && i.status === "cancelled" && i.bankStatus === "EXPIRADO") {
-    const [[teamCancel], decisions] = await Promise.all([
-      db
-        .select({ id: auditEvents.id })
-        .from(auditEvents)
-        .where(
-          and(
-            eq(auditEvents.entityId, i.id),
-            inArray(auditEvents.action, ["invoice.bank_cancelled", "invoice.bank_cancel_requested"]),
-            // A reissue cancelled an earlier charge of this invoice; only a cancel of this one counts.
-            sql`${auditEvents.details}->>'providerId' = ${i.providerId}`,
-          ),
-        )
-        .limit(1),
-      db.select().from(automationEvents).where(and(eq(automationEvents.entityId, i.id), inArray(automationEvents.kind, ["debt.closed", "debt.rebilled"]))),
-    ]);
-    if (!teamCancel) {
-      const rebilled = decisions.find((d) => d.kind === "debt.rebilled");
-      const closed = decisions.find((d) => d.kind === "debt.closed");
-      debt = rebilled
-        ? { state: "rebilled", invoiceId: String(rebilled.details?.invoiceId ?? ""), at: rebilled.createdAt.toISOString() }
-        : closed
-          ? { state: "closed", reason: String(closed.details?.reason ?? ""), at: closed.createdAt.toISOString() }
-          : { state: "open" };
-    }
-  }
+  const debt: InvoiceDetailData["debt"] = actor.admin ? await invoiceDebt(i) : null;
   const earlyReady =
     !!sub &&
     sub.status === "active" &&

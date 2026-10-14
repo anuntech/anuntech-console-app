@@ -19,7 +19,12 @@ const MAX_FIELDS = 60;
 const MAX_OPTIONS = 40;
 const clip = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
 const text = (node: Element | null | undefined) => (node?.textContent ?? "").replace(/\s+/g, " ").trim();
-const outsidePanel = (element: Element) => !element.closest("[data-assistant]");
+/**
+ * Outside the assistant's own panel and outside what the person decides alone
+ * (data-assistant-ignore: the microphone, accepting a quote, signing a contract):
+ * the assistant neither reads, fills, submits nor clicks those.
+ */
+const outsidePanel = (element: Element) => !element.closest("[data-assistant], [data-assistant-ignore]");
 /** Shown on screen; a hidden picker input counts when its wrapper is. */
 const shown = (element: Element) =>
   outsidePanel(element) &&

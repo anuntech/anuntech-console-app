@@ -21,6 +21,7 @@ import { FormField } from "@/components/console/form-field";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { AttachmentField } from "@/components/console/attachment-field";
 import { DictationButton } from "@/components/console/dictation-button";
+import { HelpSuggestions } from "@/components/help/help-suggestions";
 import { createTicket } from "@/lib/actions";
 import { calendar } from "@/lib/service-terms/business-calendar";
 import { changeGuidance, expectation, outOfHoursLine } from "@/lib/service-terms/terms-text";
@@ -72,6 +73,9 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
   const [kind, setKind] = useState<TicketKind | "">(context.kind ?? "");
   const [impact, setImpact] = useState<TicketImpact>("other");
   const [engagementId, setEngagementId] = useState("");
+  // What the client typed, for "Talvez isto responda" (the fields stay uncontrolled).
+  const [subject, setSubject] = useState("");
+  const [description, setDescription] = useState("");
   const body = useRef<HTMLTextAreaElement>(null);
   const cal = useMemo(() => calendar(context.holidays), [context.holidays]);
   // Fixed when the form opens, so the preview does not tick while someone types.
@@ -195,8 +199,12 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
           // With the kind already chosen (a "Pedir orçamento" link), typing starts here.
           autoFocus={autoFocus && !!context.kind}
           placeholder="Um resumo em uma linha"
+          onChange={(event) => setSubject(event.target.value)}
         />
       </FormField>
+      {!staff && kind && kind !== "new_project" && (
+        <HelpSuggestions text={`${subject} ${description.slice(0, 200)}`} prefer={kind === "question"} />
+      )}
       <FormField
         label="Descrição"
         htmlFor="ticket-body"
@@ -216,6 +224,7 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
           rows={6}
           placeholder={kind ? ticketDescriptionHints[kind] : "Descreva o que precisa."}
           className="min-h-36"
+          onInput={(event) => setDescription(event.currentTarget.value)}
         />
         {context.voice && <DictationButton target={body} maxLength={10000} />}
       </FormField>
@@ -250,8 +259,10 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
       <p className="m-0 text-xs leading-5 text-muted-foreground">
         Tarefa de projeto em andamento? Comente na própria tarefa. O que você pedir por WhatsApp ou telefone, a equipe registra num
         chamado.{" "}
-        <Link href="/como-trabalhamos#chamados" className="font-medium text-primary hover:underline">
-          Como trabalhamos
+        {/* A new tab: this form keeps no draft. */}
+        <Link href="/ajuda/tipos-de-chamado" target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
+          Qual tipo escolher
+          <span className="sr-only"> (abre em nova aba)</span>
         </Link>
       </p>
     </>

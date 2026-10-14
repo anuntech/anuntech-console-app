@@ -1,13 +1,11 @@
 import "server-only";
-import { and, asc, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { canAccess, canSeeEngagement, canSeeMoney, type Actor } from "../access/access";
 import {
   attachments,
   billingNotices,
-  bookmarkFolders,
-  bookmarks,
   catalogItems,
   companies,
   contractTemplates,
@@ -46,6 +44,7 @@ import { quoteTotals, type QuoteContent } from "../quotes/quote-model";
 import { estimateLabel, minutesToHours, TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
 import { civilDate, id, limit, reais, resolvePeople, scopeOf, submit, tool, ToolError, within, fold } from "./assistant-tools-kit";
 import { projectPeople } from "../projects/tasks";
+import { bookmarksFor, foldersFor, scopeOf as bookmarkScope } from "../bookmarks/bookmarks";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid" ? "paga" : status === "cancelled" ? "cancelada" : status === "draft" ? "rascunho (não emitida)" : dueDate < today ? "vencida" : "em aberto";
@@ -259,32 +258,29 @@ const listSubscriptions = tool({
 const listBookmarks = tool({
   name: "listar_bookmarks",
   area: "bookmarks",
-  description: "Os bookmarks (links e arquivos guardados) que a pessoa vê, com pasta e empresa; aceita uma busca por título.",
+  description: "Os bookmarks (links, arquivos e lousas guardados) que a pessoa vê, com pasta e empresa; aceita uma busca por título ou endereço.",
   input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), limite: limit(20) }),
   run: async ({ actor }, { companyId, busca, limite }) => {
-    const ids = actor.admin ? null : scopeOf(actor, "overview", companyId);
-    const rows = await db
-      .select({ b: bookmarks, folder: bookmarkFolders.name, company: companies.name })
-      .from(bookmarks)
-      .leftJoin(bookmarkFolders, eq(bookmarkFolders.id, bookmarks.folderId))
-      .leftJoin(companies, eq(companies.id, bookmarks.companyId))
-      .where(
-        and(
-          companyId ? eq(bookmarks.companyId, companyId) : ids ? or(inArray(bookmarks.companyId, ids), and(isNull(bookmarks.companyId), eq(bookmarks.ownerId, actor.user.id))) : undefined,
-          busca ? ilike(bookmarks.title, `%${busca}%`) : undefined,
-        ),
-      )
-      .orderBy(desc(bookmarks.updatedAt))
-      .limit(limite);
+    if (companyId && !canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
+    // The rule of the Bookmarks page: folders shared with chosen people stay out for everyone else.
+    const scope = bookmarkScope(actor);
+    const folders = await foldersFor(scope, companyId ?? "all");
+    const page = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: busca ?? "", company: companyId ?? "all" }, { page: 1, pageSize: limite });
+    const folderName = new Map(folders.map((f) => [f.id, f.name]));
+    const companyName = new Map(folders.flatMap((f) => (f.companyId && f.company ? [[f.companyId, f.company] as const] : [])));
+    const missing = [...new Set(page.items.map((b) => b.companyId).filter((c): c is string => !!c && !companyName.has(c)))];
+    if (missing.length)
+      for (const c of await db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, missing))) companyName.set(c.id, c.name);
     return {
-      result: rows.map((r) => ({
-        bookmarkId: r.b.id,
-        titulo: r.b.title,
-        url: r.b.url,
-        arquivo: r.b.fileName,
-        pasta: r.folder,
-        empresa: r.company ?? "Anuntech",
-        link: r.b.url ?? `/api/bookmarks/${r.b.id}`,
+      result: page.items.map((b) => ({
+        bookmarkId: b.id,
+        titulo: b.title,
+        url: b.url,
+        arquivo: b.fileName,
+        lousa: !!b.board,
+        pasta: b.folderId ? (folderName.get(b.folderId) ?? null) : null,
+        empresa: b.companyId ? (companyName.get(b.companyId) ?? null) : "Anuntech",
+        link: b.board ? `/bookmarks/${b.id}/lousa` : (b.url ?? `/api/bookmarks/${b.id}`),
       })),
       summary: "Consultei os bookmarks",
     };

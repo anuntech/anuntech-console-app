@@ -6,6 +6,7 @@ import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
+import { runHelpTests } from "./help-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
 import { runMemberScopeTests } from "./member-scope-smoke.mjs";
 import { runCatalogIconTests } from "./catalog-icons-smoke.mjs";
@@ -467,8 +468,8 @@ try {
 
     const ticketForm = await request("/chamados/novo", "support");
     ok(
-      ticketForm.text.includes('name="kind"') && ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="channel"') && ticketForm.text.includes("/como-trabalhamos"),
-      "Novo chamado pergunta o tipo, não deixa o cliente escolher prioridade nem canal e aponta Como trabalhamos",
+      ticketForm.text.includes('name="kind"') && ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="channel"') && ticketForm.text.includes("/ajuda/tipos-de-chamado"),
+      "Novo chamado pergunta o tipo, não deixa o cliente escolher prioridade nem canal e aponta a Ajuda",
     );
     // Dictation: the microphone is allowed for the Console only, and /api/transcricao turns audio into text.
     ok(ticketForm.headers.get("permissions-policy")?.includes("microphone=(self)") && ticketForm.headers.get("permissions-policy")?.includes("camera=()"), "Microfone liberado só para o próprio Console");
@@ -2112,6 +2113,7 @@ try {
   await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
   await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
   await runMemberScopeTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
+  await runHelpTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );

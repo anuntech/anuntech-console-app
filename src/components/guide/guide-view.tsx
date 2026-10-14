@@ -68,6 +68,7 @@ export function GuideView({ sections, terms, staff }: { sections: GuideSection[]
     <>
       <PageHeader
         className="mb-4"
+        crumbs={[{ label: "Ajuda", href: "/ajuda" }, { label: "Como trabalhamos" }]}
         title="Como trabalhamos"
         description="Como a Anuntech atende a sua empresa: chamados, prazos, projetos e contratação."
       />

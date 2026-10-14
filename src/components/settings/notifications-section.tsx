@@ -32,6 +32,8 @@ import {
   SubmitButton,
 } from "@/components/console/server-form";
 import { ContactsField, TicketNoticesSwitch } from "./notification-forms";
+import { HelpLink } from "@/components/console/help-link";
+import type { ReactNode } from "react";
 
 const statusLabels: Record<string, string> = {
   waiting: "Agendado",
@@ -81,7 +83,7 @@ async function TopicCard({
   companyId: string | null;
   topic: NotificationTopic;
   title: string;
-  description: string;
+  description: ReactNode;
 }) {
   const preferences = await getNoticePreferences(companyId, topic);
   return (
@@ -169,7 +171,11 @@ export async function NotificationsSection({
           companyId={companyId}
           topic="billing"
           title="Financeiro"
-          description="Novas cobranças, vencimentos e lembretes."
+          description={
+            <>
+              Novas cobranças, vencimentos e lembretes. <HelpLink slug="avisos-de-cobranca">Quando cada aviso chega</HelpLink>
+            </>
+          }
         />
       )}
       <TopicCard

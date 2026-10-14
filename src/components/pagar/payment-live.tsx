@@ -5,9 +5,11 @@ import { useEffect, useState, useTransition } from "react";
 /** Announces bank-side changes that arrive through the automatic refresh. */
 export function PaymentStatusAnnouncer({
   status,
+  closure = null,
   ready,
 }: {
   status: string;
+  closure?: "expired" | "replaced" | null;
   ready: boolean;
 }) {
   const [initial] = useState({ status, ready });
@@ -16,7 +18,11 @@ export function PaymentStatusAnnouncer({
       ? status === "paid"
         ? "Pagamento confirmado. Esta fatura já foi paga."
         : status === "cancelled"
-          ? "Fatura cancelada. Não é necessário pagar esta fatura."
+          ? closure === "expired"
+            ? "O boleto e o Pix venceram sem pagamento. O valor continua em aberto."
+            : closure === "replaced"
+              ? "Esta cobrança foi substituída por uma nova."
+              : "Fatura cancelada. Não é necessário pagar esta fatura."
           : "Situação da fatura atualizada."
       : ready && !initial.ready
         ? "Dados de pagamento disponíveis. Você já pode pagar esta fatura."
