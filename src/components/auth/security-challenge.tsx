@@ -8,12 +8,16 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/auth-client";
 import type { SecurityChannel } from "@/lib/auth/security-policy";
 import { securityRequest } from "@/components/auth/security-request";
+import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
 import { AuthAlert } from "./feedback";
 import { CodeInput } from "./login-form";
 import { useCooldown } from "./otp";
 
-/** Second step after the code: another code on the other verified contact. */
-export function SecurityChallenge() {
+/**
+ * Second step after the code: another code on the other verified contact.
+ * `returnTo` is the app the person was opening before signing in, if any.
+ */
+export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {}) {
   const router = useRouter();
   const id = useId();
   const [challenge, setChallenge] = useState<{
@@ -59,7 +63,7 @@ export function SecurityChallenge() {
     try {
       if (action === "cancel") {
         await securityRequest("cancel", {});
-        router.replace("/entrar");
+        router.replace(withReturnPath("/entrar", returnTo));
         return;
       }
       const result =
@@ -81,8 +85,9 @@ export function SecurityChallenge() {
         cooldown();
         setMessage("Código enviado. Ele vale por 5 minutos.");
       } else {
-        setMessage("Verificação concluída. Abrindo o painel.");
-        router.replace("/painel");
+        const next = afterSignIn(returnTo);
+        setMessage(next === "/painel" ? "Verificação concluída. Abrindo o painel." : "Verificação concluída. Abrindo o app.");
+        router.replace(next);
         router.refresh();
       }
     } catch (cause) {
@@ -182,7 +187,7 @@ export function SecurityChallenge() {
             {error}
           </AuthAlert>
           <Button className="w-full" asChild>
-            <Link href="/entrar">Entrar novamente</Link>
+            <Link href={withReturnPath("/entrar", returnTo)}>Entrar novamente</Link>
           </Button>
         </>
       )}
