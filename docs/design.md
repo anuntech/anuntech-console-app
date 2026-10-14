@@ -109,6 +109,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 - **Vazio:** explica quando algo vai aparecer ou oferece a ação; não repete o título.
 - **Erro e 404:** `StatusPage`. Dentro do app, embutido na área de conteúdo (o dock continua); fora, tela inteira com a marca. Registro de outra empresa responde igual a registro inexistente.
 - **Carregando:** `loading.tsx` por seção com o esqueleto da própria lista.
+- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia em marinho ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do tema. Vídeo em loop gerado a partir do logotipo real (`public/brand/vinheta/`, origem em `videos/vinheta/`); com movimento reduzido mostra só o primeiro quadro. Nunca na navegação comum.
 
 ## Escrita
 

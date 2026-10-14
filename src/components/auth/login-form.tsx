@@ -21,6 +21,7 @@ import {
 import { authClient } from "@/lib/auth/auth-client";
 import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
 import { AuthAlert } from "./feedback";
+import { BrandLoading } from "@/components/shell/brand-loading";
 import { GoogleButton } from "./google-button";
 import { normalizePhone, useCooldown } from "./otp";
 
@@ -95,6 +96,7 @@ export function LoginForm({
   const [sent, setSent] = useState(!!preview);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   const [invalidField, setInvalidField] = useState<"destination" | "code" | null>(
     null,
@@ -188,6 +190,7 @@ export function LoginForm({
       }
       const next = afterSignIn(returnTo);
       setMessage(next === "/painel" ? "Acesso confirmado. Abrindo o painel." : "Acesso confirmado. Abrindo o app.");
+      setOpening(true);
       router.replace(next);
       router.refresh();
     } catch {
@@ -199,6 +202,9 @@ export function LoginForm({
 
   return (
     <div className="flex flex-col gap-5">
+      {opening && (
+        <BrandLoading fullscreen label="Acesso confirmado. Abrindo o Console." />
+      )}
       {!sent && (
         <Tabs value={mode} onValueChange={(value) => switchMode(value as Mode)}>
           <TabsList aria-label="Forma de acesso" className="grid w-full grid-cols-2">

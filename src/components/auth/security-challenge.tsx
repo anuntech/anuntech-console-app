@@ -10,6 +10,7 @@ import type { SecurityChannel } from "@/lib/auth/security-policy";
 import { securityRequest } from "@/components/auth/security-request";
 import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
 import { AuthAlert } from "./feedback";
+import { BrandLoading } from "@/components/shell/brand-loading";
 import { CodeInput } from "./login-form";
 import { useCooldown } from "./otp";
 
@@ -27,6 +28,7 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   const [invalidCode, setInvalidCode] = useState(false);
   const [message, setMessage] = useState("");
@@ -87,6 +89,7 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
       } else {
         const next = afterSignIn(returnTo);
         setMessage(next === "/painel" ? "Verificação concluída. Abrindo o painel." : "Verificação concluída. Abrindo o app.");
+        setOpening(true);
         router.replace(next);
         router.refresh();
       }
@@ -106,6 +109,9 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
   }
   return (
     <div className="flex flex-col gap-5">
+      {opening && (
+        <BrandLoading fullscreen label="Verificação concluída. Abrindo o Console." />
+      )}
       {challenge && (
         <p className="text-sm text-muted-foreground">
           Enviamos um código para o{" "}

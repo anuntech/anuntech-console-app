@@ -57,6 +57,7 @@ import {
 } from "lucide-react";
 import { AuthAlert } from "@/components/auth/feedback";
 import { LoginForm } from "@/components/auth/login-form";
+import { BrandLoading } from "@/components/shell/brand-loading";
 import QRCode from "qrcode";
 import { invoiceListHref } from "@/lib/billing/invoice-table";
 import { saoPauloDate } from "@/lib/dates";
@@ -88,6 +89,8 @@ const SCREENS = [
   "pagamento-processando",
   "pagamento-paga",
   "login",
+  "carregando",
+  "carregando-login",
   "login-erro",
   "login-codigo",
   "config",
@@ -1003,6 +1006,8 @@ export default async function Preview({
     now: now.toISOString(),
     today: day(0),
   };
+  if (tela === "carregando-login")
+    return <BrandLoading fullscreen label="Acesso confirmado. Abrindo o Console." />;
   if (tela.startsWith("login"))
     return (
       <AuthShell
@@ -1044,7 +1049,9 @@ export default async function Preview({
           </a>
         ))}
       </p>
-      {tela === "detalhe" ? (
+      {tela === "carregando" ? (
+        <BrandLoading />
+      ) : tela === "detalhe" ? (
         <CompanyDetail data={detail} />
       ) : tela.startsWith("chamado-") || tela === "chamado" ? (
         tela === "chamados-vazio" ? null : (
