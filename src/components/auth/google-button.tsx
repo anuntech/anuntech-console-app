@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/auth-client";
+import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
 import { AuthAlert } from "./feedback";
 
 function GoogleMark() {
@@ -28,7 +29,12 @@ function GoogleMark() {
   );
 }
 
-export function GoogleButton() {
+/**
+ * Sign in with Google. `returnTo` (an app the person tried to open) becomes
+ * the callback; when the second step interrupts it, the security plugin reads
+ * it back from the OAuth state and passes it on to /verificar-acesso.
+ */
+export function GoogleButton({ returnTo }: { returnTo?: string | null } = {}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const feedbackId = useId();
@@ -47,8 +53,8 @@ export function GoogleButton() {
           try {
             const result = await authClient.signIn.social({
               provider: "google",
-              callbackURL: "/painel",
-              errorCallbackURL: "/entrar?erro=acesso",
+              callbackURL: afterSignIn(returnTo),
+              errorCallbackURL: withReturnPath("/entrar?erro=acesso", returnTo),
             });
             if (result.error) {
               setError("Não foi possível iniciar o acesso. Tente novamente.");

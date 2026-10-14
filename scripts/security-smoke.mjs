@@ -11,7 +11,9 @@ assert.match(
   "Use apenas o banco descartável do test-isolated.mjs",
 );
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const base = "http://127.0.0.1:3104",
+// CONSOLE_TEST_SECURITY_PORT moves the server when 3104 is taken (a parallel worktree).
+const port = process.env.CONSOLE_TEST_SECURITY_PORT || "3104";
+const base = `http://127.0.0.1:${port}`,
   email = `security-${randomUUID()}@example.invalid`,
   phone = "+5511999990304";
 const dir = mkdtempSync(join(tmpdir(), "console-security-")),
@@ -137,7 +139,7 @@ try {
       "--hostname",
       "127.0.0.1",
       "--port",
-      "3104",
+      port,
     ],
     {
       env: {
@@ -419,6 +421,41 @@ try {
       "whatsapp",
     "Google usa canal configurado na conta",
   );
+  // A Google sign-in started from a link to an app (/entrar?volta=…) keeps
+  // the way back through the second step; anything else is dropped.
+  const googleTo = async (callbackURL) => {
+    const started = await api("/sign-in/social", { provider: "google", callbackURL });
+    assert.equal(started.status, 200, `sign-in/social ${callbackURL}`);
+    const state = new URL(started.body.url).searchParams;
+    const landed = await fetch(
+      `${base}/api/auth/callback/google?state=${encodeURIComponent(state.get("state"))}&code=${encodeURIComponent(state.get("nonce") || "test")}`,
+      { headers: { Cookie: started.cookie }, redirect: "manual" },
+    );
+    return { status: landed.status, location: landed.headers.get("location") };
+  };
+  let landed = await googleTo("/abrir/espaco-absolut-cms");
+  ok(
+    landed.status === 302 &&
+      landed.location === base + "/verificar-acesso?volta=/abrir/espaco-absolut-cms",
+    "Google iniciado pelo link de um app leva o caminho de volta para a segunda etapa",
+  );
+  const productId = randomUUID();
+  landed = await googleTo(`${base}/apps/${productId}`);
+  ok(
+    landed.location === `${base}/verificar-acesso?volta=/apps/${productId}`,
+    "O caminho de volta absoluto do próprio Console também passa",
+  );
+  const dropped = [];
+  for (const callbackURL of ["/abrir/espaco-absolut-cms?x=1", "/painel", `${base}/abrir/x/../../painel`])
+    dropped.push((await googleTo(callbackURL)).location);
+  ok(
+    dropped.every((location) => location === base + "/verificar-acesso"),
+    "Caminho de volta fora da lista não chega à segunda etapa",
+  );
+  ok(
+    (await api("/sign-in/social", { provider: "google", callbackURL: "https://evil.example/abrir/x" })).status === 403,
+    "Google recusa caminho de volta em outro domínio",
+  );
   const claims = {
     iss: "https://accounts.google.com",
     aud: "console-security-test",
@@ -473,6 +510,12 @@ try {
   ok(
     r.status === 200 && r.body.token && !r.body.twoFactorRedirect,
     "Desativação restaura o login sem segunda etapa",
+  );
+  landed = await googleTo("/abrir/espaco-absolut-cms");
+  ok(
+    landed.status === 302 &&
+      new URL(landed.location, base).href === base + "/abrir/espaco-absolut-cms",
+    "Sem segunda etapa, o Google volta direto para o link do app",
   );
   const newPrimary = `security-new-${randomUUID()}@example.invalid`;
   const linkedGoogle = (

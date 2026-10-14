@@ -11,6 +11,7 @@ import {
   APIError,
   createAuthEndpoint,
   createAuthMiddleware,
+  getOAuthState,
   getSessionFromCtx,
 } from "better-auth/api";
 import {
@@ -24,6 +25,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { sessionAudit } from "./session-history";
 import { getOAuthEmail } from "./oauth-identity";
+import { returnPathFromCallback, withReturnPath } from "./return-path";
 import {
   user,
   session,
@@ -95,6 +97,21 @@ async function deliver(
       message:
         "Não foi possível entregar o código. Aguarde um minuto e tente reenviar.",
     });
+  }
+}
+/**
+ * The app a Google sign-in was heading to (its callbackURL, from the OAuth
+ * state of this callback), only when it is a path sign-in may return to.
+ * Anything else, or no state, keeps the plain redirect.
+ */
+async function googleReturnPath(baseURL: string) {
+  try {
+    return returnPathFromCallback(
+      (await getOAuthState())?.callbackURL,
+      baseURL.split("/api/auth")[0],
+    );
+  } catch {
+    return null;
   }
 }
 async function authorizedUser(userId: string) {
@@ -660,7 +677,10 @@ export function consoleTwoStep() {
               );
               if (ctx.path.startsWith("/callback/"))
                 throw ctx.redirect(
-                  `${ctx.context.baseURL.split("/api/auth")[0]}/entrar?erro=acesso`,
+                  withReturnPath(
+                    `${ctx.context.baseURL.split("/api/auth")[0]}/entrar?erro=acesso`,
+                    await googleReturnPath(ctx.context.baseURL),
+                  ),
                 );
               throw new APIError("UNAUTHORIZED", {
                 message: "Entre novamente usando seu e-mail principal atual.",
@@ -705,9 +725,14 @@ export function consoleTwoStep() {
               ctx.context.secret,
               cookie.attributes,
             );
+            // Google lands here, not in the sign-in form: keep the app the
+            // person was opening (the callbackURL) for after the second step.
             if (ctx.path.startsWith("/callback/"))
               throw ctx.redirect(
-                `${ctx.context.baseURL.split("/api/auth")[0]}/verificar-acesso`,
+                withReturnPath(
+                  `${ctx.context.baseURL.split("/api/auth")[0]}/verificar-acesso`,
+                  await googleReturnPath(ctx.context.baseURL),
+                ),
               );
             return ctx.json({
               twoFactorRedirect: true,

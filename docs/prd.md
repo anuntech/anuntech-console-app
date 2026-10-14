@@ -33,6 +33,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 
 - Entrada sem senha: código de 6 dígitos por e-mail ou WhatsApp já verificado, ou Google. Código vale 5 minutos, aceita 3 tentativas e só pode ser reenviado depois de 60 segundos (até 5 envios em 15 minutos por destino).
 - Verificação em duas etapas opcional: quem entra por e-mail confirma no WhatsApp e vice-versa; no Google, a pessoa escolhe o canal.
+- Depois de entrar, a pessoa vai para a Visão geral. Quem chegou pelo link de um app (`/entrar?volta=/abrir/<app>`, desde 14/10/2026) volta para o app, entre pelo código, pelo Google ou pela segunda etapa. O `volta` só aceita caminho de app do próprio Console (`/abrir/<app>` ou `/apps/<produto>`); qualquer outro valor é ignorado.
 - Minha conta: nome, e-mail principal (troca com código nos dois endereços), telefone (confirmado por WhatsApp), foto enviada ou avatar ilustrado (89 opções; toda conta nova recebe um aleatório).
 - Segurança: últimas 20 sessões, com a atual destacada.
 - Aparência: tema claro, escuro ou do sistema e posição do dock (embaixo, em cima, à esquerda, à direita). No celular o menu fica sempre embaixo.

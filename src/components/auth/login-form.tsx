@@ -19,6 +19,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { authClient } from "@/lib/auth/auth-client";
+import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
 import { AuthAlert } from "./feedback";
 import { GoogleButton } from "./google-button";
 import { normalizePhone, useCooldown } from "./otp";
@@ -79,9 +80,12 @@ export function CodeInput({
  */
 export function LoginForm({
   preview,
+  returnTo,
 }: {
   /** Design previews only: start on the code step for this destination. */
   preview?: { destination: string };
+  /** Where to go once signed in (an app the person tried to open); checked again here. */
+  returnTo?: string | null;
 } = {}) {
   const router = useRouter();
   const id = useId();
@@ -179,11 +183,12 @@ export function LoginForm({
         result.data.twoFactorRedirect
       ) {
         setMessage("Primeira etapa confirmada. Continue a verificação.");
-        router.replace("/verificar-acesso");
+        router.replace(withReturnPath("/verificar-acesso", returnTo));
         return;
       }
-      setMessage("Acesso confirmado. Abrindo o painel.");
-      router.replace("/painel");
+      const next = afterSignIn(returnTo);
+      setMessage(next === "/painel" ? "Acesso confirmado. Abrindo o painel." : "Acesso confirmado. Abrindo o app.");
+      router.replace(next);
       router.refresh();
     } catch {
       setError("Não foi possível conectar. Tente novamente.");
@@ -350,7 +355,7 @@ export function LoginForm({
             ou
             <span className="h-px flex-1 bg-border" aria-hidden="true" />
           </div>
-          <GoogleButton />
+          <GoogleButton returnTo={returnTo} />
         </>
       )}
     </div>

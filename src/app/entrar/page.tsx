@@ -2,6 +2,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { AuthAlert } from "@/components/auth/feedback";
 import { SupportButton } from "@/components/shell/support-trigger";
 import { LoginForm } from "@/components/auth/login-form";
+import { safeReturnPath } from "@/lib/auth/return-path";
 export const metadata = {
   title: "Entrar",
   robots: { index: false, follow: false },
@@ -9,9 +10,11 @@ export const metadata = {
 export default async function SignIn({
   searchParams,
 }: {
-  searchParams: Promise<{ erro?: string; error?: string }>;
+  searchParams: Promise<{ erro?: string; error?: string; volta?: string | string[] }>;
 }) {
   const query = await searchParams;
+  // Only a path to an app comes back here (/abrir/… or /apps/…); anything else is ignored.
+  const returnTo = safeReturnPath(query.volta);
   return (
     <main id="main-content" tabIndex={-1} className="contents">
       <AuthShell
@@ -26,7 +29,7 @@ export default async function SignIn({
               e-mail autorizado e tente novamente.
             </AuthAlert>
           )}
-          <LoginForm />
+          <LoginForm returnTo={returnTo} />
           <p className="text-center text-xs text-muted-foreground">
             Ainda não tem acesso?{" "}
             {process.env.NODE_ENV === "production" ? (

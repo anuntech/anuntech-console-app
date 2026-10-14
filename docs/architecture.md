@@ -51,7 +51,7 @@ public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
 
 | Pasta | Conteúdo |
 | --- | --- |
-| `auth/` | Better Auth (`auth.ts`, `auth-client.ts`), plugin de segurança e duas etapas, política de OTP, envio de códigos, sessões |
+| `auth/` | Better Auth (`auth.ts`, `auth-client.ts`), plugin de segurança e duas etapas, política de OTP, envio de códigos, sessões, para onde o login volta (`return-path.ts`: a lista fechada do `?volta=`, pura e testada) |
 | `access/` | `getActor`, `canAccess`, papéis, equipe do Console, membros das empresas, ambiente da conta, acesso assistido, convite do Administrador no envio (`invite-manager.ts`), registro da entrega dos convites e lista dos parados (`invite-tracking.ts`), reenvio do convite (`resendInvite` em `members-actions.ts`) |
 | `account/` | Minha conta: identidade, e-mails, foto e avatares, aparência |
 | `companies/` | cadastro, consulta de CNPJ/CEP, endereço de cobrança, dados da empresa, exclusão, tabela; implantação (`onboarding.ts`), qualidade dos contatos (`contact-quality.ts`), lista de clientes da equipe (`clients-follow-up.ts`) e limpeza de registros de teste (`cleanup.ts`) |
@@ -109,6 +109,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - `canAccess(actor, companyId, area)` e `allowedIds(actor, area)` filtram toda leitura; cada server action confere de novo antes de escrever.
 - Cada conta pertence a um único ambiente: a operação Anuntech ou uma empresa cliente. Convites e verificação de e-mails recusam misturar ambientes.
 - A equipe pode entrar "como a empresa" (acesso assistido) por um cookie que limita a sessão à visão daquele cliente.
+- **Volta depois de entrar:** `/entrar` e `/verificar-acesso` leem `?volta=` e só aceitam o que casa com `^/(abrir|apps)/[A-Za-z0-9-]{1,64}$` (`safeReturnPath`); sem query, fragmento, `//`, barra invertida, ponto ou `%`. O resto vira `/painel`. O formulário de código leva o caminho para a segunda etapa (`/verificar-acesso?volta=…`); o Google o manda como `callbackURL`, e quando a segunda etapa interrompe o callback, o plugin de segurança lê o `callbackURL` do estado do OAuth (`getOAuthState`), confere na mesma lista e redireciona para `/verificar-acesso?volta=…`.
 
 ## Server actions
 
@@ -197,6 +198,7 @@ Avisos também são processados logo após a ação, com `after()`; o cron garan
 
 - `npm test`: testes unitários em `tests/` (regras puras: cobrança, datas, permissões, tabelas, consentimento, registro e passe dos apps).
 - `npm run test:integration` (`scripts/test-isolated.mjs`): cria um banco `console_test_<aleatório>`, aplica todas as migrações, sobe `next start` e roda as suítes HTTP com provedores simulados: OTP, segurança, membros, conta, notificações, cobrança e regressão. Precisa de build prévio. `--members-only`, `--billing-only` etc. rodam uma suíte. A regressão gera uma chave de passe só para a rodada e termina com `scripts/apps-smoke.mjs`: JWKS, quem abre cada app, o passe verificado como um app verifica, a auditoria e os links. `CONSOLE_TEST_HTTP_PORT` troca a porta da regressão (padrão 3101).
+- A suíte de segurança (`scripts/security-smoke.mjs`) sobe o servidor na porta 3104; `CONSOLE_TEST_SECURITY_PORT` troca a porta.
 - Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa. A regressão carrega também `openrouter-mock.cjs`, que responde a transcrição pelos primeiros bytes do áudio (sucesso, falha do primeiro modelo, silêncio) e registra só modelo, formato e tamanho.
 - As suítes postam formulários pelo nome da server action (lido do manifesto do build), então não quebram quando um texto de botão muda.
 - GitHub Actions (`.github/workflows/checks.yml`) roda em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário.
