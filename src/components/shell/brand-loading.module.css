@@ -39,20 +39,10 @@
   }
 }
 
-/* Tela cheia: cinza bem claro. No tema escuro, o próprio fundo do tema
- * (o logotipo já vira claro). Dentro da página não há caixa: a vinheta fica
+/* Tela cheia: o fundo da plataforma (cinza quase branco; no tema escuro,
+ * o fundo escuro, e o logotipo já vira claro). Dentro da página não há caixa: a vinheta fica
  * no fundo do Console, e a sobreposição usa esse mesmo fundo. */
-.splash {
-  background: #f3f4f6;
-}
-:global(:root[data-theme="dark"]) .splash {
-  background: var(--background);
-}
-@media (prefers-color-scheme: dark) {
-  :global(:root[data-theme="system"]) .splash {
-    background: var(--background);
-  }
-}
+.splash,
 .hold {
   background: var(--background);
 }

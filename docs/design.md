@@ -31,7 +31,7 @@ A base visual, os componentes e os padrões de tela do Console. Toda tela nova o
 
 | Token | Claro | Escuro | Uso |
 | --- | --- | --- | --- |
-| `--background` | `#f5f7fb` | `#101722` | Fundo da aplicação |
+| `--background` | `#fafafa` | `#101722` | Fundo da aplicação (cinza quase branco, neutro) |
 | `--foreground` | `#0d1d41` | `#e7edf7` | Texto principal (azul-marinho do logotipo) |
 | `--card` | `#ffffff` | `#182231` | Superfícies |
 | `--primary` | `#1a428a` | `#9ebfff` | Ação principal, links, foco de marca |
