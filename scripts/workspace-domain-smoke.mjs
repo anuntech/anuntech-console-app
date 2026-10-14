@@ -75,6 +75,18 @@ export async function runWorkspaceDomainTests({ people, ok, base, notFoundPage, 
       `workspace.anuntech.com${path} vai para ${to} no Console (307)`,
     );
   }
+  // A trailing slash gets Next's own 308 first, on the same host and with the
+  // query; the next hop is the proxy's 307, which still leaves the query behind.
+  const slash = await send("/apps/app_mulheresfm/?token=velho", "workspace.anuntech.com");
+  ok(
+    slash.status === 308 && slash.location === "/apps/app_mulheresfm?token=velho",
+    "Barra no fim no domínio do Workspace passa pelo 308 do Next no mesmo host",
+  );
+  const afterSlash = await send(slash.location, "workspace.anuntech.com");
+  ok(
+    afterSlash.status === 307 && afterSlash.location === `${consoleOrigin}/abrir/mulheresfm-cms`,
+    "Depois do 308, o domínio do Workspace vai para o Console sem a query",
+  );
   const webhook = await send("/api/webhooks/asaas", "workspace.anuntech.com", { method: "POST", body: '{"event":"PAYMENT_RECEIVED"}' });
   ok(webhook.status === 307 && webhook.location === `${consoleOrigin}/painel`, "POST no webhook antigo do Workspace também vai para o Console");
   const signedIn = await send("/painel", "workspace.anuntech.com", { who: "admin" });
