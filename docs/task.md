@@ -4,6 +4,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Depende do Kauan
 
+- [ ] Avisos de dependência (16/10): revisar e fazer o merge do PR do branch `fix/dependency-advisories-2026-10` (next 16.4.2, sharp 0.35.5, source-map-js 1.2.2) e depois ligar o check `dependencies` na Vercel ([security.md](security.md#pipeline)). Com ele, os PRs do Dependabot de next, sharp e source-map-js ficam redundantes, e o `fix/security-h1-h3` precisa tirar o próprio commit de versões (16.3.8) antes do merge.
 - [ ] Guardrails do assistente (16/10, publicados): depois de uma semana de uso, conferir em `console_assistant_usage` se os tetos do dia (`budget-rules.ts`) cabem no uso real. Regravar o tutorial em vídeo do assistente, que mostra a confirmação por "sim".
 
 - [ ] Jornada do projeto (08/10): escrever em Configurações → Assistente o documento "Padrão de projeto Anuntech" (stack e versões, pastas, AGENTS.md, padrões de Vercel, Neon e Cloudflare), que o prompt de início usa. Depois de 3 a 5 jornadas reais, revisar o modelo-padrão (passos que sobram ou faltam, variações por tipo de projeto) e decidir se a jornada começa sozinha com um pedido de projeto novo.
