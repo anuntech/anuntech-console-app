@@ -9,9 +9,7 @@ import { recentSessions } from "@/lib/auth/session-history";
 import { sessionDevice } from "@/lib/auth/session-device";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
-import { connectionsOf } from "@/lib/meetings/meeting-connections";
 import { TwoStepSettings } from "./two-step-settings";
-import { ConnectedApps } from "./connected-apps";
 
 const statusLabel: Record<string, string> = {
   current: "Esta sessão",
@@ -23,10 +21,7 @@ const statusLabel: Record<string, string> = {
 export async function SecuritySection() {
   const current = await auth.api.getSession({ headers: await headers() });
   if (!current?.user.emailVerified) redirect("/entrar");
-  const [entries, apps] = await Promise.all([
-    recentSessions(current.user.id, current.session.id),
-    connectionsOf(current.user.id),
-  ]);
+  const entries = await recentSessions(current.user.id, current.session.id);
   return (
     <>
       <TwoStepSettings
@@ -78,16 +73,6 @@ export async function SecuritySection() {
           </ul>
         </CardContent>
       </Card>
-      {apps.length > 0 && (
-        <ConnectedApps
-          apps={apps.map((app) => ({
-            id: app.id,
-            device: app.device,
-            connectedAt: app.connectedAt?.toISOString() ?? null,
-            lastUsedAt: app.lastUsedAt?.toISOString() ?? null,
-          }))}
-        />
-      )}
     </>
   );
 }

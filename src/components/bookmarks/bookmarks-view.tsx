@@ -12,7 +12,6 @@ import {
   FolderInputIcon,
   FolderPlusIcon,
   MoreHorizontalIcon,
-  NotebookTextIcon,
   PencilIcon,
   PlusIcon,
   PresentationIcon,
@@ -60,8 +59,7 @@ import {
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
 import { moveBookmark, deleteBookmark } from "@/lib/bookmarks/bookmark-actions";
-import { boardHref, kindOf, meetingHref } from "@/lib/bookmarks/board-rules";
-import { durationLabel } from "@/lib/meetings/meeting-format";
+import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { ListLayout } from "@/lib/list-layout";
 import { CardGrid, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
@@ -107,14 +105,12 @@ function hostOf(url: string) {
 function Tile({ item, large = false }: { item: BookmarkView; large?: boolean }) {
   const size = large ? "size-10 rounded-lg" : "size-8 rounded-md";
   const kind = kindOf(item);
-  if (kind === "board" || kind === "meeting") {
-    const Icon = kind === "board" ? PresentationIcon : NotebookTextIcon;
+  if (kind === "board")
     return (
       <span className={cn("flex shrink-0 items-center justify-center bg-accent text-primary", size)}>
-        <Icon className={large ? "size-5" : "size-4"} />
+        <PresentationIcon className={large ? "size-5" : "size-4"} />
       </span>
     );
-  }
   if (!item.url)
     return (
       <span className={cn("flex shrink-0 items-center justify-center bg-secondary text-muted-foreground", size)}>
@@ -295,13 +291,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   /** Link host or file name and size; the company too when the list spans several and has no column for it. */
   const subtitleFor = (item: BookmarkView, withCompany: boolean) =>
     [
-      kindOf(item) === "board"
-        ? "Lousa"
-        : kindOf(item) === "meeting"
-          ? `Reunião · ${durationLabel(item.meeting?.durationSeconds ?? 0)}`
-          : item.url
-            ? hostOf(item.url)
-            : item.fileName,
+      kindOf(item) === "board" ? "Lousa" : item.url ? hostOf(item.url) : item.fileName,
       kindOf(item) === "file" && item.fileSize ? fileSizeLabel(item.fileSize) : null,
       withCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
     ]
@@ -309,14 +299,6 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       .join(" · ");
   const download = (item: BookmarkView) =>
     void downloadFile(`/api/bookmarks/${item.id}`, item.fileName ?? item.title);
-  /** Where clicking a bookmark goes: a page of the Console, the link, or the file's download. */
-  const openFor = (item: BookmarkView): { href: string | null; external: boolean; onOpen?: () => void } => {
-    const kind = kindOf(item);
-    if (kind === "board") return { href: boardHref(item.id), external: false };
-    if (kind === "meeting") return { href: meetingHref(item.id), external: false };
-    if (item.url) return { href: item.url, external: true };
-    return { href: null, external: true, onOpen: () => download(item) };
-  };
 
   /** The "…" menu of a bookmark, the same in the list and in the grid. */
   const actionsFor = (item: BookmarkView) => (
@@ -328,18 +310,6 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             Abrir lousa
           </Link>
         </DropdownMenuItem>
-      ) : kindOf(item) === "meeting" ? (
-        <>
-          <DropdownMenuItem asChild>
-            <Link href={meetingHref(item.id)}>
-              <NotebookTextIcon />
-              Ler nota
-            </Link>
-          </DropdownMenuItem>
-          <DownloadMenuItem href={`/api/bookmarks/${item.id}`} filename={item.fileName ?? item.title}>
-            Baixar .md
-          </DownloadMenuItem>
-        </>
       ) : item.url ? (
         <DropdownMenuItem asChild>
           <a href={item.url} target="_blank" rel="noopener noreferrer">
@@ -410,13 +380,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           const folder = item.folderId ? folderById.get(item.folderId) : undefined;
           const company = companyName.get(item.companyId ?? "") ?? null;
           const subtitle = subtitleFor(item, showCompany && !companyColumn);
-          const open = openFor(item);
+          const board = kindOf(item) === "board";
           return (
-            <LinkRow key={item.id} href={open.href} external={open.external} onOpen={open.onOpen}>
+            <LinkRow
+              key={item.id}
+              href={board ? boardHref(item.id) : item.url}
+              external={!board}
+              onOpen={board || item.url ? undefined : () => download(item)}
+            >
               <PrimaryCell
-                href={open.href}
-                external={open.external}
-                onOpen={open.onOpen}
+                href={board ? boardHref(item.id) : item.url}
+                external={!board}
+                onOpen={board || item.url ? undefined : () => download(item)}
                 leading={<Tile item={item} />}
                 title={item.title}
                 subtitle={subtitle || undefined}
@@ -451,13 +426,12 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       {items.map((item) => {
         const folder = item.folderId ? folderById.get(item.folderId) : undefined;
         const board = kindOf(item) === "board";
-        const open = openFor(item);
         return (
           <GridCard
             key={item.id}
-            href={open.href}
-            external={open.external}
-            onOpen={open.onOpen}
+            href={board ? boardHref(item.id) : item.url}
+            external={!board}
+            onOpen={board || item.url ? undefined : () => download(item)}
             leading={<Tile item={item} large />}
             title={item.title}
             subtitle={subtitleFor(item, showCompany) || undefined}

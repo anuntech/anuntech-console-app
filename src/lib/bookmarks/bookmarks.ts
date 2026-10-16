@@ -26,7 +26,6 @@ import { getAccountEmails } from "../account/account-identity";
 import { hasConsoleStaffAccess } from "../access/console-members";
 import { db } from "../db";
 import { clampPage, DEFAULT_PAGE_SIZE, offsetOf, type PageQuery } from "../list-query";
-import { meetingInfo } from "../meetings/meeting-rules";
 
 /** What the viewer may see: staff sees every company; a member, their own. */
 export type Scope = { admin: boolean; userId: string; companyIds: string[] };
@@ -58,8 +57,6 @@ export type BookmarkView = {
   board?: boolean;
   /** Whether a PNG of the whiteboard exists, for the card. */
   preview?: boolean;
-  /** A meeting note from the Mac app: when it started and how long it ran. */
-  meeting?: { startedAt: string; durationSeconds: number } | null;
   folderId: string | null;
   companyId: string | null;
   ownerId: string;
@@ -231,7 +228,6 @@ export async function bookmarksFor(
           // Flags only: the scene and its PNG stay in the database until opened.
           board: sql<boolean>`(${bookmarks.board} is not null)`,
           preview: sql<boolean>`(${bookmarks.preview} is not null)`,
-          meeting: bookmarks.meeting,
           folderId: bookmarks.folderId,
           companyId: bookmarks.companyId,
           ownerId: bookmarks.ownerId,
@@ -247,15 +243,11 @@ export async function bookmarksFor(
         .offset(offsetOf(shown))
     : [];
   return {
-    items: items.map(({ meeting, ...item }) => {
-      const info = meetingInfo(meeting);
-      return {
-        ...item,
-        meeting: info && { startedAt: info.startedAt, durationSeconds: info.durationSeconds },
-        createdAt: item.createdAt.toISOString(),
-        updatedAt: item.updatedAt.toISOString(),
-      };
-    }),
+    items: items.map((item) => ({
+      ...item,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+    })),
     rootCount: counts?.root ?? 0,
     total: counts?.total ?? 0,
     matching,
@@ -350,8 +342,6 @@ export type BookmarkRecord = {
   fileName: string | null;
   /** The whiteboard scene, as stored; null for links and files. */
   board: unknown;
-  /** A meeting note's details (meeting-rules.ts `meetingInfo` reads it); null otherwise. */
-  meeting: unknown;
   updatedAt: Date;
   folderName: string | null;
   /** Staff, the person who saved it, or the owner of its folder may change it. */
@@ -375,7 +365,6 @@ export async function bookmarkFor(actor: Actor, bookmarkId: string): Promise<Boo
       url: bookmarks.url,
       fileName: bookmarks.fileName,
       board: bookmarks.board,
-      meeting: bookmarks.meeting,
       updatedAt: bookmarks.updatedAt,
       folderName: bookmarkFolders.name,
       folderVisibility: bookmarkFolders.visibility,
@@ -409,7 +398,6 @@ export async function bookmarkFor(actor: Actor, bookmarkId: string): Promise<Boo
     url: item.url,
     fileName: item.fileName,
     board: item.board,
-    meeting: item.meeting,
     updatedAt: item.updatedAt,
     folderName: item.folderName,
     editable: actor.admin || item.ownerId === actor.user.id || item.folderOwner === actor.user.id,
