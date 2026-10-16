@@ -3,8 +3,7 @@ import { and, count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auditEvents, companies, contractChangeRequests, contracts } from "@/db/schema";
-import { getActor, type Actor } from "../access/access";
-import { hasPermission } from "../access/permissions";
+import { getActor, answersForClient, ASSISTED_DECISION, type Actor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { sendOpsMail } from "../notifications/ops-alerts";
@@ -38,11 +37,10 @@ const failure = (e: unknown): ActionState => ({
         : "Não foi possível salvar. Tente novamente.",
 });
 
-/** Who answers for the client: the company's managers, who also sign. */
+/** Who answers for the client: the company's managers, who also sign. Assisted access is refused by name. */
 const clientSide = (actor: Actor, companyId: string) => {
-  if (actor.admin) return false;
-  const grant = actor.grants.find((g) => g.company.id === companyId);
-  return !!grant && hasPermission(grant.role, "finance");
+  if (actor.assisting) throw Error(ASSISTED_DECISION);
+  return answersForClient(actor, companyId);
 };
 
 const refresh = (contractId: string) => {

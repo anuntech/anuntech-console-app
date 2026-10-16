@@ -43,6 +43,8 @@ export async function runHandoffTests({ database: db, ids, people, request, subm
   ok(quote?.ticket_id === ids.ticketA, "Orçamento guarda o chamado de origem");
   const quotePath = `/orcamentos/${quote.id}`;
   await submitForm(quotePath, "admin", "admin", { action: "sendQuote" }, { id: quote.id });
+  await submitForm(quotePath, "assisted", "assisted", { action: "answerQuote" }, { id: quote.id, decision: "accept", consent: "on" });
+  ok((await one("select status from console_quotes where id=$1", [quote.id])).status === "sent", "Equipe no acesso assistido não aceita o orçamento pelo cliente");
   await submitForm(quotePath, "admin", "finance", { action: "answerQuote" }, { id: quote.id, decision: "accept", consent: "on" });
   quote = await one("select * from console_quotes where id=$1", [quote.id]);
   ok(quote.status === "accepted", "Cliente aceita o orçamento");
@@ -128,6 +130,11 @@ export async function runHandoffTests({ database: db, ids, people, request, subm
 
   // Signed by the client first: the team hears it, and the morning digest lists it.
   await submitForm(`/contratos/${contract.id}`, "admin", "admin", { action: "sendContract" }, { id: contract.id });
+  await submitForm(`/contratos/${contract.id}`, "assisted", "assisted", { action: "signContract" }, { id: contract.id, consent: "on" });
+  ok(
+    (await db.query("select id from console_contract_signatures where contract_id=$1", [contract.id])).rowCount === 0,
+    "Equipe no acesso assistido não assina o contrato pelo cliente",
+  );
   const before = sentNotices().length;
   await submitForm(`/contratos/${contract.id}`, "admin", "finance", { action: "signContract" }, { id: contract.id, consent: "on" });
   const signedMail = sentNotices().slice(before).find((n) => String(n.payload?.subject ?? "").includes("falta a Anuntech"));

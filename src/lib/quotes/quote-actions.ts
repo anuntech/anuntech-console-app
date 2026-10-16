@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "../db";
-import { getActor, canAccess, type Actor } from "../access/access";
+import { getActor, canAccess, answersForClient, ASSISTED_DECISION, type Actor } from "../access/access";
 import { auth } from "../auth/auth";
 import { accountEmails, auditEvents, companies, engagements, memberships, quoteVersions, quotes, tasks, tickets, user } from "@/db/schema";
 import type { ActionState } from "../action-state";
@@ -13,7 +13,6 @@ import { saoPauloDate } from "../dates";
 import { currency, longDateLabel } from "../format";
 import { sendOpsMail } from "../notifications/ops-alerts";
 import { billingProblemsLabel, billingReadiness } from "../billing/billing-readiness";
-import { hasPermission } from "../access/permissions";
 import { deliverQuoteNotice } from "./quote-mail";
 import { quoteBoardTasks } from "./quote-handoff";
 import { inviteManagerOnSend } from "../access/invite-manager";
@@ -94,8 +93,7 @@ async function companyManagers(companyId: string) {
 
 function partyFor(actor: Actor, companyId: string): "anuntech" | "client" | null {
   if (actor.admin) return "anuntech";
-  const grant = actor.grants.find((g) => g.company.id === companyId);
-  return grant && hasPermission(grant.role, "finance") ? "client" : null;
+  return answersForClient(actor, companyId) ? "client" : null;
 }
 
 /* ---------- drafting (staff) ---------- */
@@ -387,6 +385,7 @@ export async function answerQuote(_: ActionState, form: FormData): Promise<Actio
     const note = noteField.parse(form.get("note") ?? "");
     const [q] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
     if (!q || !canAccess(actor, q.companyId, "finance")) return blocked;
+    if (actor.assisting) return { error: ASSISTED_DECISION };
     const party = partyFor(actor, q.companyId);
     if (!party) return { error: "Só um Administrador da empresa pode responder ao orçamento." };
     if (q.status !== "sent" || !q.publication || !q.documentHash) return { error: "Este orçamento não está aguardando resposta." };

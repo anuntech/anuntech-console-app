@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "../db";
-import { getActor, canAccess, type Actor } from "../access/access";
+import { getActor, canAccess, answersForClient, ASSISTED_DECISION, type Actor } from "../access/access";
 import { auth } from "../auth/auth";
 import {
   accountEmails,
@@ -40,7 +40,6 @@ import { applyContractFields, contractFields } from "./contract-fields";
 import { quoteContractValues } from "../quotes/quote-handoff";
 import { readjustFor } from "./readjust";
 import { currency, longDateLabel } from "../format";
-import { hasPermission } from "../access/permissions";
 
 const id = z.string().uuid();
 const blocked = { error: "Você não tem permissão para fazer isso." };
@@ -672,8 +671,7 @@ export async function revertContract(_: ActionState, form: FormData): Promise<Ac
 /** Which side of the table the viewer sits on, for this contract. */
 function partyFor(actor: Actor, companyId: string): "anuntech" | "client" | null {
   if (actor.admin) return "anuntech";
-  const grant = actor.grants.find((g) => g.company.id === companyId);
-  return grant && hasPermission(grant.role, "finance") ? "client" : null;
+  return answersForClient(actor, companyId) ? "client" : null;
 }
 
 /**
@@ -690,6 +688,7 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
       return { error: "Marque que leu e concorda com o contrato para assinar." };
     const [c] = await db.select().from(contracts).where(eq(contracts.id, contractId));
     if (!c || !canAccess(actor, c.companyId, "finance")) return blocked;
+    if (actor.assisting) return { error: ASSISTED_DECISION };
     const party = partyFor(actor, c.companyId);
     if (!party) return { error: "Só um Administrador da empresa pode assinar." };
     if (c.status !== "sent" || !c.publication || !c.documentHash)

@@ -82,6 +82,20 @@ export function canSeeMoney(actor: Actor, companyId: string) {
   return canAccess(actor, companyId, "finance");
 }
 
+/**
+ * Who decides for the client (signs a contract, answers a proposal, approves
+ * hours or an estimate, asks for contract changes): the company's
+ * Administradores. Never the team, not even in assisted access, which shows
+ * what the client sees without letting anyone act as them.
+ */
+export function answersForClient(actor: Actor, companyId: string) {
+  return !actor.realAdmin && canAccess(actor, companyId, "finance");
+}
+
+/** The refusal when someone in assisted access tries to decide for the client. */
+export const ASSISTED_DECISION =
+  "No acesso assistido você vê o que o cliente vê, mas não assina, aceita nem aprova por ele.";
+
 /** A product, service or project: the company's area, and the person's selection when a Membro has one. */
 export function canSeeEngagement(
   actor: Actor,

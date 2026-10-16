@@ -221,6 +221,8 @@ try {
       "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,$4)",
       [randomUUID(), ids.a, person.email, person.role],
     );
+  // The team in assisted access: company A as its Administrador sees it, never deciding for them.
+  people.assisted = { ...people.admin, cookie: `${people.admin.cookie}; console_assist=${ids.a}` };
   for (const [tid, cid, subject] of [
     [ids.ticketA, ids.a, `Allowed ticket ${marker}`],
     [ids.ticketB, ids.b, `PRIVATE-B-${marker}`],
@@ -596,6 +598,11 @@ try {
     ok((await bankMinutes()) === 90, "Horas além do banco precisam de aprovação do cliente");
     await submitForm("/painel", "support", "support", { action: "approveOverage" }, { companyId: ids.a, hours: "50" });
     ok((await database.query("select id from console_hours_months where company_id=$1", [ids.a])).rowCount === 0, "Membro não aprova horas além do banco");
+    await submitForm("/painel", "assisted", "assisted", { action: "approveOverage" }, { companyId: ids.a, hours: "50" });
+    ok(
+      (await database.query("select id from console_hours_months where company_id=$1", [ids.a])).rowCount === 0,
+      "Equipe no acesso assistido não aprova horas além do banco pelo cliente",
+    );
     await submitForm("/painel", "finance", "finance", { action: "approveOverage" }, { companyId: ids.a, hours: "2" });
     ok((await database.query("select overage_approved_minutes n from console_hours_months where company_id=$1", [ids.a])).rows[0]?.n === 120, "Administrador aprova horas além do banco");
     await submitForm(`/chamados/${guided.id}`, "admin", "admin", { action: "logTime" }, { companyId: ids.a, ticketId: guided.id, hours: "1", note: "Correção", kind: "bank" });
@@ -604,6 +611,8 @@ try {
     ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "proposed", "Equipe envia a estimativa de uma melhoria");
     await submitForm(`/chamados/${guided.id}`, "support", "support", { action: "decideEstimate" }, { ticketId: guided.id, decision: "approve", minutes: "180" });
     ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "proposed", "Membro não aprova estimativa");
+    await submitForm(`/chamados/${guided.id}`, "assisted", "assisted", { action: "decideEstimate" }, { ticketId: guided.id, decision: "approve", minutes: "180" });
+    ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "proposed", "Equipe no acesso assistido não aprova a estimativa pelo cliente");
     await submitForm(`/chamados/${guided.id}`, "finance", "finance", { action: "decideEstimate" }, { ticketId: guided.id, decision: "approve", minutes: "120" });
     ok((await ticketRow(`Guided critical ${marker}`)).estimate_status === "proposed", "Aprovar uma estimativa que mudou não vale");
     await submitForm(`/chamados/${guided.id}`, "finance", "finance", { action: "decideEstimate" }, { ticketId: guided.id, decision: "approve", minutes: "180" });
@@ -1080,6 +1089,8 @@ try {
       });
     await ask("support", 1, `Forbidden request ${marker}`);
     ok((await changes()).length === 0, "Membro sem acesso ao financeiro não pede alteração em contrato");
+    await ask("assisted", 1, `Assisted request ${marker}`);
+    ok((await changes()).length === 0, "Equipe no acesso assistido não pede alteração pelo cliente");
     await ask("finance", 1, `PRIVATE-REQUEST-${marker}`, "Segunda cláusula, com prazo de 15 dias.");
     await ask("finance", 0, `Explique melhor ${marker}`);
     let requests = await changes();
