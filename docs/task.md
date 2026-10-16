@@ -4,7 +4,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Depende do Kauan
 
-- [ ] Guardrails do assistente (16/10): levar a migração 0043 (`console_assistant_proposals` e `console_assistant_usage`) para produção pelo procedimento de [rules.md](rules.md#migrações-em-produção) antes de publicar; sem ela, toda mensagem ao assistente responde erro. Depois de uma semana de uso, conferir em `console_assistant_usage` se os tetos do dia (`budget-rules.ts`) cabem no uso real. Depois de publicar, testar com uma amostra real: o modelo de Configurações → Assistente tem provedor sem retenção (senão o assistente avisa) e o log da Vercel não mostra `[assistant] Jev unavailable`. Regravar o tutorial em vídeo do assistente, que mostra a confirmação por "sim".
+- [ ] Guardrails do assistente (16/10, publicados): conferir com uma mensagem real no assistente que o modelo de Configurações → Assistente tem provedor sem retenção (senão ele avisa) e que o log da Vercel não mostra `[assistant] Jev unavailable`. Depois de uma semana de uso, conferir em `console_assistant_usage` se os tetos do dia (`budget-rules.ts`) cabem no uso real. Regravar o tutorial em vídeo do assistente, que mostra a confirmação por "sim".
 
 - [ ] Jornada do projeto (08/10): escrever em Configurações → Assistente o documento "Padrão de projeto Anuntech" (stack e versões, pastas, AGENTS.md, padrões de Vercel, Neon e Cloudflare), que o prompt de início usa. Depois de 3 a 5 jornadas reais, revisar o modelo-padrão (passos que sobram ou faltam, variações por tipo de projeto) e decidir se a jornada começa sozinha com um pedido de projeto novo.
 - [ ] Apagar o repositório vazio `anuntech/anuntech-console-vazio`, que sobrou da transferência.
