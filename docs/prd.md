@@ -166,8 +166,6 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Links, arquivos e lousas privados organizados em pastas pessoais. Uma pasta pode ser vista pela empresa inteira ou só por pessoas escolhidas.
 - Lousa: um quadro para desenhar e anotar (Excalidraw) que abre em tela cheia dentro do Console. Nasce em branco, salva sozinha a cada traço e mostra uma miniatura no card. Quem vê o bookmark abre a lousa; só quem a criou, o dono da pasta ou a equipe desenha nela (os outros veem em modo leitura). Limite de 3 MB por lousa, contadas as imagens coladas.
 - Busca, paginação (10, 25, 50 ou 100 por página) e visualização em lista ou grade. A escolha de visualização fica salva para a pessoa.
-- Notas de reunião: o app Anuntech Reuniões, da barra de menus do Mac (repositório próprio, `anuntech-reunioes`), grava a reunião (áudio do sistema e microfone), transcreve, escreve o resumo em 5 tópicos, as decisões e os próximos passos com responsável e guarda tudo em `~/MeetingNotes`. Conectado, manda a nota para a empresa e a pasta escolhidas no menu, como um bookmark "Reunião · 42 min" que abre para leitura no Console (resumo em cima, transcrição recolhida embaixo) e baixa como `.md`. O áudio nunca vem para o Console.
-- Conectar o app: o app abre `/conectar/<desafio>`, a pessoa entra (se precisar) e clica em "Conectar este Mac". A chave vale como a própria pessoa, com o acesso conferido a cada envio: uma nota só entra onde a pessoa poderia salvar um link. Configurações → Segurança lista os Macs conectados, cada um com "Desconectar". Até 30 notas por pessoa por hora; reenviar a mesma nota não duplica.
 
 ### Assistente
 
