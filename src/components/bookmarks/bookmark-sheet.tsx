@@ -32,7 +32,7 @@ const KINDS: { value: BookmarkKind; label: string; hint: string; icon: ReactNode
 /** What stays as it is when editing: the file or the drawing. */
 export function deleteNote(item: BookmarkView) {
   const kind = kindOf(item);
-  return kind === "file" ? ", com o arquivo" : kind === "board" ? ", com o desenho" : "";
+  return kind === "file" ? ", com o arquivo" : kind === "board" ? ", com o desenho" : kind === "meeting" ? ", com a nota" : "";
 }
 
 /** Create or edit: company, folder, title and a link, a small file or a new whiteboard. */
@@ -76,7 +76,7 @@ export function BookmarkSheet({
             ? kind === "board"
               ? "Um quadro em branco para desenhar e anotar. Ele abre em seguida."
               : `Um link ou um arquivo de até ${fileLimit}.`
-            : itemKind === "file"
+            : itemKind === "file" || itemKind === "meeting"
               ? "Mude o título ou a pasta; o arquivo fica como está."
               : itemKind === "board"
                 ? "Mude o título ou a pasta; o desenho fica como está."
@@ -180,7 +180,7 @@ function BookmarkFields({
         />
       </FormField>
       {item ? (
-        itemKind === "file" ? (
+        itemKind === "file" || itemKind === "meeting" ? (
           <div>
             <p className="mb-1.5 text-sm leading-none font-medium">Arquivo</p>
             <FileChips>

@@ -49,6 +49,17 @@ export const getActor = cache(async () => {
   };
 });
 export type Actor = Awaited<ReturnType<typeof getActor>>;
+
+/**
+ * The same actor for a person reached without a browser session: the Mac
+ * meeting-notes app calls with a key (lib/meetings). Access is read again on
+ * every call, so a revoked membership stops it at once. Never assisted.
+ */
+export async function actorForUser(person: Actor["user"]): Promise<Actor> {
+  const { admin, owner } = await getConsoleStaffAccess(person.email);
+  const grants = await loadGrants(await getAccountEmails(person.id, person.email));
+  return { user: person, owner, admin, grants, assisting: null, realAdmin: admin };
+}
 export async function requireAdmin() {
   const actor = await getActor();
   if (!actor.admin) notFound();
