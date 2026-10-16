@@ -10,6 +10,7 @@ const PREVIOUS_PERIOD_DAYS = 40;
 import { publishInvoice } from "./billing-publish";
 import { reconcileCharge } from "./billing-sync";
 import { alertRecurrencePaused } from "../notifications/ops-alerts";
+import { errorText, logDatabaseFault } from "../action-errors";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -182,7 +183,10 @@ export async function processSubscriptions() {
       }
     } catch (error) {
       failed++;
-      errors.push({ id: sub.id, error: error instanceof Error ? error.message : String(error) });
+      // What is stored, mailed and logged here never carries a query's values.
+      logDatabaseFault("recurring billing", error);
+      const reason = errorText(error, "Falha ao emitir recorrência.");
+      errors.push({ id: sub.id, error: reason });
       // An early try that never reached the bank does not stop the recurrence: the
       // period goes out on its usual day, and fails loudly there if it still cannot.
       if (ahead && createdId) {
@@ -191,7 +195,7 @@ export async function processSubscriptions() {
           const usual = issueDate(sub.nextDueDate, sub.leadDays).split("-").reverse().join("/");
           await db
             .update(subscriptions)
-            .set({ lastError: `A emissão logo após o pagamento não saiu: ${error instanceof Error ? error.message : "falha no Inter"} Nova tentativa em ${usual}.` })
+            .set({ lastError: `A emissão logo após o pagamento não saiu: ${errorText(error, "falha no Inter")} Nova tentativa em ${usual}.` })
             .where(and(eq(subscriptions.id, sub.id), eq(subscriptions.status, "active")));
           continue;
         }
@@ -200,10 +204,7 @@ export async function processSubscriptions() {
         .update(subscriptions)
         .set({
           status: "paused",
-          lastError:
-            error instanceof Error
-              ? error.message
-              : "Falha ao emitir recorrência.",
+          lastError: reason,
         })
         .where(
           and(
@@ -212,7 +213,7 @@ export async function processSubscriptions() {
             eq(subscriptions.nextDueDate, sub.nextDueDate),
           ),
         );
-      await alertRecurrencePaused(sub.id, error instanceof Error ? error.message : "Falha ao emitir recorrência.");
+      await alertRecurrencePaused(sub.id, reason);
     }
   }
   return { today, selected: rows.map((r) => r.id), issued, early, failed, skipped, errors };

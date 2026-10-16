@@ -15,6 +15,7 @@ import {
 } from "../deletion-rules";
 import { expiredDebtCondition } from "./billing-watch";
 import { releasePreparedCharges } from "./prepared-release";
+import { logDatabaseFault } from "../action-errors";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -151,7 +152,8 @@ export async function deleteDraftInvoice(_: ActionState, form: FormData): Promis
     }
     return { success };
   } catch (e) {
-    if (!(e instanceof Refusal)) console.error("[delete] invoice failed", e);
+    // A query's error prints its values; the database's own code and index are enough.
+    if (!(e instanceof Refusal) && !logDatabaseFault("delete invoice", e)) console.error("[delete] invoice failed", e);
     return {
       error: e instanceof Refusal ? e.message : "Não foi possível excluir a fatura. Tente novamente.",
     };

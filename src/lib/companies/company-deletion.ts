@@ -38,6 +38,7 @@ import {
 } from "../deletion-rules";
 import { lockCompanyNotifications } from "../notifications/notification-preferences";
 import { companyLinks, engagementLinks } from "../record-links";
+import { logDatabaseFault } from "../action-errors";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -230,7 +231,8 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
     revalidatePath("/", "layout");
     return { success };
   } catch (e) {
-    if (!(e instanceof Refusal)) console.error("[delete] company failed", e);
+    // A query's error prints its values; the database's own code and index are enough.
+    if (!(e instanceof Refusal) && !logDatabaseFault("delete company", e)) console.error("[delete] company failed", e);
     return {
       error: e instanceof Refusal ? e.message : "Não foi possível excluir a empresa. Tente novamente.",
     };

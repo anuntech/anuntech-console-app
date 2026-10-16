@@ -10,6 +10,7 @@ import { runHelpTests } from "./help-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
 import { runMemberScopeTests } from "./member-scope-smoke.mjs";
 import { runCatalogIconTests } from "./catalog-icons-smoke.mjs";
+import { runContractSigningTests } from "./contract-signing-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -2114,6 +2115,7 @@ try {
   await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
   await runMemberScopeTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
   await runHelpTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
+  await runContractSigningTests({ database, ids, request, ok, marker, base });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );

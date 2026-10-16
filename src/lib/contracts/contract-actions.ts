@@ -27,6 +27,7 @@ import {
   type ContractPublication,
 } from "@/db/schema";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { addressLabel } from "../companies/company-billing";
 import { formatDocument } from "../companies/company-input";
 import { contractPdf } from "./contract-pdf";
@@ -63,16 +64,27 @@ const term = z
     message: "O fim da vigência precisa vir depois do início.",
     path: ["endsAt"],
   });
-const failure = (e: unknown): ActionState => ({
-  error:
-    e instanceof z.ZodError
-      ? e.issues[0].message
-      : e instanceof Error && e.message === "stale"
-        ? "O contrato mudou em outra aba. Atualize a página antes de continuar."
-        : e instanceof Error && e.message
-          ? e.message
-          : "Não foi possível salvar o contrato. Confira os dados e tente novamente.",
-});
+const failure = (e: unknown): ActionState => {
+  // A database refusal never reaches the screen as is: its message carries the SQL and every value sent.
+  const fault = logDatabaseFault("contracts", e);
+  // The same party signing the same version twice: the check under the contract's lock answers first;
+  // the index is what still holds if that check ever goes.
+  if (fault?.code === "23505" && fault.constraint === SIGNATURE_PER_VERSION)
+    return { error: "Esta parte já assinou esta versão do contrato." };
+  if (fault) return { error: DATABASE_FAILURE };
+  return {
+    error:
+      e instanceof z.ZodError
+        ? e.issues[0].message
+        : e instanceof Error && e.message === "stale"
+          ? "O contrato mudou em outra aba. Atualize a página antes de continuar."
+          : e instanceof Error && e.message
+            ? e.message
+            : "Não foi possível salvar o contrato. Confira os dados e tente novamente.",
+  };
+};
+/** The unique index that holds one signature per party and version (drizzle/0042). */
+const SIGNATURE_PER_VERSION = "console_contract_signature_version_party_unique";
 function refresh(contractId?: string, parentId?: string | null) {
   revalidatePath("/contratos");
   revalidatePath("/configuracoes/contratos");
@@ -705,12 +717,20 @@ export async function signContract(_: ActionState, form: FormData): Promise<Acti
       requestHeaders.get("x-real-ip") ||
       null;
     const closed = await db.transaction(async (tx) => {
+      // Signing, going back to draft and a review round all lock the contract: two signatures at once
+      // see each other (so the second one closes it), and the version checked above is still the one sent.
+      const [locked] = await tx
+        .select({ status: contracts.status, documentHash: contracts.documentHash })
+        .from(contracts)
+        .where(eq(contracts.id, c.id))
+        .for("update");
+      if (locked?.status !== "sent" || locked.documentHash !== c.documentHash) throw Error("stale");
       const current = and(eq(contractSignatures.contractId, c.id), eq(contractSignatures.documentHash, c.documentHash!));
       const [existing] = await tx
         .select({ id: contractSignatures.id })
         .from(contractSignatures)
         .where(and(current, eq(contractSignatures.party, party)));
-      if (existing) throw Error("Esta parte já assinou o contrato.");
+      if (existing) throw Error("Esta parte já assinou esta versão do contrato.");
       await tx.insert(contractSignatures).values({
         contractId: c.id,
         party,
@@ -821,10 +841,13 @@ export async function cancelContract(_: ActionState, form: FormData): Promise<Ac
     if (!c) return blocked;
     if (c.status === "signed") return { error: "Um contrato assinado não pode ser cancelado por aqui; registre a rescisão por aditivo." };
     if (c.status === "cancelled") return { error: "Este contrato já está cancelado." };
-    await db
+    // Only from the status read above: a signature that closes the contract meanwhile wins, and this stops.
+    const [cancelled] = await db
       .update(contracts)
       .set({ status: "cancelled", revision: c.revision + 1, updatedAt: new Date() })
-      .where(eq(contracts.id, c.id));
+      .where(and(eq(contracts.id, c.id), eq(contracts.status, c.status)))
+      .returning({ id: contracts.id });
+    if (!cancelled) throw Error("stale");
     await db.insert(auditEvents).values({
       actorId: actor.user.id,
       companyId: c.companyId,

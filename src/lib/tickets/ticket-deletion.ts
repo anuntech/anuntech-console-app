@@ -17,6 +17,7 @@ import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { canDeleteTicket } from "../deletion-rules";
+import { logDatabaseFault } from "../action-errors";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -96,7 +97,8 @@ export async function deleteTicket(_: ActionState, form: FormData): Promise<Acti
     }
     return { success };
   } catch (e) {
-    if (!(e instanceof Refusal)) console.error("[delete] ticket failed", e);
+    // A query's error prints its values; the database's own code and index are enough.
+    if (!(e instanceof Refusal) && !logDatabaseFault("delete ticket", e)) console.error("[delete] ticket failed", e);
     return {
       error: e instanceof Refusal ? e.message : "Não foi possível excluir o chamado. Tente novamente.",
     };

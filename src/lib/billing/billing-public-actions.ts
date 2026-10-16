@@ -19,6 +19,7 @@ import { addDays, missedPeriods } from "./recurrence";
 import { processBillingNotices } from "./billing-notices";
 import { saoPauloDate } from "../dates";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 
 export async function sendInvoiceNotice(
   _: ActionState,
@@ -75,6 +76,7 @@ export async function sendInvoiceNotice(
         "Envio solicitado. A mensagem será enviada quando os dados de pagamento e o canal estiverem disponíveis.",
     };
   } catch (e) {
+    if (logDatabaseFault("billing", e)) return { error: DATABASE_FAILURE };
     return {
       error:
         e instanceof Error ? e.message : "Não foi possível solicitar o envio.",
@@ -148,6 +150,7 @@ export async function resendBillingNotice(
     revalidatePath(`/financeiro/${invoiceId}`);
     return { success: "Reenvio solicitado. A situação atualiza em instantes." };
   } catch (e) {
+    if (logDatabaseFault("billing", e)) return { error: DATABASE_FAILURE };
     return {
       error:
         e instanceof Error && e.message
@@ -314,6 +317,7 @@ export async function changeSubscription(
         : "Recorrência atualizada.",
     };
   } catch (e) {
+    if (logDatabaseFault("billing", e)) return { error: DATABASE_FAILURE };
     return {
       error: e instanceof Error ? e.message : "Não foi possível atualizar.",
     };
@@ -435,6 +439,7 @@ export async function updateSubscription(
         : "Próximas cobranças atualizadas. Faturas já emitidas foram preservadas.",
     };
   } catch (e) {
+    if (logDatabaseFault("billing", e)) return { error: DATABASE_FAILURE };
     return {
       error:
         e instanceof Error

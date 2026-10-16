@@ -6,6 +6,7 @@ import { db } from "../db";
 import { getActor } from "../access/access";
 import { assistantDocuments, assistantSettings, auditEvents } from "@/db/schema";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { DEFAULT_ASSISTANT_MODEL } from "./assistant";
 import { openRouterModels } from "./openrouter-models";
 import { KNOWLEDGE_DOCUMENT, limitLabel } from "../tickets/attachment-rules";
@@ -16,7 +17,13 @@ const MAX_DOCUMENT_BYTES = KNOWLEDGE_DOCUMENT.maxBytes;
 const tooLarge = `Cada documento pode ter até ${limitLabel(MAX_DOCUMENT_BYTES)}. Divida em partes.`;
 const refresh = () => revalidatePath("/configuracoes/assistente");
 const failure = (e: unknown, fallback: string): ActionState => ({
-  error: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error && e.message ? e.message : fallback,
+  error: logDatabaseFault("assistant settings", e)
+    ? DATABASE_FAILURE
+    : e instanceof z.ZodError
+      ? e.issues[0].message
+      : e instanceof Error && e.message
+        ? e.message
+        : fallback,
 });
 
 /** Model id and the extra instructions; the built-in prompt stays in code. */

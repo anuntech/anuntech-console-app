@@ -3,6 +3,7 @@ import { getActor } from "@/lib/access/access";
 import { allowRequest, AssistantError, converse, type ChatTurn } from "@/lib/assistant/assistant";
 import { pageSnapshotSchema } from "@/lib/assistant/page-snapshot";
 import { appendExchange } from "@/lib/assistant/assistant-history";
+import { logDatabaseFault } from "@/lib/action-errors";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
@@ -48,7 +49,8 @@ export async function POST(request: Request) {
         });
         send({ type: "done", ...reply, conversationId });
       } catch (error) {
-        if (!(error instanceof AssistantError)) console.error("[assistant] turn failed", error);
+        if (!(error instanceof AssistantError) && !logDatabaseFault("assistant turn", error))
+          console.error("[assistant] turn failed", error);
         send({
           type: "error",
           error: error instanceof AssistantError ? error.message : "O assistente falhou nesta resposta. Tente de novo em instantes.",

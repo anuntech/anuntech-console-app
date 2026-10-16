@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { getActor, canAccess, canSeeEngagement } from "../access/access";
 import type { ActionState } from "../action-state";
+import { logDatabaseFault } from "../action-errors";
 import { db } from "../db";
 import { assigneeAllowed } from "./tasks";
 import { moneyToCents } from "../access/permissions";
@@ -33,7 +34,7 @@ const failure = (error: unknown): ActionState => ({
   error:
     error instanceof z.ZodError
       ? error.issues[0].message
-      : error instanceof Error && /etiqueta|estimativa|pessoa/i.test(error.message)
+      : error instanceof Error && !logDatabaseFault("tasks", error) && /etiqueta|estimativa|pessoa/i.test(error.message)
         ? error.message
         : "Não foi possível salvar. Confira os dados e tente novamente.",
 });
@@ -121,7 +122,7 @@ function parseEstimate(input: string) {
   return minutes;
 }
 const message = (error: unknown, fallback: string) =>
-  error instanceof Error && error.message ? error.message : fallback;
+  error instanceof Error && error.message && !logDatabaseFault("task uploads", error) ? error.message : fallback;
 
 export async function createTask(
   _: ActionState,

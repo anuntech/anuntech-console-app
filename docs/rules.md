@@ -34,6 +34,7 @@ Valem para qualquer pessoa ou agente que mexa no Console. As regras de produto r
 - Leia o guia do Next.js em `node_modules/next/dist/docs/` antes de usar uma API do Next: esta versão (16.3) muda convenções. Para outras bibliotecas, consulte a documentação atual (Context7) em vez da memória.
 - Onde cada coisa fica está em [architecture.md](architecture.md). Regra nova de um assunto vai para `src/lib/<domínio>/`; componente de uma área vai para `src/components/<área>/`; padrão reutilizável vai para `src/components/console/`.
 - Server actions: arquivo `"use server"`, assinatura `(prev: ActionState, form: FormData)`, retorno `{ success }`, `{ error }` ou `{ href }`. Erros para a pessoa em português, no tom de [design.md](design.md#escrita). Grave `audit_events` na mesma transação da mudança.
+- Erro do banco nunca chega à tela: a mensagem do Drizzle traz o SQL e todos os valores (e-mail, IP, documento). No `catch`, `logDatabaseFault` (`lib/action-errors.ts`) registra só o código e o índice, e a pessoa lê uma frase em português; só um `Error("…")` escrito para ela passa adiante. Um índice único que a pessoa pode atingir (duas abas, clique duplo) ganha mensagem própria pelo nome.
 - Código que só roda no servidor importa `server-only`.
 - Regras puras (sem banco, sem Next) ficam em arquivos próprios para serem testadas em `tests/` e usadas tanto pela tela quanto pela action (ex.: `deletion-rules.ts`, `billing-rules.ts`).
 - Formulário sempre com `ServerForm` e `FormField`. Criação e edição em `FormSheet`.
