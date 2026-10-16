@@ -5,10 +5,12 @@ import { toolAreas, type ToolArea } from "./assistant-tools-kit";
  * Jev, TypeSafe's decision model, reached through OpenRouter with the same
  * key the assistant already uses. It does not write text: it answers typed
  * questions about a state in a few hundred milliseconds for a fraction of a
- * cent. The assistant uses it twice per turn: to read the intent before the
- * language model runs (and to short-circuit the obvious cases), and to check
- * that an action that changes data was really asked for before it executes.
- * Every failure here degrades to "no opinion"; the assistant never depends on it.
+ * cent. The assistant uses it to read the intent before the language model
+ * runs (and to short-circuit the obvious cases: opening a screen, calling the
+ * team). It never approves a change: every write waits for the person's click
+ * on a confirmation card (assistant-proposals.ts), so Jev being off, slow or
+ * wrong can only cost a shortcut, never let an action through.
+ * Every failure here degrades to "no opinion".
  */
 
 type Question =
@@ -32,7 +34,9 @@ async function ask(state: unknown, questions: Record<string, Question>): Promise
         "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
         "X-Title": "Anuntech Console",
       },
-      body: JSON.stringify({ model: JEV_MODEL, state, questions }),
+      // Same privacy floor as the chat calls. If the endpoint ever refuses it, Jev reads as unavailable
+      // (logged below) and the assistant goes on without the shortcut.
+      body: JSON.stringify({ model: JEV_MODEL, state, questions, provider: { zdr: true } }),
       signal: AbortSignal.timeout(6000),
     });
     const data = (await res.json().catch(() => null)) as { answers?: Record<string, Answer>; error?: { message?: string } } | null;
@@ -113,36 +117,6 @@ export async function routeIntent(input: {
     destination: destination?.type === "choice" && destination.choice !== "nenhuma" ? destination.choice : null,
     destinationConfidence: destination?.type === "choice" ? destination.confidence : 0,
   };
-}
-
-/* ---------- consent, before an action runs ---------- */
-
-/**
- * Did the person actually ask for this exact action, or approve it, in the
- * recent conversation? `null` means Jev had no say; the caller then trusts
- * the language model as before.
- */
-export async function approveAction(input: {
-  conversation: { role: string; content: string }[];
-  tool: string;
-  args: unknown;
-}): Promise<{ approved: boolean; score: number } | null> {
-  const answers = await ask(
-    {
-      conversa_recente: input.conversation.slice(-6).map((m) => ({ de: m.role === "user" ? "pessoa" : "assistente", texto: m.content.slice(0, 700) })),
-      acao_que_o_assistente_quer_executar: { ferramenta: input.tool, dados: input.args },
-    },
-    {
-      aprovado: {
-        type: "noul",
-        instructions:
-          "A pessoa pediu explicitamente esta ação, com estes dados, ou aprovou uma proposta do assistente que descreve exatamente esta ação (respostas como 'sim', 'pode', 'aprovo', 'faça', 'confirmo' valem como aprovação). Um pedido vago, uma pergunta ou uma ação diferente da proposta não valem.",
-      },
-    },
-  );
-  const answer = answers?.aprovado;
-  if (!answer || answer.type !== "noul") return null;
-  return { approved: answer.noul >= 0.6, score: answer.noul };
 }
 
 /* ---------- a new ticket, read by its text ---------- */

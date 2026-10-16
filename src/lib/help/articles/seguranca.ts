@@ -251,7 +251,7 @@ export const segurancaArticles: HelpArticle[] = [
               },
               {
                 term: "Assistente",
-                text: "Para responder, a conversa vai para um serviço de inteligência artificial, com o seu nome, e-mail, empresa e papel, o que está preenchido nos campos da tela aberta e o resultado das consultas que ele faz com o seu acesso. Veja [O assistente do Console](/ajuda/assistente).",
+                text: "Para responder, a conversa vai para um serviço de inteligência artificial, com o seu nome, empresa e papel, o que está preenchido nos campos da tela aberta e o resultado das consultas que ele faz com o seu acesso. O Console só usa provedores que não guardam esses dados nem treinam modelos com eles. Veja [O assistente do Console](/ajuda/assistente).",
               },
               {
                 term: "Ditado",

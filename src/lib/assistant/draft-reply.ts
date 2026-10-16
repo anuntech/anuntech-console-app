@@ -5,7 +5,7 @@ import { db } from "../db";
 import { termsSummary } from "../service-terms/terms-text";
 import { visibleToClient } from "../service-terms/ticket-clock";
 import { ticketLabels } from "../format";
-import { assistantConfig } from "./assistant";
+import { assistantConfig, PRIVATE_PROVIDERS } from "./assistant";
 
 /*
  * A reply the team reviews before sending: the model reads the ticket's
@@ -31,7 +31,7 @@ export async function draftTicketReply(ticketId: string) {
     .where(eq(tickets.id, ticketId));
   if (!row) throw new Error("Chamado não encontrado.");
   const conversation = await db
-    .select({ body: messages.body, at: messages.createdAt, author: user.email })
+    .select({ body: messages.body, at: messages.createdAt, author: user.name })
     .from(messages)
     .innerJoin(user, eq(user.id, messages.authorId))
     .where(eq(messages.ticketId, ticketId))
@@ -45,7 +45,8 @@ export async function draftTicketReply(ticketId: string) {
     row.ticket.waitingFor ? `O que a equipe pediu ao cliente: ${row.ticket.waitingFor}` : null,
     terms ? `Condições de atendimento:\n${[...terms.promises, ...terms.asks].map((fact) => `- ${fact.text}`).join("\n")}` : "Sem condições de atendimento cadastradas: não cite prazos.",
     "Conversa, da mais antiga para a mais recente:",
-    ...conversation.slice(-15).map((m) => `[${m.author}] ${m.body.slice(0, 1500)}`),
+    // Names, not e-mail addresses: the provider needs to know who spoke, not how to reach them.
+    ...conversation.slice(-15).map((m) => `[${m.author || "Sem nome"}] ${m.body.slice(0, 1500)}`),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -66,6 +67,7 @@ export async function draftTicketReply(ticketId: string) {
       ],
       temperature: 0.3,
       max_tokens: 700,
+      provider: PRIVATE_PROVIDERS,
     }),
     signal: AbortSignal.timeout(45000),
   });

@@ -2,9 +2,10 @@
 import { and, count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auditEvents, companies, contractChangeRequests, contracts } from "@/db/schema";
+import { auditEvents, companies, contractChangeRequests, contractSignatures, contracts } from "@/db/schema";
 import { getActor, answersForClient, ASSISTED_DECISION, type Actor } from "../access/access";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
 import { sendOpsMail } from "../notifications/ops-alerts";
 import { applyProposal, blockLabel, contractBlocks, requestable } from "./contract-text";
@@ -28,14 +29,35 @@ const comment = z
 const proposal = z.string().max(8000, "Use até 8 mil caracteres no texto proposto.").default("");
 const response = z.string().trim().max(2000, "Use até 2 mil caracteres na resposta.").default("");
 
-const failure = (e: unknown): ActionState => ({
-  error:
-    e instanceof z.ZodError
-      ? e.issues[0].message
-      : e instanceof Error && e.message
-        ? e.message
-        : "Não foi possível salvar. Tente novamente.",
-});
+const failure = (e: unknown): ActionState =>
+  logDatabaseFault("contract review", e)
+    ? { error: DATABASE_FAILURE }
+    : {
+        error:
+          e instanceof z.ZodError
+            ? e.issues[0].message
+            : e instanceof Error && e.message
+              ? e.message
+              : "Não foi possível salvar. Tente novamente.",
+      };
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** After the company signs the version in front of it, changes come by ticket and amendment, not by a review round. */
+async function refuseAfterClientSigned(tx: Tx, c: { id: string; documentHash: string | null }) {
+  if (!c.documentHash) return;
+  const [signed] = await tx
+    .select({ id: contractSignatures.id })
+    .from(contractSignatures)
+    .where(
+      and(
+        eq(contractSignatures.contractId, c.id),
+        eq(contractSignatures.documentHash, c.documentHash),
+        eq(contractSignatures.party, "client"),
+      ),
+    );
+  if (signed) throw Error("A sua empresa já assinou esta versão. Se algo precisa mudar, abra um chamado.");
+}
 
 /** Who answers for the client: the company's managers, who also sign. Assisted access is refused by name. */
 const clientSide = (actor: Actor, companyId: string) => {
@@ -67,6 +89,7 @@ export async function saveChangeRequest(_: ActionState, form: FormData): Promise
       if (!c || !clientSide(actor, c.companyId)) throw Error(blocked.error);
       if (c.status !== "sent" || !c.publication)
         throw Error("Este contrato não está aguardando assinatura; não há o que revisar agora.");
+      await refuseAfterClientSigned(tx, c);
       const block = contractBlocks(c.publication.body)[input.blockIndex];
       if (!block || !requestable(block)) throw Error("Escolha uma cláusula do texto.");
       const proposed = input.proposedText.replace(/\r\n?/g, "\n").trim();
@@ -145,6 +168,7 @@ export async function submitChangeRequests(_: ActionState, form: FormData): Prom
       const [c] = await tx.select().from(contracts).where(eq(contracts.id, contractId)).for("update");
       if (!c || !clientSide(actor, c.companyId)) throw Error(blocked.error);
       if (c.status !== "sent") throw Error("Este contrato não está aguardando assinatura; não há o que revisar agora.");
+      await refuseAfterClientSigned(tx, c);
       const requests = await tx
         .update(contractChangeRequests)
         .set({ status: "pending", submittedAt: new Date() })

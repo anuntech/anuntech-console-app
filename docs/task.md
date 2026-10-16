@@ -4,6 +4,8 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Depende do Kauan
 
+- [ ] Guardrails do assistente (16/10, publicados): conferir com uma mensagem real no assistente que o modelo de Configurações → Assistente tem provedor sem retenção (senão ele avisa) e que o log da Vercel não mostra `[assistant] Jev unavailable`. Depois de uma semana de uso, conferir em `console_assistant_usage` se os tetos do dia (`budget-rules.ts`) cabem no uso real. Regravar o tutorial em vídeo do assistente, que mostra a confirmação por "sim".
+
 - [ ] Jornada do projeto (08/10): escrever em Configurações → Assistente o documento "Padrão de projeto Anuntech" (stack e versões, pastas, AGENTS.md, padrões de Vercel, Neon e Cloudflare), que o prompt de início usa. Depois de 3 a 5 jornadas reais, revisar o modelo-padrão (passos que sobram ou faltam, variações por tipo de projeto) e decidir se a jornada começa sozinha com um pedido de projeto novo.
 - [ ] Apagar o repositório vazio `anuntech/anuntech-console-vazio`, que sobrou da transferência.
 - [ ] Trocar a chave do OpenRouter (foi colada numa conversa) e decidir entre créditos e modelo pago para o assistente.
@@ -24,6 +26,8 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Engenharia
 
+- [ ] Assistente (16/10, restos da auditoria): prazo de retenção para conversas e cartões e o texto das instruções na auditoria (L6). Se a vez restrita (consultas só da empresa do registro depois de ler texto de cliente) atrapalhar a equipe, avaliar o classificador secundário da seção 3 de [security.md](security.md).
+
 - [ ] Ajuda (14/10): quando um tutorial for regravado, rodar `python3 scripts/help-videos.py` num checkout com a pasta `videos/` (gera a versão leve com hash no nome e atualiza `src/lib/help/tutorials.ts`), rodar os testes e publicar. Textos de tela que a escrita da ajuda achou errados ou confusos, a corrigir: "Remover foto?" promete as iniciais, mas o Console sorteia um avatar ilustrado; em Segurança, "Escolha por onde ele chega" só vale para quem entra pelo Google; "Confirme seu acesso" diz que o código é enviado antes de a pessoa pedir; as mensagens de entrada dizem "Abrindo o painel" e a tela se chama Visão geral; o rótulo "Membro — chamados, bookmarks e projetos" deixa de fora Visão geral e Produtos; `/acesso-pendente` diz que só a equipe libera o e-mail, mas o Administrador também libera em Membros; uma conta no limite de 5 e-mails não tem como remover os antigos.
 
 - [ ] Dividir `src/lib/actions.ts` (empresas, vínculos, chamados, faturas) entre as pastas de domínio.
@@ -38,6 +42,9 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 16/10/2026: guardrails do assistente (auditoria de segurança, H4 a H6 e M1 a M4): toda escrita vira cartão confirmado por clique (`console_assistant_proposals`, migração 0043), texto de cliente envelopado e vez restrita à empresa do registro, tela fora do prompt de sistema, clique só em `data-assistant-action`, origem e JSON no `/api/assistente`, histórico montado no servidor, ZDR em todas as chamadas, `reserveHourly`, 12 chamadas por vez, parada no 402 e links com domínio. Testes unitários e 40 verificações novas na integração.
+- [x] 16/10/2026: orçamento do dia do assistente (fim do M3): tokens por pessoa e por empresa e mensagens por empresa em `console_assistant_usage` (migração 0043), 429 no teto e última rodada sem ferramentas quando o teto estoura no meio da resposta. Testes unitários e 15 verificações novas na integração.
+- [x] 16/10/2026: assinatura por versão: a migração 0042 trocou o índice único de `(contrato, parte)` por `(contrato, hash, parte)` em produção (pela rota temporária, já removida) e destravou dois contratos que esperavam a Anuntech; a assinatura trava o contrato (duas partes ao mesmo tempo fecham o contrato), a empresa que assinou uma versão não abre rodada de revisão por POST direto, cancelar só vale sobre a situação lida (uma assinatura que fecha o contrato no meio ganha), e os erros do banco deixaram de aparecer na tela com SQL e dados pessoais (contratos, revisões, orçamentos, jornadas, condições, horas, emissão e avisos de cobrança, tarefas, catálogo, assistente e quatro rotas de API). O erro guardado de uma recorrência pausada, o e-mail de alerta, o registro das rotinas e os logs de exclusão e do assistente trazem o código do banco em vez da consulta. Cobertura na integração (`contract-signing-smoke.mjs`) e teste unitário.
 - [x] 14/10/2026: link direto dos apps: `/abrir/[app]` leva ao produto da pessoa (login com caminho de volta, um produto, vários, nenhum, 404), `?volta=` com lista fechada no login, no Google e na segunda etapa, testes unitários e cobertura na regressão e na suíte de segurança.
 - [x] 13/10/2026: apps dos clientes só dentro do Console: registro dos quatro apps, passe RS256 de 2 minutos, JWKS pública, `/apps/[id]` com o app em iframe e Recarregar, links internos em Produtos e no painel, auditoria `app.opened`, testes unitários e cobertura na regressão.
 - [x] 13/10/2026: Lousa nos bookmarks: terceiro tipo ao lado de link e arquivo, com o Excalidraw em tela cheia dentro do Console, autosave a cada traço, miniatura no card, modo leitura para quem não edita, migração 0040 e cobertura na integração.

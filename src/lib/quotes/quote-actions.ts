@@ -9,6 +9,7 @@ import { getActor, canAccess, answersForClient, ASSISTED_DECISION, type Actor } 
 import { auth } from "../auth/auth";
 import { accountEmails, auditEvents, companies, engagements, memberships, quoteVersions, quotes, tasks, tickets, user } from "@/db/schema";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { saoPauloDate } from "../dates";
 import { currency, longDateLabel } from "../format";
 import { sendOpsMail } from "../notifications/ops-alerts";
@@ -44,8 +45,9 @@ const contentField = z
 const noteField = z.string().trim().max(1000, "A observação pode ter até mil caracteres.").default("");
 
 const failure = (e: unknown): ActionState => ({
-  error:
-    e instanceof z.ZodError
+  error: logDatabaseFault("quotes", e)
+    ? DATABASE_FAILURE
+    : e instanceof z.ZodError
       ? e.issues[0].message
       : e instanceof Error && e.message === "stale"
         ? "O orçamento mudou em outra aba. Atualize a página antes de continuar."

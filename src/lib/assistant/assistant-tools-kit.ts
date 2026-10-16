@@ -3,18 +3,40 @@ import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import { allowedIds, canAccess, type Actor } from "../access/access";
 import type { Area } from "../access/permissions";
+import type { PageSnapshot } from "./page-snapshot";
 
 /* Shared plumbing for the assistant's tools: types, access scoping, form submission. */
 
 export type ClientAction =
   | { type: "navigate"; href: string }
   | { type: "open_support" }
-  | { type: "fill"; fields: { campo: string; valor: string }[]; submit: boolean }
+  /** Only into the form the snapshot named; submitting goes through a confirmation card. */
+  | { type: "fill"; form: string; fields: { campo: string; valor: string }[]; submit: boolean }
+  /** One control marked data-assistant-action, by its exact text. */
   | { type: "click"; text: string }
   /** Data behind the open screen changed (a tool wrote it); the page reloads its data. */
   | { type: "refresh" };
 export type ToolOutcome = { result: unknown; summary: string; actions?: ClientAction[] };
-export type ToolContext = { actor: Actor; today: string };
+export type ToolContext = {
+  actor: Actor;
+  today: string;
+  /** The screen the person is on, as the panel reported it; the screen tools check against it. */
+  page?: PageSnapshot;
+  /** Companies whose text, written by someone else, entered this turn (see `untrusted`). */
+  tainted?: Set<string>;
+};
+
+/**
+ * Text someone else wrote (a client's ticket, a comment, a task) goes to the
+ * model wrapped with its origin and marked untrusted, so it reads as data and
+ * never as an instruction; the system prompt has a fixed rule for it. Reading
+ * it also narrows the rest of the turn to that company (see assistant.ts).
+ */
+export function untrusted(ctx: ToolContext, companyId: string, origem: string, texto: string | null | undefined) {
+  if (!texto) return texto ?? null;
+  ctx.tainted?.add(companyId);
+  return { origem, nao_confiavel: true as const, texto };
+}
 
 /** A message the model should relay; anything else is a bug and stays generic. */
 export class ToolError extends Error {}
@@ -42,8 +64,10 @@ export type AnyTool = {
   staffOnly?: boolean;
   /** Pointless for staff (they are the team); hidden from them. */
   clientOnly?: boolean;
-  /** Changes data; the consent gate runs before it. */
+  /** Changes data: the call becomes a confirmation card and runs only from its click. */
   write?: boolean;
+  /** Settles the arguments a card will carry (the form a fill targets); throws a ToolError to refuse. */
+  prepare?: (ctx: ToolContext, input: never) => Record<string, unknown>;
   run: (ctx: ToolContext, input: never) => Promise<ToolOutcome>;
 };
 export function tool<S extends z.ZodType>(def: {
@@ -54,6 +78,7 @@ export function tool<S extends z.ZodType>(def: {
   staffOnly?: boolean;
   clientOnly?: boolean;
   write?: boolean;
+  prepare?: (ctx: ToolContext, input: z.output<S>) => Record<string, unknown>;
   run: (ctx: ToolContext, input: z.output<S>) => Promise<ToolOutcome>;
 }): AnyTool {
   return def as unknown as AnyTool;

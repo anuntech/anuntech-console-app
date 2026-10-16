@@ -13,18 +13,24 @@ export type PageField = {
   options?: { valor: string; texto: string }[];
 };
 export type PageForm = { id: string; title: string; fields: PageField[]; buttons: string[] };
-export type PageSnapshot = { path: string; title: string; forms: PageForm[] };
+export type PageSnapshot = { path: string; title: string; forms: PageForm[]; actions: string[] };
 
+// The server refuses a bigger screen (lib/assistant/page-snapshot.ts SNAPSHOT_LIMITS).
 const MAX_FIELDS = 60;
 const MAX_OPTIONS = 40;
+const MAX_TOTAL_OPTIONS = 400;
+const MAX_ACTIONS = 20;
 const clip = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
 const text = (node: Element | null | undefined) => (node?.textContent ?? "").replace(/\s+/g, " ").trim();
 /**
- * Outside the assistant's own panel and outside what the person decides alone
- * (data-assistant-ignore: the microphone, accepting a quote, signing a contract):
- * the assistant neither reads, fills, submits nor clicks those.
+ * Outside the assistant's own panel, outside what the person decides alone
+ * (data-assistant-ignore: the microphone, accepting a quote, signing a contract,
+ * publishing a charge, sending to the client, deleting) and outside confirmation
+ * dialogs: the assistant neither reads, fills, submits nor clicks those.
  */
-const outsidePanel = (element: Element) => !element.closest("[data-assistant], [data-assistant-ignore]");
+const outsidePanel = (element: Element) => !element.closest("[data-assistant], [data-assistant-ignore], [role=alertdialog]");
+/** A form with an attestation ("Conferi valor, vencimento e pagador", consent) is the person's to send, even unmarked. */
+const attests = (form: HTMLFormElement) => !!form.querySelector('[name="confirm"], [name="consent"]');
 /** Shown on screen; a hidden picker input counts when its wrapper is. */
 const shown = (element: Element) =>
   outsidePanel(element) &&
@@ -60,12 +66,23 @@ function labelFor(form: HTMLFormElement, element: HTMLElement) {
   );
 }
 
-/** The visible forms on the current page, as fields the model can name. */
+/** The id the snapshot gives a form; the fill finds the same form by it. */
+const formIdOf = (form: HTMLFormElement, index: number) => form.getAttribute("id") || `form${index + 1}`;
+/** Forms the assistant may read and fill. */
+const fillable = (form: HTMLFormElement) => visible(form) && !attests(form);
+
+/** The controls a page marked for the assistant (data-assistant-action), shown and outside the excluded areas. */
+function actionControls() {
+  return [...document.querySelectorAll<HTMLElement>("[data-assistant-action]")].filter((el) => visible(el) && !(el as HTMLButtonElement).disabled);
+}
+
+/** The visible forms on the current page, as fields the model can name, and the controls it may press. */
 export function snapshotPage(): PageSnapshot {
   const forms: PageForm[] = [];
   let count = 0;
+  let options = 0;
   document.querySelectorAll<HTMLFormElement>("form").forEach((form, index) => {
-    if (!visible(form)) return;
+    if (!fillable(form)) return;
     const seen = new Set<string>();
     const fields: PageField[] = [];
     form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select").forEach((el) => {
@@ -78,7 +95,7 @@ export function snapshotPage(): PageSnapshot {
       const field: PageField = { name: el.name, label: clip(labelFor(form, el), 80), kind: picker ?? type, value: "" };
       if (el.required) field.required = true;
       if (el instanceof HTMLSelectElement) {
-        field.options = [...el.options].slice(0, MAX_OPTIONS).map((o) => ({ valor: o.value, texto: clip(text(o), 60) }));
+        field.options = [...el.options].slice(0, Math.min(MAX_OPTIONS, MAX_TOTAL_OPTIONS - options)).map((o) => ({ valor: o.value, texto: clip(text(o), 60) }));
         field.value = clip(text(el.selectedOptions[0]) || el.value, 80);
       } else if (type === "checkbox" || type === "radio") {
         field.value = (el as HTMLInputElement).checked ? "sim" : "não";
@@ -87,12 +104,13 @@ export function snapshotPage(): PageSnapshot {
         field.value = clip(el.value, 120);
         if (el.dataset.options) {
           try {
-            field.options = (JSON.parse(el.dataset.options) as { valor: string; texto: string }[]).slice(0, MAX_OPTIONS);
+            field.options = (JSON.parse(el.dataset.options) as { valor: string; texto: string }[]).slice(0, Math.min(MAX_OPTIONS, MAX_TOTAL_OPTIONS - options));
           } catch {
             /* a picker without a readable option list still takes free text */
           }
         }
       }
+      options += field.options?.length ?? 0;
       fields.push(field);
       count += 1;
     });
@@ -104,9 +122,15 @@ export function snapshotPage(): PageSnapshot {
       .slice(0, 4);
     const card = form.closest("[data-slot=card]") ?? form;
     // form.id would return a control named "id" (edit forms carry a hidden id input); the attribute is the form's own.
-    forms.push({ id: form.getAttribute("id") || `form${index + 1}`, title: clip(text(card.querySelector("h1, h2, h3")), 80), fields, buttons });
+    forms.push({ id: formIdOf(form, index), title: clip(text(card.querySelector("h1, h2, h3")), 80), fields, buttons });
   });
-  return { path: location.pathname + location.search, title: clip(text(document.querySelector("main h1")) || document.title, 120), forms: forms.slice(0, 6) };
+  const actions = [...new Set(actionControls().map((el) => clip(text(el), 60)).filter(Boolean))].slice(0, MAX_ACTIONS);
+  return {
+    path: location.pathname + location.search,
+    title: clip(text(document.querySelector("main h1")) || document.title, 120),
+    forms: forms.slice(0, 6),
+    actions,
+  };
 }
 
 /* ---------- what the assistant does ---------- */
@@ -121,29 +145,40 @@ function flash(el: Element) {
   setTimeout(() => target.classList.remove("assistant-filled"), 2000);
 }
 
-function fieldsNamed(name: string) {
-  return [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`form [name="${CSS.escape(name)}"]`)].filter(shown);
+/** The snapshot's form by its id, if it is still on screen and still one the assistant may fill. */
+function formNamed(id: string) {
+  let found: HTMLFormElement | null = null;
+  document.querySelectorAll<HTMLFormElement>("form").forEach((form, index) => {
+    if (!found && formIdOf(form, index) === id && fillable(form)) found = form;
+  });
+  return found as HTMLFormElement | null;
+}
+
+function fieldsNamed(form: HTMLFormElement, name: string) {
+  return [...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[name="${CSS.escape(name)}"]`)].filter(shown);
 }
 
 /**
- * Writes values into the page's own fields by name, the way a person
- * would: pickers get the value through `console:fill`, selects match an
- * option by value or text, checkboxes toggle, everything else is typed.
- * Optionally submits the form that was touched.
+ * Writes values into one form's own fields by name, the way a person would:
+ * pickers get the value through `console:fill`, selects match an option by
+ * value or text, checkboxes toggle, everything else is typed. Only the form
+ * the snapshot named; submitting happens only after the person confirmed the
+ * card that asked for it.
  */
-export function fillPage(fields: { campo: string; valor: string }[], submit: boolean) {
+export function fillPage(formId: string, fields: { campo: string; valor: string }[], submit: boolean) {
+  const form = formNamed(formId);
+  if (!form) return { filled: 0, missing: fields.map((f) => f.campo), submitted: false };
   const missing: string[] = [];
   let filled = 0;
-  let form: HTMLFormElement | null = null;
   for (const { campo, valor } of fields) {
-    const candidates = fieldsNamed(campo);
+    const candidates = fieldsNamed(form, campo);
     if (!candidates.length) {
       missing.push(campo);
       continue;
     }
     let el = candidates[0];
     if (el instanceof HTMLInputElement && el.type === "radio") {
-      const match = candidates.find((c) => fold(c.value) === fold(valor) || fold(labelFor(c.closest("form")!, c)) === fold(valor));
+      const match = candidates.find((c) => fold(c.value) === fold(valor) || fold(labelFor(form, c)) === fold(valor));
       if (!match) {
         missing.push(campo);
         continue;
@@ -153,7 +188,7 @@ export function fillPage(fields: { campo: string; valor: string }[], submit: boo
     } else if (el.dataset.picker) {
       el.dispatchEvent(new CustomEvent(FILL_EVENT, { detail: { value: valor } }));
     } else if (el instanceof HTMLSelectElement) {
-      const option = [...el.options].find((o) => fold(o.value) === fold(valor)) ?? [...el.options].find((o) => fold(text(o)).includes(fold(valor)));
+      const option = [...el.options].find((o) => fold(o.value) === fold(valor)) ?? [...el.options].find((o) => fold(text(o)) === fold(valor));
       if (!option) {
         missing.push(campo);
         continue;
@@ -168,25 +203,24 @@ export function fillPage(fields: { campo: string; valor: string }[], submit: boo
     }
     flash(el);
     filled += 1;
-    form ??= el.closest("form");
   }
-  if (submit && form) {
+  if (submit && filled) {
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
-    setTimeout(() => form!.requestSubmit(button ?? undefined), 150);
+    setTimeout(() => form.requestSubmit(button ?? undefined), 150);
   }
-  return { filled, missing, submitted: submit && !!form };
+  return { filled, missing, submitted: submit && filled > 0 };
 }
 
-/** Clicks the first visible button or link whose text matches, ignoring case and accents. */
-export function clickPage(label: string) {
+/**
+ * Presses one control the page marked data-assistant-action, by its exact
+ * text (case and accents aside, never a part of it). Two controls with the
+ * same text are ambiguous and nothing is pressed.
+ */
+export function clickPage(label: string): "clicked" | "missing" | "ambiguous" {
   const wanted = fold(label);
-  // Controls marked data-assistant-ignore (the microphone) are the person's alone.
-  const candidates = [...document.querySelectorAll<HTMLElement>("button, a[href], [role=menuitem]")].filter(
-    (el) => visible(el) && !el.closest("[data-assistant-ignore]"),
-  );
-  const target = candidates.find((el) => fold(text(el)) === wanted) ?? candidates.find((el) => fold(text(el)).includes(wanted));
-  if (!target) return false;
-  flash(target);
-  target.click();
-  return true;
+  const matches = actionControls().filter((el) => fold(text(el)) === wanted);
+  if (matches.length !== 1) return matches.length ? "ambiguous" : "missing";
+  flash(matches[0]);
+  matches[0].click();
+  return "clicked";
 }

@@ -59,7 +59,8 @@ export async function openRouterModels(): Promise<OpenRouterModel[]> {
     }
     const data = (await res.json()) as { data?: Raw[] };
     const models = (data.data ?? [])
-      .filter((m) => m.supported_parameters?.includes("tools") && !m.id.endsWith(":batch"))
+      // Free variants log prompts for training: never offered for client data.
+      .filter((m) => m.supported_parameters?.includes("tools") && !m.id.endsWith(":batch") && !m.id.endsWith(":free"))
       .map((m) => {
         const [providerPart, ...rest] = m.name.includes(": ") ? m.name.split(": ") : [m.id.split("/")[0], m.name];
         return {

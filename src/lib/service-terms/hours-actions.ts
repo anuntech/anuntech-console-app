@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auditEvents, hoursMonths, tickets, timeEntries } from "@/db/schema";
 import { answersForClient, ASSISTED_DECISION, getActor } from "../access/access";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { dateLabel } from "../format";
@@ -34,7 +35,13 @@ const hoursInput = z
     return Math.round(value * 60);
   });
 const failure = (e: unknown): ActionState => ({
-  error: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error && e.message ? e.message : "Não foi possível salvar.",
+  error: logDatabaseFault("hours", e)
+    ? DATABASE_FAILURE
+    : e instanceof z.ZodError
+      ? e.issues[0].message
+      : e instanceof Error && e.message
+        ? e.message
+        : "Não foi possível salvar.",
 });
 const consoleUrl = () => process.env.BETTER_AUTH_URL?.replace(/\/$/, "") || "https://console.anuntech.com";
 

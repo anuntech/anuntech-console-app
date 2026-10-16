@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeftIcon,
   CheckIcon,
+  CircleSlashIcon,
   HistoryIcon,
   Maximize2Icon,
   PanelRightIcon,
@@ -29,6 +30,20 @@ import { MessageMarkdown } from "./message-markdown";
 import { clickPage, fillPage, snapshotPage } from "./page-bridge";
 
 export type AssistantShortcut = { href: string; label: string };
+/** A change the assistant prepared; it runs only when the person confirms it here. */
+type Proposal = {
+  id: string;
+  nonce: string;
+  title: string;
+  details: { label: string; value: string }[];
+  tainted: boolean;
+  path: string | null;
+  expiresAt: string;
+};
+type ProposalState = Proposal & {
+  status: "pending" | "busy" | "done" | "failed" | "dismissed";
+  message?: string;
+};
 type Turn = {
   id: string;
   role: "user" | "assistant";
@@ -37,7 +52,15 @@ type Turn = {
   failed?: boolean;
   /** How long it took and what it spent; only for answers given in this session. */
   spent?: { ms: number; tokens: number };
+  /** Confirmation cards; they live in this tab only (a reload drops them and they expire). */
+  proposals?: ProposalState[];
 };
+type PageAction =
+  | { type: "navigate"; href: string }
+  | { type: "open_support" }
+  | { type: "fill"; form: string; fields: { campo: string; valor: string }[]; submit: boolean }
+  | { type: "click"; text: string }
+  | { type: "refresh" };
 type Conversation = {
   id: string;
   title: string;
@@ -131,18 +154,72 @@ type Reply = {
   tokens?: number;
   steps: string[];
   conversationId?: string | null;
-  actions: (
-    | { type: "navigate"; href: string }
-    | { type: "open_support" }
-    | {
-        type: "fill";
-        fields: { campo: string; valor: string }[];
-        submit: boolean;
-      }
-    | { type: "click"; text: string }
-    | { type: "refresh" }
-  )[];
+  actions: PageAction[];
+  proposals?: Proposal[];
 };
+
+/** One card: what will happen, with the data, and the buttons that decide it. */
+function ProposalCard({
+  proposal,
+  onConfirm,
+  onDismiss,
+}: {
+  proposal: ProposalState;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const open = proposal.status === "pending" || proposal.status === "busy";
+  return (
+    <div className="mt-2 rounded-xl border bg-card px-4 py-3 text-sm">
+      <p className="m-0 font-medium text-foreground">{proposal.title}</p>
+      {proposal.tainted && open && (
+        <p className="m-0 mt-1 flex items-start gap-1.5 text-xs text-warning">
+          <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+          Preparado depois de ler texto escrito por outra pessoa (um chamado, um comentário). Confira cada dado antes de confirmar.
+        </p>
+      )}
+      {proposal.details.length > 0 && (
+        <dl className="m-0 mt-2 flex flex-col gap-1.5">
+          {proposal.details.map((detail, index) => (
+            <div key={index} className="grid gap-0.5 sm:grid-cols-[minmax(0,9rem)_1fr] sm:gap-3">
+              <dt className="text-xs text-muted-foreground">{detail.label}</dt>
+              <dd className="m-0 max-h-40 overflow-y-auto text-xs break-words whitespace-pre-wrap text-foreground">{detail.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {proposal.path && open && <p className="m-0 mt-2 text-xs text-muted-foreground">Vale para a tela {proposal.path}.</p>}
+      {open ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" size="sm" onClick={onConfirm} disabled={proposal.status === "busy"}>
+            <CheckIcon />
+            {proposal.status === "busy" ? "Fazendo…" : "Confirmar"}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onDismiss} disabled={proposal.status === "busy"}>
+            Descartar
+          </Button>
+        </div>
+      ) : (
+        <p
+          role="status"
+          className={cn(
+            "m-0 mt-2 flex items-start gap-1.5 text-xs",
+            proposal.status === "failed" ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {proposal.status === "done" ? (
+            <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-success" />
+          ) : proposal.status === "dismissed" ? (
+            <CircleSlashIcon className="mt-0.5 size-3.5 shrink-0" />
+          ) : (
+            <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+          )}
+          {proposal.message}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function suggestionsFor(admin: boolean, finance: boolean, support: boolean) {
   if (admin)
@@ -360,13 +437,90 @@ export function AssistantPanel({
     else toast.success("O assistente terminou.", { action: show });
   };
 
+  /**
+   * Carries out what an answer or a confirmed card asks of the page. A form
+   * is filled only in the form the snapshot named, and only one click per
+   * answer reaches the page.
+   */
+  const applyActions = (actions: PageAction[]) => {
+    let delay = 0;
+    let clicked = false;
+    for (const action of actions) {
+      if (action.type === "open_support") {
+        close();
+        setTimeout(openSupportWidget, 300);
+      } else if (action.type === "navigate") go(action.href);
+      else if (action.type === "refresh") router.refresh();
+      else if (action.type === "fill") {
+        leave();
+        delay += 300;
+        setTimeout(() => {
+          const outcome = fillPage(action.form, action.fields, action.submit);
+          if (outcome.filled)
+            toast.success(
+              `${outcome.filled === 1 ? "1 campo preenchido" : `${outcome.filled} campos preenchidos`}${outcome.submitted ? " e enviado" : ". Confira antes de salvar"}.`,
+            );
+          if (outcome.missing.length)
+            toast.error(`Não achei na tela: ${outcome.missing.join(", ")}.`);
+        }, delay);
+      } else if (action.type === "click" && !clicked) {
+        clicked = true;
+        leave();
+        delay += 400;
+        setTimeout(() => {
+          const outcome = clickPage(action.text);
+          if (outcome === "missing") toast.error(`Não achei o botão "${action.text}" na tela.`);
+          else if (outcome === "ambiguous") toast.error(`Há mais de um botão "${action.text}" na tela. Clique você no certo.`);
+        }, delay);
+      }
+    }
+  };
+
+  const updateProposal = (id: string, change: Partial<ProposalState>) =>
+    setTurns((current) =>
+      current.map((turn) =>
+        turn.proposals?.some((p) => p.id === id)
+          ? { ...turn, proposals: turn.proposals.map((p) => (p.id === id ? { ...p, ...change } : p)) }
+          : turn,
+      ),
+    );
+
+  /** The person's click: the only way a change the assistant prepared happens. */
+  const decide = async (proposal: ProposalState, decisao: "confirmar" | "descartar") => {
+    if (proposal.status !== "pending") return;
+    // A screen action is about the page it was prepared on.
+    if (decisao === "confirmar" && proposal.path && location.pathname !== proposal.path) {
+      toast.error(`Esta ação é da tela ${proposal.path}. Abra essa tela e confirme de novo.`);
+      return;
+    }
+    updateProposal(proposal.id, { status: "busy" });
+    try {
+      const res = await fetch(`/api/assistente/propostas/${proposal.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nonce: proposal.nonce, decisao }),
+      });
+      if (decisao === "descartar") {
+        updateProposal(proposal.id, res.ok ? { status: "dismissed", message: "Descartado." } : { status: "failed", message: "Esta confirmação não está mais pendente." });
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as { summary?: string; actions?: PageAction[]; error?: string } | null;
+      if (!res.ok || !data?.summary) {
+        updateProposal(proposal.id, { status: "failed", message: data?.error || "Não deu certo. Tente de novo em instantes." });
+        return;
+      }
+      updateProposal(proposal.id, { status: "done", message: data.summary });
+      applyActions(data.actions ?? []);
+    } catch {
+      updateProposal(proposal.id, { status: "pending" });
+      toast.error("Sem conexão com o Console agora. Tente de novo em instantes.");
+    }
+  };
+
   const send = async (text: string) => {
     if (busy || !text.trim()) return;
-    const history = [
-      ...turns,
-      { id: crypto.randomUUID(), role: "user" as const, content: text.trim() },
-    ];
-    setTurns(history);
+    const message = text.trim();
+    setTurns((current) => [...current, { id: crypto.randomUUID(), role: "user" as const, content: message }]);
     setBusy(true);
     const startedAt = clock();
     let spentTokens = 0;
@@ -382,13 +536,12 @@ export function AssistantPanel({
       page = undefined;
     }
     try {
+      // Earlier turns come from the saved conversation on the server, never from this tab.
       const res = await fetch("/api/assistente", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: history
-            .filter((t) => !t.failed)
-            .map(({ role, content }) => ({ role, content })),
+          message,
           page,
           conversationId: conversationId ?? undefined,
         }),
@@ -419,6 +572,7 @@ export function AssistantPanel({
           content: reply.reply,
           steps: reply.steps,
           spent: { ms: clock() - startedAt, tokens: reply.tokens ?? spentTokens },
+          proposals: reply.proposals?.map((p) => ({ ...p, status: "pending" as const })),
         },
       ]);
       if (reply.conversationId) {
@@ -428,37 +582,11 @@ export function AssistantPanel({
       announce(false);
       // Closed, the person moved on to something else: only refresh what it
       // changed, never take them to another page or type into their screen.
-      const actions = live.current.open
-        ? reply.actions
-        : reply.actions.filter((action) => action.type === "refresh");
-      let delay = 0;
-      for (const action of actions) {
-        if (action.type === "open_support") {
-          close();
-          setTimeout(openSupportWidget, 300);
-        } else if (action.type === "navigate") go(action.href);
-        else if (action.type === "refresh") router.refresh();
-        else if (action.type === "fill") {
-          leave();
-          delay += 300;
-          setTimeout(() => {
-            const outcome = fillPage(action.fields, action.submit);
-            if (outcome.filled)
-              toast.success(
-                `${outcome.filled === 1 ? "1 campo preenchido" : `${outcome.filled} campos preenchidos`}${outcome.submitted ? " e enviado" : ". Confira antes de salvar"}.`,
-              );
-            if (outcome.missing.length)
-              toast.error(`Não achei na tela: ${outcome.missing.join(", ")}.`);
-          }, delay);
-        } else if (action.type === "click") {
-          leave();
-          delay += 400;
-          setTimeout(() => {
-            if (!clickPage(action.text))
-              toast.error(`Não achei o botão "${action.text}" na tela.`);
-          }, delay);
-        }
-      }
+      applyActions(
+        live.current.open
+          ? reply.actions
+          : reply.actions.filter((action) => action.type === "refresh"),
+      );
     } catch {
       setTurns((current) => [
         ...current,
@@ -710,6 +838,14 @@ export function AssistantPanel({
                             onNavigate={leave}
                           />
                         )}
+                        {turn.proposals?.map((proposal) => (
+                          <ProposalCard
+                            key={proposal.id}
+                            proposal={proposal}
+                            onConfirm={() => decide(proposal, "confirmar")}
+                            onDismiss={() => decide(proposal, "descartar")}
+                          />
+                        ))}
                         {turn.spent && (
                           <p className="m-0 mt-1.5 text-[11px] text-muted-foreground tabular-nums">
                             {spentLabel(turn.spent.ms, turn.spent.tokens)}

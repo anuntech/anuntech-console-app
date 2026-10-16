@@ -7,6 +7,7 @@ import { db } from "../db";
 import { getActor } from "../access/access";
 import { normalizeEmail } from "../access/permissions";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { createQuote } from "../quotes/quote-actions";
 import { emptyQuoteContent } from "../quotes/quote-model";
 import {
@@ -33,7 +34,13 @@ const SECRET_REFUSAL = "Isto parece uma senha, uma chave ou um endereço com sen
 const id = z.string().uuid();
 const optionalId = z.union([id, z.literal("")]).default("");
 const failure = (e: unknown): ActionState => ({
-  error: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error && e.message ? e.message : "Não foi possível salvar a jornada.",
+  error: logDatabaseFault("journeys", e)
+    ? DATABASE_FAILURE
+    : e instanceof z.ZodError
+      ? e.issues[0].message
+      : e instanceof Error && e.message
+        ? e.message
+        : "Não foi possível salvar a jornada.",
 });
 const field = (form: FormData, name: string) => {
   const value = form.get(name);

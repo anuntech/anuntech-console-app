@@ -109,7 +109,7 @@ export default async function Projects({
         actions={
           actor.admin && (
             <Button asChild>
-              <Link href="/projetos/novo">
+              <Link href="/projetos/novo" data-assistant-action="">
                 <PlusIcon />
                 Novo projeto
               </Link>

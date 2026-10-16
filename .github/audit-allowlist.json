@@ -1,0 +1,32 @@
+[
+  {
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "package": "braces",
+    "path": "@excalidraw/excalidraw > sass > chokidar > braces",
+    "expires": "2026-12-31"
+  },
+  {
+    "id": "GHSA-r5fr-rjxr-66jc",
+    "package": "lodash-es",
+    "path": "@excalidraw/excalidraw > @excalidraw/mermaid-to-excalidraw > mermaid > dagre-d3-es > lodash-es; @mermaid-js/parser > langium > chevrotain > lodash-es",
+    "expires": "2026-12-31"
+  },
+  {
+    "id": "GHSA-28wg-ghj8-5hjv",
+    "package": "nanoid",
+    "path": "@excalidraw/excalidraw > nanoid; @excalidraw/mermaid-to-excalidraw > nanoid",
+    "expires": "2026-12-31"
+  },
+  {
+    "id": "GHSA-2v37-7h3g-55p8",
+    "package": "nanoid",
+    "path": "@excalidraw/excalidraw > nanoid; @excalidraw/mermaid-to-excalidraw > nanoid",
+    "expires": "2026-12-31"
+  },
+  {
+    "id": "GHSA-xwg4-73v4-xw9w",
+    "package": "nanoid",
+    "path": "@excalidraw/excalidraw > nanoid; @excalidraw/mermaid-to-excalidraw > nanoid",
+    "expires": "2026-12-31"
+  }
+]

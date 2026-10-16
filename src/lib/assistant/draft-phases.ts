@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { assistantConfig } from "./assistant";
+import { assistantConfig, PRIVATE_PROVIDERS } from "./assistant";
 import type { QuotePhase } from "../quotes/quote-model";
 
 /*
@@ -52,6 +52,7 @@ export async function draftQuotePhases(input: { title: string; summary: string }
       ],
       temperature: 0.2,
       max_tokens: 2500,
+      provider: PRIVATE_PROVIDERS,
     }),
     signal: AbortSignal.timeout(55000),
   });
