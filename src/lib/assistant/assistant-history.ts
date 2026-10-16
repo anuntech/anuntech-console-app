@@ -33,9 +33,30 @@ export async function conversationMessages(userId: string, conversationId: strin
     .select({ id: assistantMessages.id, role: assistantMessages.role, content: assistantMessages.content, steps: assistantMessages.steps })
     .from(assistantMessages)
     .where(eq(assistantMessages.conversationId, conversationId))
-    .orderBy(asc(assistantMessages.createdAt))
+    // Both messages of an exchange share created_at (one insert): the question comes first.
+    .orderBy(asc(assistantMessages.createdAt), desc(assistantMessages.role))
     .limit(200);
   return { ...conversation, messages: messages.map((m) => ({ id: m.id, role: m.role, content: m.content, steps: m.steps ?? undefined })) };
+}
+
+/**
+ * The earlier turns the model reads, from the conversation the person owns
+ * (an unknown or foreign id reads as a new conversation). The browser's own
+ * copy of the thread is never trusted: it could carry a "sim" nobody typed.
+ */
+export async function conversationTurns(userId: string, conversationId: string) {
+  const [owned] = await db
+    .select({ id: assistantConversations.id })
+    .from(assistantConversations)
+    .where(and(eq(assistantConversations.id, conversationId), eq(assistantConversations.userId, userId)));
+  if (!owned) return [];
+  const latest = await db
+    .select({ role: assistantMessages.role, content: assistantMessages.content })
+    .from(assistantMessages)
+    .where(eq(assistantMessages.conversationId, owned.id))
+    .orderBy(desc(assistantMessages.createdAt), asc(assistantMessages.role))
+    .limit(40);
+  return latest.reverse();
 }
 
 /**

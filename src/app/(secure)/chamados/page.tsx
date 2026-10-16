@@ -140,7 +140,7 @@ export default async function Tickets({
         actions={
           canCreate && (
             <Button asChild>
-              <Link href="/chamados/novo">
+              <Link href="/chamados/novo" data-assistant-action="">
                 <PlusIcon />
                 Abrir chamado
               </Link>

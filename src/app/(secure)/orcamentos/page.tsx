@@ -117,7 +117,7 @@ export default async function Quotes({
         actions={
           actor.admin ? (
             <Button asChild>
-              <Link href="/orcamentos/novo">
+              <Link href="/orcamentos/novo" data-assistant-action="">
                 <PlusIcon />
                 Novo orçamento
               </Link>

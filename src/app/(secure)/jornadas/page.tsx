@@ -78,7 +78,7 @@ export default async function Journeys({ searchParams }: { searchParams: Promise
         view={view}
         actions={
           <Button asChild>
-            <Link href="/jornadas/nova">
+            <Link href="/jornadas/nova" data-assistant-action="">
               <PlusIcon />
               Nova jornada
             </Link>

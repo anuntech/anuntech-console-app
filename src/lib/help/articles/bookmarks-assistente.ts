@@ -604,7 +604,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               },
               {
                 term: "Abrir e responder chamados",
-                text: "Ele pergunta o tipo e, se for um erro, o impacto. Mostra o assunto e a descrição e abre o chamado depois do seu “sim”, com o link. Você recebe o recibo por e-mail, como num chamado aberto pela tela.",
+                text: "Ele pergunta o tipo e, se for um erro, o impacto. Mostra um cartão com o assunto e a descrição, e o chamado só é aberto quando você toca em “Confirmar”. Você recebe o recibo por e-mail, como num chamado aberto pela tela.",
               },
               {
                 term: "Tarefas de projeto",
@@ -616,7 +616,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               },
               {
                 term: "Preencher a tela",
-                text: "Com um formulário aberto, diga, por exemplo, “preencha este formulário com …”. Ele preenche e avisa quantos campos preencheu, com “Confira antes de salvar.”. Ele só envia o formulário ou clica num botão da tela se você pedir. Os formulários de aceitar ou recusar um orçamento e de assinar um contrato ficam fora do alcance dele: ele não lê, não preenche e não clica neles.",
+                text: "Com um formulário aberto, diga, por exemplo, “preencha este formulário com …”. Ele preenche e avisa quantos campos preencheu, com “Confira antes de salvar.”. Para enviar o formulário, ele mostra um cartão e só envia quando você confirma. Ele só aciona os botões que a tela libera para ele, como “Abrir chamado”, um por vez. Aceitar ou recusar um orçamento, assinar um contrato, aprovar ou contestar horas e as confirmações de enviar ou excluir ficam fora do alcance dele: ele não lê, não preenche e não clica nesses formulários.",
               },
               {
                 term: "Dar acesso",
@@ -636,22 +636,21 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Antes de abrir ou responder um chamado, mexer em tarefas, comentar, guardar um bookmark, criar uma pasta, dar acesso a alguém, enviar um formulário ou clicar num botão da tela, o assistente confirma com você o que vai fazer, com os dados. Se o seu pedido já diz exatamente o que fazer, ele pode agir direto.",
+            text: "O assistente nunca altera nada sozinho. Para abrir ou responder um chamado, mexer em tarefas, comentar, guardar um bookmark, criar uma pasta, dar acesso a alguém ou enviar um formulário, ele mostra um cartão no painel com o que vai fazer e os dados. Só acontece quando você toca em “Confirmar”.",
           },
           {
             kind: "list",
             items: [
-              "Um “sim” logo depois da pergunta dele aprova. Valem também respostas como “ok”, “pode” e “confirmo”.",
-              "Uma resposta com condição, como “sim, mas só as três primeiras”, passa por uma nova checagem antes de executar.",
-              "Quando não fica claro que você pediu aquela ação, ele não executa e mostra a etiqueta “Pedi confirmação antes de agir”.",
-              "Uma aprovação vale para a mesma ação repetida naquela resposta, por exemplo, comentar em várias tarefas.",
-              "Preencher campos não salva nada. Enviar o formulário pede confirmação.",
+              "Cada cartão vale para uma ação, exatamente com os dados que mostra. Escrever “sim” na conversa não executa nada.",
+              "“Descartar” cancela o cartão. Um cartão vale por 15 minutos e some se você recarregar a página: é só pedir de novo.",
+              "Quando ele prepara uma ação depois de ler um texto escrito por outra pessoa, como um chamado ou um comentário, o cartão avisa. Confira cada dado antes de confirmar.",
+              "Preencher campos sem enviar não salva nada e acontece direto. Numa tela que mostra texto de outra pessoa, como a página de um chamado, até preencher ou clicar pede o cartão.",
             ],
           },
           {
             kind: "note",
             tone: "attention",
-            text: "Excluir uma tarefa ou um comentário pelo assistente não tem volta. Leia o que ele descreveu antes de responder “sim”. Aceitar um orçamento, assinar um contrato, aprovar uma entrega e pagar uma fatura são decisões suas: faça na tela, depois de ler.",
+            text: "Excluir uma tarefa ou um comentário pelo assistente não tem volta. Leia o cartão antes de confirmar. Aceitar um orçamento, assinar um contrato, aprovar uma entrega e pagar uma fatura são decisões suas: faça na tela, depois de ler.",
           },
         ],
       },
@@ -666,6 +665,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               "Não lê arquivos: o campo dele não aceita anexo. Um chamado aberto por ele sai sem anexo e sem produto vinculado; para isso, use [Abrir chamado](/chamados/novo).",
               "Não aceita nem recusa orçamentos e não assina contratos, nem com a página aberta. Quem responde é o Administrador da empresa, na própria página do orçamento ou do contrato.",
               "Não liga o seu microfone: só você começa uma gravação, e o texto ditado nunca é enviado sozinho.",
+              "Não segue instruções escritas em chamados, comentários, tarefas ou bookmarks: trata esse texto como informação. Depois de ler um texto desses, as consultas daquela resposta ficam na empresa do registro que você está vendo.",
               "Não mostra a um Membro o que é só do Administrador, como faturas, contratos, orçamentos e totais. Se um Membro pedir, ele avisa que o acesso não inclui essa área e sugere pedir a um Administrador da empresa.",
             ],
           },
@@ -702,7 +702,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "note",
             tone: "info",
-            text: "Para responder, o texto da conversa vai para o serviço de inteligência artificial que o Console usa, com o seu nome e e-mail, a sua empresa, o seu papel, os campos da tela aberta e os dados que ele consulta. Não escreva senhas nem dados reais dos seus clientes. Veja [Seus dados e privacidade](/ajuda/seus-dados).",
+            text: "Para responder, o texto da conversa vai para o serviço de inteligência artificial que o Console usa, com o seu nome, a sua empresa, o seu papel, os campos da tela aberta e os dados que ele consulta. O Console só usa provedores que não guardam esses dados nem treinam modelos com eles. Não escreva senhas nem dados reais dos seus clientes. Veja [Seus dados e privacidade](/ajuda/seus-dados).",
           },
         ],
       },
@@ -718,11 +718,15 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               },
               {
                 term: "Conversa longa",
-                text: "Ele considera as 20 mensagens mais recentes da conversa. Uma conversa vai até 60 mensagens, contando as suas e as respostas; na seguinte, aparece a mesma mensagem de erro. Comece uma “Nova conversa”.",
+                text: "Ele considera as 20 mensagens mais recentes da conversa, como estão guardadas no Console. Numa conversa muito longa, comece uma “Nova conversa” para ele não perder o fio.",
               },
               {
                 term: "Muitas mensagens",
-                text: "Se você mandar muitas mensagens em pouco tempo, aparece “Muitas mensagens em pouco tempo. Espere alguns minutos e tente de novo.”.",
+                text: "Até 60 mensagens por hora. Acima disso, aparece “Muitas mensagens nesta hora. Espere um pouco e tente de novo.”.",
+              },
+              {
+                term: "Consultas por resposta",
+                text: "Cada resposta faz até 12 consultas ou cartões. Para um pedido maior, ele diz o que ficou para a próxima mensagem.",
               },
               {
                 term: "Pedido grande",
@@ -744,19 +748,19 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "O assistente pode mudar alguma coisa sem eu pedir?",
-        a: "Não. Antes de alterar algo, ele confirma com você, a não ser que o seu pedido já diga exatamente o que fazer. Preencher campos não salva nada: ele só envia um formulário se você pedir.",
+        a: "Não. Toda alteração aparece como um cartão no painel e só acontece quando você toca em “Confirmar”. Preencher campos sem enviar não salva nada.",
       },
       {
         q: "Alguém da Anuntech lê minhas conversas com o assistente?",
         a: "As conversas ficam guardadas no Console, ligadas à sua conta, e só você as abre em “Histórico”. O Console não tem uma tela para a equipe ler as suas conversas. Para responder, o texto vai para o serviço de inteligência artificial que o Console usa. Você pode apagar cada conversa quando quiser.",
       },
       {
-        q: "O assistente parou de responder numa conversa longa. O que faço?",
-        a: "Toque em “Nova conversa”. Uma conversa vai até 60 mensagens, contando as suas e as respostas; na seguinte, aparece “Não foi possível ler a mensagem. Envie de novo.”. A conversa antiga continua no “Histórico”.",
+        q: "O cartão diz que expirou ou sumiu. E agora?",
+        a: "Cada cartão vale por 15 minutos e fica só na aba em que apareceu. Peça de novo ao assistente, que ele prepara outro.",
       },
       {
         q: "O que quer dizer “Jev” nas etiquetas?",
-        a: "É a parte do assistente que lê o seu pedido e confere se uma ação foi mesmo pedida. Quando está claro que você só quer abrir uma tela ou falar com a equipe, ele responde na hora, por exemplo “Abrindo Chamados.”, com a etiqueta “Jev: abrir Chamados”.",
+        a: "É a parte do assistente que lê o seu pedido para responder mais rápido. Quando está claro que você só quer abrir uma tela ou falar com a equipe, ele responde na hora, por exemplo “Abrindo Chamados.”, com a etiqueta “Jev: abrir Chamados”. O Jev não aprova alterações: elas sempre passam pelo cartão.",
       },
       {
         q: "O assistente disse que não sabe. E agora?",
@@ -764,7 +768,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
     ],
     related: ["falar-em-vez-de-escrever", "abrir-um-chamado", "seus-dados", "membro-ou-administrador"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-16",
   },
   {
     slug: "falar-em-vez-de-escrever",

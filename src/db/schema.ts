@@ -468,6 +468,40 @@ export const assistantMessages = pgTable(
   },
   (t) => [index("console_assistant_message_conversation_idx").on(t.conversationId, t.createdAt)],
 );
+/**
+ * A change the assistant prepared and only the person can carry out: one tool
+ * call with its exact arguments (hashed), shown as a card and executed by the
+ * click that presents the nonce, once, before it expires.
+ */
+export const assistantProposals = pgTable(
+  "console_assistant_proposals",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    conversationId: text("conversation_id").references(() => assistantConversations.id, { onDelete: "cascade" }),
+    tool: text("tool").notNull(),
+    args: jsonb("args").$type<Record<string, unknown>>().notNull(),
+    argsHash: text("args_hash").notNull(),
+    /** What the card says it will do, written by the server from the arguments. */
+    title: text("title").notNull(),
+    details: jsonb("details").$type<{ label: string; value: string }[]>().notNull(),
+    nonceHash: text("nonce_hash").notNull(),
+    status: text("status", { enum: ["pending", "running", "done", "failed", "dismissed"] })
+      .notNull()
+      .default("pending"),
+    /** Prepared after the turn read text written by someone else. */
+    tainted: boolean("tainted").notNull().default(false),
+    /** Screen actions only apply on the page they were prepared for. */
+    path: text("path"),
+    result: jsonb("result").$type<{ summary: string; error?: string }>(),
+    createdAt: created(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [index("console_assistant_proposal_user_idx").on(t.userId, t.createdAt)],
+);
 /** What Anuntech offers, defined once; companies get linked to items. */
 export const catalogItems = pgTable("console_catalog_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

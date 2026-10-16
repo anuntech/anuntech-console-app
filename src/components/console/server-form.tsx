@@ -195,9 +195,11 @@ export function ConfirmDialog({
   const formId = useId();
   return (
     <>
+      {/* Confirmations send, publish or delete: the assistant never reads, fills or submits them. */}
       <ServerForm
         ref={formRef}
         id={formId}
+        data-assistant-ignore=""
         action={action}
         onSuccess={(state) => {
           onOpenChange(false);

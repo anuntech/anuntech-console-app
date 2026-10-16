@@ -42,7 +42,7 @@ import { formatDocument, formatPhone } from "../companies/company-input";
 import { currency, engagementLabels, priorityLabels, roleLabels, ticketLabels } from "../format";
 import { quoteTotals, type QuoteContent } from "../quotes/quote-model";
 import { estimateLabel, minutesToHours, TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
-import { civilDate, id, limit, reais, resolvePeople, scopeOf, submit, tool, ToolError, within, fold } from "./assistant-tools-kit";
+import { civilDate, id, limit, reais, resolvePeople, scopeOf, submit, tool, ToolError, untrusted, within, fold } from "./assistant-tools-kit";
 import { projectPeople } from "../projects/tasks";
 import { bookmarksFor, foldersFor, scopeOf as bookmarkScope } from "../bookmarks/bookmarks";
 
@@ -138,7 +138,8 @@ const readTask = tool({
   area: "projetos",
   description: "Uma tarefa em detalhe: descrição, situação, prioridade, prazo, estimativa, etiquetas, responsáveis, anexos e os comentários (os 30 mais recentes, com id, autor e data).",
   input: z.object({ tarefaId: id }),
-  run: async ({ actor }, { tarefaId }) => {
+  run: async (ctx, { tarefaId }) => {
+    const { actor } = ctx;
     const t = await taskWithAccess(actor, tarefaId);
     const [people, files, said] = await Promise.all([
       db.select({ name: user.name, email: user.email }).from(taskAssignees).innerJoin(user, eq(user.id, taskAssignees.userId)).where(eq(taskAssignees.taskId, t.id)),
@@ -155,8 +156,8 @@ const readTask = tool({
       result: {
         tarefaId: t.id,
         engagementId: t.engagementId,
-        titulo: t.title,
-        descricao: t.description,
+        titulo: untrusted(ctx, t.companyId, `título da tarefa ${t.id}`, t.title),
+        descricao: untrusted(ctx, t.companyId, `descrição da tarefa ${t.id}`, t.description),
         situacao: taskStatusLabels[t.status as keyof typeof taskStatusLabels] ?? t.status,
         prioridade: taskPriorityLabels[t.priority],
         prazo: t.dueDate,
@@ -170,7 +171,7 @@ const readTask = tool({
           autor: c.authorId === actor.user.id ? "você" : c.name || c.email,
           quando: c.createdAt.toISOString(),
           ...(c.editedAt ? { editadoEm: c.editedAt.toISOString() } : {}),
-          texto: c.body.slice(0, 1500),
+          texto: untrusted(ctx, t.companyId, `comentário de ${c.authorId === actor.user.id ? "você" : c.name || c.email} na tarefa ${t.id}`, c.body.slice(0, 1500)),
           anexos: files.filter((f) => f.commentId === c.id).map((f) => f.name),
         })),
         link: `/projetos/${t.engagementId}`,
@@ -260,7 +261,8 @@ const listBookmarks = tool({
   area: "bookmarks",
   description: "Os bookmarks (links, arquivos e lousas guardados) que a pessoa vê, com pasta e empresa; aceita uma busca por título ou endereço.",
   input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), limite: limit(20) }),
-  run: async ({ actor }, { companyId, busca, limite }) => {
+  run: async (ctx, { companyId, busca, limite }) => {
+    const { actor } = ctx;
     if (companyId && !canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
     // The rule of the Bookmarks page: folders shared with chosen people stay out for everyone else.
     const scope = bookmarkScope(actor);
@@ -274,7 +276,8 @@ const listBookmarks = tool({
     return {
       result: page.items.map((b) => ({
         bookmarkId: b.id,
-        titulo: b.title,
+        // Anuntech's own bookmarks are the team's; a company's can come from its people.
+        titulo: b.companyId ? untrusted(ctx, b.companyId, `título do bookmark ${b.id}`, b.title) : b.title,
         url: b.url,
         arquivo: b.fileName,
         lousa: !!b.board,

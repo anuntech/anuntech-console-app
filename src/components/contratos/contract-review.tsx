@@ -372,7 +372,7 @@ function DecisionForm({
   // Accepting rewrites the saved draft, which would drop edits not saved yet.
   const blockedByEditor = editorDirty && !!request.proposedText;
   return (
-    <ServerForm action={decideChangeRequest} onSuccess={onDone} className="mt-3 flex flex-col gap-2 border-t pt-3">
+    <ServerForm data-assistant-ignore="" action={decideChangeRequest} onSuccess={onDone} className="mt-3 flex flex-col gap-2 border-t pt-3">
       <input type="hidden" name="id" value={request.id} />
       <FormError />
       <Label htmlFor={`decision-${request.id}`} className="text-xs text-muted-foreground">

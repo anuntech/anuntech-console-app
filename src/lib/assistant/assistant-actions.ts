@@ -34,6 +34,8 @@ export async function saveAssistantSettings(_: ActionState, form: FormData): Pro
       })
       .parse({ model: form.get("model") ?? "", prompt: form.get("prompt") ?? "" });
     const model = input.model || DEFAULT_ASSISTANT_MODEL;
+    // Free variants are served by providers that log prompts to train on them: client data never goes there.
+    if (/:free$/i.test(model)) return { error: "Modelos gratuitos (:free) guardam o que recebem. Escolha um modelo pago." };
     // Anything the live catalog lists is fine (aliases start with "~"); otherwise the id must look like provider/model.
     const known = (await openRouterModels()).some((m) => m.id === model);
     if (!known && !/^~?[\w.\-]+\/[\w.\-:]+$/u.test(model))
