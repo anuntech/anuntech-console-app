@@ -91,7 +91,7 @@ export function TicketHoursCard({ ticketId, data }: { ticketId: string; data: Ti
             </Button>
           ))}
         {data.improvementLimitMinutes ? (
-          <ServerForm action={proposeEstimate} className="flex flex-col gap-2 border-t pt-4">
+          <ServerForm data-assistant-ignore="" action={proposeEstimate} className="flex flex-col gap-2 border-t pt-4">
             <input type="hidden" name="ticketId" value={ticketId} />
             <FormError />
             <p className="m-0 text-xs text-muted-foreground">
@@ -130,7 +130,7 @@ export function EstimateCard({ ticketId, data }: { ticketId: string; data: Ticke
           data.canApprove ? (
             <div className="flex flex-wrap gap-2">
               {(["approve", "decline"] as const).map((decision) => (
-                <ServerForm key={decision} action={decideEstimate}>
+                <ServerForm key={decision} data-assistant-ignore="" action={decideEstimate}>
                   <input type="hidden" name="ticketId" value={ticketId} />
                   <input type="hidden" name="decision" value={decision} />
                   <input type="hidden" name="minutes" value={data.estimate.minutes ?? 0} />

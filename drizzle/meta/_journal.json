@@ -288,6 +288,27 @@
       "when": 1791914219698,
       "tag": "0040_bookmark_boards",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792002225264,
+      "tag": "0041_member_scope_icons",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792174558137,
+      "tag": "0042_contract_signature_per_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792179082022,
+      "tag": "0043_assistant_guardrails",
+      "breakpoints": true
     }
   ]
 }

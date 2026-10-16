@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { AssistantError, assistantConfig } from "./assistant";
+import { AssistantError, assistantConfig, PRIVATE_PROVIDERS } from "./assistant";
 import { modelSupportsReasoning } from "./openrouter-models";
 
 /*
@@ -53,8 +53,8 @@ async function call(options: OneShotOptions, attempt: Attempt): Promise<string> 
         ],
         temperature: options.temperature ?? 0.3,
         max_tokens: attempt.maxTokens,
-        // Only providers that do not store or train on the prompt.
-        provider: { data_collection: "deny" },
+        // Only providers that neither store nor train on the prompt.
+        provider: PRIVATE_PROVIDERS,
         ...(attempt.reasoning ? { reasoning: { effort: "low" } } : {}),
       }),
       signal: attempt.signal,

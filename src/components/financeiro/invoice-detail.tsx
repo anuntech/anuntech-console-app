@@ -70,6 +70,7 @@ import {
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
 import { hasTerms, lateFeesLabel, type ChargeTerms } from "@/lib/billing/billing-terms";
 import { billingTypeLabel, DeleteInvoiceDialog } from "./invoices-table";
+import { HelpLink } from "@/components/console/help-link";
 
 export type InvoiceDetailData = {
   invoice: {
@@ -256,7 +257,7 @@ function PaidOutsideCard({ invoiceId }: { invoiceId: string }) {
       <CardHeader>
         <SectionTitle title="Marcada como recebida no Inter" description="O Inter mostra esta cobrança como recebida fora do boleto e do Pix." />
       </CardHeader>
-      <ServerForm action={confirmPaidOutside} className="contents">
+      <ServerForm data-assistant-ignore="" action={confirmPaidOutside} className="contents">
         <input type="hidden" name="id" value={invoiceId} />
         <CardContent className="flex flex-col gap-3">
           <FormError />
@@ -300,7 +301,7 @@ function DebtCard({ invoiceId, debt, amountCents }: { invoiceId: string; debt: N
       <CardContent className="flex flex-col gap-3">
         {debt.state === "open" &&
           (closing ? (
-            <ServerForm action={closeDebt} onSuccess={() => setClosing(false)} className="flex flex-col gap-2">
+            <ServerForm data-assistant-ignore="" action={closeDebt} onSuccess={() => setClosing(false)} className="flex flex-col gap-2">
               <input type="hidden" name="id" value={invoiceId} />
               <FormError />
               <Label htmlFor="debt-reason">Por que a dívida foi encerrada</Label>
@@ -566,6 +567,11 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       {late === 1 ? "1 dia de atraso" : `${late} dias de atraso`}
                     </p>
                   )}
+                  {!admin && invoice.status === "issued" && (
+                    <HelpLink slug="pagar-uma-fatura" className="mt-1">
+                      Como pagar
+                    </HelpLink>
+                  )}
                   {scheduled && scheduledIssueDate && (
                     <p className={cn("text-xs", scheduledIssueDate <= today ? "text-warning" : "text-muted-foreground")}>
                       {scheduledIssueDate <= today
@@ -664,7 +670,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   }
                 />
               </CardHeader>
-              <ServerForm action={issueCharge} className="contents">
+              <ServerForm data-assistant-ignore="" action={issueCharge} className="contents">
                 <input type="hidden" name="id" value={invoice.id} />
                 <CardContent className="flex flex-col gap-5">
                   <FormError />
@@ -795,7 +801,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                   description="O Inter não confirmou a solicitação. Nenhuma outra cobrança será criada até reconciliar."
                 />
               </CardHeader>
-              <ServerForm action={syncCharge} className="contents">
+              <ServerForm data-assistant-ignore="" action={syncCharge} className="contents">
                 <input type="hidden" name="id" value={invoice.id} />
                 <CardContent className="flex flex-col gap-4">
                   <FormError />
@@ -827,7 +833,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 </CardFooter>
               </ServerForm>
               {invoice.bankStatus === "RESPOSTA_INDEFINIDA" && (
-                <ServerForm action={locateCharge} className="flex flex-wrap items-center justify-between gap-3 border-t px-6 pt-4">
+                <ServerForm data-assistant-ignore="" action={locateCharge} className="flex flex-wrap items-center justify-between gap-3 border-t px-6 pt-4">
                   <input type="hidden" name="id" value={invoice.id} />
                   <p className="m-0 min-w-0 flex-1 text-xs text-muted-foreground">
                     Sem o código? O Console procura no Inter a cobrança desta fatura pela referência, nos dias do pedido. A rotina também tenta a cada hora, por 7 dias.
@@ -885,7 +891,8 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 {processing && (
                   <Notice icon={<Loader2Icon className="animate-spin" />}>
                     Boleto e Pix aparecem aqui assim que o Inter concluir a
-                    emissão. Esta página atualiza sozinha.
+                    emissão. {/* Only the team's view polls the bank (BankSync). */}
+                    {admin ? "Esta página atualiza sozinha." : "Atualize a página em alguns minutos."}
                   </Notice>
                 )}
                 {issued && invoice.pixCopyPaste && (
@@ -1158,7 +1165,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 )}
               </p>
               {admin && invoice.status === "paid" && (invoice.fiscalStatus === "not_requested" || invoice.fiscalStatus === "error") && (
-                <ServerForm action={markFiscalIssued} className="flex flex-col gap-2 rounded-lg border bg-field/60 px-3 py-3">
+                <ServerForm data-assistant-ignore="" action={markFiscalIssued} className="flex flex-col gap-2 rounded-lg border bg-field/60 px-3 py-3">
                   <input type="hidden" name="id" value={invoice.id} />
                   <FormError />
                   <p className="m-0 text-xs text-muted-foreground">Emitiu a nota por fora? Registre o número ou o link e a fatura sai da lista de notas a emitir.</p>

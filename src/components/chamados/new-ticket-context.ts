@@ -3,7 +3,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { contracts, engagements, environmentProfile, invoices, tickets } from "@/db/schema";
 import { db } from "@/lib/db";
-import { accessibleCompanies, getActor } from "@/lib/access/access";
+import { accessibleCompanies, engagementWhere, getActor } from "@/lib/access/access";
 import { companyTerms, snapshotOf } from "@/lib/service-terms/terms";
 import { visibleToClient } from "@/lib/service-terms/ticket-clock";
 import { ticketKindSlugs, type TicketKind } from "@/lib/tickets/ticket-intake";
@@ -11,6 +11,11 @@ import type { LocalHolidays } from "@/lib/service-terms/business-calendar";
 import { voiceEnabled } from "@/lib/voice/voice-server";
 import type { TermsSnapshot } from "@/lib/service-terms/terms-model";
 import type { TicketCompanyOption } from "./ticket-form";
+
+function withoutPrices(snapshot: TermsSnapshot): TermsSnapshot {
+  const bank = snapshot.policy.hoursBank;
+  return bank ? { ...snapshot, policy: { ...snapshot.policy, hoursBank: { ...bank, overageCents: null } } } : snapshot;
+}
 
 export type NewTicketSearchParams = Promise<{
   companyId?: string;
@@ -86,7 +91,14 @@ export async function newTicketContext(
       ? db
           .select({ id: engagements.id, name: engagements.name, companyId: engagements.companyId })
           .from(engagements)
-          .where(and(inArray(engagements.companyId, ids), eq(engagements.status, "active")))
+          .where(
+            and(
+              inArray(engagements.companyId, ids),
+              eq(engagements.status, "active"),
+              // A Membro with a selection picks only among the products chosen for them.
+              engagementWhere(actor, engagements.id, engagements.companyId, "support"),
+            ),
+          )
           .orderBy(asc(engagements.name))
       : [],
     Promise.all(ids.map((id) => companyTerms(id))).then((rows) => rows.flat()),
@@ -94,7 +106,9 @@ export async function newTicketContext(
   ]);
   // Mirrors governingTerms: a product's own record wins, else the company's.
   // Clients see conditions only once published; the team sees them a week earlier.
-  const visible = (snapshot: TermsSnapshot | null) => (snapshot && (actor.admin || visibleToClient(snapshot, now)) ? snapshot : null);
+  // The form reads only the clocks and the hours; the price per extra hour never goes to the browser.
+  const visible = (snapshot: TermsSnapshot | null) =>
+    snapshot && (actor.admin || visibleToClient(snapshot, now)) ? withoutPrices(snapshot) : null;
   const terms: Record<string, TermsSnapshot | null> = {};
   for (const id of ids) {
     const rows = termRows.filter((r) => r.companyId === id);

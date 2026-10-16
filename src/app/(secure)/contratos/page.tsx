@@ -142,7 +142,7 @@ export default async function Contracts({
         actions={
           actor.admin && (
             <Button asChild>
-              <Link href="/contratos/novo">
+              <Link href="/contratos/novo" data-assistant-action="">
                 <PlusIcon />
                 Novo contrato
               </Link>

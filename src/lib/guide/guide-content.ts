@@ -75,7 +75,7 @@ export const guideSections: GuideSection[] = [
   {
     id: "projetos",
     title: "Projetos",
-    lead: "Um projeto aparece quando um trabalho com a Anuntech começa, depois do orçamento aceito e do contrato assinado.",
+    lead: "Um projeto aparece quando um trabalho com a Anuntech começa, depois do orçamento aceito.",
     blocks: [
       {
         kind: "list",

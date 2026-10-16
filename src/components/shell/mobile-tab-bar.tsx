@@ -8,10 +8,9 @@ import {
   LogOutIcon,
   MessageCircleQuestionIcon,
   PaletteIcon,
-  SparklesIcon,
   UserRoundIcon,
   UsersIcon,
-  type LucideIcon, BookOpenIcon } from "lucide-react";
+  type LucideIcon, LifeBuoyIcon } from "lucide-react";
 import { cn } from "cn";
 import {
   Sheet,
@@ -26,6 +25,8 @@ import { IllustratedAvatar, profileAvatarSource } from "@/components/settings/il
 import { toast } from "@/components/shell/notifications";
 import { openSupportWidget } from "@/components/shell/support-trigger";
 import { splitTabs, type TabEntry } from "@/lib/mobile-tabs";
+import { AiOrb } from "@/components/ui/ai-orb";
+import { ACTIVITY_LABELS, type AssistantActivity } from "@/lib/assistant/activity";
 import styles from "./dock.module.css";
 
 export type TabItem = TabEntry<LucideIcon>;
@@ -88,6 +89,7 @@ export function MobileTabBar({
   userImage,
   canManageMembers,
   onAssistant,
+  assistantActivity,
 }: {
   pathname: string;
   visible: TabItem[];
@@ -97,6 +99,8 @@ export function MobileTabBar({
   userImage: string | null;
   canManageMembers: boolean;
   onAssistant: () => void;
+  /** What the assistant is doing: phones have no dock, so the sheet's row says it. */
+  assistantActivity: AssistantActivity;
 }) {
   const router = useRouter();
   // The sheet remembers where it was opened: navigating (rows, back/forward) closes it.
@@ -193,8 +197,14 @@ export function MobileTabBar({
               }}
               className="flex h-12 items-center gap-3 rounded-xl bg-primary px-4 text-left text-sm font-medium text-primary-foreground active:opacity-90"
             >
-              <SparklesIcon className="size-[18px] shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1">Perguntar ao assistente</span>
+              {/* On the primary row the orb takes the row's text colour. */}
+              <AiOrb state={assistantActivity} size="sm" decorative colorToken="--primary-foreground" />
+              <span className="min-w-0 flex-1">
+                Perguntar ao assistente
+                {assistantActivity !== "idle" && (
+                  <span className="block truncate text-xs font-normal opacity-80">{ACTIVITY_LABELS[assistantActivity]}</span>
+                )}
+              </span>
             </button>
             {actions.length > 0 && (
               <Section title="Criar">
@@ -232,8 +242,8 @@ export function MobileTabBar({
                   Membros
                 </Row>
               )}
-              <Row href="/como-trabalhamos" icon={BookOpenIcon} onClick={close}>
-                Como trabalhamos
+              <Row href="/ajuda" icon={LifeBuoyIcon} onClick={close}>
+                Ajuda
               </Row>
               <Row
                 icon={MessageCircleQuestionIcon}

@@ -12,6 +12,8 @@ import {
   automationEvents,
   companies,
   consoleStaffMembers,
+  engagements,
+  membershipEngagements,
   memberships,
   user,
 } from "@/db/schema";
@@ -267,6 +269,39 @@ export async function revokeConsoleStaffMember(
   }
 }
 
+/**
+ * What the saved membership sees: an Administrador everything; a Membro what the
+ * form chose (checked against the company's own products, services and projects)
+ * or, with no choice sent, what their active access already had.
+ */
+async function memberScope(
+  tx: Transaction,
+  input: { companyId: string; role: "manager" | "member" },
+  choice: { engagementAccess: "all" | "selected"; engagementIds: string[] } | null,
+  previous: { id: string; role: "manager" | "member"; engagementAccess: "all" | "selected" }[],
+): Promise<{ access: "all" | "selected"; ids: string[] }> {
+  if (input.role === "manager") return { access: "all", ids: [] };
+  if (choice) {
+    if (choice.engagementAccess === "all") return { access: "all", ids: [] };
+    const found = choice.engagementIds.length
+      ? await tx
+          .select({ id: engagements.id })
+          .from(engagements)
+          .where(and(eq(engagements.companyId, input.companyId), inArray(engagements.id, choice.engagementIds)))
+      : [];
+    if (found.length !== choice.engagementIds.length)
+      throw new AccessChangeError("Um dos itens escolhidos não é desta empresa. Atualize a página e tente novamente.");
+    return { access: "selected", ids: found.map((row) => row.id) };
+  }
+  const restricted = previous.filter((p) => p.role === "member" && p.engagementAccess === "selected");
+  if (!previous.length || restricted.length < previous.length) return { access: "all", ids: [] };
+  const rows = await tx
+    .select({ engagementId: membershipEngagements.engagementId })
+    .from(membershipEngagements)
+    .where(inArray(membershipEngagements.membershipId, restricted.map((p) => p.id)));
+  return { access: "selected", ids: [...new Set(rows.map((row) => row.engagementId))] };
+}
+
 export async function saveCompanyMember(
   _: ActionState,
   form: FormData,
@@ -281,6 +316,16 @@ export async function saveCompanyMember(
         role: z.enum(["manager", "member"]),
       })
       .parse(Object.fromEntries(form));
+    // What a Membro sees. Only an explicit choice changes it: forms and tools that do
+    // not send it (the assistant's invite, a role edit) keep what the person had.
+    const scopeChoice = form.has("engagementAccess")
+      ? z
+          .object({
+            engagementAccess: z.enum(["all", "selected"]),
+            engagementIds: z.array(z.string().uuid("Produto inválido.")).max(500),
+          })
+          .parse({ engagementAccess: form.get("engagementAccess"), engagementIds: [...new Set(form.getAll("engagementIds").map(String))] })
+      : null;
     const isNewAccess = await db.transaction(async (tx) => {
       await lockEnvironmentAssignments(tx);
       await lockManagedCompany(tx, actor, input.companyId);
@@ -298,6 +343,7 @@ export async function saveCompanyMember(
           id: memberships.id,
           email: memberships.email,
           role: memberships.role,
+          engagementAccess: memberships.engagementAccess,
         })
         .from(memberships)
         .where(
@@ -318,20 +364,32 @@ export async function saveCompanyMember(
             eq(memberships.active, true),
           ),
         );
+      const scope = await memberScope(tx, input, scopeChoice, previous);
       const [member] = await tx
         .insert(memberships)
-        .values({ ...input, email: identity.primaryEmail })
+        .values({ ...input, email: identity.primaryEmail, engagementAccess: scope.access })
         .onConflictDoUpdate({
           target: [memberships.companyId, memberships.email],
-          set: { role: input.role, active: true },
+          set: { role: input.role, active: true, engagementAccess: scope.access },
         })
         .returning();
+      // The selection lives on the active row; a row reactivated later never brings an old one back.
+      const touched = [...new Set([member.id, ...previous.map((p) => p.id)])];
+      await tx.delete(membershipEngagements).where(inArray(membershipEngagements.membershipId, touched));
+      if (scope.access === "selected" && scope.ids.length)
+        await tx.insert(membershipEngagements).values(scope.ids.map((engagementId) => ({ membershipId: member.id, engagementId })));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: input.companyId,
         action: "membership.granted",
         entityId: member.id,
-        details: { email: identity.primaryEmail, role: input.role, previous },
+        details: {
+          email: identity.primaryEmail,
+          role: input.role,
+          engagementAccess: scope.access,
+          ...(scope.access === "selected" ? { engagementIds: scope.ids } : {}),
+          previous,
+        },
       });
       return previous.length === 0;
     });
@@ -399,9 +457,10 @@ export async function revokeCompanyMember(
         identity,
         null,
       );
+      // A later invitation starts from "everything" again, with no selection left behind.
       const changed = await tx
         .update(memberships)
-        .set({ active: false })
+        .set({ active: false, engagementAccess: "all" })
         .where(
           and(
             eq(memberships.companyId, entry.companyId),
@@ -410,6 +469,8 @@ export async function revokeCompanyMember(
           ),
         )
         .returning({ id: memberships.id, email: memberships.email });
+      if (changed.length)
+        await tx.delete(membershipEngagements).where(inArray(membershipEngagements.membershipId, changed.map((m) => m.id)));
       for (const member of changed)
         await tx.insert(auditEvents).values({
           actorId: actor.user.id,

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
-import { and, asc, count, eq, ilike, inArray, max, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, max, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { companies, engagements, tasks } from "@/db/schema";
-import { getActor } from "@/lib/access/access";
+import { allowedIds, engagementWhere, getActor } from "@/lib/access/access";
 import { clampPage, offsetOf, pageCountOf } from "@/lib/list-query";
 import { companyShortcuts, projectListQuery } from "@/lib/projects/project-table";
 import { taskSummary } from "@/lib/projects/tasks";
@@ -25,14 +25,15 @@ export default async function Projects({
 }) {
   const actor = await getActor();
   const view = await listLayoutFor("projects");
-  const ids = actor.grants.map((g) => g.company.id);
+  const ids = [...new Set(allowedIds(actor, "overview"))];
   const query = projectListQuery(await searchParams);
   if (!actor.admin && query.company && !ids.includes(query.company)) query.company = "";
   const showCompany = actor.admin || ids.length > 1;
   const search = query.search.replace(/[\\%_]/g, "\\$&");
   const where = and(
     eq(engagements.kind, "project"),
-    actor.admin ? undefined : ids.length ? inArray(engagements.companyId, ids) : sql`false`,
+    // The company and, for a Membro with a selection, only the projects chosen for them.
+    engagementWhere(actor, engagements.id, engagements.companyId),
     query.status === "all" ? undefined : eq(engagements.status, query.status),
     query.company ? eq(engagements.companyId, query.company) : undefined,
     search
@@ -108,7 +109,7 @@ export default async function Projects({
         actions={
           actor.admin && (
             <Button asChild>
-              <Link href="/projetos/novo">
+              <Link href="/projetos/novo" data-assistant-action="">
                 <PlusIcon />
                 Novo projeto
               </Link>

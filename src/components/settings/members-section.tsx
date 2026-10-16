@@ -11,6 +11,7 @@ import type { Actor } from "@/lib/access/access";
 import { resolveAccountIdentity } from "@/lib/account/account-identity";
 import { settingsEnvironment } from "@/lib/access/environment";
 import { MembersTable, type Person } from "./members-table";
+import { membershipScopes, mergeMemberScopes, scopeChoices } from "@/lib/access/member-scope";
 
 async function staffPeople(actor: Actor): Promise<Person[]> {
   const configuredOwner = process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase();
@@ -107,12 +108,14 @@ async function companyPeople(actor: Actor, companyId: string): Promise<Person[]>
     )
     .where(and(eq(memberships.companyId, companyId), eq(memberships.active, true)))
     .orderBy(asc(memberships.email));
+  const scopes = await membershipScopes(entries.map((entry) => entry.member));
   const people = new Map<string, Person>();
   for (const entry of entries) {
     const key = entry.userId || entry.member.email;
     const current = people.get(key);
     if (current) {
       if (entry.member.role === "manager") current.role = "manager";
+      current.scope = mergeMemberScopes(current.scope, scopes.get(entry.member.id)!);
       continue;
     }
     people.set(key, {
@@ -124,6 +127,7 @@ async function companyPeople(actor: Actor, companyId: string): Promise<Person[]>
       self: entry.userId === actor.user.id,
       pending: !entry.userId || !entry.verified,
       role: entry.member.role,
+      scope: scopes.get(entry.member.id),
     });
   }
   return [...people.values()];
@@ -142,6 +146,7 @@ export async function MembersSection() {
       companyId={companyId ?? undefined}
       staff={staff}
       canAct={canInvite}
+      engagements={staff || !companyId ? undefined : await scopeChoices(companyId)}
     />
   );
 }

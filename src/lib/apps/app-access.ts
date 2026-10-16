@@ -1,8 +1,8 @@
 import "server-only";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { companies, engagements } from "@/db/schema";
 import { db } from "../db";
-import { allowedIds, canAccess, type Actor } from "../access/access";
+import { allowedIds, canSeeEngagement, engagementWhere, type Actor } from "../access/access";
 import {
   chooseAppProduct,
   companyRole,
@@ -43,7 +43,8 @@ export type AppOpening =
 
 /**
  * Everything that decides whether `actor` opens product `id` as an app,
- * checked on the server: the company (outside it the product does not exist),
+ * checked on the server: the company and, for a Membro with a selection, the
+ * product itself (outside them the product does not exist),
  * a product that is active, a URL in the registry, the app's minimum role and,
  * where the app needs one, the company's tenant. The page and the action that
  * signs the pass both call it, so neither trusts the other.
@@ -63,7 +64,7 @@ export async function resolveAppOpening(actor: Actor, id: string): Promise<AppOp
     .from(engagements)
     .innerJoin(companies, eq(companies.id, engagements.companyId))
     .where(eq(engagements.id, id));
-  if (!row || !canAccess(actor, row.companyId, "overview")) return { ok: false, reason: "not_found" };
+  if (!row || !canSeeEngagement(actor, { id: row.id, companyId: row.companyId })) return { ok: false, reason: "not_found" };
   const role = passRole(actor, row.companyId);
   if (!role) return { ok: false, reason: "not_found" };
   const company = { id: row.companyId, name: row.company };
@@ -87,8 +88,8 @@ export async function resolveAppOpening(actor: Actor, id: string): Promise<AppOp
 }
 
 /**
- * Where /abrir/<app> sends `actor`: among the active products of the
- * companies they reach (every company for the team), the ones whose URL is
+ * Where /abrir/<app> sends `actor`: among the active products they see (every
+ * company for the team; a Membro with a selection, only the chosen ones), the ones whose URL is
  * this app. The role is not checked here; /apps/<id> checks it again and
  * says why when it refuses.
  */
@@ -103,7 +104,7 @@ export async function resolveAppLink(actor: Actor, app: ProtectedApp): Promise<A
         eq(engagements.kind, "product"),
         eq(engagements.status, "active"),
         isNotNull(engagements.url),
-        actor.admin ? undefined : inArray(engagements.companyId, companyIds),
+        engagementWhere(actor, engagements.id, engagements.companyId),
       ),
     );
   return chooseAppProduct(app, products);

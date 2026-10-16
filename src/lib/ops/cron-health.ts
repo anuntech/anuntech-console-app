@@ -1,6 +1,7 @@
 import "server-only";
 import { cronRuns } from "@/db/schema";
 import { db } from "../db";
+import { errorText } from "../action-errors";
 
 /*
  * Whether each scheduled routine is still running: every run records itself,
@@ -67,7 +68,7 @@ export function trackedCron(name: Routine, handler: (request: Request) => Promis
       if (response.status !== 401) await recordCronRun(name, await runOutcome(response));
       return response;
     } catch (error) {
-      await recordCronRun(name, { completed: false, error: error instanceof Error ? error.message : "falha" });
+      await recordCronRun(name, { completed: false, error: errorText(error, "falha") });
       throw error;
     }
   };

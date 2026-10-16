@@ -231,7 +231,7 @@ export default async function Finance({
                 </Link>
               </Button>
               <Button asChild>
-                <Link href="/financeiro/nova">
+                <Link href="/financeiro/nova" data-assistant-action="">
                   <PlusIcon />
                   Nova cobrança
                 </Link>

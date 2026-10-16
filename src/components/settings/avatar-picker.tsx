@@ -156,7 +156,7 @@ export function AvatarPicker({
           <ConfirmAction
             action={() => send(null)}
             title="Remover foto?"
-            description="Seu perfil volta a mostrar as iniciais."
+            description="Seu perfil volta a mostrar uma ilustração."
             confirmLabel="Remover"
             destructive
           >

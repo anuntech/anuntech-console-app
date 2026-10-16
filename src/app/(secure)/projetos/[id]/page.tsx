@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { companies, engagements } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access/access";
+import { getActor, canAccess, canSeeEngagement } from "@/lib/access/access";
 import { saoPauloDate } from "@/lib/dates";
 import { boardTasks, projectPeople } from "@/lib/projects/tasks";
 import { engagementLinks } from "@/lib/record-links";
@@ -29,11 +29,11 @@ export default async function Project({
     .from(engagements)
     .innerJoin(companies, eq(companies.id, engagements.companyId))
     .where(eq(engagements.id, id));
-  if (!row || !canAccess(actor, row.project.companyId, "overview")) notFound();
+  if (!row || !canSeeEngagement(actor, row.project)) notFound();
   if (row.project.kind !== "project") redirect("/produtos");
   const [tasks, people, links] = await Promise.all([
     boardTasks(id),
-    projectPeople(row.project.companyId),
+    projectPeople(row.project.companyId, id),
     // Staff see "Excluir" only when nothing billed or signed points at it.
     actor.admin ? engagementLinks([id]) : null,
   ]);

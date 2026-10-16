@@ -31,7 +31,7 @@ A base visual, os componentes e os padrões de tela do Console. Toda tela nova o
 
 | Token | Claro | Escuro | Uso |
 | --- | --- | --- | --- |
-| `--background` | `#f5f7fb` | `#101722` | Fundo da aplicação |
+| `--background` | `#fafafa` | `#101722` | Fundo da aplicação (cinza quase branco, neutro) |
 | `--foreground` | `#0d1d41` | `#e7edf7` | Texto principal (azul-marinho do logotipo) |
 | `--card` | `#ffffff` | `#182231` | Superfícies |
 | `--primary` | `#1a428a` | `#9ebfff` | Ação principal, links, foco de marca |
@@ -62,7 +62,7 @@ O azul-marinho e o amarelo são as tintas do logotipo, as mesmas do `anuntech/de
 
 ### Primitivos (`src/components/ui`)
 
-alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `energy-orb` (esfera animada do assistente) e `metal-prompt-bar` (com `dictation`, mostra o microfone).
+accordion (perguntas frequentes), alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `ai-orb` (a esfera de pontos do assistente, sobre `thinking-orbs`; os estados e as frases ficam em `ai-orb-states.ts`) e `metal-prompt-bar` (com `dictation`, mostra o microfone).
 
 Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucide). Ajuste um primitivo só quando o ajuste vale para o Console inteiro.
 
@@ -83,20 +83,23 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 | `ContractFieldsPanel` (contratos) | Campos `{{...}}` de um rascunho no topo da página: trecho, sugestão, aplicar e salvar sem descer até o texto |
 | `DictationButton`, `useDictation` | Ditado num campo de texto: Falar, Parar e Cancelar, tempo de gravação e o texto entra onde estava o cursor, sem enviar nada |
 | `PersonAvatar`, `AvatarStack`, `CompanyMark` | Pessoas e empresas |
+| `ProductIcon` | O rosto de um produto ou serviço: o ícone do item do catálogo num quadrado de cantos 22% (fundo branco também no escuro) ou as iniciais num tom suave. Decorativo; o nome ao lado diz o que é |
 | `CopyButton`, `BackButton` | Copiar com confirmação; voltar com destino padrão |
+| `HelpLink` | Link curto para o artigo da Ajuda sobre o que está na tela ("Como pagar"), no fluxo do texto; a ajuda não tem botão próprio |
 | `StatusPage`, `ErrorView` | 404, erro inesperado e link inválido |
 
 ### Moldura (`src/components/shell`)
 
 - **Dock** (`dock.tsx`): navegação principal, flutuante, com as áreas que a pessoa pode abrir, botão Criar, assistente e menu da conta. Posição escolhida em Aparência; no celular vira a barra de abas (`mobile-tab-bar.tsx`).
-- **Assistente:** botão com a esfera de energia; o painel abre ao lado do conteúdo em telas a partir de 1024 px e como diálogo abaixo disso. A esfera só anima enquanto o assistente trabalha.
+- **Assistente:** botão com a esfera de pontos (`ai-orb`); o painel abre ao lado do conteúdo em telas a partir de 1024 px e como diálogo abaixo disso. A esfera fica parada em repouso (digitar não conta como atividade) e anima só enquanto o assistente trabalha, com um desenho para cada passo (pensando, consultando o Console, lendo o que encontrou, escrevendo a resposta, ouvindo o microfone enquanto grava). Cada resultado tem forma própria, além da cor: terminou volta ao anel, erro é o triângulo vermelho parado, cartão esperando confirmação é o quadrado âmbar (formas fixadas com `opts.shape`, para nunca congelar no meio da troca). Erro e terminou ficam até a pessoa ver o painel e somem 4 s depois; o âmbar fica até o cartão ser decidido ou vencer (15 min). O botão descreve o estado para leitor de tela (`aria-describedby`); no celular, a linha "Perguntar ao assistente" mostra o estado embaixo do nome. A cor vem dos tokens (`--primary`, `--warning`, `--destructive`); na linha azul do celular, `--primary-foreground`. Movimento reduzido mostra um quadro parado.
 - `appearance-provider`, `notifications` (Toaster), `workspace-loading`, `support-trigger` (chat de suporte) e `brand`.
 
 ## Padrões de tela
 
 - **Lista:** cabeçalho só com título e contagem (sem descrição), depois `ListCard fill` com busca, filtros e as ações da página na mesma linha, ações à direita. O card termina 12 px acima do dock e as linhas rolam dentro dele, sob os nomes das colunas; a página não rola. Lista curta não estica o card. Em telas muito baixas o card fica com 280 px e a página rola, sem esconder o fim atrás do dock. No celular os botões de ação ficam só com o ícone (o nome continua para leitores de tela) e métricas vão em duas colunas. Filtros e página ficam na URL; mudar filtro volta à página 1. Paginação sempre no servidor.
 - **Quadro:** mesma lógica do projeto: título e situação numa linha, filtros com "Nova tarefa" e "…" na linha seguinte, colunas até 12 px acima do dock.
-- **Lista ou grade:** Bookmarks, Projetos, Contratos, Produtos, Empresas e Jornadas têm o seletor Lista/Grade (`ViewToggle`, no `layout` do `ListCard`), junto das ações à direita. Abrem em grade; a escolha fica num cookie por área (`lib/list-layout.ts`) e é lida no servidor, sem piscar a outra visualização. Cada cartão (`GridCard`) tem ícone ou iniciais, título que cobre o cartão inteiro, o mesmo menu "…" da linha e um rodapé com a situação e uma data; o rodapé de paginação é o mesmo da lista.
+- **Lista ou grade:** Bookmarks, Projetos, Contratos, Produtos, Empresas e Jornadas têm o seletor Lista/Grade (`ViewToggle`, no `layout` do `ListCard`), junto das ações à direita. Abrem em grade; a escolha fica num cookie por área (`lib/list-layout.ts`) e é lida no servidor, sem piscar a outra visualização. Cada cartão (`GridCard`) tem ícone ou iniciais, título que cobre o cartão inteiro, o mesmo menu "…" da linha e um rodapé com a situação e uma data; o rodapé de paginação é o mesmo da lista. Produtos, no cliente, é um lançador: ícone grande, nome, uma linha e a dica do clique ("Abrir ↗", "Ver detalhes"), sem menu e sem valor, situação só quando não está ativo; no celular os cartões viram linhas divididas (`CardGrid` aceita `className`).
+- **Ajuda:** `/ajuda` (busca, vídeos, assuntos, perguntas frequentes) e `/ajuda/<artigo>` (vídeo, seções com passos numerados, observações, perguntas frequentes, "Ir para" a tela, relacionados). Um artigo aberto no meio de um formulário vem numa Sheet por cima (`HelpArticleSheet`), com os links em nova aba, porque o formulário não guarda rascunho. O vídeo usa a capa da própria página (título e duração), não um quadro do vídeo.
 - **Guiar sem prometer:** textos de orientação vivem no ponto de uso (formulário de chamado, chamado aguardando, quadro, orçamento aceito, contrato assinado) e em Como trabalhamos. Número de prazo nunca fica escrito em componente ou texto: vem das condições da empresa (`lib/service-terms`). Sem condições, só o horário.
 - **Visão geral:** widgets em `Card` compacto (`gap-4 py-5`), só com título e "Ver todos"; sem frase de descrição.
 - **App do cliente:** em `/apps/[id]`, uma barra mínima (voltar para Produtos, nome do produto, empresa e Recarregar, só o ícone no celular) e o app num iframe que desce até 12 px acima do dock. Enquanto o passe chega, "Abrindo …" no lugar do app; falhou, o motivo com Tentar de novo. Quem não pode abrir vê `StatusPage` com o motivo.
@@ -109,6 +112,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 - **Vazio:** explica quando algo vai aparecer ou oferece a ação; não repete o título.
 - **Erro e 404:** `StatusPage`. Dentro do app, embutido na área de conteúdo (o dock continua); fora, tela inteira com a marca. Registro de outra empresa responde igual a registro inexistente.
 - **Carregando:** `loading.tsx` por seção com o esqueleto da própria lista.
+- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia em cinza claro (#f3f4f6) ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do Console, centralizada na área visível acima do dock. Nos dois, o logotipo real como máscara em CSS, na cor do tema, com a faixa amarela percorrendo o símbolo. O `layout.tsx` das rotas pesadas (`BrandLoadingHold`) segura a vinheta por no mínimo 1,2 s quando ela chegou a aparecer. No tema escuro, o fundo do tema e o logotipo claro; com movimento reduzido, logotipo parado. Nunca na navegação comum.
 
 ## Escrita
 

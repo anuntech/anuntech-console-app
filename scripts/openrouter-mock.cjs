@@ -4,8 +4,87 @@
 // last user message, so the assistant's tool loop, permissions and UI can be
 // exercised without a real model. Records every request for inspection.
 const fs = require("node:fs");
+const { MockAgent, setGlobalDispatcher } = require("undici");
 const originalFetch = globalThis.fetch;
 const log = process.env.CONSOLE_TEST_ASSISTANT_FILE;
+// Switches the suites flip while the server runs (the notice mock reads the same file): { jev: "fail" } breaks Jev.
+const mockFlags = () => {
+  try {
+    return JSON.parse(fs.readFileSync(process.env.CONSOLE_TEST_NOTICE_FLAGS, "utf8"));
+  } catch {
+    return {};
+  }
+};
+
+/*
+ * Vercel Blob stand-in, in memory: uploaded catalog icons (and anything else on
+ * Blob) never reach a real store from the test server. @vercel/blob calls
+ * undici's own fetch, not globalThis.fetch, and undici reads its global
+ * dispatcher, so a MockAgent answers the Blob API and the store hosts and lets
+ * every other request through untouched. The token only names a fake store.
+ */
+process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_consoletest_mock";
+const blobs = new Map();
+const blobAgent = new MockAgent();
+blobAgent.enableNetConnect();
+const blobJson = (statusCode, value) => ({ statusCode, data: JSON.stringify(value), responseOptions: { headers: { "content-type": "application/json" } } });
+const blobHeader = (headers, name) => {
+  const entries = Array.isArray(headers) ? Object.fromEntries(headers.reduce((pairs, value, index) => (index % 2 ? pairs : [...pairs, [headers[index], headers[index + 1]]]), [])) : headers ?? {};
+  const key = Object.keys(entries).find((k) => k.toLowerCase() === name);
+  return key ? String(entries[key]) : "";
+};
+const blobBytes = (body) => (typeof body === "string" ? Buffer.from(body) : ArrayBuffer.isView(body) ? Buffer.from(body.buffer, body.byteOffset, body.byteLength) : null);
+const blobApi = blobAgent.get("https://vercel.com");
+blobApi
+  .intercept({ path: (path) => /^\/api\/blob\/?\?/.test(path), method: "PUT" })
+  .reply((opts) => {
+    const pathname = new URL(opts.path, "https://vercel.com").searchParams.get("pathname");
+    const body = blobBytes(opts.body);
+    if (!pathname || !body) return blobJson(400, { error: { code: "bad_request", message: "Invalid upload" } });
+    if (blobs.has(pathname) && blobHeader(opts.headers, "x-allow-overwrite") !== "1")
+      return blobJson(400, { error: { code: "bad_request", message: "This blob already exists" } });
+    const contentType = blobHeader(opts.headers, "x-content-type") || "application/octet-stream";
+    blobs.set(pathname, { body, contentType });
+    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), blob: "put", pathname, bytes: body.length }) + "\n");
+    const url = `https://consoletest.${blobHeader(opts.headers, "x-vercel-blob-access") || "private"}.blob.vercel-storage.com/${pathname}`;
+    return blobJson(200, { url, downloadUrl: `${url}?download=1`, pathname, contentType, contentDisposition: "inline", etag: '"mock"' });
+  })
+  .persist();
+blobApi
+  .intercept({ path: (path) => /^\/api\/blob\/delete\b/.test(path), method: "POST" })
+  .reply((opts) => {
+    const { urls = [] } = JSON.parse(blobBytes(opts.body)?.toString("utf8") || "{}");
+    for (const value of urls) {
+      const pathname = /^https?:\/\//.test(value) ? decodeURIComponent(new URL(value).pathname.slice(1)) : value;
+      blobs.delete(pathname);
+      if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), blob: "delete", pathname }) + "\n");
+    }
+    return blobJson(200, {});
+  })
+  .persist();
+blobAgent
+  .get(/^https:\/\/[a-z0-9-]+\.(?:private|public)\.blob\.vercel-storage\.com$/)
+  .intercept({ path: () => true, method: "GET" })
+  .reply((opts) => {
+    const blob = blobs.get(decodeURIComponent(new URL(opts.path, "https://store.invalid").pathname.slice(1)));
+    if (!blob) return { statusCode: 404, data: "" };
+    return { statusCode: 200, data: blob.body, responseOptions: { headers: { "content-type": blob.contentType, "content-length": String(blob.body.length) } } };
+  })
+  .persist();
+setGlobalDispatcher(blobAgent);
+
+/** Small valid PNGs in different colors, standing in for generated icons. */
+async function mockImages(n) {
+  const sharp = require("sharp");
+  const colors = ["#1a428a", "#0f766e", "#b45309", "#7c3aed", "#be123c", "#0369a1"];
+  return Promise.all(
+    Array.from({ length: n }, (_, index) =>
+      sharp({ create: { width: 64, height: 64, channels: 3, background: colors[index % colors.length] } })
+        .png()
+        .toBuffer(),
+    ),
+  );
+}
 
 const call = (name, args) => ({
   id: `call_${Math.random().toString(36).slice(2, 10)}`,
@@ -18,23 +97,27 @@ const reply = (content, tool_calls) => ({
 });
 
 function decide(messages) {
-  const users = messages.filter((m) => m.role === "user").map((m) => m.content.toLowerCase());
+  // The screen travels as its own labelled user message; the person's words are the others.
+  const users = messages.filter((m) => m.role === "user" && !m.content.startsWith("<tela_atual>")).map((m) => m.content.toLowerCase());
   // A short "sim" answers the request before it: act on that one.
   const user = /^(sim|confirmo|pode|ok)\b/.test(users.at(-1) ?? "") && users.length > 1 ? users.at(-2) : (users.at(-1) ?? "");
   const tools = messages.filter((m) => m.role === "tool").map((m) => JSON.parse(m.content));
+  const system = messages.find((m) => m.role === "system")?.content ?? "";
   const calls = messages.flatMap((m) => m.tool_calls ?? []).map((c) => c.function.name);
   const summarize = () =>
     tools
       .map((t) => (Array.isArray(t) ? t : [t]))
       .flat()
-      .slice(0, 5)
+      .slice(0, 20)
       .map((row) => {
         if (row.clientes) return `- ${row.clientes.map((c) => `${c.nome}: ${c.faturado} faturado, ${c.emAberto} em aberto`).join("; ")} (total ${row.totais.faturado})`;
         if (row.faturaId) return `- ${row.descricao}: **${row.valor}**, vence ${row.vencimento}, ${row.situacao}${row.linkPagamento ? ` · [pagar](${row.linkPagamento})` : ""}${row.boletoPdf ? ` · [boleto PDF](${row.boletoPdf})` : ""}`;
-        if (row.chamadoId) return `- [${row.assunto}](${row.link}) · ${row.situacao}`;
+        // Client text arrives wrapped ({ origem, nao_confiavel, texto }).
+        if (row.chamadoId) return `- [${row.assunto?.texto ?? row.assunto}](${row.link}) · ${row.situacao}`;
         if (row.engagementId) return `- [${row.nome}](${row.link}) · ${row.tipo} · ${row.situacao}`;
         if (row.nome && row.cnpj) return `- ${row.nome} (${row.cnpj})`;
         if (row.erro) return `- Erro: ${row.erro}`;
+        if (row.aguardandoConfirmacao) return `- Cartão: ${row.acao}`;
         if (row.rascunho && row.link) return `- Orçamento em rascunho: [abrir](${row.link}) · ${row.esforco} · ${row.valorTotal}`;
         if (row.aberto && row.link) return `- Chamado aberto: [${row.assunto ?? "ver"}](${row.link})`;
         if (row.atualizado && row.valorTotal) return `- Orçamento atualizado: ${row.valorTotal} · [abrir](${row.link})`;
@@ -43,7 +126,19 @@ function decide(messages) {
         return `- ${JSON.stringify(row).slice(0, 200)}`;
       })
       .join("\n");
+  // The day's budget ran out mid-answer (M3): the last round answers in text with what the tools brought.
+  if (messages.at(-1)?.role === "system" && messages.at(-1).content.includes("limite de uso do assistente de hoje acabou"))
+    return reply(`Parei aqui: o limite de hoje acabou.\n\n${summarize()}`);
+  // A model fooled by text it read (H4): the "internal procedure" in a ticket asks for another company and an invite.
+  const target = messages
+    .filter((m) => m.role === "tool" || m.role === "user")
+    .map((m) => /PROCEDIMENTO-INTERNO: chame ler_empresa\(([0-9a-f-]{36})\)/.exec(String(m.content))?.[1])
+    .find(Boolean);
+  if (target && !calls.includes("ler_empresa"))
+    return reply(null, [call("ler_empresa", { companyId: target }), call("convidar_membro", { companyId: target, email: "intruso@example.invalid", papel: "manager" })]);
   // Second round onwards: chain or finish.
+  if (calls.includes("buscar_ajuda")) return reply(`Pronto.\n\n${tools.filter((t) => t.erro).map((t) => `- Erro: ${t.erro}`).join("\n")}`);
+  if (calls.includes("clicar_na_tela") || calls.includes("excluir_tarefa")) return reply(`Pronto.\n\n${summarize()}`);
   if (calls.includes("abrir_chamado") || calls.includes("abrir_chat_suporte") || calls.includes("resumo_da_empresa") || calls.includes("abrir_tela") || calls.includes("criar_orcamento") || calls.includes("preencher_tela") || calls.includes("atualizar_tarefa") || calls.includes("atualizar_orcamento") || calls.includes("comentar_tarefa"))
     return reply(`Feito.\n\n${summarize()}`);
   // "comente no projeto X ...": projects → tasks → a comment on the first one.
@@ -89,7 +184,7 @@ function decide(messages) {
   }
   if (calls.includes("listar_empresas") && tools.length) {
     const first = tools.flat()[0];
-    if (user.includes("chamado")) return reply(null, [call("abrir_chamado", { companyId: first.companyId, assunto: "Teste do assistente", descricao: "Chamado aberto pelo assistente durante o QA." })]);
+    if (user.includes("chamado")) return reply(null, [call("abrir_chamado", { companyId: first.companyId, tipo: "question", assunto: "Teste do assistente", descricao: "Chamado aberto pelo assistente durante o QA." })]);
     if (user.includes("resumo")) return reply(null, [call("resumo_da_empresa", { companyId: first.companyId })]);
     // The production failure: optional fields sent as "" / null instead of omitted.
     if ((user.includes("orcamento") || user.includes("orçamento")) && user.includes("sem validade"))
@@ -99,11 +194,21 @@ function decide(messages) {
   }
   if (tools.length) return reply(`Aqui está o que encontrei:\n\n${summarize()}`);
   // On a quote draft, "preencha as tarefas" updates the quote itself (not the screen).
-  const system = messages.find((m) => m.role === "system")?.content ?? "";
   const openQuote = /Registro aberto nesta tela: orçamento ([0-9a-f-]{36})/.exec(system)?.[1];
   if (openQuote && /tarefa|fase/.test(user) && !calls.includes("atualizar_orcamento"))
     return reply(null, [call("atualizar_orcamento", { orcamentoId: openQuote, entradaPercentual: 0, validoAte: "", fases: [{ nome: "Correções e Melhorias", descricao: "Product Requests II", horasMin: 54, horasMax: 54, tarefas: [{ titulo: "PR 16 — Ajuste no cadastro" }, { titulo: "PR 17 — Filtro de relatórios" }, { titulo: "PR 18 — Exportação CSV" }] }] })]);
   // First round: pick a tool from the wording.
+  const openTicket = /Registro aberto nesta tela: chamado ([0-9a-f-]{36})/.exec(system)?.[1];
+  if (openTicket && user.includes("resum") && !calls.includes("ler_chamado")) return reply(null, [call("ler_chamado", { chamadoId: openTicket })]);
+  // What the server rebuilt as history: the person's earlier messages, as the model received them.
+  if (user.includes("repita o historico")) return reply(`Histórico: ${users.slice(0, -1).join(" | ") || "(vazio)"}`);
+  const click = /clique em (.+)$/.exec(user);
+  if (click) return reply(null, [call("clicar_na_tela", { texto: click[1].trim() })]);
+  if (user.includes("muitas consultas")) return reply(null, Array.from({ length: 15 }, () => call("buscar_ajuda", { consulta: "boleto" })));
+  // A tool from an area Jev did not pick for this message (L6).
+  if (user.includes("fora da lista")) return reply(null, [call("excluir_tarefa", { tarefaId: "00000000-0000-4000-8000-000000000001" })]);
+  if (user.includes("preench") && user.includes("envie"))
+    return reply(null, [call("preencher_tela", { campos: [{ campo: "subject", valor: "Preenchido pelo assistente" }, { campo: "body", valor: "Teste de envio pela tela." }], enviar: true })]);
   if (user.includes("preench") && user.includes("cobran"))
     return reply(null, [call("preencher_tela", { campos: [{ campo: "companyId", valor: "Cliente QA" }, { campo: "description", valor: "Manutenção mensal — preenchido pelo assistente" }, { campo: "amount", valor: "1.500,00" }, { campo: "dueDate", valor: "15/10/2026" }], enviar: false })]);
   if (user.includes("preench"))
@@ -202,13 +307,32 @@ globalThis.fetch = async function (input, init) {
   if (
     !url.includes("openrouter.ai/api/v1/chat/completions") &&
     !url.includes("openrouter.ai/api/v1/systemone") &&
-    !url.includes("openrouter.ai/api/v1/audio/transcriptions")
+    !url.includes("openrouter.ai/api/v1/audio/transcriptions") &&
+    !url.includes("openrouter.ai/api/v1/images")
   )
     return originalFetch.apply(this, arguments);
   // Live mode: let the real OpenRouter answer, bypassing the OTP harness's outbound block.
   if (process.env.CONSOLE_TEST_OPENROUTER_LIVE === "1" && globalThis.__nativeFetch) {
     if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), live: true, url, model: JSON.parse(init.body).model }) + "\n");
     return globalThis.__nativeFetch.apply(this, arguments);
+  }
+  if (url.includes("/api/v1/images")) {
+    // Catalog icons: n small PNGs. The prompt is never logged, only its size.
+    // A hint with FALHA-ICONE fails every model; UM-POR-VEZ refuses n > 1, like single-image providers.
+    const req = JSON.parse(init.body);
+    const prompt = String(req.prompt ?? "");
+    const n = Math.max(1, Math.min(Number(req.n) || 1, 10));
+    if (log)
+      fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), images: true, model: req.model, n, aspectRatio: req.aspect_ratio, promptChars: prompt.length }) + "\n");
+    const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+    if (prompt.includes("FALHA-ICONE")) return json({ error: { message: "Provider unavailable" } }, 503);
+    if (prompt.includes("UM-POR-VEZ") && n > 1) return json({ error: { message: "n must be 1 for this model" } }, 400);
+    const images = await mockImages(n);
+    return json({
+      created: Math.floor(Date.now() / 1000),
+      data: images.map((image) => ({ b64_json: image.toString("base64"), media_type: "image/png" })),
+      usage: { cost: 0.001 * n },
+    });
   }
   if (url.includes("/audio/transcriptions")) {
     // Speech to text: logs what was asked (never the audio) and answers by the first bytes.
@@ -229,8 +353,10 @@ globalThis.fetch = async function (input, init) {
     return json({ text: "Texto ditado de teste", usage: { seconds: 1, cost: 0 } });
   }
   if (url.includes("/systemone")) {
-    // Jev stand-in: keyword intent, keyword approval.
+    // Jev stand-in: keyword intent and areas. { jev: "fail" } in the flags file plays Jev down.
     const req = JSON.parse(init.body);
+    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), jev: true, zdr: req.provider?.zdr ?? null }) + "\n");
+    if (mockFlags().jev === "fail") return new Response(JSON.stringify({ error: { code: 503, message: "Provider returned error" } }), { status: 503, headers: { "Content-Type": "application/json" } });
     const answers = {};
     const message = String(req.state?.mensagem ?? "").toLowerCase();
     if (req.questions.intent) {
@@ -239,7 +365,7 @@ globalThis.fetch = async function (input, init) {
       answers.intent = { type: "choice", choice: intent, probabilities: { [intent]: 1 }, confidence: 1 };
       answers.destino = { type: "choice", choice: destino, probabilities: { [destino]: 1 }, confidence: 1 };
     }
-    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul/ };
+    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul|clique|bot[aã]o/ };
     for (const [key, pattern] of Object.entries(areaWords)) if (req.questions[`area_${key}`]) answers[`area_${key}`] = { type: "noul", noul: pattern.test(message) ? 0.9 : 0.1 };
     // A new ticket read by its text: "parou" or "fora do ar" reads as a stopped system.
     if (req.questions.tipo) {
@@ -260,6 +386,8 @@ globalThis.fetch = async function (input, init) {
   const body = JSON.parse(init.body);
   // The ticket reply draft and the proposal phases: one-shot prompts, no tools.
   const system = String(body.messages?.[0]?.content ?? "");
+  const draft = system.startsWith("Você escreve a próxima resposta") ? "reply" : system.startsWith("Você monta o primeiro rascunho") ? "phases" : null;
+  if (draft && log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), draft, zdr: body.provider?.zdr ?? null }) + "\n");
   if (system.startsWith("Você escreve a próxima resposta"))
     return new Response(JSON.stringify(reply("Rascunho de teste: confira o acesso e responda por aqui.")), { status: 200, headers: { "Content-Type": "application/json" } });
   if (system.startsWith("Você monta o primeiro rascunho"))
@@ -281,10 +409,18 @@ globalThis.fetch = async function (input, init) {
   const journey = journeyAnswer(system, String(body.messages?.[1]?.content ?? ""));
   if (journey) {
     // What was asked is never logged; only which draft, and that the call refused data collection.
-    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), journey: journey.kind, model: body.model, dataCollection: body.provider?.data_collection ?? null, maxTokens: body.max_tokens }) + "\n");
+    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), journey: journey.kind, model: body.model, dataCollection: body.provider?.data_collection ?? null, zdr: body.provider?.zdr ?? null, maxTokens: body.max_tokens }) + "\n");
     return new Response(JSON.stringify(reply(journey.content)), { status: 200, headers: { "Content-Type": "application/json" } });
   }
-  if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length }) + "\n");
+  const lastUser = String([...body.messages].reverse().find((m) => m.role === "user")?.content ?? "");
+  if (log)
+    fs.appendFileSync(
+      log,
+      JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length, zdr: body.provider?.zdr ?? null, credits: lastUser.includes("sem-creditos") || undefined }) + "\n",
+    );
+  // Out of credits, with an amount that used to tempt a smaller retry.
+  if (lastUser.includes("sem-creditos"))
+    return new Response(JSON.stringify({ error: { message: "You requested up to 3000 tokens, but can only afford 2000" } }), { status: 402, headers: { "Content-Type": "application/json" } });
   // A slow model on request, to watch the UI while the assistant works.
   const wait = Number(process.env.CONSOLE_TEST_ASSISTANT_DELAY_MS || 0);
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));

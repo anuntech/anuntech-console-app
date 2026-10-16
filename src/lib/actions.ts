@@ -13,7 +13,7 @@ import { automationOn } from "./automations/automations";
 import { db } from "./db";
 import { resolveBankDueDate } from "./billing/billing-notice-rules";
 import { saoPauloDate } from "./dates";
-import { getActor, canAccess } from "./access/access";
+import { getActor, canAccess, canSeeEngagement, canSeeTicket } from "./access/access";
 import {
   companies,
   engagements,
@@ -52,6 +52,7 @@ import { sendOpsMail } from "./notifications/ops-alerts";
 import { teamMemberName } from "./account/account-identity";
 import { companyIdentity } from "./companies/company-input";
 import { companyBillingInput } from "./companies/company-billing";
+import { logDatabaseFault } from "./action-errors";
 const id = z.string().uuid();
 function isWebUrl(value: string) {
   try {
@@ -294,7 +295,8 @@ export async function createTicket(
               eq(engagements.companyId, input.companyId),
             ),
           );
-        if (!eng) throw Error();
+        // A forged id never opens a request about a product the person does not see.
+        if (!eng || !canSeeEngagement(actor, eng, "support")) throw Error();
       }
       // The conditions in force now stay with the ticket, so a later change never moves a deadline already given.
       const terms = snapshotOf(await governingTerms(input.companyId, input.engagementId || null, tx));
@@ -413,7 +415,7 @@ export async function replyTicket(
         .from(tickets)
         .where(eq(tickets.id, input.ticketId))
         .for("update");
-      if (!ticket || !canAccess(actor, ticket.companyId, "support"))
+      if (!ticket || !canSeeTicket(actor, ticket))
         return blocked;
       if (ticket.status === "closed")
         return {
@@ -425,7 +427,10 @@ export async function replyTicket(
         uploaded = await takeTicketUploads(tx, actor.user.id, form);
       } catch (error) {
         return {
-          error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
+          error:
+            error instanceof Error && !logDatabaseFault("ticket uploads", error)
+              ? error.message
+              : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
         };
       }
       const files = [...direct, ...uploaded];

@@ -50,7 +50,7 @@ function ReportLine({
       {canContest &&
         windowOpen &&
         (open ? (
-          <ServerForm action={contestHoursReport} onSuccess={() => setOpen(false)} className="mt-2 flex flex-col gap-2">
+          <ServerForm data-assistant-ignore="" action={contestHoursReport} onSuccess={() => setOpen(false)} className="mt-2 flex flex-col gap-2">
             <input type="hidden" name="companyId" value={companyId} />
             <input type="hidden" name="month" value={month} />
             <FormError />
@@ -145,7 +145,7 @@ export function HoursBankCard({
 
         {viewer === "approver" &&
           (approving ? (
-            <ServerForm action={approveOverage} onSuccess={() => setApproving(false)} className="flex flex-col gap-2">
+            <ServerForm data-assistant-ignore="" action={approveOverage} onSuccess={() => setApproving(false)} className="flex flex-col gap-2">
               <input type="hidden" name="companyId" value={bank.companyId} />
               <FormError />
               <label className="text-xs font-medium text-foreground" htmlFor={`bank-overage-${bank.companyId}`}>
@@ -208,7 +208,7 @@ export function HoursBankCard({
         {viewer === "team" && (
           <div className="flex flex-wrap gap-2">
             {prev && !prev.final && !reports.some((report) => report.month === prev.month) && (
-              <ServerForm action={sendHoursReport}>
+              <ServerForm data-assistant-ignore="" action={sendHoursReport}>
                 <input type="hidden" name="companyId" value={bank.companyId} />
                 <input type="hidden" name="month" value={prev.month} />
                 <SubmitButton size="sm" pendingLabel="Enviando…">
@@ -217,7 +217,7 @@ export function HoursBankCard({
               </ServerForm>
             )}
             {reports.map((report) => (
-              <ServerForm key={report.month} action={sendHoursReport}>
+              <ServerForm key={report.month} data-assistant-ignore="" action={sendHoursReport}>
                 <input type="hidden" name="companyId" value={bank.companyId} />
                 <input type="hidden" name="month" value={report.month} />
                 <SubmitButton size="sm" pendingLabel="Enviando…">
@@ -225,7 +225,7 @@ export function HoursBankCard({
                 </SubmitButton>
               </ServerForm>
             ))}
-            <ServerForm action={sendHoursReport}>
+            <ServerForm data-assistant-ignore="" action={sendHoursReport}>
               <input type="hidden" name="companyId" value={bank.companyId} />
               <input type="hidden" name="month" value={bank.month} />
               <SubmitButton variant="outline" size="sm" pendingLabel="Enviando…">
@@ -233,7 +233,7 @@ export function HoursBankCard({
               </SubmitButton>
             </ServerForm>
             {alert && !bank.alertSentAt && (
-              <ServerForm action={sendBankAlert}>
+              <ServerForm data-assistant-ignore="" action={sendBankAlert}>
                 <input type="hidden" name="companyId" value={bank.companyId} />
                 <SubmitButton variant="outline" size="sm" pendingLabel="Avisando…">
                   Avisar o cliente dos {bank.alertPercent}%

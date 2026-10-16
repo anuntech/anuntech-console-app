@@ -6,7 +6,12 @@ import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
+import { runHelpTests } from "./help-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
+import { runMemberScopeTests } from "./member-scope-smoke.mjs";
+import { runCatalogIconTests } from "./catalog-icons-smoke.mjs";
+import { runAssistantTests } from "./assistant-smoke.mjs";
+import { runContractSigningTests } from "./contract-signing-smoke.mjs";
 import { runWorkspaceDomainTests } from "./workspace-domain-smoke.mjs";
 import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync, randomUUID } from "node:crypto";
@@ -119,7 +124,10 @@ function actionBody(name, values) {
   body.set("$ACTION_REF_1", "");
   body.set("$ACTION_1:0", JSON.stringify({ id: found[0][0], bound: "$@1" }));
   body.set("$ACTION_1:1", "[null]");
-  for (const [key, value] of Object.entries(values)) body.set(key, value);
+  // An array posts the field once per value, like checkboxes of the same name.
+  for (const [key, value] of Object.entries(values))
+    if (Array.isArray(value)) for (const each of value) body.append(key, each);
+    else body.set(key, value);
   return body;
 }
 async function submitForm(page, reader, sender, identifier, values) {
@@ -463,8 +471,8 @@ try {
 
     const ticketForm = await request("/chamados/novo", "support");
     ok(
-      ticketForm.text.includes('name="kind"') && ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="channel"') && ticketForm.text.includes("/como-trabalhamos"),
-      "Novo chamado pergunta o tipo, não deixa o cliente escolher prioridade nem canal e aponta Como trabalhamos",
+      ticketForm.text.includes('name="kind"') && ticketForm.text.includes('name="subject"') && !ticketForm.text.includes('name="priority"') && !ticketForm.text.includes('name="channel"') && ticketForm.text.includes("/ajuda/tipos-de-chamado"),
+      "Novo chamado pergunta o tipo, não deixa o cliente escolher prioridade nem canal e aponta a Ajuda",
     );
     // Dictation: the microphone is allowed for the Console only, and /api/transcricao turns audio into text.
     ok(ticketForm.headers.get("permissions-policy")?.includes("microphone=(self)") && ticketForm.headers.get("permissions-policy")?.includes("camera=()"), "Microfone liberado só para o próprio Console");
@@ -2106,6 +2114,11 @@ try {
   await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
   await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
   await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
+  await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
+  await runMemberScopeTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
+  await runHelpTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
+  await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, openRouterFile });
+  await runContractSigningTests({ database, ids, request, ok, marker, base });
   await runWorkspaceDomainTests({ people, ok, base, notFoundPage, passKeyId });
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
@@ -2138,7 +2151,8 @@ try {
   // Conditions point at contracts, links point at proposals; automation records go before companies and people.
   for (const table of ["console_time_entries", "console_hours_months", "console_service_terms"])
     await database.query(`delete from ${table} where company_id=any($1::text[])`, [companyIds]);
-  await database.query("update console_engagements set quote_id=null where company_id=any($1::text[])", [companyIds]);
+  // Products point at recurrences (and proposals): unlink before deleting those.
+  await database.query("update console_engagements set quote_id=null, subscription_id=null where company_id=any($1::text[])", [companyIds]);
   // Project journeys point at companies, proposals and people: they go first.
   await database.query(
     "delete from console_journey_steps where journey_id in (select id from console_journeys where company_id=any($1::text[]) or owner_id=any($2::text[]))",
@@ -2194,6 +2208,10 @@ try {
     "delete from console_companies where id=any($1::text[])",
     [companyIds],
   );
+  // The assistant's cards and conversations point at people (messages go with their conversation).
+  for (const table of ["console_assistant_proposals", "console_assistant_conversations"])
+    await database.query(`delete from ${table} where user_id=any($1::text[])`, [Object.values(people).map((p) => p.id)]);
+  await database.query("delete from console_assistant_usage where subject_id=any($1::text[])", [[...Object.values(people).map((p) => p.id), ...companyIds]]);
   await database.query("delete from console_user where id=any($1::text[])", [
     Object.values(people).map((p) => p.id),
   ]);

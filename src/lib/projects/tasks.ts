@@ -15,6 +15,7 @@ import { db } from "../db";
 import { hasConsoleStaffAccess } from "../access/console-members";
 import { getAccountEmails, resolveAccountIdentity } from "../account/account-identity";
 import { normalizeEmail } from "../access/permissions";
+import { membershipSeesEngagement } from "../access/grants";
 
 export type Person = {
   id: string;
@@ -23,8 +24,8 @@ export type Person = {
   image: string | null;
 };
 
-/** People a task can be assigned to: the company's members plus Console staff. */
-export async function assigneeAllowed(userId: string, companyId: string) {
+/** People a task can be assigned to: the company's members who see the project, plus Console staff. */
+export async function assigneeAllowed(userId: string, companyId: string, engagementId: string) {
   const [person] = await db
     .select({ email: user.email })
     .from(user)
@@ -40,14 +41,15 @@ export async function assigneeAllowed(userId: string, companyId: string) {
         eq(memberships.companyId, companyId),
         inArray(memberships.email, emails),
         eq(memberships.active, true),
+        membershipSeesEngagement(engagementId),
       ),
     )
     .limit(1);
   return !!member;
 }
 
-/** Everyone who can be given a task on this company's projects. */
-export async function projectPeople(companyId: string): Promise<Person[]> {
+/** Everyone who can be given a task on this project: staff and the members who see it. */
+export async function projectPeople(companyId: string, engagementId: string): Promise<Person[]> {
   const columns = {
     id: user.id,
     name: user.name,
@@ -69,7 +71,7 @@ export async function projectPeople(companyId: string): Promise<Person[]> {
         user,
         or(eq(user.email, memberships.email), eq(user.id, accountEmails.userId)),
       )
-      .where(and(eq(memberships.companyId, companyId), eq(memberships.active, true))),
+      .where(and(eq(memberships.companyId, companyId), eq(memberships.active, true), membershipSeesEngagement(engagementId))),
     db
       .select(columns)
       .from(consoleStaffMembers)

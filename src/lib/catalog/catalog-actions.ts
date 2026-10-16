@@ -12,7 +12,9 @@ import {
 import { db } from "../db";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
+import { logDatabaseFault } from "../action-errors";
 import { moneyToCents } from "../access/permissions";
+import { isGalleryIcon, suggestGalleryIcon } from "./catalog-icons";
 
 const id = z.string().uuid();
 const blocked = { error: "Você não tem permissão para fazer isso." };
@@ -56,9 +58,13 @@ export async function saveCatalogItem(_: ActionState, form: FormData): Promise<A
         whatWeNeed: text(5000),
         expectedResults: text(5000),
         deadlines: text(5000),
+        icon: text(200),
       })
       .parse(Object.fromEntries(form));
     if (input.url && !isWebUrl(input.url)) return { error: "Informe um link HTTP ou HTTPS válido." };
+    // A new item takes a gallery icon from the form, or one that fits its name.
+    // An existing one ignores the field: its icon changes through /api/catalogo/<id>/icone.
+    if (!input.id && input.icon && !isGalleryIcon(input.icon)) return { error: "Escolha um ícone da galeria." };
     const defaultAmountCents = input.defaultAmount ? moneyToCents(input.defaultAmount) : null;
     if (input.defaultAmount && defaultAmountCents === null)
       return { error: "Informe um valor entre R$ 0,01 e R$ 9.999.999,99." };
@@ -83,7 +89,12 @@ export async function saveCatalogItem(_: ActionState, form: FormData): Promise<A
             .where(eq(catalogItems.id, input.id))
             .returning({ id: catalogItems.id })
         )[0]?.id
-      : (await db.insert(catalogItems).values(values).returning({ id: catalogItems.id }))[0].id;
+      : (
+          await db
+            .insert(catalogItems)
+            .values({ ...values, icon: input.icon || suggestGalleryIcon(input.name)?.path || null })
+            .returning({ id: catalogItems.id })
+        )[0].id;
     if (!itemId) return blocked;
     await db.insert(auditEvents).values({
       actorId: actor.user.id,
@@ -241,7 +252,7 @@ export async function addCatalogEngagement(_: ActionState, form: FormData): Prom
       href: item.kind === "service" ? `/produtos/${created.id}` : "/produtos",
     };
   } catch (error) {
-    return error instanceof Error && error.message.includes("Recorrência")
+    return error instanceof Error && !logDatabaseFault("catalog", error) && error.message.includes("Recorrência")
       ? { error: error.message }
       : failure(error);
   }

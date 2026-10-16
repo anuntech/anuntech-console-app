@@ -23,6 +23,7 @@ import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { OnboardingCard } from "@/components/empresas/onboarding-card";
 import { isNewClient, onboardingMissing } from "@/lib/companies/onboarding";
+import { membershipScopes, scopeChoices } from "@/lib/access/member-scope";
 import { bankCard } from "@/lib/service-terms/hours-bank";
 import { overagesReady, reportsToSend } from "@/lib/service-terms/hours-delivery";
 import { serviceTerms } from "@/db/schema";
@@ -59,6 +60,7 @@ export default async function Company({
         id: memberships.id,
         email: memberships.email,
         role: memberships.role,
+        engagementAccess: memberships.engagementAccess,
         name: user.name,
         verified: user.emailVerified,
       })
@@ -141,7 +143,7 @@ export default async function Company({
       .where(and(eq(contracts.companyId, id), inArray(contracts.status, ["signed", "sent", "in_review"])))
       .orderBy(desc(contracts.updatedAt)),
   ]);
-  const bank = await bankCard(id, company.name);
+  const [bank, memberScopes, scopeEngagements] = await Promise.all([bankCard(id, company.name), membershipScopes(members), scopeChoices(id)]);
   // Closed months' hours beyond the bank, once the client's window to contest closed (ready to bill, once), and the reports still owed.
   const [overages, reports] = bank ? await Promise.all([overagesReady(id), reportsToSend(id)]) : [[], []];
   const onboarding = isNewClient(company) ? await onboardingMissing(id) : [];
@@ -212,7 +214,9 @@ export default async function Company({
           name: m.name ?? null,
           role: m.role,
           verified: m.verified === true,
+          scope: memberScopes.get(m.id),
         })),
+        scopeEngagements,
         events: events.map((e) => ({
           id: e.id,
           action: e.action,

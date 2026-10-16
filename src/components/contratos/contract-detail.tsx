@@ -73,6 +73,7 @@ import {
 import { ContractKindChip, ContractStatusBadge, ContractTermBadge } from "./contract-badges";
 import { ContractText } from "./contract-text";
 import { ContractFieldsPanel, type FieldSuggestions } from "./contract-fields-panel";
+import { HelpLink } from "@/components/console/help-link";
 import {
   ClientRoundCard,
   ReviewHistory,
@@ -526,8 +527,9 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                 pending={c.status === "sent"}
               />
               <Party label="Contratada" who="Anuntech" signature={signed("anuntech")} pending={c.status === "sent"} />
+              {/* Signing is the person's own: the assistant leaves it alone. */}
               {canSign && (
-                <ServerForm action={signContract} className="flex flex-col gap-3 border-t pt-5">
+                <ServerForm action={signContract} className="flex flex-col gap-3 border-t pt-5" data-assistant-ignore="">
                   <input type="hidden" name="id" value={c.id} />
                   <FormError />
                   <label className="flex cursor-pointer items-start gap-3 text-sm">
@@ -552,6 +554,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                     {clientReview.drafts > 0 &&
                       ` Assinar descarta ${clientReview.drafts === 1 ? "o pedido de alteração não enviado" : `os ${clientReview.drafts} pedidos de alteração não enviados`}.`}
                   </p>
+                  {viewer.party === "client" && <HelpLink slug="assinar-um-contrato">Como assinar e pedir alteração</HelpLink>}
                 </ServerForm>
               )}
             </CardContent>

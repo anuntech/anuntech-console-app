@@ -2,7 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gte, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { allowedIds, canAccess } from "../access/access";
+import { allowedIds, canAccess, canSeeEngagement, canSeeMoney, canSeeTicket, engagementWhere, ticketWhere } from "../access/access";
 import {
   assistantDocuments,
   companies,
@@ -25,7 +25,7 @@ import { formatDocument } from "../companies/company-input";
 import { CLIENT_CONTRACT_STATUSES, contractStatusLabels } from "../contracts/contract-table";
 import { currency, engagementLabels, priorityLabels, ticketLabels } from "../format";
 import { ticketImpacts, ticketKinds } from "../tickets/ticket-intake";
-import { hasPermission, type Area } from "../access/permissions";
+import type { Area } from "../access/permissions";
 import { createQuote } from "../quotes/quote-actions";
 import { DEFAULT_QUOTE_NOTES, hoursLabel, quoteNumberLabel, quoteStatusLabels, quoteTotals, type QuoteContent } from "../quotes/quote-model";
 import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
@@ -33,12 +33,16 @@ import { OPEN_TICKET_STATUSES } from "../tickets/ticket-status";
 import { appForUrl, protectedApps } from "../apps/registry";
 
 /* ---------- plumbing (shared with assistant-tools-extra) ---------- */
-import { fold, id, limit, resolvePeople, scopeOf, submit, tool, ToolError, within, type AnyTool, type ToolArea, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
+import { fold, id, limit, resolvePeople, scopeOf, submit, tool, ToolError, untrusted, within, type AnyTool, type ToolArea, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
 export { ToolError } from "./assistant-tools-kit";
 export type { AnyTool, ClientAction, ToolArea, ToolContext, ToolOutcome } from "./assistant-tools-kit";
 export { toolAreas } from "./assistant-tools-kit";
 import type { Actor } from "../access/access";
 import { extraTools } from "./assistant-tools-extra";
+import { HELP_ARTICLES } from "../help/articles";
+import { plainText } from "../help/help-model";
+import { searchHelp } from "../help/help-search";
+import { logDatabaseFault } from "../action-errors";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid"
@@ -86,16 +90,28 @@ const companyOverview = tool({
     if (!canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
     if (!company) throw new ToolError("Empresa não encontrada.");
-    const finance = actor.admin || hasPermission(actor.grants.find((g) => g.company.id === companyId)!.role, "finance");
+    const finance = canSeeMoney(actor, companyId);
     const [openTickets, openInvoices, works, signed, waitingQuotes] = await Promise.all([
-      db.select({ id: tickets.id }).from(tickets).where(and(eq(tickets.companyId, companyId), inArray(tickets.status, [...OPEN_TICKET_STATUSES]))),
+      db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(
+          and(
+            eq(tickets.companyId, companyId),
+            inArray(tickets.status, [...OPEN_TICKET_STATUSES]),
+            ticketWhere(actor, { company: tickets.companyId, engagement: tickets.engagementId, author: tickets.authorId }),
+          ),
+        ),
       finance
         ? db
             .select({ amount: invoices.amountCents, dueDate: invoices.dueDate })
             .from(invoices)
             .where(and(eq(invoices.companyId, companyId), eq(invoices.status, "issued")))
         : [],
-      db.select({ kind: engagements.kind, status: engagements.status }).from(engagements).where(eq(engagements.companyId, companyId)),
+      db
+        .select({ kind: engagements.kind, status: engagements.status })
+        .from(engagements)
+        .where(and(eq(engagements.companyId, companyId), engagementWhere(actor, engagements.id, engagements.companyId))),
       finance ? db.select({ id: contracts.id }).from(contracts).where(and(eq(contracts.companyId, companyId), eq(contracts.status, "signed"))) : [],
       finance ? db.select({ id: quotes.id }).from(quotes).where(and(eq(quotes.companyId, companyId), eq(quotes.status, "sent"))) : [],
     ]);
@@ -277,19 +293,26 @@ const listTickets = tool({
   name: "listar_chamados",
   description: "Chamados (tickets de suporte), com situação, prioridade e link. Sem companyId, traz de todas as empresas que a pessoa vê.",
   input: z.object({ companyId: id.optional(), situacao: z.enum(["abertos", "todos"]).default("abertos"), limite: limit(10) }),
-  run: async ({ actor }, { companyId, situacao, limite }) => {
+  run: async (ctx, { companyId, situacao, limite }) => {
+    const { actor } = ctx;
     const ids = scopeOf(actor, "support", companyId);
     const rows = await db
-      .select({ id: tickets.id, subject: tickets.subject, status: tickets.status, priority: tickets.priority, company: companies.name, updatedAt: tickets.updatedAt })
+      .select({ id: tickets.id, subject: tickets.subject, status: tickets.status, priority: tickets.priority, companyId: tickets.companyId, company: companies.name, updatedAt: tickets.updatedAt })
       .from(tickets)
       .innerJoin(companies, eq(companies.id, tickets.companyId))
-      .where(and(within(tickets.companyId, ids), situacao === "abertos" ? inArray(tickets.status, [...OPEN_TICKET_STATUSES]) : undefined))
+      .where(
+        and(
+          within(tickets.companyId, ids),
+          ticketWhere(actor, { company: tickets.companyId, engagement: tickets.engagementId, author: tickets.authorId }),
+          situacao === "abertos" ? inArray(tickets.status, [...OPEN_TICKET_STATUSES]) : undefined,
+        ),
+      )
       .orderBy(desc(tickets.updatedAt))
       .limit(limite);
     return {
       result: rows.map((t) => ({
         chamadoId: t.id,
-        assunto: t.subject,
+        assunto: untrusted(ctx, t.companyId, `assunto do chamado ${t.id}`, t.subject),
         empresa: t.company,
         situacao: ticketLabels[t.status] ?? t.status,
         prioridade: priorityLabels[t.priority] ?? t.priority,
@@ -306,9 +329,10 @@ const readTicket = tool({
   area: "chamados",
   description: "As últimas mensagens de um chamado, para saber onde ele parou.",
   input: z.object({ chamadoId: id }),
-  run: async ({ actor }, { chamadoId }) => {
+  run: async (ctx, { chamadoId }) => {
+    const { actor } = ctx;
     const [t] = await db.select().from(tickets).where(eq(tickets.id, chamadoId));
-    if (!t || !canAccess(actor, t.companyId, "support")) throw new ToolError("Chamado não encontrado.");
+    if (!t || !canSeeTicket(actor, t)) throw new ToolError("Chamado não encontrado.");
     const thread = await db
       .select({ body: messages.body, author: user.name, email: user.email, at: messages.createdAt })
       .from(messages)
@@ -319,11 +343,14 @@ const readTicket = tool({
     return {
       result: {
         chamadoId: t.id,
-        assunto: t.subject,
+        assunto: untrusted(ctx, t.companyId, `assunto do chamado ${t.id}`, t.subject),
         situacao: ticketLabels[t.status] ?? t.status,
         prioridade: priorityLabels[t.priority] ?? t.priority,
         link: `/chamados/${t.id}`,
-        mensagens: thread.reverse().map((m) => ({ de: m.author || m.email || "—", em: m.at.toISOString(), texto: m.body.slice(0, 1500) })),
+        mensagens: thread.reverse().map((m) => {
+          const de = m.author || m.email || "—";
+          return { de, em: m.at.toISOString(), texto: untrusted(ctx, t.companyId, `mensagem de ${de} no chamado ${t.id}`, m.body.slice(0, 1500)) };
+        }),
       },
       summary: `Li o chamado "${t.subject}"`,
     };
@@ -376,8 +403,11 @@ const answerTicket = tool({
   input: z.object({ chamadoId: id, mensagem: z.string().trim().min(1).max(10000) }),
   write: true,
   run: async ({ actor }, { chamadoId, mensagem }) => {
-    const [t] = await db.select({ companyId: tickets.companyId, subject: tickets.subject }).from(tickets).where(eq(tickets.id, chamadoId));
-    if (!t || !canAccess(actor, t.companyId, "support")) throw new ToolError("Chamado não encontrado.");
+    const [t] = await db
+      .select({ companyId: tickets.companyId, subject: tickets.subject, engagementId: tickets.engagementId, authorId: tickets.authorId })
+      .from(tickets)
+      .where(eq(tickets.id, chamadoId));
+    if (!t || !canSeeTicket(actor, t)) throw new ToolError("Chamado não encontrado.");
     await submit(replyTicket, { ticketId: chamadoId, body: mensagem });
     return { result: { enviado: true, link: `/chamados/${chamadoId}` }, summary: `Respondi o chamado "${t.subject}"` };
   },
@@ -393,7 +423,13 @@ const listWorks = tool({
       .select({ id: engagements.id, name: engagements.name, kind: engagements.kind, status: engagements.status, description: engagements.description, url: engagements.url, company: companies.name })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
-      .where(and(within(engagements.companyId, ids), tipo === "all" ? undefined : eq(engagements.kind, tipo)))
+      .where(
+        and(
+          within(engagements.companyId, ids),
+          engagementWhere(actor, engagements.id, engagements.companyId),
+          tipo === "all" ? undefined : eq(engagements.kind, tipo),
+        ),
+      )
       .orderBy(asc(engagements.name))
       .limit(60);
     // A product that is a protected app opens inside the Console; its own URL refuses the address bar.
@@ -422,7 +458,7 @@ const listWorks = tool({
 
 async function projectAccess(actor: Actor, engagementId: string) {
   const [work] = await db.select({ id: engagements.id, name: engagements.name, companyId: engagements.companyId, kind: engagements.kind }).from(engagements).where(eq(engagements.id, engagementId));
-  if (!work || !canAccess(actor, work.companyId, "overview")) throw new ToolError("Projeto não encontrado.");
+  if (!work || !canSeeEngagement(actor, work)) throw new ToolError("Projeto não encontrado.");
   return work;
 }
 
@@ -431,8 +467,8 @@ const listTasks = tool({
   area: "projetos",
   description: "As tarefas do quadro de um projeto, com situação, prioridade, prazo, responsáveis e quantos comentários cada uma tem.",
   input: z.object({ engagementId: id, situacao: z.enum([...TASK_STATUSES, "all"]).default("all") }),
-  run: async ({ actor }, { engagementId, situacao }) => {
-    const work = await projectAccess(actor, engagementId);
+  run: async (ctx, { engagementId, situacao }) => {
+    const work = await projectAccess(ctx.actor, engagementId);
     const rows = await db
       .select({ id: tasks.id, title: tasks.title, status: tasks.status, priority: tasks.priority, dueDate: tasks.dueDate, description: tasks.description })
       .from(tasks)
@@ -459,13 +495,13 @@ const listTasks = tool({
         link: `/projetos/${work.id}`,
         tarefas: rows.map((t) => ({
           tarefaId: t.id,
-          titulo: t.title,
+          titulo: untrusted(ctx, work.companyId, `título da tarefa ${t.id}`, t.title),
           situacao: taskStatusLabels[t.status as keyof typeof taskStatusLabels] ?? t.status,
           prioridade: taskPriorityLabels[t.priority],
           prazo: t.dueDate,
           responsaveis: assigned.filter((a) => a.taskId === t.id).map((a) => a.name || a.email),
           comentarios: said.find((c) => c.taskId === t.id)?.n ?? 0,
-          descricao: t.description?.slice(0, 200) ?? null,
+          descricao: untrusted(ctx, work.companyId, `descrição da tarefa ${t.id}`, t.description?.slice(0, 200)),
         })),
       },
       summary: `Consultei as tarefas de ${work.name}`,
@@ -646,7 +682,8 @@ const readContract = tool({
   area: "contratos",
   description: "O texto de um contrato (a versão enviada ou assinada), com situação, vigência, assinaturas e os pedidos de alteração do cliente com a resposta da equipe. Use para responder o que o contrato diz ou o que está em revisão.",
   input: z.object({ contratoId: id }),
-  run: async ({ actor }, { contratoId }) => {
+  run: async (ctx, { contratoId }) => {
+    const { actor } = ctx;
     const [row] = await db
       .select({ contract: contracts, company: companies.name })
       .from(contracts)
@@ -683,8 +720,8 @@ const readContract = tool({
         pedidosDeAlteracao: requests.map((r) => ({
           versao: r.version,
           onde: r.label,
-          pedido: r.comment,
-          textoProposto: r.proposedText,
+          pedido: untrusted(ctx, c.companyId, `pedido de alteração do cliente no contrato ${c.id}`, r.comment),
+          textoProposto: untrusted(ctx, c.companyId, `texto proposto pelo cliente no contrato ${c.id}`, r.proposedText),
           situacao: requestStatus[r.status],
           resposta: r.response,
         })),
@@ -777,30 +814,71 @@ const createQuoteTool = tool({
   },
 });
 
+/** The snapshot's form that holds every named field (or the one already chosen), or a message for the model. */
+function screenForm(ctx: ToolContext, names: string[], chosen?: string) {
+  if (!ctx.page) {
+    // A confirmed card runs without a snapshot: the form was chosen when it was prepared.
+    if (chosen) return chosen;
+    throw new ToolError("Não estou vendo a tela agora. Peça à pessoa para abrir o formulário e repetir o pedido.");
+  }
+  const form = ctx.page.forms.find((f) => (!chosen || f.id === chosen) && names.every((name) => f.fields.some((field) => field.name === name)));
+  if (form) return form.id;
+  const known = new Set(ctx.page.forms.flatMap((f) => f.fields.map((field) => field.name)));
+  const missing = names.filter((name) => !known.has(name));
+  throw new ToolError(
+    missing.length
+      ? `Estes campos não estão na tela: ${missing.join(", ")}. Use só os nomes exatos do bloco <tela_atual>.`
+      : "Os campos são de formulários diferentes. Preencha um formulário por vez.",
+  );
+}
+
 const fillScreen = tool({
   name: "preencher_tela",
   area: "tela",
   description:
-    "Preenche campos do formulário que está na tela da pessoa (veja 'Tela atual' nas instruções): use o nome exato de cada campo. Datas em AAAA-MM-DD, dinheiro como 1234,56, empresa pelo companyId ou pelo nome, selects pelo valor da opção, caixas com 'sim' ou 'não'. Só marque enviar=true se a pessoa pediu para salvar ou enviar; senão preencha e peça que confira. O painel fecha para ela ver a tela.",
+    "Preenche campos de um formulário que está na tela da pessoa (veja o bloco <tela_atual>): use o nome exato de cada campo, todos do mesmo formulário. Datas em AAAA-MM-DD, dinheiro como 1234,56, empresa pelo companyId ou pelo nome, selects pelo valor da opção, caixas com 'sim' ou 'não'. Só marque enviar=true se a pessoa pediu para salvar ou enviar: o envio vira um cartão que ela confirma. O painel fecha para ela ver a tela.",
   input: z.object({
     campos: z.array(z.object({ campo: z.string().trim().min(1).max(80), valor: z.string().max(10000) })).min(1).max(60),
     enviar: z.boolean().default(false),
+    /** The snapshot's form id; the server fills it in when it prepares the card. */
+    formulario: z.string().trim().max(80).optional(),
   }),
   write: true,
-  run: async (_ctx, { campos, enviar }) => ({
-    result: { preenchendo: campos.map((c) => c.campo), enviar, aviso: "Os valores são aplicados na tela da pessoa agora; campos com nome errado são ignorados." },
-    summary: `Preenchi ${campos.length} ${campos.length === 1 ? "campo" : "campos"} na tela`,
-    actions: [{ type: "fill", fields: campos, submit: enviar }],
-  }),
+  prepare: (ctx, input) => ({ ...input, formulario: screenForm(ctx, input.campos.map((c) => c.campo), input.formulario) }),
+  run: async (ctx, { campos, enviar, formulario }) => {
+    const form = screenForm(ctx, campos.map((c) => c.campo), formulario);
+    return {
+      result: { preenchendo: campos.map((c) => c.campo), enviar, aviso: "Os valores são aplicados na tela da pessoa agora; ela confere antes de salvar." },
+      summary: `Preenchi ${campos.length} ${campos.length === 1 ? "campo" : "campos"} na tela`,
+      actions: [{ type: "fill", form, fields: campos, submit: enviar }],
+    };
+  },
 });
+
+/** Only the controls the page marked for the assistant (data-assistant-action), by their exact text. */
+function screenAction(ctx: ToolContext, texto: string) {
+  if (!ctx.page) return texto;
+  const match = ctx.page.actions?.find((action) => fold(action).trim() === fold(texto).trim());
+  if (match) return match;
+  throw new ToolError(
+    ctx.page.actions?.length
+      ? `"${texto}" não é um dos botões que posso acionar nesta tela (${ctx.page.actions.join(", ")}). Diga à pessoa onde clicar.`
+      : "Nesta tela não há botão que eu possa acionar. Diga à pessoa onde clicar.",
+  );
+}
 
 const clickScreen = tool({
   name: "clicar_na_tela",
   area: "tela",
-  description: "Clica em um botão ou link visível na tela da pessoa, pelo texto dele (por exemplo 'Salvar rascunho', 'Enviar ao cliente', 'Nova cobrança'). Use depois de preencher, ou para acionar algo que ela pediu.",
+  description:
+    "Clica em um dos botões listados em 'Botões que você pode acionar' no bloco <tela_atual>, pelo texto exato. Um clique por vez. Botões fora dessa lista (enviar, publicar, excluir, assinar, aceitar) são da pessoa.",
   input: z.object({ texto: z.string().trim().min(1).max(60) }),
   write: true,
-  run: async (_ctx, { texto }) => ({ result: { clicando: texto }, summary: `Cliquei em "${texto}"`, actions: [{ type: "click", text: texto }] }),
+  prepare: (ctx, input) => ({ texto: screenAction(ctx, input.texto) }),
+  run: async (ctx, { texto }) => {
+    const target = screenAction(ctx, texto);
+    return { result: { clicando: target }, summary: `Cliquei em "${target}"`, actions: [{ type: "click", text: target }] };
+  },
 });
 
 const openSupport = tool({
@@ -813,15 +891,17 @@ const openSupport = tool({
 
 export const destinations = {
   painel: { href: "/painel", label: "Visão geral" },
-  financeiro: { href: "/financeiro", label: "Financeiro" },
+  financeiro: { href: "/financeiro", label: "Financeiro", area: "finance" as const },
   chamados: { href: "/chamados", label: "Chamados" },
   projetos: { href: "/projetos", label: "Projetos" },
   produtos: { href: "/produtos", label: "Produtos e serviços" },
-  contratos: { href: "/contratos", label: "Contratos" },
-  orcamentos: { href: "/orcamentos", label: "Orçamentos" },
+  contratos: { href: "/contratos", label: "Contratos", area: "finance" as const },
+  orcamentos: { href: "/orcamentos", label: "Orçamentos", area: "finance" as const },
   bookmarks: { href: "/bookmarks", label: "Bookmarks" },
   conta: { href: "/conta", label: "Minha conta" },
   membros: { href: "/configuracoes/membros", label: "Membros" },
+  ajuda: { href: "/ajuda", label: "Ajuda" },
+  como_trabalhamos: { href: "/como-trabalhamos", label: "Como trabalhamos" },
   abrir_chamado: { href: "/chamados/novo", label: "Abrir chamado", area: "support" as const },
   nova_cobranca: { href: "/financeiro/nova", label: "Nova cobrança", staff: true },
   novo_projeto: { href: "/projetos/novo", label: "Novo projeto", staff: true },
@@ -876,6 +956,34 @@ const searchKnowledge = tool({
   },
 });
 
+const searchHelpCenter = tool({
+  name: "buscar_ajuda",
+  description:
+    "Procura na Ajuda do Console (artigos para clientes: como fazer cada coisa, regras, quem pode, perguntas frequentes) e devolve os artigos mais próximos com os passos e o link. Use para qualquer 'como faço', 'onde fica', 'por que', 'quem pode' sobre o Console.",
+  input: z.object({ consulta: z.string().trim().min(2).max(200) }),
+  run: async (_ctx, { consulta }) => {
+    const found = searchHelp(HELP_ARTICLES, consulta, { limit: 4 });
+    return {
+      result: found.map(({ article }) => ({
+        titulo: article.title,
+        link: `/ajuda/${article.slug}`,
+        resumo: article.summary,
+        quemFaz: article.audience === "administrador" ? "Só o Administrador da empresa" : "Administrador e Membro",
+        passos: article.sections.flatMap((s) => s.blocks).find((b) => b.kind === "steps")?.items.map(plainText) ?? [],
+        regras: article.sections
+          .flatMap((s) => s.blocks)
+          .filter((b) => b.kind === "list" || b.kind === "note")
+          .flatMap((b) => (b.kind === "list" ? b.items : b.kind === "note" ? [b.text] : []))
+          .map(plainText)
+          .slice(0, 8),
+        perguntas: (article.faq ?? []).slice(0, 4).map((f) => ({ pergunta: f.q, resposta: plainText(f.a) })),
+        ...(article.video ? { video: `/ajuda/${article.slug}#video` } : {}),
+      })),
+      summary: found.length ? `Procurei na Ajuda: ${found[0].article.title}` : "Procurei na Ajuda",
+    };
+  },
+});
+
 export const assistantTools: AnyTool[] = [
   listCompanies,
   companyOverview,
@@ -900,6 +1008,7 @@ export const assistantTools: AnyTool[] = [
   openSupport,
   openScreen,
   searchKnowledge,
+  searchHelpCenter,
   ...extraTools,
 ];
 
@@ -921,10 +1030,22 @@ export function toolCatalog(actor: Pick<Actor, "admin">, areas: ReadonlySet<Tool
     });
 }
 
-/** Runs one tool call; errors come back as text the model can relay. */
-export async function runTool(ctx: ToolContext, name: string, rawArguments: string): Promise<ToolOutcome | { error: string }> {
-  const def = assistantTools.find((t) => t.name === name);
+export const toolNamed = (name: string) => assistantTools.find((t) => t.name === name);
+
+/**
+ * Validates one tool call without running it: the tool exists for this
+ * person, was offered for this message (`allowed`, the set Jev's areas left)
+ * and its arguments fit the schema. Errors come back as text the model can relay.
+ */
+export function parseCall(
+  ctx: ToolContext,
+  name: string,
+  rawArguments: string,
+  allowed?: ReadonlySet<string>,
+): { def: AnyTool; input: Record<string, unknown> } | { error: string } {
+  const def = toolNamed(name);
   if (!def || (def.staffOnly && !ctx.actor.admin) || (def.clientOnly && ctx.actor.admin)) return { error: `Ferramenta desconhecida: ${name}.` };
+  if (allowed && !allowed.has(name)) return { error: `A ferramenta ${name} não foi oferecida para esta mensagem. Use só as ferramentas da lista.` };
   let parsed: unknown;
   try {
     parsed = rawArguments ? JSON.parse(rawArguments) : {};
@@ -943,16 +1064,27 @@ export async function runTool(ctx: ToolContext, name: string, rawArguments: stri
     console.warn("[assistant] tool rejected its arguments", { tool: name, error });
     return { error };
   }
+  return { def, input: input.data as Record<string, unknown> };
+}
+
+/** Runs a validated call; a refusal or a crash comes back as text the model can relay. */
+export async function runParsed(ctx: ToolContext, def: AnyTool, input: Record<string, unknown>): Promise<ToolOutcome | { error: string }> {
   try {
-    return await def.run(ctx, input.data as never);
+    return await def.run(ctx, input as never);
   } catch (error) {
     if (error instanceof ToolError) {
-      console.warn("[assistant] tool refused", { tool: name, error: error.message });
+      console.warn("[assistant] tool refused", { tool: def.name, error: error.message });
       return { error: error.message };
     }
-    console.error(`[assistant] ${name} failed`, error);
+    if (!logDatabaseFault(`assistant ${def.name}`, error)) console.error(`[assistant] ${def.name} failed`, error);
     return { error: "A ferramenta falhou por um erro interno. Sugira tentar de novo ou falar com a equipe." };
   }
+}
+
+/** Runs one tool call; errors come back as text the model can relay. */
+export async function runTool(ctx: ToolContext, name: string, rawArguments: string, allowed?: ReadonlySet<string>): Promise<ToolOutcome | { error: string }> {
+  const call = parseCall(ctx, name, rawArguments, allowed);
+  return "error" in call ? call : runParsed(ctx, call.def, call.input);
 }
 
 /** Removes null values (an optional field "not informed"), at any depth. */

@@ -57,6 +57,9 @@ import {
 } from "lucide-react";
 import { AuthAlert } from "@/components/auth/feedback";
 import { LoginForm } from "@/components/auth/login-form";
+import { BrandLoading } from "@/components/shell/brand-loading";
+import { AiOrb } from "@/components/ui/ai-orb";
+import { AI_ORB_LABELS, AI_ORB_STATES } from "@/components/ui/ai-orb-states";
 import QRCode from "qrcode";
 import { invoiceListHref } from "@/lib/billing/invoice-table";
 import { saoPauloDate } from "@/lib/dates";
@@ -88,6 +91,8 @@ const SCREENS = [
   "pagamento-processando",
   "pagamento-paga",
   "login",
+  "carregando",
+  "carregando-login",
   "login-erro",
   "login-codigo",
   "config",
@@ -107,6 +112,7 @@ const SCREENS = [
   "contrato",
   "contrato-assinar",
   "contrato-assinado",
+  "assistente",
 ];
 
 /**
@@ -232,6 +238,7 @@ export default async function Preview({
         verified: true,
       },
     ],
+    scopeEngagements: [],
     events: [
       { id: "e1", action: "membership.granted", createdAt: "2026-09-20" },
       { id: "e2", action: "invoice.bank_accepted", createdAt: "2026-09-15" },
@@ -619,9 +626,8 @@ export default async function Preview({
       status: "active",
       description: "Atendimento automático no WhatsApp com relatórios semanais.",
       url: "https://app.synova.com.br",
-      amountCents: 29700,
-      interval: "monthly" as const,
-      nextDueDate: day(12),
+      money: { amountCents: 29700, interval: "monthly" as const, nextDueDate: day(12), subscriptionId: null },
+      icon: "/brand/catalog-icons/synova.webp",
       companyId: "a2",
       company: "Paróquia Santa Rita",
     },
@@ -632,9 +638,8 @@ export default async function Preview({
       status: "active",
       description: "Campanhas no Google e Meta com relatório mensal.",
       url: null,
-      amountCents: 150000,
-      interval: "monthly" as const,
-      nextDueDate: day(5),
+      money: { amountCents: 150000, interval: "monthly" as const, nextDueDate: day(5), subscriptionId: null },
+      icon: null,
       companyId: "a1",
       company: "Maxipark Estacionamentos",
     },
@@ -645,9 +650,8 @@ export default async function Preview({
       status: "paused",
       description: null,
       url: null,
-      amountCents: null,
-      interval: null,
-      nextDueDate: null,
+      money: { amountCents: null, interval: null, nextDueDate: null, subscriptionId: null },
+      icon: "/brand/catalog-icons/infra.webp",
       companyId: "a3",
       company: "Instituto Vida Plena",
     },
@@ -1003,6 +1007,8 @@ export default async function Preview({
     now: now.toISOString(),
     today: day(0),
   };
+  if (tela === "carregando-login")
+    return <BrandLoading fullscreen label="Acesso confirmado. Abrindo o Console." />;
   if (tela.startsWith("login"))
     return (
       <AuthShell
@@ -1044,7 +1050,25 @@ export default async function Preview({
           </a>
         ))}
       </p>
-      {tela === "detalhe" ? (
+      {tela === "carregando" ? (
+        <BrandLoading />
+      ) : tela === "assistente" ? (
+        // Every state of the assistant's orb at its three sizes. Resting states keep moving for a minute
+        // here so each animation can be seen; on the Console they hold still after 5 s.
+        <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-5">
+          {AI_ORB_STATES.map((state) => (
+            <li key={state} className="flex flex-col items-center gap-3 rounded-xl border bg-card px-2 py-5 text-card-foreground">
+              <div className="flex items-end gap-4">
+                <AiOrb state={state} size="lg" settleMs={60_000} />
+                <AiOrb state={state} size="md" settleMs={60_000} decorative />
+                <AiOrb state={state} size="sm" settleMs={60_000} decorative />
+              </div>
+              <span className="font-mono text-xs text-muted-foreground">{state}</span>
+              <span className="text-center text-xs text-muted-foreground">{AI_ORB_LABELS[state]}</span>
+            </li>
+          ))}
+        </ul>
+      ) : tela === "detalhe" ? (
         <CompanyDetail data={detail} />
       ) : tela.startsWith("chamado-") || tela === "chamado" ? (
         tela === "chamados-vazio" ? null : (
@@ -1190,10 +1214,8 @@ export default async function Preview({
               description: "Campanhas no Google e Meta com relatório mensal.",
               companyId: "a1",
               company: "Maxipark Estacionamentos",
-              amountCents: 150000,
-              interval: "monthly",
-              nextDueDate: day(5),
-              subscriptionId: "s1",
+              icon: null,
+              billing: { amountCents: 150000, interval: "monthly", nextDueDate: day(5) },
             },
             sections: {
               whatWeDo:
@@ -1233,6 +1255,7 @@ export default async function Preview({
             pageCount={1}
             admin
             showCompany
+            showMoney
           />
         </>
       ) : tela.startsWith("projetos") ? (

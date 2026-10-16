@@ -12,7 +12,7 @@ import {
   tickets,
   user,
 } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access/access";
+import { getActor, canAccess, canSeeTicket } from "@/lib/access/access";
 import { resolveAccountIdentity, teamMemberName } from "@/lib/account/account-identity";
 import { hasConsoleStaffAccess } from "@/lib/access/console-members";
 import { normalizeEmail } from "@/lib/access/permissions";
@@ -113,7 +113,7 @@ export default async function Ticket({
     .innerJoin(user, eq(user.id, tickets.authorId))
     .leftJoin(engagements, eq(engagements.id, tickets.engagementId))
     .where(eq(tickets.id, id));
-  if (!row || !canAccess(actor, row.ticket.companyId, "support")) notFound();
+  if (!row || !canSeeTicket(actor, row.ticket)) notFound();
   const [thread, files, assignees] = await Promise.all([
     db
       .select({

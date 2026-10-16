@@ -1,16 +1,14 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
-import sharp from "sharp";
+import {
+  ImageError,
+  normalizeImage,
+  readImageBytes,
+  type ImageFailure,
+} from "../images/normalize-image";
 
 export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
-const MAX_PIXELS = 16 * 1024 * 1024;
-const MAX_DIMENSION = 8192;
-const mimeFormats = {
-  "image/png": "png",
-  "image/jpeg": "jpeg",
-  "image/webp": "webp",
-} as const;
 
 export class ProfileAvatarError extends Error {
   constructor(
@@ -22,90 +20,48 @@ export class ProfileAvatarError extends Error {
   }
 }
 
+// The shared pipeline (lib/images/normalize-image.ts) says what failed; this says it for a photo.
+const avatarMessages: Record<ImageFailure, string> = {
+  empty: "Selecione uma foto para enviar.",
+  too_large: "A foto deve ter até 2 MB.",
+  type: "Use uma imagem PNG, JPEG ou WebP.",
+  corrupt: "O arquivo não é uma imagem válida.",
+  dimensions:
+    "Use uma foto estática com até 16 megapixels e 8.192 pixels por lado.",
+  unreadable: "Não foi possível ler esta imagem. Escolha outra foto.",
+  output_too_large: "Não foi possível reduzir esta foto.",
+};
+
+function asAvatarError(error: unknown): never {
+  if (error instanceof ImageError)
+    throw new ProfileAvatarError(avatarMessages[error.reason], error.status);
+  throw error;
+}
+
 /** Enforces the byte limit even for chunked requests without Content-Length. */
 export async function readAvatarBytes(
   stream: ReadableStream<Uint8Array> | null,
 ): Promise<Buffer> {
-  if (!stream)
-    throw new ProfileAvatarError("Selecione uma foto para enviar.", 400);
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > MAX_AVATAR_BYTES) {
-        await reader.cancel();
-        throw new ProfileAvatarError("A foto deve ter até 2 MB.", 413);
-      }
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
+    return await readImageBytes(stream, MAX_AVATAR_BYTES);
+  } catch (error) {
+    return asAvatarError(error);
   }
-  if (!size)
-    throw new ProfileAvatarError("Selecione uma foto para enviar.", 400);
-  return Buffer.concat(chunks, size);
 }
 
 export async function normalizeProfileAvatar(
   bytes: Buffer,
   contentType: string,
 ): Promise<Buffer> {
-  const mime = contentType.split(";", 1)[0].trim().toLowerCase();
-  if (!Object.hasOwn(mimeFormats, mime))
-    throw new ProfileAvatarError("Use uma imagem PNG, JPEG ou WebP.", 415);
-  if (!bytes.length || bytes.length > MAX_AVATAR_BYTES)
-    throw new ProfileAvatarError("A foto deve ter até 2 MB.", 413);
-  const format = mimeFormats[mime as keyof typeof mimeFormats];
-  const signatureMatches =
-    (format === "png" &&
-      bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex"))) ||
-    (format === "jpeg" &&
-      bytes.subarray(0, 3).equals(Buffer.from("ffd8ff", "hex"))) ||
-    (format === "webp" &&
-      bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
-      bytes.subarray(8, 12).toString("ascii") === "WEBP");
-  if (!signatureMatches)
-    throw new ProfileAvatarError("O arquivo não é uma imagem válida.", 422);
   try {
-    const image = sharp(bytes, {
-      failOn: "warning",
-      limitInputPixels: MAX_PIXELS,
-      animated: false,
+    return await normalizeImage(bytes, contentType, {
+      size: 512,
+      fit: "cover",
+      quality: 78,
+      maxBytes: MAX_AVATAR_BYTES,
     });
-    const metadata = await image.metadata();
-    if (
-      metadata.format !== format ||
-      !metadata.width ||
-      !metadata.height ||
-      metadata.width > MAX_DIMENSION ||
-      metadata.height > MAX_DIMENSION ||
-      metadata.width * metadata.height > MAX_PIXELS ||
-      (metadata.pages ?? 1) > 1
-    )
-      throw new ProfileAvatarError(
-        "Use uma foto estática com até 16 megapixels e 8.192 pixels por lado.",
-        422,
-      );
-    // Sharp strips EXIF/ICC and other metadata unless explicitly retained.
-    const result = await image
-      .rotate()
-      .resize(512, 512, { fit: "cover", position: "centre" })
-      .webp({ quality: 78, effort: 4 })
-      .timeout({ seconds: 10 })
-      .toBuffer();
-    if (result.length > MAX_AVATAR_BYTES)
-      throw new ProfileAvatarError("Não foi possível reduzir esta foto.", 422);
-    return result;
   } catch (error) {
-    if (error instanceof ProfileAvatarError) throw error;
-    throw new ProfileAvatarError(
-      "Não foi possível ler esta imagem. Escolha outra foto.",
-      422,
-    );
+    return asAvatarError(error);
   }
 }
 

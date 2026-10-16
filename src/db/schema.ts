@@ -183,6 +183,9 @@ export const memberships = pgTable(
     email: text("email").notNull(),
     role: text("role", { enum: ["manager", "member"] }).notNull(),
     active: boolean("active").notNull().default(true),
+    /** Membros: "all" sees every product, service and project of the company;
+        "selected" only the ones in console_membership_engagements. Administradores always see all. */
+    engagementAccess: text("engagement_access", { enum: ["all", "selected"] }).notNull().default("all"),
     createdAt: created(),
   },
   (t) => [
@@ -322,7 +325,11 @@ export const contractChangeRequests = pgTable(
   },
   (t) => [index("console_contract_change_contract_idx").on(t.contractId, t.version)],
 );
-/** One row per party that signed, with the evidence that backs it. */
+/**
+ * One row per party that signed a version (its document hash), with the
+ * evidence that backs it. Sending a contract back to draft keeps the old
+ * version's signatures, and the next version is signed again by both parties.
+ */
 export const contractSignatures = pgTable(
   "console_contract_signatures",
   {
@@ -346,7 +353,7 @@ export const contractSignatures = pgTable(
   },
   (t) => [
     index("console_contract_signature_contract_idx").on(t.contractId),
-    uniqueIndex("console_contract_signature_party_unique").on(t.contractId, t.party),
+    uniqueIndex("console_contract_signature_version_party_unique").on(t.contractId, t.documentHash, t.party),
   ],
 );
 /** A commercial proposal: phases with hour ranges, an hourly rate and the payment split. */
@@ -465,6 +472,59 @@ export const assistantMessages = pgTable(
   },
   (t) => [index("console_assistant_message_conversation_idx").on(t.conversationId, t.createdAt)],
 );
+/**
+ * A change the assistant prepared and only the person can carry out: one tool
+ * call with its exact arguments (hashed), shown as a card and executed by the
+ * click that presents the nonce, once, before it expires.
+ */
+export const assistantProposals = pgTable(
+  "console_assistant_proposals",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    conversationId: text("conversation_id").references(() => assistantConversations.id, { onDelete: "cascade" }),
+    tool: text("tool").notNull(),
+    args: jsonb("args").$type<Record<string, unknown>>().notNull(),
+    argsHash: text("args_hash").notNull(),
+    /** What the card says it will do, written by the server from the arguments. */
+    title: text("title").notNull(),
+    details: jsonb("details").$type<{ label: string; value: string }[]>().notNull(),
+    nonceHash: text("nonce_hash").notNull(),
+    status: text("status", { enum: ["pending", "running", "done", "failed", "dismissed"] })
+      .notNull()
+      .default("pending"),
+    /** Prepared after the turn read text written by someone else. */
+    tainted: boolean("tainted").notNull().default(false),
+    /** Screen actions only apply on the page they were prepared for. */
+    path: text("path"),
+    result: jsonb("result").$type<{ summary: string; error?: string }>(),
+    createdAt: created(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [index("console_assistant_proposal_user_idx").on(t.userId, t.createdAt)],
+);
+/**
+ * What the assistant spent per day (São Paulo calendar day): one row per
+ * person and one per company. No foreign keys, so a day's count outlives the
+ * person or company it belongs to.
+ */
+export const assistantUsage = pgTable(
+  "console_assistant_usage",
+  {
+    kind: text("kind", { enum: ["person", "company"] }).notNull(),
+    /** The user id or the company id. */
+    subjectId: text("subject_id").notNull(),
+    day: date("day").notNull(),
+    /** Model tokens, prompt and output, every round. */
+    tokens: integer("tokens").notNull().default(0),
+    messages: integer("messages").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.subjectId, t.day] })],
+);
 /** What Anuntech offers, defined once; companies get linked to items. */
 export const catalogItems = pgTable("console_catalog_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -481,6 +541,9 @@ export const catalogItems = pgTable("console_catalog_items", {
   expectedResults: text("expected_results"),
   deadlines: text("deadlines"),
   active: boolean("active").notNull().default(true),
+  /** A bundled gallery path ("/brand/catalog-icons/x.webp") or a private blob
+      pathname ("catalog-icons/<id>/<uuid>.webp"); see src/lib/catalog/catalog-icons.ts. */
+  icon: text("icon"),
   createdAt: created(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -510,6 +573,23 @@ export const engagements = pgTable(
     createdAt: created(),
   },
   (t) => [index("console_engagement_company_idx").on(t.companyId)],
+);
+/** What a Membro with engagement_access "selected" sees. */
+export const membershipEngagements = pgTable(
+  "console_membership_engagements",
+  {
+    membershipId: text("membership_id")
+      .notNull()
+      .references(() => memberships.id, { onDelete: "cascade" }),
+    engagementId: text("engagement_id")
+      .notNull()
+      .references(() => engagements.id, { onDelete: "cascade" }),
+    createdAt: created(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.membershipId, t.engagementId] }),
+    index("console_membership_engagements_engagement_idx").on(t.engagementId),
+  ],
 );
 /** Work inside a project: one card on the board. `company_id` mirrors the
     project's company so access checks never need a join. */
