@@ -58,6 +58,8 @@ import {
 import { AuthAlert } from "@/components/auth/feedback";
 import { LoginForm } from "@/components/auth/login-form";
 import { BrandLoading } from "@/components/shell/brand-loading";
+import { AiOrb } from "@/components/ui/ai-orb";
+import { AI_ORB_LABELS, AI_ORB_STATES } from "@/components/ui/ai-orb-states";
 import QRCode from "qrcode";
 import { invoiceListHref } from "@/lib/billing/invoice-table";
 import { saoPauloDate } from "@/lib/dates";
@@ -110,6 +112,7 @@ const SCREENS = [
   "contrato",
   "contrato-assinar",
   "contrato-assinado",
+  "assistente",
 ];
 
 /**
@@ -1049,6 +1052,22 @@ export default async function Preview({
       </p>
       {tela === "carregando" ? (
         <BrandLoading />
+      ) : tela === "assistente" ? (
+        // Every state of the assistant's orb at its three sizes. Resting states keep moving for a minute
+        // here so each animation can be seen; on the Console they hold still after 5 s.
+        <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-5">
+          {AI_ORB_STATES.map((state) => (
+            <li key={state} className="flex flex-col items-center gap-3 rounded-xl border bg-card px-2 py-5 text-card-foreground">
+              <div className="flex items-end gap-4">
+                <AiOrb state={state} size="lg" settleMs={60_000} />
+                <AiOrb state={state} size="md" settleMs={60_000} decorative />
+                <AiOrb state={state} size="sm" settleMs={60_000} decorative />
+              </div>
+              <span className="font-mono text-xs text-muted-foreground">{state}</span>
+              <span className="text-center text-xs text-muted-foreground">{AI_ORB_LABELS[state]}</span>
+            </li>
+          ))}
+        </ul>
       ) : tela === "detalhe" ? (
         <CompanyDetail data={detail} />
       ) : tela.startsWith("chamado-") || tela === "chamado" ? (

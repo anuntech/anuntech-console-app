@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@base-ui/react/tooltip";
 import {
@@ -20,7 +20,8 @@ import { useAppearance } from "@/components/shell/appearance-provider";
 import { DockAccountMenu } from "./dock-account-menu";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
-import { EnergyOrb, type EnergyOrbElement } from "@/components/ui/energy-orb";
+import { AiOrb } from "@/components/ui/ai-orb";
+import { ACTIVITY_LABELS, activityBusy, type AssistantActivity } from "@/lib/assistant/activity";
 import styles from "./dock.module.css";
 import { OPEN_ASSISTANT_EVENT } from "./assistant-events";
 
@@ -117,21 +118,15 @@ export function Dock({
   const pathname = usePathname();
   const { position } = useAppearance();
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantBusy, setAssistantBusy] = useState(false);
+  const [assistantActivity, setAssistantActivity] = useState<AssistantActivity>("idle");
+  const assistantBusy = activityBusy(assistantActivity);
+  const assistantStatus = useId();
   // Pages open it too ("Perguntar ao assistente" in Ajuda).
   useEffect(() => {
     const open = () => setAssistantOpen(true);
     window.addEventListener(OPEN_ASSISTANT_EVENT, open);
     return () => window.removeEventListener(OPEN_ASSISTANT_EVENT, open);
   }, []);
-  // The orb mirrors the assistant: calm at rest, brighter while open, fast while
-  // it works, and a pulse when the answer lands.
-  const orb = useRef<EnergyOrbElement>(null);
-  const wasBusy = useRef(false);
-  useEffect(() => {
-    if (wasBusy.current && !assistantBusy) orb.current?.pulse?.();
-    wasBusy.current = assistantBusy;
-  }, [assistantBusy]);
   const visible = items.filter(
     (item) =>
       (!item.admin || admin) &&
@@ -163,11 +158,12 @@ export function Dock({
         userImage={userImage}
         canManageMembers={canManageMembers}
         onAssistant={() => setAssistantOpen(true)}
+        assistantActivity={assistantActivity}
       />
       <AssistantPanel
         open={assistantOpen}
         onOpenChange={setAssistantOpen}
-        onBusyChange={setAssistantBusy}
+        onActivityChange={setAssistantActivity}
         admin={admin}
         finance={finance}
         support={support}
@@ -185,14 +181,15 @@ export function Dock({
                 aria-haspopup="dialog"
                 aria-expanded={assistantOpen}
                 aria-busy={assistantBusy}
+                aria-describedby={assistantActivity === "idle" ? undefined : assistantStatus}
               >
-                <EnergyOrb
-                  ref={orb}
-                  size={36}
-                  energy={assistantBusy ? 1.4 : assistantOpen ? 1.15 : 0.9}
-                  speed={assistantBusy ? 2.5 : 1}
-                  glow={false}
-                />
+                {/* The orb mirrors the assistant: still at rest, a different motion for each
+                    step of a turn, and how the last answer ended until it is seen. */}
+                <AiOrb state={assistantActivity} size="md" decorative />
+                {/* What the orb shows, for screen readers too (the tooltip only shows on hover or focus). */}
+                <span id={assistantStatus} className="sr-only">
+                  {ACTIVITY_LABELS[assistantActivity]}
+                </span>
               </Tooltip.Trigger>
               <Tooltip.Portal>
                 <Tooltip.Positioner
@@ -201,7 +198,7 @@ export function Dock({
                   collisionPadding={12}
                   className={styles.tooltipPositioner}
                 >
-                  <Tooltip.Popup className={styles.tooltip}>{assistantBusy ? "Assistente trabalhando…" : "Assistente"}</Tooltip.Popup>
+                  <Tooltip.Popup className={styles.tooltip}>{ACTIVITY_LABELS[assistantActivity]}</Tooltip.Popup>
                 </Tooltip.Positioner>
               </Tooltip.Portal>
             </Tooltip.Root>
