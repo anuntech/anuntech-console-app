@@ -26,7 +26,7 @@ Quando rodar: em toda mudança de autenticação, acesso, cobrança ou assistent
 | Dependências | `npm audit --omit=dev`, falhando em alta ou crítica que não esteja na lista de exceções com prazo; Dependabot semanal | ativo (`security.yml`, job `dependencies`; vermelho até H1, H2 e o source-map-js serem corrigidos) |
 | Segredos | gitleaks no histórico inteiro a cada push | ativo (`security.yml`, job `secrets`) |
 | Análise estática (SAST) | Semgrep CE (`p/typescript`, `p/nextjs`, `p/secrets`). O CodeQL exige plano pago em repositório privado | ativo (`security.yml`, job `sast`) |
-| Deploy | Deployment Checks da Vercel exigindo `Checks` e `Security` antes de promover para produção | proposto (fora do repositório, ver [Pipeline](#pipeline)) |
+| Deploy | Deployment Checks da Vercel exigindo `Checks` e `Security` antes de promover para produção | em parte: `verify` ativo desde 16/10/2026; `secrets`, `sast` e `dependencies` esperam (ver [Pipeline](#pipeline)) |
 
 ### 3. Guardrails da IA
 
@@ -120,7 +120,7 @@ Base: `origin/main` em `93d2cb7`. Seis auditores, um por área, só leitura, mai
 | M11 | Upload em partes aceita partes de 1 byte; cada parte relê e regrava até 20 MB no banco. Não há limite por hora | `app/api/chamados/uploads/route.ts:74-121` | Partes de exatamente 1 MB (exceto a última), `reserveHourly` no POST |
 | M12 | Widget de terceiro (`cdn.wts.chat`) sem SRI em todas as páginas, inclusive `/pagar`, `/entrar` e telas da equipe. A CSP não tem `script-src` nem `connect-src`, e não há HSTS explícito | `app/layout.tsx:34-43`, `next.config.ts:24-37` | Widget só onde precisa e fora de `/pagar`; CSP com nonce começando em Report-Only; HSTS |
 | M13 | O runtime conecta ao banco com permissão de DDL e as migrações rodam por rota HTTP temporária. Em 24/09 houve rotas sem token em produção (UPDATE de fatura, resumo financeiro); já foram removidas | `lib/db.ts`, `docs/rules.md` (Migrações em produção) | Papéis `console_migrator` (DDL) e `console_app` (DML, sem DELETE em `audit_events`); migrar com `drizzle-kit migrate` num branch do Neon |
-| M14 | Nada impede o deploy com CI vermelho; Dependabot e as correções automáticas estão desligados; actions não estão fixadas por SHA | `.github/workflows/checks.yml`, Vercel | No repositório, feito: `security.yml`, `dependabot.yml`, actions e imagens fixadas ([Pipeline](#pipeline)). Falta, fora dele: Deployment Checks na Vercel e alertas do Dependabot no GitHub |
+| M14 | Nada impede o deploy com CI vermelho; Dependabot e as correções automáticas estão desligados; actions não estão fixadas por SHA | `.github/workflows/checks.yml`, Vercel | No repositório, feito: `security.yml`, `dependabot.yml`, actions e imagens fixadas ([Pipeline](#pipeline)). Fora dele, em 16/10/2026: alertas e correções do Dependabot ligados, só actions da GitHub e `verify` exigido na Vercel. Falta: exigir SHA no GitHub e `secrets`, `sast` e `dependencies` na Vercel |
 
 ### Baixa
 
@@ -195,7 +195,15 @@ O Dependabot atualiza as actions (SHA e comentário juntos). Semgrep, Postgres e
 
 **Semgrep.** A imagem roda com `docker run` no runner, e não como `container:` do job, para o `actions/checkout` (Node 24) não precisar rodar dentro da imagem Alpine. Usa `--metrics=off`; as regras vêm do registro do Semgrep na hora. Varre só `src` e `next.config.ts`, porque os scripts de teste usam `http://localhost` e as regras marcam isso.
 
-**Fora do repositório.** Sem branch protection (GitHub Free em repositório privado), o bloqueio do deploy fica na Vercel.
-- **GitHub, Settings → Code security:** ligar Dependabot alerts e Dependabot security updates. O `dependabot.yml` só cuida das atualizações de versão; os PRs de correção de segurança dependem desses interruptores.
-- **GitHub, Settings → Actions → General:** permitir só ações criadas pela GitHub (e da própria organização) e exigir SHA completo nas actions.
-- **Vercel, Settings → Deployment Checks:** exigir os checks do GitHub `verify` (Checks) e `dependencies`, `secrets` e `sast` (Security) antes de atribuir o domínio de produção. Exigir `dependencies` só depois que ele ficar verde, senão nenhum deploy chega à produção. Depois disso, um aviso novo deixa o job vermelho mesmo sem mudança no código, e o deploy seguinte espera a correção ou uma exceção com prazo.
+**Fora do repositório.** Sem branch protection (GitHub Free em repositório privado), o bloqueio do deploy fica na Vercel. Situação em 16/10/2026:
+
+| Onde | O quê | Situação |
+| --- | --- | --- |
+| GitHub, Settings → Code security | Dependabot alerts e Dependabot security updates. O `dependabot.yml` só cuida das atualizações de versão; os PRs de correção de segurança dependem desses interruptores | ligado |
+| GitHub, Settings → Actions → General (no repositório) | Só actions criadas pela GitHub ou pela própria organização. Feito no repositório, não na organização, para não afetar os outros repositórios | ligado |
+| GitHub, Settings → Actions → General (no repositório) | Exigir SHA completo nas actions | esperando: só depois que este pipeline estiver em `main`; antes disso, o `checks.yml` de `main` e dos outros branches (`@v4`) para de rodar. Branch que não tiver puxado `main` falha até puxar |
+| Vercel, Settings → Deployment Checks | `Checks / verify`: o check `verify` do GitHub bloqueia o domínio de produção (`deployment-alias`, só `production`, tempo máximo de 30 min) | ligado (`chk_2e0ba2f0-590e-448a-acf5-b8102bff6e9b`) |
+| Vercel, Settings → Deployment Checks | `secrets` e `sast` | esperando: só depois que o `security.yml` estiver em `main`; antes disso, o deploy de produção esperaria um check que não existe |
+| Vercel, Settings → Deployment Checks | `dependencies` | esperando: só depois que ficar verde (H1, H2 e source-map-js). Depois disso, um aviso novo deixa o job vermelho mesmo sem mudança no código, e o deploy seguinte espera a correção ou uma exceção com prazo |
+
+Os checks da Vercel são criados com `vercel project checks add anuntech-console --file <json>`, com `"source": { "kind": "git-provider", "provider": "github", "externalCheckName": "<job>" }`, `"blocks": "deployment-alias"`, `"targets": ["production"]` e `"timeout": 1800`. Um check que travar a produção sem motivo sai com `vercel project checks remove <id>`. Os checks nativos `Lint` e `TypeCheck` existem desde antes e não bloqueiam nada.
