@@ -169,8 +169,8 @@
   }
 }
 
-/* The assistant: a live energy orb. Feedback lands on press; a soft blue halo
-   sized for the dock (the orb's own glow is drawn for a 220px sphere). */
+/* The assistant: the orb shows what it is doing (components/ui/ai-orb). A
+   light primary surface makes it read as a button; feedback lands on press. */
 .assistant {
   flex: 0 0 auto;
   display: grid;
@@ -181,18 +181,22 @@
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: transparent;
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
   cursor: pointer;
-  box-shadow: 0 0 10px 1px rgba(64, 140, 255, 0.35);
-  transition: transform 120ms ease-out, box-shadow 200ms ease-out;
+  transition: transform 120ms ease-out, background-color 200ms ease-out;
 }
-.assistant:hover { box-shadow: 0 0 14px 2px rgba(64, 140, 255, 0.5); }
+.assistant:hover,
+.assistant[aria-expanded="true"] { background: color-mix(in srgb, var(--primary) 16%, transparent); }
 .assistant:active { transform: scale(0.94); }
 .assistant:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
-.assistant[aria-busy="true"] { box-shadow: 0 0 16px 3px rgba(64, 140, 255, 0.55); }
 @media (prefers-reduced-motion: reduce) {
   .assistant { transition: none; }
   .assistant:active { transform: none; }
+}
+/* The orb is a canvas, which forced colours do not repaint: the button keeps an edge. */
+@media (forced-colors: active) {
+  .assistant { border: 1px solid ButtonText; }
+  .assistant:focus-visible { outline-color: Highlight; }
 }
 .create {
   border: 0;

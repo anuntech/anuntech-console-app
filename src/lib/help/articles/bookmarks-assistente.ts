@@ -563,8 +563,9 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "No computador: a esfera no começo do menu do Console. Ao passar o mouse, aparece “Assistente”; enquanto ele trabalha, “Assistente trabalhando…”.",
-              "No celular: toque em “Mais” e depois em “Perguntar ao assistente”.",
+              "No computador: a esfera de pontos no começo do menu do Console. Parada, o assistente está livre. Enquanto ele trabalha, ela muda de forma a cada passo, e ao passar o mouse a dica diz o que ele está fazendo: pensando, consultando o Console, lendo o que encontrou, escrevendo a resposta ou, enquanto você dita, ouvindo o microfone.",
+              "No computador, a esfera também avisa como terminou uma resposta que chegou com o painel fechado. Vermelha e em forma de triângulo, a resposta não terminou; ela volta ao normal quando você abre o painel. Âmbar e quadrada, um cartão espera a sua confirmação, até você confirmar ou descartar, ou até o cartão vencer, 15 minutos depois.",
+              "No celular: toque em “Mais” e depois em “Perguntar ao assistente”. Enquanto ele trabalha ou espera você, essa linha diz o que está acontecendo, logo abaixo do nome.",
               "No fim da [Ajuda](/ajuda) e de cada artigo: o botão “Perguntar ao assistente”.",
             ],
           },

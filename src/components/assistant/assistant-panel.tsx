@@ -22,10 +22,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MetalPromptBar } from "@/components/ui/metal-prompt-bar";
-import { EnergyOrb } from "@/components/ui/energy-orb";
+import { AiOrb } from "@/components/ui/ai-orb";
 import { openSupportWidget } from "@/components/shell/support-trigger";
 import { toast } from "@/components/shell/notifications";
 import { relativeLabel } from "@/lib/format";
+import { PROPOSAL_TTL_MS } from "@/lib/assistant/proposal-ttl";
+import { assistantActivity, TURN_PHASES, type AssistantActivity, type DictationActivity, type TurnPhase } from "@/lib/assistant/activity";
 import { MessageMarkdown } from "./message-markdown";
 import { clickPage, fillPage, snapshotPage } from "./page-bridge";
 
@@ -43,6 +45,13 @@ type Proposal = {
 type ProposalState = Proposal & {
   status: "pending" | "busy" | "done" | "failed" | "dismissed";
   message?: string;
+  /**
+   * When the panel stops waiting on it: the server's TTL counted from when
+   * the message was sent, which is before the server made the card, so it is
+   * never later than the server's own deadline. Only elapsed time on this
+   * tab's clock matters, never the hour it shows.
+   */
+  deadline: number;
 };
 type Turn = {
   id: string;
@@ -72,11 +81,14 @@ const STORAGE_KEY = "assistant:conversation";
 const fallbackError = "O assistente não respondeu. Tente de novo em instantes.";
 
 /**
- * Reads a turn as it streams: progress lines report the tokens spent so far,
- * then one line carries the reply or the error. Refusals before the turn
- * starts come back as plain JSON.
+ * Reads a turn as it streams: progress lines report the tokens spent so far
+ * and where the turn is, then one line carries the reply or the error.
+ * Refusals before the turn starts come back as plain JSON.
  */
-async function readTurn(res: Response, onTokens: (tokens: number) => void): Promise<Reply | { error: string }> {
+async function readTurn(
+  res: Response,
+  onProgress: (tokens: number, phase: TurnPhase | null) => void,
+): Promise<Reply | { error: string }> {
   if (!res.body || !res.headers.get("content-type")?.includes("ndjson")) {
     const data = (await res.json().catch(() => null)) as (Reply & { error?: string }) | null;
     return res.ok && data && !data.error ? data : { error: data?.error || fallbackError };
@@ -93,13 +105,15 @@ async function readTurn(res: Response, onTokens: (tokens: number) => void): Prom
       const line = buffer.slice(0, end).trim();
       buffer = buffer.slice(end + 1);
       if (!line) continue;
-      let event: { type?: string; tokens?: number; error?: string } & Partial<Reply>;
+      let event: { type?: string; tokens?: number; phase?: TurnPhase; error?: string } & Partial<Reply>;
       try {
         event = JSON.parse(line);
       } catch {
         continue;
       }
-      if (event.type === "progress") onTokens(event.tokens ?? 0);
+      // A phase this tab does not know (a newer server) reads as plain thinking.
+      if (event.type === "progress")
+        onProgress(event.tokens ?? 0, event.phase && TURN_PHASES.includes(event.phase) ? event.phase : null);
       else if (event.type === "done") result = event as Reply;
       else if (event.type === "error") result = { error: event.error || fallbackError };
     }
@@ -120,7 +134,7 @@ function spentLabel(ms: number, tokens: number) {
 }
 
 /** The live row while the assistant works: the orb, the clock and the tokens so far. */
-function Working({ startedAt, tokens }: { startedAt: number; tokens: number }) {
+function Working({ startedAt, tokens, activity }: { startedAt: number; tokens: number; activity: AssistantActivity }) {
   const [now, setNow] = useState(startedAt);
   useEffect(() => {
     const tick = setInterval(() => setNow(clock()), 1000);
@@ -128,7 +142,7 @@ function Working({ startedAt, tokens }: { startedAt: number; tokens: number }) {
   }, []);
   return (
     <li className="flex items-center gap-3 text-xs text-muted-foreground">
-      <EnergyOrb size={28} energy={1.4} speed={2.5} glow={false} interactive={false} className="shrink-0" />
+      <AiOrb state={activity} size="md" decorative />
       <span className="tabular-nums" aria-hidden="true">
         {spentLabel(now - startedAt, tokens)}
       </span>
@@ -256,13 +270,13 @@ export function AssistantPanel({
   support,
   userName,
   shortcuts,
-  onBusyChange,
+  onActivityChange,
   voice = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Lets the dock show that the assistant is still working while closed. */
-  onBusyChange?: (busy: boolean) => void;
+  /** Lets the dock show what the assistant is doing, also while closed. */
+  onActivityChange?: (activity: AssistantActivity) => void;
   admin: boolean;
   finance: boolean;
   support: boolean;
@@ -274,7 +288,12 @@ export function AssistantPanel({
   const router = useRouter();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [busy, setBusy] = useState(false);
-  const [working, setWorking] = useState<{ startedAt: number; tokens: number } | null>(null);
+  const [working, setWorking] = useState<{ startedAt: number; tokens: number; phase: TurnPhase | null } | null>(null);
+  // How the last turn (or confirmed card) ended. Seen in the open panel, it shows for a few seconds;
+  // unseen, the dock keeps it until the panel opens.
+  const [settled, setSettled] = useState<{ kind: "done" | "error"; seen: boolean } | null>(null);
+  // Only while the panel is open: closing it unmounts the composer, which reports idle on the way out.
+  const [dictation, setDictation] = useState<DictationActivity>("idle");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [view, setView] = useState<"chat" | "history">("chat");
   const [history, setHistory] = useState<Conversation[] | null>(null);
@@ -291,7 +310,61 @@ export function AssistantPanel({
   useEffect(() => {
     live.current = { open, side };
   }, [open, side]);
-  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange]);
+  const activity = assistantActivity({
+    busy,
+    phase: working?.phase ?? null,
+    confirming: turns.some((turn) => turn.proposals?.some((p) => p.status === "busy")),
+    pending: turns.some((turn) => turn.proposals?.some((p) => p.status === "pending")),
+    settled: settled?.kind ?? null,
+    dictation,
+  });
+  useEffect(() => onActivityChange?.(activity), [activity, onActivityChange]);
+  // Opening the panel shows how the turn ended: from then on it is seen, even if the panel closes again.
+  if (open && settled && !settled.seen) setSettled({ ...settled, seen: true });
+  useEffect(() => {
+    if (!settled?.seen) return;
+    const timer = setTimeout(() => setSettled(null), 4000);
+    return () => clearTimeout(timer);
+  }, [settled]);
+  // A card the person never answered expires on the server; here it stops waiting too.
+  const expireCards = (limit: number) => {
+    const expired = (p: ProposalState) => p.status === "pending" && p.deadline <= limit;
+    setTurns((current) =>
+      current.map((turn) =>
+        turn.proposals?.some(expired)
+          ? {
+              ...turn,
+              proposals: turn.proposals.map((p) =>
+                expired(p) ? { ...p, status: "failed" as const, message: "Este cartão expirou. Peça de novo ao assistente." } : p,
+              ),
+            }
+          : turn,
+      ),
+    );
+  };
+  const nextDeadline = turns
+    .flatMap((turn) => turn.proposals ?? [])
+    .filter((p) => p.status === "pending")
+    .reduce<number | null>((soonest, p) => (soonest === null || p.deadline < soonest ? p.deadline : soonest), null);
+  // The timer expires exactly the cards it was armed for, so firing a moment early leaves none behind.
+  useEffect(() => {
+    if (nextDeadline === null) return;
+    const timer = setTimeout(() => expireCards(nextDeadline), Math.max(0, nextDeadline - clock()));
+    return () => clearTimeout(timer);
+  }, [nextDeadline]);
+  // Timers stop while the computer sleeps: coming back to the tab checks again.
+  useEffect(() => {
+    if (nextDeadline === null) return;
+    const check = () => {
+      if (document.visibilityState === "visible") expireCards(clock());
+    };
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("pageshow", check);
+    return () => {
+      document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("pageshow", check);
+    };
+  }, [nextDeadline]);
   // The page makes room for the panel instead of hiding under it.
   useEffect(() => {
     const root = document.documentElement;
@@ -338,6 +411,7 @@ export function AssistantPanel({
   };
   const startNew = () => {
     setTurns([]);
+    setSettled(null);
     setConversationId(null);
     remember(null);
     setView("chat");
@@ -507,9 +581,11 @@ export function AssistantPanel({
       const data = (await res.json().catch(() => null)) as { summary?: string; actions?: PageAction[]; error?: string } | null;
       if (!res.ok || !data?.summary) {
         updateProposal(proposal.id, { status: "failed", message: data?.error || "Não deu certo. Tente de novo em instantes." });
+        setSettled({ kind: "error", seen: live.current.open });
         return;
       }
       updateProposal(proposal.id, { status: "done", message: data.summary });
+      setSettled({ kind: "done", seen: live.current.open });
       applyActions(data.actions ?? []);
     } catch {
       updateProposal(proposal.id, { status: "pending" });
@@ -522,9 +598,10 @@ export function AssistantPanel({
     const message = text.trim();
     setTurns((current) => [...current, { id: crypto.randomUUID(), role: "user" as const, content: message }]);
     setBusy(true);
+    setSettled(null);
     const startedAt = clock();
     let spentTokens = 0;
-    setWorking({ startedAt, tokens: 0 });
+    setWorking({ startedAt, tokens: 0, phase: null });
     if (!keepCentered && getWide()) setDocked(true);
     // Reading the screen is a bonus: if it fails, the message still goes, without it.
     let page: ReturnType<typeof snapshotPage> | undefined;
@@ -546,9 +623,9 @@ export function AssistantPanel({
           conversationId: conversationId ?? undefined,
         }),
       });
-      const data = await readTurn(res, (tokens) => {
+      const data = await readTurn(res, (tokens, phase) => {
         spentTokens = tokens;
-        setWorking({ startedAt, tokens });
+        setWorking({ startedAt, tokens, phase });
       });
       if ("error" in data) {
         setTurns((current) => [
@@ -560,6 +637,7 @@ export function AssistantPanel({
             failed: true,
           },
         ]);
+        setSettled({ kind: "error", seen: live.current.open });
         announce(true);
         return;
       }
@@ -572,13 +650,14 @@ export function AssistantPanel({
           content: reply.reply,
           steps: reply.steps,
           spent: { ms: clock() - startedAt, tokens: reply.tokens ?? spentTokens },
-          proposals: reply.proposals?.map((p) => ({ ...p, status: "pending" as const })),
+          proposals: reply.proposals?.map((p) => ({ ...p, status: "pending" as const, deadline: startedAt + PROPOSAL_TTL_MS })),
         },
       ]);
       if (reply.conversationId) {
         setConversationId(reply.conversationId);
         remember(reply.conversationId);
       }
+      setSettled({ kind: "done", seen: live.current.open });
       announce(false);
       // Closed, the person moved on to something else: only refresh what it
       // changed, never take them to another page or type into their screen.
@@ -598,6 +677,7 @@ export function AssistantPanel({
           failed: true,
         },
       ]);
+      setSettled({ kind: "error", seen: live.current.open });
       announce(true);
     } finally {
       setBusy(false);
@@ -752,6 +832,7 @@ export function AssistantPanel({
             {turns.length === 0 ? (
               <div className="flex h-full flex-col justify-end gap-5">
                 <div>
+                  <AiOrb state={activity} size="lg" decorative className="mb-3" />
                   <p className="m-0 text-lg font-semibold text-foreground">
                     {firstName ? `Olá, ${firstName}.` : "Olá."} Como posso
                     ajudar?
@@ -859,6 +940,7 @@ export function AssistantPanel({
                   <Working
                     startedAt={working.startedAt}
                     tokens={working.tokens}
+                    activity={assistantActivity({ busy: true, phase: working.phase, confirming: false, pending: false, settled: null, dictation: "idle" })}
                   />
                 )}
               </ol>
@@ -871,6 +953,7 @@ export function AssistantPanel({
             autoFocus
             busy={busy}
             dictation={voice}
+            onDictationChange={setDictation}
             chips={chips}
             onChipClick={(label) => {
               const target = shortcuts.find((s) => s.label === label);
