@@ -6,7 +6,7 @@ Como o Console é montado: stack, pastas, dados, acesso, integrações, rotinas 
 
 | Camada | Escolha |
 | --- | --- |
-| Aplicação | Next.js 16.3 (App Router, Server Components, Server Actions), React 19.2, TypeScript 5 |
+| Aplicação | Next.js 16.4 (App Router, Server Components, Server Actions), React 19.2, TypeScript 5 |
 | Interface | Tailwind CSS v4, shadcn (new-york) sobre Radix e Base UI, Lucide, Sonner |
 | Banco | PostgreSQL no Neon, Drizzle ORM 0.45, migrações SQL em `drizzle/` |
 | Autenticação | Better Auth 1.7: código por e-mail, código por WhatsApp, Google e verificação em duas etapas |
@@ -22,6 +22,7 @@ src/
   app/                 rotas (páginas, route handlers, layouts, estados de erro)
     (secure)/          tudo que exige sessão; layout com dock e assistente
       @ticket/         slot paralelo: criação em painel lateral sobre a tela atual
+      default.tsx      404 no slot children quando só o @ticket casa com a URL
     api/               route handlers (downloads, uploads, crons, assistente, transcricao, auth)
     pagar/[publicId]/  página pública de pagamento
     entrar/, verificar-acesso/, acesso-pendente/
@@ -83,7 +84,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - **Públicas:** `/entrar`, `/verificar-acesso` (segunda etapa), `/acesso-pendente`, `/pagar/[publicId]`, `/pagar/[publicId]/boleto` e `/.well-known/jwks.json` (chave pública do passe dos apps).
 - **Link de um app:** `/abrir/[app]` (id do registro) fica fora de `(secure)` para mandar quem não tem sessão a `/entrar?volta=/abrir/<app>`, caminho que o redirecionamento do layout seguro perderia. Com sessão, redireciona para o produto ou mostra a recusa; id fora do registro responde 404.
 - **Autenticadas** (`(secure)`): `/painel`, `/empresas`, `/chamados`, `/projetos`, `/produtos`, `/financeiro` (e `/financeiro/envios`), `/contratos`, `/orcamentos`, `/bookmarks` (e `/bookmarks/[id]/lousa`, a lousa em tela cheia), `/jornadas` (só a equipe), `/apps/[id]` (um app do cliente dentro do Console), `/conta` e `/configuracoes/*`.
-- **Criação em painel lateral:** `/chamados/novo`, `/empresas/nova`, `/financeiro/nova`, `/contratos/novo`, `/orcamentos/novo`, `/produtos/novo`, `/projetos/novo` e `/jornadas/nova` existem como página (acesso direto) e como rota interceptada em `@ticket/(.)…` (navegação interna abre o painel sobre a tela atual). O `@ticket/[...rest]` não renderiza nada nas outras URLs e deixa endereços desconhecidos chegarem ao `not-found` do app.
+- **Criação em painel lateral:** `/chamados/novo`, `/empresas/nova`, `/financeiro/nova`, `/contratos/novo`, `/orcamentos/novo`, `/produtos/novo`, `/projetos/novo` e `/jornadas/nova` existem como página (acesso direto) e como rota interceptada em `@ticket/(.)…` (navegação interna abre o painel sobre a tela atual). O `@ticket/[...rest]` não renderiza nada nas outras URLs e deixa endereços desconhecidos chegarem ao `not-found` do app. Como ele casa com qualquer URL, o `children` de `(secure)` precisa do `default.tsx` com `notFound()`: até o Next 16.3 esse fallback era implícito; na 16.4 é obrigatório, e sem ele o `next dev` responde 404 em `/entrar`, `/pagar/…` e nas outras páginas fora do grupo.
 - **Erros:** `app/not-found.tsx` (fora do app), `(secure)/not-found.tsx` (dentro do app, também usado quando o registro existe mas a pessoa não tem acesso), `error.tsx` nos dois níveis e `global-error.tsx` com HTML próprio.
 
 ## Dados

@@ -68,6 +68,7 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 ## Lições
 
 - Quando uma regra muda (contrato com versões), procure também as restrições do banco que a regra antiga criou: o índice de 0026 ficou três semanas contradizendo as versões, e nenhum teste assinava duas versões. E nunca devolva `e.message` de qualquer erro: a mensagem do Drizzle é o SQL com os valores, e foi assim que e-mail, IP e navegador apareceram na tela sem nada no log.
+- Ao subir o Next, abra o `next dev` e leia o log, e compare a lista de rotas do build antes e depois. Na 16.4 o slot `children` deixou de ter `default` implícito: o catch-all do `@ticket` fez o `next dev` responder 404 em `/entrar` e nas outras páginas fora de `(secure)`, enquanto o build passou sem aviso e só tirou a rota `/[...rest]` da lista (16/10/2026, corrigido com `(secure)/default.tsx`).
 - O Next 16 só resolve uma server action a partir de uma página que a renderiza. Testes e chamadas manuais precisam postar na página certa.
 - Uma página que chama `notFound()` pode responder HTTP 200 porque o layout já foi enviado; o sinal confiável é `NEXT_HTTP_ERROR_FALLBACK;404` no HTML.
 - A suíte de integração ficou uma semana vermelha (21 a 28/09) porque procurava textos de botão. Hoje posta pelo nome da action; mantenha assim.
