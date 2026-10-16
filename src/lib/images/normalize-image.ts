@@ -1,5 +1,6 @@
 import "server-only";
 import sharp from "sharp";
+import { imageFormatOf } from "./image-format";
 
 /*
  * The one way the Console turns an image someone sent (a profile photo, a
@@ -91,15 +92,7 @@ export async function normalizeImage(
   if (!bytes.length || bytes.length > maxBytes)
     throw new ImageError("too_large", 413);
   const format = mimeFormats[mime as keyof typeof mimeFormats];
-  const signatureMatches =
-    (format === "png" &&
-      bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex"))) ||
-    (format === "jpeg" &&
-      bytes.subarray(0, 3).equals(Buffer.from("ffd8ff", "hex"))) ||
-    (format === "webp" &&
-      bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
-      bytes.subarray(8, 12).toString("ascii") === "WEBP");
-  if (!signatureMatches) throw new ImageError("corrupt", 422);
+  if (imageFormatOf(bytes) !== format) throw new ImageError("corrupt", 422);
   try {
     const image = sharp(bytes, {
       failOn: "warning",
