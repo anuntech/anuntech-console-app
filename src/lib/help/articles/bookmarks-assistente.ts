@@ -524,79 +524,6 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
     updatedAt: "2026-10-14",
   },
   {
-    slug: "notas-de-reuniao",
-    category: "bookmarks",
-    title: "Notas de reunião",
-    summary: "As reuniões gravadas no app Anuntech Reuniões chegam aos Bookmarks como uma nota com resumo, decisões, próximos passos e a transcrição.",
-    audience: "todos",
-    keywords: [
-      "reunião",
-      "reuniões",
-      "nota de reunião",
-      "ata",
-      "ata de reunião",
-      "transcrição",
-      "gravação",
-      "resumo da reunião",
-      "próximos passos",
-      "decisões",
-      "anuntech reuniões",
-      "app do mac",
-      "granola",
-    ],
-    sections: [
-      {
-        title: "O que é",
-        blocks: [
-          {
-            kind: "p",
-            text: "O Anuntech Reuniões é um app do Mac que grava a reunião, transcreve e escreve a nota: um resumo em 5 tópicos, as decisões e os próximos passos com o responsável de cada um. Quem grava escolhe a empresa e a pasta de Bookmarks onde a nota fica. O áudio fica só no Mac de quem gravou; no Console chega apenas o texto.",
-          },
-        ],
-      },
-      {
-        title: "Ler uma nota",
-        blocks: [
-          {
-            kind: "steps",
-            items: [
-              "Em [Bookmarks](/bookmarks), as notas aparecem com o ícone de caderno e “Reunião · 42 min” embaixo do título.",
-              "Clique na nota. O resumo, as decisões e os próximos passos abrem na página.",
-              "A transcrição completa fica embaixo, recolhida. Clique em “Mostrar” para ler, com o minuto de cada trecho.",
-              "“Baixar .md” salva a nota como arquivo de texto.",
-            ],
-          },
-          {
-            kind: "p",
-            text: "Quem vê a nota segue a regra da pasta, como qualquer bookmark: veja [Pastas e compartilhamento](/ajuda/pastas-e-compartilhamento).",
-          },
-        ],
-      },
-      {
-        title: "Para quem grava",
-        blocks: [
-          {
-            kind: "list",
-            items: [
-              "No app, “Conectar ao Console…” abre o Console no navegador. Clique em “Conectar este Mac” e confirme a abertura do app.",
-              "Em “Salvar no Console”, escolha a empresa e a pasta. O app começa na pasta “Reuniões” do espaço da Anuntech, quando ela existe.",
-              "O app salva só onde você poderia salvar um bookmark à mão.",
-              "Os Macs conectados aparecem em [Configurações › Segurança](/configuracoes/seguranca), cada um com “Desconectar”.",
-            ],
-          },
-          {
-            kind: "note",
-            tone: "attention",
-            text: "Uma nota salva na raiz de uma empresa, ou numa pasta aberta para a empresa inteira, aparece para todas as pessoas dela, com a transcrição completa. Para conversas internas, use o espaço da Anuntech ou uma pasta “Só pessoas escolhidas”.",
-          },
-        ],
-      },
-    ],
-    actions: [{ label: "Ir para Bookmarks", href: "/bookmarks" }],
-    related: ["bookmarks", "pastas-e-compartilhamento", "lousas"],
-    updatedAt: "2026-10-16",
-  },
-  {
     slug: "assistente",
     category: "assistente",
     title: "O assistente do Console",
@@ -636,8 +563,9 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "No computador: a esfera no começo do menu do Console. Ao passar o mouse, aparece “Assistente”; enquanto ele trabalha, “Assistente trabalhando…”.",
-              "No celular: toque em “Mais” e depois em “Perguntar ao assistente”.",
+              "No computador: a esfera de pontos no começo do menu do Console. Parada, o assistente está livre. Enquanto ele trabalha, ela muda de forma a cada passo, e ao passar o mouse a dica diz o que ele está fazendo: pensando, consultando o Console, lendo o que encontrou, escrevendo a resposta ou, enquanto você dita, ouvindo o microfone.",
+              "No computador, a esfera também avisa como terminou uma resposta que chegou com o painel fechado. Vermelha e em forma de triângulo, a resposta não terminou; ela volta ao normal quando você abre o painel. Âmbar e quadrada, um cartão espera a sua confirmação, até você confirmar ou descartar, ou até o cartão vencer, 15 minutos depois.",
+              "No celular: toque em “Mais” e depois em “Perguntar ao assistente”. Enquanto ele trabalha ou espera você, essa linha diz o que está acontecendo, logo abaixo do nome.",
               "No fim da [Ajuda](/ajuda) e de cada artigo: o botão “Perguntar ao assistente”.",
             ],
           },

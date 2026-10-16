@@ -30,7 +30,12 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
           return {};
         }
       });
-    return { status: r.status, done: events.find((e) => e.type === "done"), error: events.find((e) => e.type === "error") ?? (r.status >= 400 ? events[0] : undefined) };
+    return {
+      status: r.status,
+      progress: events.filter((e) => e.type === "progress"),
+      done: events.find((e) => e.type === "done"),
+      error: events.find((e) => e.type === "error") ?? (r.status >= 400 ? events[0] : undefined),
+    };
   };
   const decide = (who, proposal, decisao, { headers = json, nonce = proposal.nonce } = {}) =>
     request(`/api/assistente/propostas/${proposal.id}`, who, { method: "POST", headers, body: JSON.stringify({ nonce, decisao }) });
@@ -43,6 +48,13 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   };
   const logStart = logged().length;
   const ticketsNamed = async (subject) => Number((await db.query("select count(*)::int n from console_tickets where company_id=$1 and subject=$2", [ids.a, subject])).rows[0].n);
+
+  // The dock's button: the assistant's orb, at rest until a turn starts.
+  const dock = await request("/painel", "manager");
+  ok(
+    dock.status === 200 && /data-slot="ai-orb"[^>]*data-state="idle"/.test(dock.text) && !dock.text.includes("energy-orb"),
+    "O botão do assistente mostra a esfera de pontos em repouso",
+  );
 
   // M1: only the Console itself, and only JSON.
   let r = await ask("manager", { message: "oi" }, { "Content-Type": "application/json" });
@@ -75,6 +87,17 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   const card = r.done?.proposals?.[0];
   ok(!!card && card.title === "Abrir um chamado" && card.details.some((d) => d.label === "Empresa" && d.value.includes(`QA Company A ${marker}`)), "Com o Jev fora do ar, abrir chamado vira cartão com a empresa pelo nome");
   ok((await ticketsNamed("Teste do assistente")) === 0, "Nenhum chamado foi aberto antes do clique");
+  // The orb in the dock follows these: tools about to run, tools ran, the reply written.
+  const phases = r.progress.map((event) => event.phase);
+  ok(
+    phases.length >= 3 &&
+      phases.every((phase) => ["tools", "reading", "answer"].includes(phase)) &&
+      phases[0] === "tools" &&
+      phases[1] === "reading" &&
+      phases.at(-1) === "answer" &&
+      r.progress.every((event, i) => i === 0 || event.tokens >= r.progress[i - 1].tokens),
+    "Cada progresso diz a fase da rodada: ferramentas, leitura e resposta",
+  );
   const conversation = r.done?.conversationId;
   r = await decide("manager", card, "confirmar", { headers: { "Content-Type": "application/json" } });
   ok(r.status === 403, "Confirmação sem Origin é recusada");

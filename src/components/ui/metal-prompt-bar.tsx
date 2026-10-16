@@ -23,7 +23,7 @@ import { MetalFx, type MetalFxPreset } from "metal-fx";
 import { ArrowUp, Loader2, Mic, Paperclip, Square, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useDictation } from "@/components/console/use-dictation";
+import { useDictation, type DictationPhase } from "@/components/console/use-dictation";
 import { caretOf, mayFocus, rangeFor, type Caret } from "@/components/console/insert-text";
 import { clockLabel, joinTranscript, PRIVACY_LINE } from "@/lib/voice/voice-rules";
 import {
@@ -56,6 +56,8 @@ export interface MetalPromptBarProps {
   dictation?: boolean;
   /** Longest message the composer takes; dictated text is cut to fit. Default 20000 */
   maxLength?: number;
+  /** Fires on each step of the microphone, and with "idle" when the composer goes away */
+  onDictationChange?: (phase: DictationPhase) => void;
   className?: string;
 }
 
@@ -72,6 +74,7 @@ export function MetalPromptBar({
   maxRows = 6,
   dictation = false,
   maxLength = 20000,
+  onDictationChange,
   className,
 }: MetalPromptBarProps) {
   const resolved = useSurfaceTheme(theme);
@@ -109,6 +112,8 @@ export function MetalPromptBar({
     });
     if (result.truncated) return "A mensagem passou do limite e o texto ditado foi cortado. Revise antes de enviar.";
   });
+  React.useEffect(() => onDictationChange?.(dictate.phase), [dictate.phase, onDictationChange]);
+  React.useEffect(() => () => onDictationChange?.("idle"), [onDictationChange]);
   const mic = dictation && dictate.supported;
   const recording = dictate.phase === "recording";
   // While the microphone is open or the text is coming back, nothing is sent.
