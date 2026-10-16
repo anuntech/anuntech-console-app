@@ -6,7 +6,7 @@ Como o Console é montado: stack, pastas, dados, acesso, integrações, rotinas 
 
 | Camada | Escolha |
 | --- | --- |
-| Aplicação | Next.js 16.3 (App Router, Server Components, Server Actions), React 19.2, TypeScript 5 |
+| Aplicação | Next.js 16.4 (App Router, Server Components, Server Actions), React 19.2, TypeScript 5 |
 | Interface | Tailwind CSS v4, shadcn (new-york) sobre Radix e Base UI, Lucide, Sonner |
 | Banco | PostgreSQL no Neon, Drizzle ORM 0.45, migrações SQL em `drizzle/` |
 | Autenticação | Better Auth 1.7: código por e-mail, código por WhatsApp, Google e verificação em duas etapas |
@@ -22,6 +22,7 @@ src/
   app/                 rotas (páginas, route handlers, layouts, estados de erro)
     (secure)/          tudo que exige sessão; layout com dock e assistente
       @ticket/         slot paralelo: criação em painel lateral sobre a tela atual
+      default.tsx      404 no slot children quando só o @ticket casa com a URL
     api/               route handlers (downloads, uploads, crons, assistente, transcricao, auth)
     pagar/[publicId]/  página pública de pagamento
     entrar/, verificar-acesso/, acesso-pendente/
@@ -83,7 +84,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - **Públicas:** `/entrar`, `/verificar-acesso` (segunda etapa), `/acesso-pendente`, `/pagar/[publicId]`, `/pagar/[publicId]/boleto` e `/.well-known/jwks.json` (chave pública do passe dos apps).
 - **Link de um app:** `/abrir/[app]` (id do registro) fica fora de `(secure)` para mandar quem não tem sessão a `/entrar?volta=/abrir/<app>`, caminho que o redirecionamento do layout seguro perderia. Com sessão, redireciona para o produto ou mostra a recusa; id fora do registro responde 404.
 - **Autenticadas** (`(secure)`): `/painel`, `/empresas`, `/chamados`, `/projetos`, `/produtos`, `/financeiro` (e `/financeiro/envios`), `/contratos`, `/orcamentos`, `/bookmarks` (e `/bookmarks/[id]/lousa`, a lousa em tela cheia), `/jornadas` (só a equipe), `/apps/[id]` (um app do cliente dentro do Console), `/conta` e `/configuracoes/*`.
-- **Criação em painel lateral:** `/chamados/novo`, `/empresas/nova`, `/financeiro/nova`, `/contratos/novo`, `/orcamentos/novo`, `/produtos/novo`, `/projetos/novo` e `/jornadas/nova` existem como página (acesso direto) e como rota interceptada em `@ticket/(.)…` (navegação interna abre o painel sobre a tela atual). O `@ticket/[...rest]` não renderiza nada nas outras URLs e deixa endereços desconhecidos chegarem ao `not-found` do app.
+- **Criação em painel lateral:** `/chamados/novo`, `/empresas/nova`, `/financeiro/nova`, `/contratos/novo`, `/orcamentos/novo`, `/produtos/novo`, `/projetos/novo` e `/jornadas/nova` existem como página (acesso direto) e como rota interceptada em `@ticket/(.)…` (navegação interna abre o painel sobre a tela atual). O `@ticket/[...rest]` não renderiza nada nas outras URLs e deixa endereços desconhecidos chegarem ao `not-found` do app. Como ele casa com qualquer URL, o `children` de `(secure)` precisa do `default.tsx` com `notFound()`: até o Next 16.3 esse fallback era implícito; na 16.4 é obrigatório, e sem ele o `next dev` responde 404 em `/entrar`, `/pagar/…` e nas outras páginas fora do grupo.
 - **Erros:** `app/not-found.tsx` (fora do app), `(secure)/not-found.tsx` (dentro do app, também usado quando o registro existe mas a pessoa não tem acesso), `error.tsx` nos dois níveis e `global-error.tsx` com HTML próprio.
 
 ## Dados
@@ -207,8 +208,9 @@ Avisos também são processados logo após a ação, com `after()`; o cron garan
 
 - `npm test`: testes unitários em `tests/` (regras puras: cobrança, datas, permissões, tabelas, consentimento, registro e passe dos apps).
 - `npm run test:integration` (`scripts/test-isolated.mjs`): cria um banco `console_test_<aleatório>`, aplica todas as migrações, sobe `next start` e roda as suítes HTTP com provedores simulados: OTP, segurança, membros, conta, notificações, cobrança e regressão. Precisa de build prévio. `--members-only`, `--billing-only` etc. rodam uma suíte. A regressão gera uma chave de passe só para a rodada e termina com `scripts/apps-smoke.mjs`: JWKS, quem abre cada app, o passe verificado como um app verifica, a auditoria, os links e o link direto `/abrir/<app>` (login com o caminho de volta, o `?volta=` recusado nas telas de entrada, empresa do app, outra empresa, vários produtos e app inexistente). `CONSOLE_TEST_HTTP_PORT` troca a porta da regressão (padrão 3101).
+- No Mac, rode a integração contra um Postgres 17 local, como o CI. Uma vez: `docker run -d --name console-smoke-pg17 -e POSTGRES_PASSWORD=ci-test-only -p 127.0.0.1:5434:5432 postgres:17` (OrbStack). Depois: `DATABASE_URL=postgres://postgres:ci-test-only@127.0.0.1:5434/postgres npm run test:integration` (a variável do terminal vale sobre a do `.env.local`). Assim a regressão leva uns 15 segundos. Sem isso, o banco descartável é criado no servidor Neon do `.env.local`, cada consulta vai e volta de us-east-2 (cerca de 150 ms) e a regressão leva uns 40 minutos, exposta a quedas de conexão no caminho.
 - A suíte de segurança (`scripts/security-smoke.mjs`) sobe o servidor na porta 3104; `CONSOLE_TEST_SECURITY_PORT` troca a porta.
-- Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa. A regressão carrega também `openrouter-mock.cjs`, que responde a transcrição pelos primeiros bytes do áudio (sucesso, falha do primeiro modelo, silêncio) e registra só modelo, formato e tamanho.
+- Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa. A regressão carrega também `openrouter-mock.cjs`, que responde a transcrição pelos primeiros bytes do áudio (sucesso, falha do primeiro modelo, silêncio) e registra só modelo, formato e tamanho. O FLW simulado confirma a entrega quando o worker de avisos consulta a mensagem (5 minutos depois do aceite); com `whatsappQueued` nas flags responde `QUEUED`, e a regressão usa isso enquanto verifica o aceite, para o resultado não depender da duração da rodada.
 - As suítes postam formulários pelo nome da server action (lido do manifesto do build), então não quebram quando um texto de botão muda.
 - GitHub Actions. Toda action é fixada por SHA (o comentário ao lado diz a versão), o checkout não guarda a credencial do Git (`persist-credentials: false`), cada job tem tempo máximo e só uma execução por branch fica ativa (a nova cancela a anterior, menos em `main`).
   - `checks.yml` (job `verify`), em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário (imagem fixada por digest).
