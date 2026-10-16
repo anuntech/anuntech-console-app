@@ -206,7 +206,13 @@ Avisos também são processados logo após a ação, com `after()`; o cron garan
 - A suíte de segurança (`scripts/security-smoke.mjs`) sobe o servidor na porta 3104; `CONSOLE_TEST_SECURITY_PORT` troca a porta.
 - Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa. A regressão carrega também `openrouter-mock.cjs`, que responde a transcrição pelos primeiros bytes do áudio (sucesso, falha do primeiro modelo, silêncio) e registra só modelo, formato e tamanho.
 - As suítes postam formulários pelo nome da server action (lido do manifesto do build), então não quebram quando um texto de botão muda.
-- GitHub Actions (`.github/workflows/checks.yml`) roda em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário.
+- GitHub Actions. Toda action é fixada por SHA (o comentário ao lado diz a versão), o checkout não guarda a credencial do Git (`persist-credentials: false`), cada job tem tempo máximo e só uma execução por branch fica ativa (a nova cancela a anterior, menos em `main`).
+  - `checks.yml` (job `verify`), em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário (imagem fixada por digest).
+  - `security.yml`, em push em `main` e `codex/bookmarks-ticket-modal`, em PR, toda segunda às 9:23 UTC e à mão. Detalhes e regras de exceção em [security.md](security.md#pipeline).
+    - `dependencies`: `node scripts/audit-production.mjs` roda `npm audit --package-lock-only --omit=dev` e falha em aviso alto ou crítico fora de `.github/audit-allowlist.json`. Roda igual na máquina local.
+    - `secrets`: gitleaks no histórico inteiro com `.gitleaks.toml`.
+    - `sast`: Semgrep CE (`p/typescript`, `p/nextjs`, `p/secrets`) em `src` e `next.config.ts`.
+- Dependabot (`.github/dependabot.yml`): npm toda segunda, com versões menores e correções agrupadas em produção e desenvolvimento; actions uma vez por mês. Versão nova espera 7 dias antes de virar PR. A imagem do Semgrep, a do Postgres e o binário do gitleaks não são atualizados por ele: troca-se à mão, conferindo o digest ou o checksum na fonte.
 
 ## Deploy
 

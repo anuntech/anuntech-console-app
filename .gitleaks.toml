@@ -1,0 +1,11 @@
+[extend]
+useDefault = true
+
+# The one-shot migration and diagnosis routes kept only the SHA-256 of their
+# token, never the token itself. All of them were removed from main.
+[[allowlists]]
+description = "SHA-256 dos tokens das rotas one-shot já removidas"
+condition = "AND"
+paths = ['''^src/app/api/admin/[a-z-]+-[0-9a-f]{12}/route\.ts$''']
+regexTarget = "match"
+regexes = ['''^TOKEN_SHA256 = "[a-f0-9]{64}"$''']
