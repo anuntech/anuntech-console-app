@@ -23,7 +23,7 @@ Quando rodar: em toda mudança de autenticação, acesso, cobrança ou assistent
 
 | Verificação | Ferramenta | Situação |
 | --- | --- | --- |
-| Dependências | `npm audit --omit=dev`, falhando em alta ou crítica que não esteja na lista de exceções com prazo; Dependabot semanal | ativo (`security.yml`, job `dependencies`; vermelho até H1, H2 e o source-map-js serem corrigidos) |
+| Dependências | `npm audit --omit=dev`, falhando em alta ou crítica que não esteja na lista de exceções com prazo; Dependabot semanal | ativo (`security.yml`, job `dependencies`; verde com next 16.4.2, sharp 0.35.5 e source-map-js 1.2.2, do branch `fix/dependency-advisories-2026-10`, e vermelho na `main` até o merge dele) |
 | Segredos | gitleaks no histórico inteiro a cada push | ativo (`security.yml`, job `secrets`) |
 | Análise estática (SAST) | Semgrep CE (`p/typescript`, `p/nextjs`, `p/secrets`). O CodeQL exige plano pago em repositório privado | ativo (`security.yml`, job `sast`) |
 | Deploy | Deployment Checks da Vercel exigindo `Checks` e `Security` antes de promover para produção | em parte: `verify`, `secrets` e `sast` ativos desde 16/10/2026; `dependencies` espera ficar verde (ver [Pipeline](#pipeline)) |
@@ -52,16 +52,16 @@ Base: `origin/main` em `93d2cb7`. Seis auditores, um por área, só leitura, mai
 
 ### Alta: corrigir primeiro
 
-H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (worktree `anuntech-console-security-fixes`, 3 commits sobre `93d2cb7`), com testes e ainda não publicados. H4 a H6 e M1 a M4 foram corrigidos e publicados em 16/10/2026 (branch `fix/assistant-guardrails`; a migração 0043 foi aplicada em produção pela rota temporária, já removida).
+H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (worktree `anuntech-console-security-fixes`, 3 commits sobre `93d2cb7`), com testes e ainda não publicados. A parte de versões de H1 e H2 também está no branch `fix/dependency-advisories-2026-10`, que leva o Next à 16.4.2 em vez da 16.3.8. H4 a H6 e M1 a M4 foram corrigidos e publicados em 16/10/2026 (branch `fix/assistant-guardrails`; a migração 0043 foi aplicada em produção pela rota temporária, já removida).
 
 **H1. Next 16.3.5 com avisos críticos e altos.** `package.json`.
 - Avisos: GHSA-vcvr-r3jv-pc5j (RCE em `next/og`, que o Console não importa), SSRF no otimizador de imagem, envenenamento de cache e vazamento em rotas de imagem de metadados.
-- Correção: subir `next` e `eslint-config-next` para 16.3.8 ou mais. A versão atual é 16.4.2.
+- Correção: subir `next` e `eslint-config-next` para 16.3.8 ou mais. Subidos para 16.4.2 no branch `fix/dependency-advisories-2026-10`, com `(secure)/default.tsx` para a checagem de rotas da 16.4 (ver [architecture.md](architecture.md#rotas)).
 
 **H2. sharp 0.35.4 (falha no librsvg, GHSA-wq5f-xc86-pv6w), alcançável por anexo de chamado.** `src/lib/tickets/ticket-files.ts:21-30`.
 - Causa: qualquer arquivo que não seja PDF vai para `sharp(...).metadata()` antes de conferir o formato. Um Membro de cliente envia um SVG, TIFF ou HEIF e o leitor correspondente da libvips processa o arquivo, com limite de 50 MP.
 - Correção:
-  - subir para sharp 0.35.5 (o `^` já permite);
+  - subir para sharp 0.35.5 (o `^` já permite; feito no branch `fix/dependency-advisories-2026-10`);
   - conferir a assinatura PNG/JPEG/WebP antes do sharp;
   - reaproveitar `normalizeImage` (`lib/images/normalize-image.ts`), que já faz certo: assinatura, 16 MP e `failOn: "warning"`.
 
@@ -193,10 +193,10 @@ O Dependabot atualiza as actions (SHA e comentário juntos). Semgrep, Postgres e
 
 **Exceções do `npm audit`.** Cada uma tem id do aviso, pacote, caminho e prazo, e só vale para aquele pacote. Vencido o prazo, o job volta a falhar; exceção que não casa mais com nenhum aviso aparece no log para sair da lista. Só entra aviso sem correção que não quebre a versão. Hoje são os da árvore do `@excalidraw/excalidraw`, até 31/12/2026: braces (GHSA-vfj7-8cjw-p6xm), lodash-es (GHSA-r5fr-rjxr-66jc) e as duas cópias antigas de nanoid (GHSA-28wg-ghj8-5hjv, GHSA-2v37-7h3g-55p8, GHSA-xwg4-73v4-xw9w). O Excalidraw roda só no navegador (`next/dynamic`, sem SSR), e a única correção que o npm oferece é voltar para a 0.17.6.
 
-**Vermelho hoje.** O job `dependencies` falha até estes três saírem:
-- H1: `next` 16.3.5 (GHSA-vcvr-r3jv-pc5j, crítica; GHSA-cjq9-62q9-8jv4, alta).
-- H2: `sharp` 0.35.4 (GHSA-wq5f-xc86-pv6w, alta).
-- `source-map-js` 1.2.1 (GHSA-68fv-2mgg-jv7q, alta, negação de serviço ao ler source map). Vem do `postcss` do Next e do `sass` do Excalidraw, então não é exceção. A 1.2.2 cabe nas faixas dos dois: `npm update source-map-js`.
+**Avisos de 16/10/2026.** O job `dependencies` ficou vermelho na `main` com estes três, todos corrigidos por versão no branch `fix/dependency-advisories-2026-10`, sem exceção nova:
+- H1: `next` 16.3.5 (GHSA-vcvr-r3jv-pc5j, crítica; GHSA-cjq9-62q9-8jv4, alta). Agora 16.4.2, e `eslint-config-next` também.
+- H2: `sharp` 0.35.4 (GHSA-wq5f-xc86-pv6w, alta). Agora 0.35.5, com libvips 8.18.7 e librsvg 2.63.2.
+- `source-map-js` 1.2.1 (GHSA-68fv-2mgg-jv7q, alta, negação de serviço ao ler source map). Vem do `postcss` do Next e do `sass` do Excalidraw. A 1.2.2 cabe nas faixas dos dois, então bastou o lockfile, sem `overrides`.
 
 **gitleaks.** A única exceção são as linhas `TOKEN_SHA256 = "<64 hex>"` em `src/app/api/admin/<nome>-<12 hex>/route.ts`: as rotas one-shot de migração e de diagnóstico guardam só o hash do token, nunca o token, e saem de `main` depois de usadas. Fora desse caminho, o mesmo padrão volta a ser achado.
 
@@ -211,6 +211,6 @@ O Dependabot atualiza as actions (SHA e comentário juntos). Semgrep, Postgres e
 | GitHub, Settings → Actions → General (no repositório) | Exigir SHA completo nas actions | ligado. Branch que ainda tem o `checks.yml` antigo (`@v4`) falha no início do job até puxar `main`; nos PRs do Dependabot, comentar `@dependabot rebase` |
 | Vercel, Settings → Deployment Checks | `Checks / verify`: o check `verify` do GitHub bloqueia o domínio de produção (`deployment-alias`, só `production`, tempo máximo de 30 min) | ligado (`chk_2e0ba2f0-590e-448a-acf5-b8102bff6e9b`) |
 | Vercel, Settings → Deployment Checks | `Security / secrets` e `Security / sast`, iguais ao `verify` | ligado (`chk_aea768ae-68d0-41b9-a06b-8f1ddc9f8a6c`, `chk_e9f3e74a-1187-4cc6-9261-37739b41b164`) |
-| Vercel, Settings → Deployment Checks | `dependencies` | esperando: só depois que ficar verde (H1, H2 e source-map-js). Depois disso, um aviso novo deixa o job vermelho mesmo sem mudança no código, e o deploy seguinte espera a correção ou uma exceção com prazo |
+| Vercel, Settings → Deployment Checks | `dependencies` | esperando: ligar quando o branch `fix/dependency-advisories-2026-10` estiver na `main` e o job passar lá. Depois disso, um aviso novo deixa o job vermelho mesmo sem mudança no código, e o deploy seguinte espera a correção ou uma exceção com prazo |
 
 Os checks da Vercel são criados com `vercel project checks add anuntech-console --file <json>`, com `"source": { "kind": "git-provider", "provider": "github", "externalCheckName": "<job>" }`, `"blocks": "deployment-alias"`, `"targets": ["production"]` e `"timeout": 1800`. Um check que travar a produção sem motivo sai com `vercel project checks remove <id>`. Os checks nativos `Lint` e `TypeCheck` existem desde antes e não bloqueiam nada.
