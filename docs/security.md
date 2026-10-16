@@ -166,7 +166,7 @@ O que o M14 pôs no repositório. Os arquivos são a fonte; aqui ficam as regras
 | `.github/workflows/security.yml` | Jobs `dependencies`, `secrets` e `sast`, em push em `main` e `codex/bookmarks-ticket-modal`, em PR, toda segunda às 9:23 UTC (aviso novo aparece sem mudança no código) e à mão |
 | `scripts/audit-production.mjs` | O `npm audit` de produção com as exceções. `node scripts/audit-production.mjs` roda igual na máquina local |
 | `.github/audit-allowlist.json` | Exceções do `npm audit` |
-| `.gitleaks.toml` | Regras padrão do gitleaks e a exceção dos hashes das rotas removidas |
+| `.gitleaks.toml` | Regras padrão do gitleaks e a exceção dos hashes das rotas one-shot |
 | `.github/dependabot.yml` | npm toda segunda (menores e correções agrupadas), actions uma vez por mês; versão nova espera 7 dias |
 | `.github/workflows/checks.yml` | Lint, testes, build e integração, com o mesmo endurecimento |
 
@@ -191,7 +191,7 @@ O Dependabot atualiza as actions (SHA e comentário juntos). Semgrep, Postgres e
 - H2: `sharp` 0.35.4 (GHSA-wq5f-xc86-pv6w, alta).
 - `source-map-js` 1.2.1 (GHSA-68fv-2mgg-jv7q, alta, negação de serviço ao ler source map). Vem do `postcss` do Next e do `sass` do Excalidraw, então não é exceção. A 1.2.2 cabe nas faixas dos dois: `npm update source-map-js`.
 
-**gitleaks.** A única exceção são as linhas `TOKEN_SHA256 = "<64 hex>"` em `src/app/api/admin/<nome>-<12 hex>/route.ts`: as rotas one-shot de migração e de diagnóstico guardavam só o hash do token e já saíram de `main`. Fora desse caminho, o mesmo padrão volta a ser achado.
+**gitleaks.** A única exceção são as linhas `TOKEN_SHA256 = "<64 hex>"` em `src/app/api/admin/<nome>-<12 hex>/route.ts`: as rotas one-shot de migração e de diagnóstico guardam só o hash do token, nunca o token, e saem de `main` depois de usadas. Fora desse caminho, o mesmo padrão volta a ser achado.
 
 **Semgrep.** A imagem roda com `docker run` no runner, e não como `container:` do job, para o `actions/checkout` (Node 24) não precisar rodar dentro da imagem Alpine. Usa `--metrics=off`; as regras vêm do registro do Semgrep na hora. Varre só `src` e `next.config.ts`, porque os scripts de teste usam `http://localhost` e as regras marcam isso.
 

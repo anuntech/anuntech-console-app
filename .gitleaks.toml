@@ -1,10 +1,10 @@
 [extend]
 useDefault = true
 
-# The one-shot migration and diagnosis routes kept only the SHA-256 of their
-# token, never the token itself. All of them were removed from main.
+# One-shot migration and diagnosis routes keep only the SHA-256 of their
+# token, never the token itself, and leave main once they have run.
 [[allowlists]]
-description = "SHA-256 dos tokens das rotas one-shot já removidas"
+description = "SHA-256 dos tokens das rotas one-shot"
 condition = "AND"
 paths = ['''^src/app/api/admin/[a-z-]+-[0-9a-f]{12}/route\.ts$''']
 regexTarget = "match"
