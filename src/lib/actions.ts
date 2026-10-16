@@ -52,6 +52,7 @@ import { sendOpsMail } from "./notifications/ops-alerts";
 import { teamMemberName } from "./account/account-identity";
 import { companyIdentity } from "./companies/company-input";
 import { companyBillingInput } from "./companies/company-billing";
+import { logDatabaseFault } from "./action-errors";
 const id = z.string().uuid();
 function isWebUrl(value: string) {
   try {
@@ -426,7 +427,10 @@ export async function replyTicket(
         uploaded = await takeTicketUploads(tx, actor.user.id, form);
       } catch (error) {
         return {
-          error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
+          error:
+            error instanceof Error && !logDatabaseFault("ticket uploads", error)
+              ? error.message
+              : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
         };
       }
       const files = [...direct, ...uploaded];

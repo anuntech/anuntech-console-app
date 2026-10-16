@@ -12,6 +12,7 @@ import {
 import { db } from "../db";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
+import { logDatabaseFault } from "../action-errors";
 import { moneyToCents } from "../access/permissions";
 import { isGalleryIcon, suggestGalleryIcon } from "./catalog-icons";
 
@@ -251,7 +252,7 @@ export async function addCatalogEngagement(_: ActionState, form: FormData): Prom
       href: item.kind === "service" ? `/produtos/${created.id}` : "/produtos",
     };
   } catch (error) {
-    return error instanceof Error && error.message.includes("Recorrência")
+    return error instanceof Error && !logDatabaseFault("catalog", error) && error.message.includes("Recorrência")
       ? { error: error.message }
       : failure(error);
   }

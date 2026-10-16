@@ -8,3 +8,11 @@ export function sameOrigin(request: Request) {
     request.headers.get("sec-fetch-site") !== "cross-site"
   );
 }
+
+/**
+ * A JSON body: a plain HTML form from another site can only send
+ * text/plain, form-urlencoded or multipart, never application/json.
+ */
+export function isJson(request: Request) {
+  return /^application\/json\s*(;|$)/i.test(request.headers.get("content-type") ?? "");
+}

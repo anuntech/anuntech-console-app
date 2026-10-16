@@ -6,6 +6,7 @@ import { ticketUploads } from "@/db/schema";
 import { MAX_TICKET_BYTES, normalizeTicketFile } from "@/lib/tickets/ticket-files";
 import { safeFileName } from "@/lib/bookmarks/bookmark-validation";
 import { sameOrigin } from "@/lib/http/same-origin";
+import { logDatabaseFault } from "@/lib/action-errors";
 export const maxDuration = 60;
 const respond = (data: unknown, status = 200) =>
   Response.json(data, {
@@ -126,7 +127,7 @@ export async function PATCH(request: Request) {
     return respond({ success: true });
   } catch (error) {
     return respond(
-      { error: error instanceof Error ? error.message : "O envio do anexo falhou. Tente de novo." },
+      { error: error instanceof Error && !logDatabaseFault("ticket uploads", error) ? error.message : "O envio do anexo falhou. Tente de novo." },
       400,
     );
   } finally {

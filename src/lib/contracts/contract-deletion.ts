@@ -14,6 +14,7 @@ import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { contractDeletionBlock } from "../deletion-rules";
+import { logDatabaseFault } from "../action-errors";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -81,7 +82,8 @@ export async function deleteContract(_: ActionState, form: FormData): Promise<Ac
     const href = deleted.parentId ? `/contratos/${deleted.parentId}` : "/contratos";
     return form.get("from") === "list" ? { success } : { success, href };
   } catch (e) {
-    if (!(e instanceof Refusal)) console.error("[delete] contract failed", e);
+    // A query's error prints its values; the database's own code and index are enough.
+    if (!(e instanceof Refusal) && !logDatabaseFault("delete contract", e)) console.error("[delete] contract failed", e);
     return {
       error: e instanceof Refusal ? e.message : "Não foi possível excluir o contrato. Tente novamente.",
     };

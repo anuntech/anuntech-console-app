@@ -353,7 +353,7 @@ export const comecarContaArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "O primeiro botão, a esfera animada, abre o “Assistente”. Veja [O assistente do Console](/ajuda/assistente).",
+              "O primeiro botão, a esfera de pontos, abre o “Assistente”. Veja [O assistente do Console](/ajuda/assistente).",
               "Os ícones seguintes levam às áreas. O Membro vê “Visão geral”, “Projetos”, “Produtos e serviços”, “Chamados” e “Bookmarks”. O Administrador da empresa vê, nesta ordem: “Visão geral”, “Projetos”, “Produtos e serviços”, “Chamados”, “Financeiro”, “Bookmarks”, “Orçamentos” e “Contratos”.",
               "O último botão, com a sua foto ou avatar, abre o menu da conta.",
             ],
@@ -533,7 +533,7 @@ export const comecarContaArticles: HelpArticle[] = [
       { label: "Ler Como trabalhamos", href: "/como-trabalhamos" },
     ],
     related: ["visao-geral", "aparencia", "membro-ou-administrador", "assistente"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-16",
   },
   {
     slug: "visao-geral",

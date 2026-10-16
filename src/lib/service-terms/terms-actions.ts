@@ -6,6 +6,7 @@ import { auditEvents, companies, contractTemplates, contracts, engagements, serv
 import { synovaWithoutTerms } from "./terms-queries";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
 import { blankPolicy, presetForTemplate, presetPolicy, termsPresets } from "./presets";
 import { BUSINESS_DAY_MINUTES, type ServicePolicy } from "./terms-model";
@@ -236,6 +237,7 @@ export async function saveServiceTerms(_: ActionState, form: FormData): Promise<
     revalidatePath("/como-trabalhamos");
     return { success: v.verified ? "Condições salvas e conferidas." : "Condições salvas como rascunho. Elas só valem depois de conferidas com o contrato." };
   } catch (e) {
+    if (logDatabaseFault("service terms", e)) return { error: DATABASE_FAILURE };
     return { error: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error && e.message ? e.message : "Não foi possível salvar." };
   }
 }
@@ -314,6 +316,7 @@ export async function prepareServiceTerms(_: ActionState, form: FormData): Promi
       href: `/empresas/${row.contract.companyId}`,
     };
   } catch (e) {
+    if (logDatabaseFault("service terms", e)) return { error: DATABASE_FAILURE };
     return { error: e instanceof Error && e.message ? e.message : "Não foi possível preparar as condições." };
   }
 }
@@ -351,6 +354,7 @@ export async function prepareSynovaTerms(): Promise<ActionState> {
       ? { success: `${rows.length === 1 ? "1 rascunho criado" : `${rows.length} rascunhos criados`}. Confira cada um na página da empresa.` }
       : { success: "Todos os clientes do Synova já têm condições." };
   } catch (e) {
+    if (logDatabaseFault("service terms", e)) return { error: DATABASE_FAILURE };
     return { error: e instanceof Error && e.message ? e.message : "Não foi possível preparar as condições." };
   }
 }

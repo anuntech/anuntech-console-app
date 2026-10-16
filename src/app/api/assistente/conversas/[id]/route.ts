@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getActor } from "@/lib/access/access";
 import { conversationMessages, deleteConversation } from "@/lib/assistant/assistant-history";
+import { sameOrigin } from "@/lib/http/same-origin";
 export const runtime = "nodejs";
 
 const id = z.string().uuid();
@@ -15,7 +16,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return Response.json(conversation, { headers: { "Cache-Control": "no-store" } });
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+/** Deleting is a change: only the Console itself may ask. */
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!sameOrigin(request)) return new Response(null, { status: 403 });
   const actor = await getActor();
   const parsed = id.safeParse((await params).id);
   if (!parsed.success) return new Response(null, { status: 404 });

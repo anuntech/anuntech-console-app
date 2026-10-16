@@ -6,6 +6,7 @@ import { db } from "../db";
 import { getActor } from "../access/access";
 import { assistantDocuments, assistantSettings, auditEvents } from "@/db/schema";
 import type { ActionState } from "../action-state";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { DEFAULT_ASSISTANT_MODEL } from "./assistant";
 import { openRouterModels } from "./openrouter-models";
 import { KNOWLEDGE_DOCUMENT, limitLabel } from "../tickets/attachment-rules";
@@ -16,7 +17,13 @@ const MAX_DOCUMENT_BYTES = KNOWLEDGE_DOCUMENT.maxBytes;
 const tooLarge = `Cada documento pode ter até ${limitLabel(MAX_DOCUMENT_BYTES)}. Divida em partes.`;
 const refresh = () => revalidatePath("/configuracoes/assistente");
 const failure = (e: unknown, fallback: string): ActionState => ({
-  error: e instanceof z.ZodError ? e.issues[0].message : e instanceof Error && e.message ? e.message : fallback,
+  error: logDatabaseFault("assistant settings", e)
+    ? DATABASE_FAILURE
+    : e instanceof z.ZodError
+      ? e.issues[0].message
+      : e instanceof Error && e.message
+        ? e.message
+        : fallback,
 });
 
 /** Model id and the extra instructions; the built-in prompt stays in code. */
@@ -34,6 +41,8 @@ export async function saveAssistantSettings(_: ActionState, form: FormData): Pro
       })
       .parse({ model: form.get("model") ?? "", prompt: form.get("prompt") ?? "" });
     const model = input.model || DEFAULT_ASSISTANT_MODEL;
+    // Free variants are served by providers that log prompts to train on them: client data never goes there.
+    if (/:free$/i.test(model)) return { error: "Modelos gratuitos (:free) guardam o que recebem. Escolha um modelo pago." };
     // Anything the live catalog lists is fine (aliases start with "~"); otherwise the id must look like provider/model.
     const known = (await openRouterModels()).some((m) => m.id === model);
     if (!known && !/^~?[\w.\-]+\/[\w.\-:]+$/u.test(model))

@@ -121,7 +121,7 @@ export default async function Products({
         actions={
           actor.admin && (
             <Button asChild>
-              <Link href="/produtos/novo">
+              <Link href="/produtos/novo" data-assistant-action="">
                 <PlusIcon />
                 Vincular
               </Link>

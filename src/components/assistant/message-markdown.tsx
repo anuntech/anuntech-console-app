@@ -1,11 +1,13 @@
 "use client";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { linkTarget } from "@/lib/assistant/link-rules";
 
 /**
  * The little Markdown the assistant writes: paragraphs, bullet and numbered
- * lists, **bold**, `code` and [links](/relative). Relative links become
- * in-app navigation; absolute ones open in a new tab. No raw HTML, ever.
+ * lists, **bold**, `code` and [links](/relative). Console paths become
+ * in-app navigation; web addresses open in a new tab with their domain shown
+ * (lib/assistant/link-rules.ts). No raw HTML, ever.
  */
 export function MessageMarkdown({ text, onNavigate }: { text: string; onNavigate?: () => void }) {
   const blocks = text.replace(/\r\n?/g, "\n").split(/\n{2,}/);
@@ -81,17 +83,20 @@ function inline(text: string, onNavigate?: () => void): ReactNode {
 }
 
 function link(href: string, label: string, key: string, onNavigate?: () => void) {
-  const internal = href.startsWith("/") && !href.startsWith("//");
-  if (internal)
+  const target = linkTarget(href);
+  if (target.kind === "internal")
     return (
-      <Link key={key} href={href} onClick={onNavigate}>
+      <Link key={key} href={target.href} onClick={onNavigate}>
         {label}
       </Link>
     );
-  if (!/^https?:\/\//.test(href)) return <span key={key}>{label}</span>;
+  if (target.kind === "text") return <span key={key}>{label}</span>;
+  // A label can say anything; the domain beside it says where the click goes.
+  const showsAddress = label === href || label === target.host;
   return (
-    <a key={key} href={href} target="_blank" rel="noopener noreferrer">
+    <a key={key} href={target.href} target="_blank" rel="noopener noreferrer">
       {label}
+      {!showsAddress && <span className="font-normal text-muted-foreground"> ({target.host})</span>}
     </a>
   );
 }

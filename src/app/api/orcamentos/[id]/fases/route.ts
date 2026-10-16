@@ -5,6 +5,7 @@ import { getActor } from "@/lib/access/access";
 import { sameOrigin } from "@/lib/http/same-origin";
 import { reserveHourly } from "@/lib/http/hourly-limit";
 import { draftQuotePhases } from "@/lib/assistant/draft-phases";
+import { logDatabaseFault } from "@/lib/action-errors";
 
 /*
  * "Sugerir fases" on a draft proposal: phases, hours and tasks from the
@@ -32,6 +33,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     return respond(await draftQuotePhases({ title, summary }));
   } catch (error) {
-    return respond({ error: error instanceof Error ? error.message : "Não foi possível sugerir agora." }, 502);
+    return respond({ error: error instanceof Error && !logDatabaseFault("quote phases", error) ? error.message : "Não foi possível sugerir agora." }, 502);
   }
 }

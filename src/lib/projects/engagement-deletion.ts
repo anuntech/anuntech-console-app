@@ -20,6 +20,7 @@ import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { ENGAGEMENT_DELETE_REFUSAL, canDeleteEngagement } from "../deletion-rules";
 import { engagementLinks } from "../record-links";
+import { logDatabaseFault } from "../action-errors";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -116,7 +117,8 @@ export async function deleteEngagement(_: ActionState, form: FormData): Promise<
     }
     return { success };
   } catch (e) {
-    if (!(e instanceof Refusal)) console.error("[delete] engagement failed", e);
+    // A query's error prints its values; the database's own code and index are enough.
+    if (!(e instanceof Refusal) && !logDatabaseFault("delete engagement", e)) console.error("[delete] engagement failed", e);
     return {
       error: e instanceof Refusal ? e.message : "Não foi possível excluir. Tente novamente.",
     };
