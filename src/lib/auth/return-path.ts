@@ -4,15 +4,18 @@
  * that page sends them here when there is no session; after the code, Google
  * or the second step they land back on the app.
  *
+ * The Mac meeting-notes app does the same with /conectar/<challenge>, its
+ * connect page (lib/meetings).
+ *
  * The value comes from the URL, so it is an allowlist, not a sanitizer: one
- * Console path to an app (/abrir/<app id> or /apps/<product id>), nothing
- * else. No host, no "//", no backslash, no query, no fragment, no percent
+ * Console path to an app (/abrir/<app id>, /apps/<product id> or
+ * /conectar/<challenge>), nothing else. No host, no "//", no backslash, no query, no fragment, no percent
  * escapes, no dots. Anything that does not match is dropped and the person
  * goes to /painel as before.
  *
  * Pure: the sign-in pages, the client forms and the security plugin all use it.
  */
-const RETURN_PATH = /^\/(abrir|apps)\/[A-Za-z0-9-]{1,64}$/;
+const RETURN_PATH = /^\/(abrir|apps|conectar)\/[A-Za-z0-9-]{1,64}$/;
 
 /** The path to go to after signing in, or null when the value is not one we send people to. */
 export function safeReturnPath(value: unknown): string | null {

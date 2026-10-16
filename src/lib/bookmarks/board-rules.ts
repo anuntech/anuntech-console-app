@@ -58,15 +58,25 @@ export function parseBoard(json: string): BoardParse {
   return { board: parsed.data as BoardScene };
 }
 
-export type BookmarkKind = "link" | "file" | "board";
+/** "meeting" is a note from the Mac app (lib/meetings); it is never made from the sheet. */
+export type BookmarkKind = "link" | "file" | "board" | "meeting";
+/** What the sheet's "Tipo" offers. */
 export const bookmarkKinds = ["link", "file", "board"] as const;
 
-/** Which of the three a bookmark is, from what it stores. */
-export function kindOf(item: { url: string | null; fileName: string | null; board?: boolean | null }): BookmarkKind {
+/** Which kind a bookmark is, from what it stores. */
+export function kindOf(item: {
+  url: string | null;
+  fileName: string | null;
+  board?: boolean | null;
+  meeting?: unknown;
+}): BookmarkKind {
   if (item.board) return "board";
+  if (item.meeting && item.fileName) return "meeting";
   if (item.fileName) return "file";
   return "link";
 }
 
 /** Where a whiteboard opens. */
 export const boardHref = (id: string) => `/bookmarks/${id}/lousa`;
+/** Where a meeting note opens to be read. */
+export const meetingHref = (id: string) => `/bookmarks/${id}/reuniao`;

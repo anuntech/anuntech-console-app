@@ -1113,6 +1113,8 @@ export const bookmarks = pgTable(
     content: bytea("content"),
     board: jsonb("board"),
     preview: bytea("preview"),
+    /** A meeting note from the Mac app (lib/meetings): when it happened and how long; the Markdown is in `content`. */
+    meeting: jsonb("meeting"),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1121,6 +1123,32 @@ export const bookmarks = pgTable(
     index("console_bookmark_folder_idx").on(t.folderId),
     index("console_bookmark_company_idx").on(t.companyId),
   ],
+);
+/**
+ * An app outside the browser connected to a person's account: today only the
+ * Mac meeting-notes app (lib/meetings). While pending it holds the PKCE
+ * challenge and a one-time code; once connected, only the key's hash. The key
+ * acts as the person, with their access read again on every call.
+ */
+export const appConnections = pgTable(
+  "console_app_connections",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    app: text("app", { enum: ["reunioes"] }).notNull(),
+    device: text("device"),
+    challenge: text("challenge"),
+    codeHash: text("code_hash").unique(),
+    codeExpiresAt: timestamp("code_expires_at", { withTimezone: true }),
+    tokenHash: text("token_hash").unique(),
+    connectedAt: timestamp("connected_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: created(),
+  },
+  (t) => [index("console_app_connection_user_idx").on(t.userId)],
 );
 
 export const ticketUploads = pgTable("console_ticket_uploads", {

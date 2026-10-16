@@ -10,7 +10,7 @@ Nunca "verificar tudo". Cada área tem um auditor próprio, pessoa ou agente, qu
 
 | Área | O que cobre | Onde começar |
 | --- | --- | --- |
-| Autenticação e sessão | códigos por e-mail e WhatsApp, duas etapas, Google, sessões, volta depois de entrar, enumeração, CSRF | `lib/auth/`, `api/auth/`, `lib/access/assisted*`, `lib/access/email-actions.ts` |
+| Autenticação e sessão | códigos por e-mail e WhatsApp, duas etapas, Google, sessões, volta depois de entrar, enumeração, CSRF; a chave do app de reuniões do Mac (PKCE, código de uso único, revogação) | `lib/auth/`, `api/auth/`, `lib/access/assisted*`, `lib/access/email-actions.ts`, `lib/meetings/`, `api/reunioes/`, `app/conectar/` |
 | Autorização: financeiro e administração | IDOR entre empresas, Membro × Administrador × equipe, mass assignment | `lib/access/`, `lib/billing/`, `lib/contracts/`, `lib/quotes/`, `lib/companies/`, `api/boletos`, `api/contratos`, `api/orcamentos`, `pagar/` |
 | Autorização: atendimento e projetos | idem | `lib/tickets/`, `lib/projects/`, `lib/bookmarks/`, `lib/journeys/`, `lib/account/`, `api/anexos`, `api/chamados`, `api/assistente/conversas` |
 | Entrada e injeção | SQL, XSS, upload, SSRF, PDF, redirecionamento, validação, cabeçalhos | `sql\``, `execute(`, `href=`, `Content-Disposition`, `fetch(` |

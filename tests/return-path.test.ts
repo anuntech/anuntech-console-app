@@ -14,6 +14,7 @@ test("sign-in returns only to a Console path that opens an app", () => {
     "/abrir/brastemp-base-pendente",
     "/apps/3f1c2b9e-8a4d-4c1e-9b7a-0d2e5f6a7b8c",
     `/abrir/${"a".repeat(64)}`,
+    `/conectar/${"0f".repeat(32)}`,
   ])
     assert.equal(safeReturnPath(path), path, path);
 });
