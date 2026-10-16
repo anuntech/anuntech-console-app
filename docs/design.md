@@ -62,7 +62,7 @@ O azul-marinho e o amarelo são as tintas do logotipo, as mesmas do `anuntech/de
 
 ### Primitivos (`src/components/ui`)
 
-accordion (perguntas frequentes), alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `energy-orb` (esfera animada do assistente) e `metal-prompt-bar` (com `dictation`, mostra o microfone).
+accordion (perguntas frequentes), alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `ai-orb` (a esfera de pontos do assistente, sobre `thinking-orbs`; os estados e as frases ficam em `ai-orb-states.ts`) e `metal-prompt-bar` (com `dictation`, mostra o microfone).
 
 Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucide). Ajuste um primitivo só quando o ajuste vale para o Console inteiro.
 
@@ -91,7 +91,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 ### Moldura (`src/components/shell`)
 
 - **Dock** (`dock.tsx`): navegação principal, flutuante, com as áreas que a pessoa pode abrir, botão Criar, assistente e menu da conta. Posição escolhida em Aparência; no celular vira a barra de abas (`mobile-tab-bar.tsx`).
-- **Assistente:** botão com a esfera de energia; o painel abre ao lado do conteúdo em telas a partir de 1024 px e como diálogo abaixo disso. A esfera só anima enquanto o assistente trabalha.
+- **Assistente:** botão com a esfera de pontos (`ai-orb`); o painel abre ao lado do conteúdo em telas a partir de 1024 px e como diálogo abaixo disso. A esfera fica parada em repouso (digitar não conta como atividade) e anima só enquanto o assistente trabalha, com um desenho para cada passo (pensando, consultando o Console, lendo o que encontrou, escrevendo a resposta, ouvindo o microfone enquanto grava). Cada resultado tem forma própria, além da cor: terminou volta ao anel, erro é o triângulo vermelho parado, cartão esperando confirmação é o quadrado âmbar (formas fixadas com `opts.shape`, para nunca congelar no meio da troca). Erro e terminou ficam até a pessoa ver o painel e somem 4 s depois; o âmbar fica até o cartão ser decidido ou vencer (15 min). O botão descreve o estado para leitor de tela (`aria-describedby`); no celular, a linha "Perguntar ao assistente" mostra o estado embaixo do nome. A cor vem dos tokens (`--primary`, `--warning`, `--destructive`); na linha azul do celular, `--primary-foreground`. Movimento reduzido mostra um quadro parado.
 - `appearance-provider`, `notifications` (Toaster), `workspace-loading`, `support-trigger` (chat de suporte) e `brand`.
 
 ## Padrões de tela

@@ -6,8 +6,8 @@ import { createHash } from "node:crypto";
  * side (storage, nonce, execution) is in assistant-proposals.ts.
  */
 
-/** How long a card can be confirmed. */
-export const PROPOSAL_TTL_MS = 15 * 60 * 1000;
+/** How long a card can be confirmed (apart, so the panel in the browser reads it too). */
+export { PROPOSAL_TTL_MS } from "./proposal-ttl";
 
 /** JSON with the keys sorted at every depth: the same call always reads the same. */
 export function canonicalJson(value: unknown): string {
