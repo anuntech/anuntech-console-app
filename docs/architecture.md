@@ -216,5 +216,5 @@ Avisos também são processados logo após a ação, com `after()`; o cron garan
 
 ## Deploy
 
-- Vercel com integração Git: push em `main` publica em produção. O trabalho do dia acontece na branch `codex/bookmarks-ticket-modal` e é levado para `main`.
+- Vercel com integração Git: push em `main` publica em produção, mas o domínio só passa para o deploy novo depois que os jobs `verify`, `secrets` e `sast` do GitHub passam (Deployment Checks; ver [security.md](security.md#pipeline)). CI vermelho segura a produção no deploy anterior. O trabalho do dia acontece na branch `codex/bookmarks-ticket-modal` e é levado para `main`.
 - Variáveis de ambiente vivem na Vercel e, localmente, em `.env.local` (ignorado pelo Git). `.env.example` lista os nomes sem valores.
