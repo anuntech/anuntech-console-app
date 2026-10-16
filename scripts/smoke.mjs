@@ -516,6 +516,10 @@ try {
     ok(contextual.text.includes(`value="${ids.b}"`), "Equipe usa empresa do chamado em contexto");
     const forbiddenContext = await request(`/chamados/novo?companyId=${ids.b}`, "support");
     ok(!forbiddenContext.text.includes('name="subject"') && !forbiddenContext.text.includes(`QA Company B ${marker}`), "Contexto adulterado não abre empresa de outro cliente");
+    // Until the acceptance check further down, the FLW reports WhatsApp
+    // messages as still queued. The worker asks again 5 minutes after the
+    // provider accepts one; against a remote database the run gets there first.
+    flags({ approved: true, whatsappQueued: true });
     await submitForm("/chamados/novo", "support", "support", "subject", {
       companyId: ids.a,
       engagementId: "",
@@ -1871,6 +1875,8 @@ try {
       notices.every((n) => n.status === "accepted"),
       "Aceite do provedor é registrado sem afirmar entrega",
     );
+    // From here the FLW confirms delivery when the worker asks.
+    flags({ approved: true });
     const whatsappPayloads = sentNotices().filter(
       (n) => n.channel === "whatsapp",
     );
