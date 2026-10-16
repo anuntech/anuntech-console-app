@@ -111,6 +111,8 @@ export const auditLabels: Record<string, string> = {
   "hours.report_sent": "Relatório de horas enviado",
   "hours.report_contested": "Relatório de horas contestado",
   "ticket.estimate_proposed": "Estimativa enviada ao cliente",
+  "app.connected": "App de reuniões do Mac conectado",
+  "app.disconnected": "App de reuniões do Mac desconectado",
   "staff.granted": "Acesso de equipe concedido",
   "staff.revoked": "Acesso de equipe removido",
   "environment.updated": "Dados da Anuntech atualizados",
