@@ -17,6 +17,7 @@ import { describePage, openRecord, recordLine, type PageSnapshot, areaOfPath } f
 import { createProposal, type ProposalCard } from "./assistant-proposals";
 import { HELP_ARTICLES } from "../help/articles";
 import { BUDGET_CLOSING_NOTE, BUDGET_ENDED } from "./budget-rules";
+import type { TurnPhase } from "./activity";
 
 export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
@@ -39,8 +40,12 @@ export type AssistantReply = {
   /** Model tokens this answer spent (prompt + output, every round). */
   tokens?: number;
 };
-/** While a turn runs: what it has spent so far. */
-export type AssistantProgress = { tokens: number };
+/**
+ * While a turn runs: what it has spent so far, and where it is. "tools" when
+ * the model asked for tools that run now, "reading" when they ran and the next
+ * round reads what they returned, "answer" when the round wrote the reply.
+ */
+export type AssistantProgress = { tokens: number; phase: TurnPhase };
 
 /* ---------- settings ---------- */
 
@@ -415,7 +420,7 @@ export async function converse(
     const spent = closing || calls >= MAX_TOOL_CALLS;
     const turn = await complete(config.model, messages, spent ? [] : tools, { maxTokens: retried ? 6000 : 3000, reasoning });
     tokens += turn.tokens;
-    onProgress?.({ tokens });
+    onProgress?.({ tokens, phase: turn.toolCalls.length && !closing ? "tools" : "answer" });
     const over = spend ? await spend(turn.tokens) : false;
     if (closing) return done(turn.content || BUDGET_ENDED);
     if (!turn.toolCalls.length) {
@@ -496,6 +501,7 @@ export async function converse(
       if (outcome.actions) actions.push(...outcome.actions);
       answer(outcome.result);
     }
+    onProgress?.({ tokens, phase: "reading" });
     // The day's budget ran out in this round: its calls ran, and the next round only answers.
     if (over) {
       closing = true;
