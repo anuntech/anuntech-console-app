@@ -36,7 +36,7 @@ src/
                        produtos, bookmarks, painel, pagar, settings
   lib/
     <domínio>/         regras e server actions por assunto (lista abaixo)
-    db.ts, dates.ts, format.ts, list-query.ts, action-state.ts, actions.ts, utils.ts ...
+    db.ts, dates.ts, format.ts, list-query.ts, action-state.ts, action-errors.ts, actions.ts, utils.ts ...
   db/schema.ts         todas as tabelas
   proxy.ts             proxy do Next (antes chamado middleware)
 drizzle/               migrações versionadas e journal
@@ -96,10 +96,10 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
   - **Condições e banco de horas:** `service_terms` (condições de atendimento por empresa ou por vínculo, com versão, publicação e conferência), `time_entries` (horas da equipe), `hours_months` (aprovação além do banco e relatório do mês), `user_milestones` (guia lido, primeiros passos).
   - **Projetos:** `tasks`, `task_assignees`, `task_comments` (anexos em `attachments.comment_id`).
   - **Financeiro:** `invoices`, `subscriptions` (recorrências), `billing_notices`, `email_deliveries`.
-  - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures`, `contract_change_requests` (pedidos de alteração por cláusula e versão), `quotes`, `quote_versions`.
+  - **Documentos:** `contract_templates`, `contracts`, `contract_versions`, `contract_signatures` (uma por parte e versão, pelo hash do documento, migração 0042), `contract_change_requests` (pedidos de alteração por cláusula e versão), `quotes`, `quote_versions`.
   - **Jornadas:** `journeys` (projeto, empresa ou contato, pedido, orçamento, projeto, hospedagem, responsável, situação e briefing) e `journey_steps` (o que a equipe marcou em cada passo: situação, link, valor, data, anotação, responsável e o texto da IA guardado), migração 0039.
   - **Automação:** `cron_runs` (última execução e erro de cada rotina), `automation_events` (o que uma automação ou decisão já fez, único por tipo e registro: dívida encerrada ou cobrada de novo, alerta enviado com o id do Resend (`ops-mail`), convite enviado e reenviado (`invite.mail`, `invite.resend`), rascunho de vencimento perdido (`subscription.catchup`), registro mantido na Limpeza (`cleanup.keep`), reajuste preparado por contrato e aniversário (`contract.readjust`), fechamento do mês e IPCA do dia). Colunas de ligação `contracts.quote_id`, `quotes.ticket_id`, `engagements.quote_id`, `invoices.quote_id` e os interruptores em `environment_profile.automations` (migração 0038).
-  - **Outros:** `bookmarks` (um link em `url`, um arquivo em `file_name` + `content`, ou uma lousa: a cena do Excalidraw em `board` (jsonb) e o PNG do card em `preview`, migração 0040), `bookmark_folders`, `bookmark_folder_shares`, `notification_settings`, `notification_preferences`, `assistant_settings`, `assistant_documents`, `assistant_conversations`, `assistant_messages`, `assistant_proposals` (cartões de confirmação, migração 0042), `assistant_usage` (tokens e mensagens do dia por pessoa e por empresa, migração 0043), `audit_events`.
+  - **Outros:** `bookmarks` (um link em `url`, um arquivo em `file_name` + `content`, ou uma lousa: a cena do Excalidraw em `board` (jsonb) e o PNG do card em `preview`, migração 0040), `bookmark_folders`, `bookmark_folder_shares`, `notification_settings`, `notification_preferences`, `assistant_settings`, `assistant_documents`, `assistant_conversations`, `assistant_messages`, `assistant_proposals` (cartões de confirmação, migração 0043), `assistant_usage` (tokens e mensagens do dia por pessoa e por empresa, migração 0043), `audit_events`.
 - Valores em centavos (`integer`). Vencimentos são datas civis (`date`, `YYYY-MM-DD`), sem conversão de fuso; "hoje" é calculado em America/Sao_Paulo (`lib/dates.ts`).
 - Toda alteração relevante grava `audit_events` na mesma transação.
 - Migrações: `npm run db:generate` (drizzle-kit, precisa de `DATABASE_URL`) gera o SQL; o CI e os testes aplicam o journal inteiro num banco descartável. Em produção a aplicação segue o procedimento de [rules.md](rules.md#migrações-em-produção).
@@ -210,9 +210,15 @@ Avisos também são processados logo após a ação, com `after()`; o cron garan
 - A suíte de segurança (`scripts/security-smoke.mjs`) sobe o servidor na porta 3104; `CONSOLE_TEST_SECURITY_PORT` troca a porta.
 - Os mocks em `scripts/*-mock.cjs` substituem `fetch` no processo do servidor de teste. Nenhum código de aplicação os importa. A regressão carrega também `openrouter-mock.cjs`, que responde a transcrição pelos primeiros bytes do áudio (sucesso, falha do primeiro modelo, silêncio) e registra só modelo, formato e tamanho.
 - As suítes postam formulários pelo nome da server action (lido do manifesto do build), então não quebram quando um texto de botão muda.
-- GitHub Actions (`.github/workflows/checks.yml`) roda em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário.
+- GitHub Actions. Toda action é fixada por SHA (o comentário ao lado diz a versão), o checkout não guarda a credencial do Git (`persist-credentials: false`), cada job tem tempo máximo e só uma execução por branch fica ativa (a nova cancela a anterior, menos em `main`).
+  - `checks.yml` (job `verify`), em todo push e PR: lint, testes unitários, build e integração completa num Postgres 17 temporário (imagem fixada por digest).
+  - `security.yml`, em push em `main` e `codex/bookmarks-ticket-modal`, em PR, toda segunda às 9:23 UTC e à mão. Detalhes e regras de exceção em [security.md](security.md#pipeline).
+    - `dependencies`: `node scripts/audit-production.mjs` roda `npm audit --package-lock-only --omit=dev` e falha em aviso alto ou crítico fora de `.github/audit-allowlist.json`. Roda igual na máquina local.
+    - `secrets`: gitleaks no histórico inteiro com `.gitleaks.toml`.
+    - `sast`: Semgrep CE (`p/typescript`, `p/nextjs`, `p/secrets`) em `src` e `next.config.ts`.
+- Dependabot (`.github/dependabot.yml`): npm toda segunda, com versões menores e correções agrupadas em produção e desenvolvimento; actions uma vez por mês. Versão nova espera 7 dias antes de virar PR. A imagem do Semgrep, a do Postgres e o binário do gitleaks não são atualizados por ele: troca-se à mão, conferindo o digest ou o checksum na fonte.
 
 ## Deploy
 
-- Vercel com integração Git: push em `main` publica em produção. O trabalho do dia acontece na branch `codex/bookmarks-ticket-modal` e é levado para `main`.
+- Vercel com integração Git: push em `main` publica em produção, mas o domínio só passa para o deploy novo depois que os jobs `verify`, `secrets` e `sast` do GitHub passam (Deployment Checks; ver [security.md](security.md#pipeline)). CI vermelho segura a produção no deploy anterior. O trabalho do dia acontece na branch `codex/bookmarks-ticket-modal` e é levado para `main`.
 - Variáveis de ambiente vivem na Vercel e, localmente, em `.env.local` (ignorado pelo Git). `.env.example` lista os nomes sem valores.

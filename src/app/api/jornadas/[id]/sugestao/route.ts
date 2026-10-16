@@ -15,6 +15,7 @@ import {
   suggestMissingSteps,
   triageFeedback,
 } from "@/lib/journeys/journey-ai";
+import { logDatabaseFault } from "@/lib/action-errors";
 
 /*
  * The journey's AI drafts: briefing, project prompt, design direction,
@@ -106,6 +107,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return respond({ passos: await suggestMissingSteps(id, signal) });
     }
   } catch (error) {
-    return respond({ error: error instanceof Error ? error.message : "Não foi possível sugerir agora." }, 502);
+    return respond({ error: error instanceof Error && !logDatabaseFault("journey suggestion", error) ? error.message : "Não foi possível sugerir agora." }, 502);
   }
 }

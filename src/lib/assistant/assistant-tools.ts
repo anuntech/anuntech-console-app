@@ -42,6 +42,7 @@ import { extraTools } from "./assistant-tools-extra";
 import { HELP_ARTICLES } from "../help/articles";
 import { plainText } from "../help/help-model";
 import { searchHelp } from "../help/help-search";
+import { logDatabaseFault } from "../action-errors";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid"
@@ -1075,7 +1076,7 @@ export async function runParsed(ctx: ToolContext, def: AnyTool, input: Record<st
       console.warn("[assistant] tool refused", { tool: def.name, error: error.message });
       return { error: error.message };
     }
-    console.error(`[assistant] ${def.name} failed`, error);
+    if (!logDatabaseFault(`assistant ${def.name}`, error)) console.error(`[assistant] ${def.name} failed`, error);
     return { error: "A ferramenta falhou por um erro interno. Sugira tentar de novo ou falar com a equipe." };
   }
 }

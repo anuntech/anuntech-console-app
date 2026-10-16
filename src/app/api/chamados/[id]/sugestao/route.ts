@@ -2,6 +2,7 @@ import { getActor } from "@/lib/access/access";
 import { sameOrigin } from "@/lib/http/same-origin";
 import { reserveHourly } from "@/lib/http/hourly-limit";
 import { draftTicketReply } from "@/lib/assistant/draft-reply";
+import { logDatabaseFault } from "@/lib/action-errors";
 
 /*
  * "Sugerir resposta" in a ticket: the team gets a draft in the reply box and
@@ -23,6 +24,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     return respond({ text: await draftTicketReply(id) });
   } catch (error) {
-    return respond({ error: error instanceof Error ? error.message : "Não foi possível sugerir agora." }, 502);
+    return respond({ error: error instanceof Error && !logDatabaseFault("reply draft", error) ? error.message : "Não foi possível sugerir agora." }, 502);
   }
 }

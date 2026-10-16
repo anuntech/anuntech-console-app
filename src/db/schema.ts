@@ -325,7 +325,11 @@ export const contractChangeRequests = pgTable(
   },
   (t) => [index("console_contract_change_contract_idx").on(t.contractId, t.version)],
 );
-/** One row per party that signed, with the evidence that backs it. */
+/**
+ * One row per party that signed a version (its document hash), with the
+ * evidence that backs it. Sending a contract back to draft keeps the old
+ * version's signatures, and the next version is signed again by both parties.
+ */
 export const contractSignatures = pgTable(
   "console_contract_signatures",
   {
@@ -349,7 +353,7 @@ export const contractSignatures = pgTable(
   },
   (t) => [
     index("console_contract_signature_contract_idx").on(t.contractId),
-    uniqueIndex("console_contract_signature_party_unique").on(t.contractId, t.party),
+    uniqueIndex("console_contract_signature_version_party_unique").on(t.contractId, t.documentHash, t.party),
   ],
 );
 /** A commercial proposal: phases with hour ranges, an hourly rate and the payment split. */

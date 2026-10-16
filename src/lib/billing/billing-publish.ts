@@ -12,6 +12,7 @@ import { interApi, interBase, interToken, ProviderError } from "../integrations/
 import { payerAddress, bankReference } from "./billing-rules";
 import { billingReadiness } from "./billing-readiness";
 import { advanceSubscription } from "./billing-publication";
+import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 const uuid = z.string().uuid();
 export async function publishInvoice(
   id: string,
@@ -204,6 +205,7 @@ export async function publishInvoice(
           "A emissão não foi confirmada. A tentativa foi preservada para evitar duplicação. Consulte o Inter e informe o código da solicitação para reconciliar antes de criar outra cobrança.",
       };
     }
+    if (logDatabaseFault("billing publish", error)) return { error: DATABASE_FAILURE };
     return {
       error:
         error instanceof z.ZodError

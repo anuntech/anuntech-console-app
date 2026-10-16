@@ -8,6 +8,7 @@ import { saoPauloDate } from "../dates";
 import { db } from "../db";
 import { quoteDeletionBlock } from "../deletion-rules";
 import { quoteNumberLabel, quoteTotals } from "./quote-model";
+import { logDatabaseFault } from "../action-errors";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -88,7 +89,8 @@ export async function deleteQuote(_: ActionState, form: FormData): Promise<Actio
     const success = `Orçamento nº ${deleted.number} excluído.`;
     return form.get("from") === "list" ? { success } : { success, href: "/orcamentos" };
   } catch (e) {
-    if (!(e instanceof Refusal)) console.error("[delete] quote failed", e);
+    // A query's error prints its values; the database's own code and index are enough.
+    if (!(e instanceof Refusal) && !logDatabaseFault("delete quote", e)) console.error("[delete] quote failed", e);
     return {
       error: e instanceof Refusal ? e.message : "Não foi possível excluir o orçamento. Tente novamente.",
     };

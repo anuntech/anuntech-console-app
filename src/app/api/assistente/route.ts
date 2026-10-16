@@ -7,6 +7,7 @@ import { attachProposals } from "@/lib/assistant/assistant-proposals";
 import { reserveTurn, spendTokens } from "@/lib/assistant/assistant-budget";
 import { reserveHourly } from "@/lib/http/hourly-limit";
 import { isJson, sameOrigin } from "@/lib/http/same-origin";
+import { logDatabaseFault } from "@/lib/action-errors";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
@@ -82,7 +83,8 @@ export async function POST(request: Request) {
           );
         send({ type: "done", ...reply, conversationId });
       } catch (error) {
-        if (!(error instanceof AssistantError)) console.error("[assistant] turn failed", error);
+        if (!(error instanceof AssistantError) && !logDatabaseFault("assistant turn", error))
+          console.error("[assistant] turn failed", error);
         send({
           type: "error",
           error: error instanceof AssistantError ? error.message : "O assistente falhou nesta resposta. Tente de novo em instantes.",

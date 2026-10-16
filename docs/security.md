@@ -23,10 +23,10 @@ Quando rodar: em toda mudança de autenticação, acesso, cobrança ou assistent
 
 | Verificação | Ferramenta | Situação |
 | --- | --- | --- |
-| Dependências | `npm audit --omit=dev`, falhando em alta ou crítica que não esteja na lista de exceções com prazo; Dependabot semanal | proposto (YAML no fim) |
-| Segredos | gitleaks no histórico inteiro a cada push | proposto |
-| Análise estática (SAST) | Semgrep CE (`p/typescript`, `p/nextjs`, `p/secrets`). O CodeQL exige plano pago em repositório privado | proposto |
-| Deploy | Deployment Checks da Vercel exigindo `Checks` e `Security` antes de promover para produção | proposto |
+| Dependências | `npm audit --omit=dev`, falhando em alta ou crítica que não esteja na lista de exceções com prazo; Dependabot semanal | ativo (`security.yml`, job `dependencies`; vermelho até H1, H2 e o source-map-js serem corrigidos) |
+| Segredos | gitleaks no histórico inteiro a cada push | ativo (`security.yml`, job `secrets`) |
+| Análise estática (SAST) | Semgrep CE (`p/typescript`, `p/nextjs`, `p/secrets`). O CodeQL exige plano pago em repositório privado | ativo (`security.yml`, job `sast`) |
+| Deploy | Deployment Checks da Vercel exigindo `Checks` e `Security` antes de promover para produção | em parte: `verify`, `secrets` e `sast` ativos desde 16/10/2026; `dependencies` espera ficar verde (ver [Pipeline](#pipeline)) |
 
 ### 3. Guardrails da IA
 
@@ -52,7 +52,7 @@ Base: `origin/main` em `93d2cb7`. Seis auditores, um por área, só leitura, mai
 
 ### Alta: corrigir primeiro
 
-H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (worktree `anuntech-console-security-fixes`, 3 commits sobre `93d2cb7`), com testes e ainda não publicados. H4 a H6 e M1 a M4 foram corrigidos no branch `fix/assistant-guardrails` (worktree `anuntech-console-ai-guardrails`, sobre `93d2cb7`), com testes e ainda não publicados; as migrações 0042 e 0043 precisam ir para produção antes.
+H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (worktree `anuntech-console-security-fixes`, 3 commits sobre `93d2cb7`), com testes e ainda não publicados. H4 a H6 e M1 a M4 foram corrigidos no branch `fix/assistant-guardrails` (worktree `anuntech-console-ai-guardrails`, sobre `93d2cb7`), com testes e ainda não publicados; a migração 0043 precisa ir para produção antes.
 
 **H1. Next 16.3.5 com avisos críticos e altos.** `package.json`.
 - Avisos: GHSA-vcvr-r3jv-pc5j (RCE em `next/og`, que o Console não importa), SSRF no otimizador de imagem, envenenamento de cache e vazamento em rotas de imagem de metadados.
@@ -97,7 +97,7 @@ H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (workt
   - se o Jev falhar, bloquear (fail-closed);
   - uma aprovação por chamada, ligada à ferramenta e aos argumentos;
   - execução só por um cartão de confirmação no painel.
-- **Corrigido em 16/10/2026** (`fix/assistant-guardrails`, não publicado). Nenhuma escrita roda dentro da vez: cada chamada vira uma proposta em `console_assistant_proposals` (migração 0042) com o hash da ferramenta e dos argumentos, nonce guardado como hash, prazo de 15 minutos e dona. Só `POST /api/assistente/propostas/[id]` executa (mesma origem, JSON, nonce), uma vez, conferindo o hash e o acesso. O "sim" simples (`assistant-consent.ts`) e a aprovação pelo Jev foram removidos. Integração: Jev fora do ar, nonce errado, outra pessoa, segundo clique, cartão vencido, descartado e argumentos alterados.
+- **Corrigido em 16/10/2026** (`fix/assistant-guardrails`, não publicado). Nenhuma escrita roda dentro da vez: cada chamada vira uma proposta em `console_assistant_proposals` (migração 0043) com o hash da ferramenta e dos argumentos, nonce guardado como hash, prazo de 15 minutos e dona. Só `POST /api/assistente/propostas/[id]` executa (mesma origem, JSON, nonce), uma vez, conferindo o hash e o acesso. O "sim" simples (`assistant-consent.ts`) e a aprovação pelo Jev foram removidos. Integração: Jev fora do ar, nonce errado, outra pessoa, segundo clique, cartão vencido, descartado e argumentos alterados.
 
 **H6. O assistente clica em qualquer botão da tela.** `components/assistant/page-bridge.ts:124-191`.
 - Causa: `clicar_na_tela` clica no primeiro botão ou link visível que tenha o texto, primeiro exato e depois **por trecho**. `preencher_tela` preenche qualquer campo de qualquer formulário, marca checkbox e envia.
@@ -127,7 +127,7 @@ H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (workt
 | M11 | Upload em partes aceita partes de 1 byte; cada parte relê e regrava até 20 MB no banco. Não há limite por hora | `app/api/chamados/uploads/route.ts:74-121` | Partes de exatamente 1 MB (exceto a última), `reserveHourly` no POST |
 | M12 | Widget de terceiro (`cdn.wts.chat`) sem SRI em todas as páginas, inclusive `/pagar`, `/entrar` e telas da equipe. A CSP não tem `script-src` nem `connect-src`, e não há HSTS explícito | `app/layout.tsx:34-43`, `next.config.ts:24-37` | Widget só onde precisa e fora de `/pagar`; CSP com nonce começando em Report-Only; HSTS |
 | M13 | O runtime conecta ao banco com permissão de DDL e as migrações rodam por rota HTTP temporária. Em 24/09 houve rotas sem token em produção (UPDATE de fatura, resumo financeiro); já foram removidas | `lib/db.ts`, `docs/rules.md` (Migrações em produção) | Papéis `console_migrator` (DDL) e `console_app` (DML, sem DELETE em `audit_events`); migrar com `drizzle-kit migrate` num branch do Neon |
-| M14 | Nada impede o deploy com CI vermelho; Dependabot e as correções automáticas estão desligados; actions não estão fixadas por SHA | `.github/workflows/checks.yml`, Vercel | Deployment Checks na Vercel, Dependabot, `security.yml` abaixo |
+| M14 | Nada impede o deploy com CI vermelho; Dependabot e as correções automáticas estão desligados; actions não estão fixadas por SHA | `.github/workflows/checks.yml`, Vercel | No repositório, feito: `security.yml`, `dependabot.yml`, actions e imagens fixadas ([Pipeline](#pipeline)). Fora dele, em 16/10/2026: alertas e correções do Dependabot, só actions da GitHub com SHA obrigatório, e `verify`, `secrets` e `sast` exigidos na Vercel. Falta: `dependencies` na Vercel, quando ficar verde |
 
 ### Baixa
 
@@ -164,102 +164,53 @@ H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (workt
 - **Domínio:** quais subdomínios de `anuntech.com` existem (pesa em M1).
 - **Comportamento real:** nenhum teste dinâmico foi feito. Como o modelo reage à injeção (H4) é provável, não demonstrado.
 
-### Pipeline proposto
+## Pipeline
 
-Fixar `checkout`, `setup-node`, a imagem do Semgrep e o binário do gitleaks por SHA ou checksum na hora de implementar, conferindo na fonte. O `npm audit` falha até H1 e H2 serem corrigidos. As exceções são da árvore do Excalidraw, que roda só no navegador e não tem correção sem quebrar a versão.
+O que o M14 pôs no repositório. Os arquivos são a fonte; aqui ficam as regras para mexer neles.
 
-`.github/workflows/security.yml`
+| Arquivo | O que faz |
+| --- | --- |
+| `.github/workflows/security.yml` | Jobs `dependencies`, `secrets` e `sast`, em push em `main` e `codex/bookmarks-ticket-modal`, em PR, toda segunda às 9:23 UTC (aviso novo aparece sem mudança no código) e à mão |
+| `scripts/audit-production.mjs` | O `npm audit` de produção com as exceções. `node scripts/audit-production.mjs` roda igual na máquina local |
+| `.github/audit-allowlist.json` | Exceções do `npm audit` |
+| `.gitleaks.toml` | Regras padrão do gitleaks e a exceção dos hashes das rotas one-shot |
+| `.github/dependabot.yml` | npm toda segunda (menores e correções agrupadas), actions uma vez por mês; versão nova espera 7 dias |
+| `.github/workflows/checks.yml` | Lint, testes, build e integração, com o mesmo endurecimento |
 
-```yaml
-name: Security
-on:
-  push:
-    branches: [main, codex/bookmarks-ticket-modal]
-  pull_request:
-  schedule:
-    - cron: "23 9 * * 1"
-  workflow_dispatch:
-permissions:
-  contents: read
-concurrency:
-  group: security-${{ github.ref }}
-  cancel-in-progress: true
-jobs:
-  dependencies:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
-        with: { node-version: 24 }
-      - name: npm audit (produção, alta ou crítica, exceções com prazo)
-        run: |
-          npm audit --package-lock-only --omit=dev --json > audit.json || true
-          node -e '
-            const fs = require("fs");
-            const audit = JSON.parse(fs.readFileSync("audit.json", "utf8"));
-            if (!audit.metadata) { console.log("npm audit falhou"); process.exit(1); }
-            const allow = JSON.parse(fs.readFileSync(".github/audit-allowlist.json", "utf8"));
-            const today = new Date().toISOString().slice(0, 10);
-            const open = new Set();
-            for (const v of Object.values(audit.vulnerabilities ?? {}))
-              for (const via of v.via)
-                if (typeof via === "object" && ["high", "critical"].includes(via.severity)) {
-                  const id = via.url.split("/").pop();
-                  if (!(allow[id] >= today)) open.add(`${via.severity} ${v.name} ${id} ${via.title}`);
-                }
-            if (open.size) { console.log([...open].join("\n")); process.exit(1); }'
-  secrets:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0, persist-credentials: false }
-      - name: gitleaks
-        run: |
-          curl -sSfL -o /tmp/gl.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
-          tar -xzf /tmp/gl.tgz -C /tmp gitleaks
-          /tmp/gitleaks git --config .gitleaks.toml --redact --no-banner --exit-code 1 .
-  sast:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    container:
-      image: semgrep/semgrep
-    steps:
-      - uses: actions/checkout@v4
-        with: { persist-credentials: false }
-      - run: semgrep scan --metrics=off --error --config p/typescript --config p/nextjs --config p/secrets src next.config.ts
-```
+Os dois workflows têm `permissions: contents: read`, checkout com `persist-credentials: false`, `timeout-minutes` em cada job e `concurrency` por branch (a execução nova cancela a anterior, menos em `main`).
 
-`.gitleaks.toml`
+**Versões fixadas**, conferidas na fonte em 16/10/2026:
 
-```toml
-[extend]
-useDefault = true
-[[allowlists]]
-description = "SHA-256 dos tokens das rotas one-shot já removidas"
-regexTarget = "line"
-regexes = ['''TOKEN_SHA256 = "[a-f0-9]{64}"''']
-```
+| O quê | Versão | Fixado por | Onde conferir |
+| --- | --- | --- | --- |
+| `actions/checkout` | v7.0.1 | commit `3d3c42e5aac5ba805825da76410c181273ba90b1`, assinado | `gh api repos/actions/checkout/commits/v7.0.1` |
+| `actions/setup-node` | v7.1.0 | commit `949feb2413d6458794dcd2491c4babbbce0c15c1`, assinado | `gh api repos/actions/setup-node/commits/v7.1.0` |
+| gitleaks | 8.30.1 | SHA-256 do `linux_x64.tar.gz`, conferido por `sha256sum --check` antes de rodar | `gitleaks_8.30.1_checksums.txt` no release |
+| Semgrep | 1.180.0, o `latest` do dia | digest do índice multiplataforma | Docker Hub e `registry-1.docker.io` |
+| Postgres do CI | 17.11 | digest do índice multiplataforma | Docker Hub e `registry-1.docker.io` |
 
-`.github/dependabot.yml`
+O Dependabot atualiza as actions (SHA e comentário juntos). Semgrep, Postgres e gitleaks são trocados à mão: pegar a versão nova, conferir o digest ou o checksum na fonte e atualizar o workflow e esta tabela.
 
-```yaml
-version: 2
-updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule: { interval: weekly, day: monday, time: "06:00", timezone: America/Sao_Paulo }
-    open-pull-requests-limit: 5
-    groups:
-      prod-minor-patch: { dependency-type: production, update-types: [minor, patch] }
-      dev-minor-patch: { dependency-type: development, update-types: [minor, patch] }
-  - package-ecosystem: github-actions
-    directory: /
-    schedule: { interval: monthly }
-```
+**Exceções do `npm audit`.** Cada uma tem id do aviso, pacote, caminho e prazo, e só vale para aquele pacote. Vencido o prazo, o job volta a falhar; exceção que não casa mais com nenhum aviso aparece no log para sair da lista. Só entra aviso sem correção que não quebre a versão. Hoje são os da árvore do `@excalidraw/excalidraw`, até 31/12/2026: braces (GHSA-vfj7-8cjw-p6xm), lodash-es (GHSA-r5fr-rjxr-66jc) e as duas cópias antigas de nanoid (GHSA-28wg-ghj8-5hjv, GHSA-2v37-7h3g-55p8, GHSA-xwg4-73v4-xw9w). O Excalidraw roda só no navegador (`next/dynamic`, sem SSR), e a única correção que o npm oferece é voltar para a 0.17.6.
 
-Fora do repositório:
-- **GitHub:** ligar Dependabot alerts e security updates; em Actions, aceitar só ações da GitHub e exigir SHA.
-- **Vercel:** Deployment Checks exigindo `Checks` e `Security`.
+**Vermelho hoje.** O job `dependencies` falha até estes três saírem:
+- H1: `next` 16.3.5 (GHSA-vcvr-r3jv-pc5j, crítica; GHSA-cjq9-62q9-8jv4, alta).
+- H2: `sharp` 0.35.4 (GHSA-wq5f-xc86-pv6w, alta).
+- `source-map-js` 1.2.1 (GHSA-68fv-2mgg-jv7q, alta, negação de serviço ao ler source map). Vem do `postcss` do Next e do `sass` do Excalidraw, então não é exceção. A 1.2.2 cabe nas faixas dos dois: `npm update source-map-js`.
+
+**gitleaks.** A única exceção são as linhas `TOKEN_SHA256 = "<64 hex>"` em `src/app/api/admin/<nome>-<12 hex>/route.ts`: as rotas one-shot de migração e de diagnóstico guardam só o hash do token, nunca o token, e saem de `main` depois de usadas. Fora desse caminho, o mesmo padrão volta a ser achado.
+
+**Semgrep.** A imagem roda com `docker run` no runner, e não como `container:` do job, para o `actions/checkout` (Node 24) não precisar rodar dentro da imagem Alpine. Usa `--metrics=off`; as regras vêm do registro do Semgrep na hora. Varre só `src` e `next.config.ts`, porque os scripts de teste usam `http://localhost` e as regras marcam isso.
+
+**Fora do repositório.** Sem branch protection (GitHub Free em repositório privado), o bloqueio do deploy fica na Vercel. Situação em 16/10/2026. No primeiro deploy com o `verify` exigido (a72b07a), a Vercel esperou o job do GitHub terminar (cerca de 3 minutos) e só então pôs o deploy em `console.anuntech.com`.
+
+| Onde | O quê | Situação |
+| --- | --- | --- |
+| GitHub, Settings → Code security | Dependabot alerts e Dependabot security updates. O `dependabot.yml` só cuida das atualizações de versão; os PRs de correção de segurança dependem desses interruptores | ligado |
+| GitHub, Settings → Actions → General (no repositório) | Só actions criadas pela GitHub ou pela própria organização. Feito no repositório, não na organização, para não afetar os outros repositórios | ligado |
+| GitHub, Settings → Actions → General (no repositório) | Exigir SHA completo nas actions | ligado. Branch que ainda tem o `checks.yml` antigo (`@v4`) falha no início do job até puxar `main`; nos PRs do Dependabot, comentar `@dependabot rebase` |
+| Vercel, Settings → Deployment Checks | `Checks / verify`: o check `verify` do GitHub bloqueia o domínio de produção (`deployment-alias`, só `production`, tempo máximo de 30 min) | ligado (`chk_2e0ba2f0-590e-448a-acf5-b8102bff6e9b`) |
+| Vercel, Settings → Deployment Checks | `Security / secrets` e `Security / sast`, iguais ao `verify` | ligado (`chk_aea768ae-68d0-41b9-a06b-8f1ddc9f8a6c`, `chk_e9f3e74a-1187-4cc6-9261-37739b41b164`) |
+| Vercel, Settings → Deployment Checks | `dependencies` | esperando: só depois que ficar verde (H1, H2 e source-map-js). Depois disso, um aviso novo deixa o job vermelho mesmo sem mudança no código, e o deploy seguinte espera a correção ou uma exceção com prazo |
+
+Os checks da Vercel são criados com `vercel project checks add anuntech-console --file <json>`, com `"source": { "kind": "git-provider", "provider": "github", "externalCheckName": "<job>" }`, `"blocks": "deployment-alias"`, `"targets": ["production"]` e `"timeout": 1800`. Um check que travar a produção sem motivo sai com `vercel project checks remove <id>`. Os checks nativos `Lint` e `TypeCheck` existem desde antes e não bloqueiam nada.

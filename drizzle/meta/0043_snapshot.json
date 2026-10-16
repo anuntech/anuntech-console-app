@@ -1,6 +1,6 @@
 {
-  "id": "b595accb-0ac2-45f8-a133-62ca8c01c08a",
-  "prevId": "e489e4a2-b3af-483f-b709-84e6cff16305",
+  "id": "31cc4fe8-27d7-486d-8c42-17cfdd1291f6",
+  "prevId": "2eba72b4-0b8c-4854-8e30-72b326f7b5cb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2234,11 +2234,17 @@
           "method": "btree",
           "with": {}
         },
-        "console_contract_signature_party_unique": {
-          "name": "console_contract_signature_party_unique",
+        "console_contract_signature_version_party_unique": {
+          "name": "console_contract_signature_version_party_unique",
           "columns": [
             {
               "expression": "contract_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "document_hash",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
