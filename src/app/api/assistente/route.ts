@@ -4,6 +4,7 @@ import { AssistantError, converse, HOURLY_MESSAGES, type ChatTurn } from "@/lib/
 import { pageSnapshotSchema } from "@/lib/assistant/page-snapshot";
 import { appendExchange, conversationTurns } from "@/lib/assistant/assistant-history";
 import { attachProposals } from "@/lib/assistant/assistant-proposals";
+import { reserveTurn, spendTokens } from "@/lib/assistant/assistant-budget";
 import { reserveHourly } from "@/lib/http/hourly-limit";
 import { isJson, sameOrigin } from "@/lib/http/same-origin";
 export const runtime = "nodejs";
@@ -21,7 +22,9 @@ const body = z.object({
  * One conversational turn; the caller's own session scopes every tool.
  * Only the Console itself may ask (Origin and a JSON body: a form from another
  * site can do neither), and earlier turns are read from the conversation the
- * person owns, never from what the browser sends.
+ * person owns, never from what the browser sends. Besides the hourly limit,
+ * the day's budget (tokens per person and per company, messages per company)
+ * can refuse the message, and each round's tokens are counted as they come.
  * The answer streams as NDJSON: `progress` lines with the tokens spent so far,
  * then one `done` line with the reply (or `error`). Refusals before the turn
  * starts stay plain JSON with their status.
@@ -41,6 +44,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: "Não foi possível ler a mensagem. Envie de novo." }, { status: 400 });
   if (!(await reserveHourly("assistant", actor.user.id, HOURLY_MESSAGES)))
     return Response.json({ error: "Muitas mensagens nesta hora. Espere um pouco e tente de novo." }, { status: 429 });
+  const turn = await reserveTurn(actor);
+  if ("error" in turn) return Response.json({ error: turn.error }, { status: 429 });
   // Reading the screen is a bonus: a snapshot that does not fit is dropped, the message still goes.
   const screen = parsed.data.page === undefined ? null : pageSnapshotSchema.safeParse(parsed.data.page);
   if (screen && !screen.success) console.warn("[assistant] screen snapshot refused", screen.error.issues.slice(0, 3));
@@ -60,7 +65,13 @@ export async function POST(request: Request) {
         }
       };
       try {
-        const reply = await converse(actor, history, page, (progress) => send({ type: "progress", ...progress }));
+        const reply = await converse(
+          actor,
+          history,
+          page,
+          (progress) => send({ type: "progress", ...progress }),
+          (tokens) => spendTokens(turn.budget, tokens),
+        );
         const conversationId = await appendExchange(actor.user.id, parsed.data.conversationId ?? null, message, reply).catch((error) => {
           console.warn("[assistant] history not saved", error instanceof Error ? error.message : error);
           return parsed.data.conversationId ?? null;

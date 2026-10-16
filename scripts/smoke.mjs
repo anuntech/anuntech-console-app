@@ -2207,6 +2207,7 @@ try {
   // The assistant's cards and conversations point at people (messages go with their conversation).
   for (const table of ["console_assistant_proposals", "console_assistant_conversations"])
     await database.query(`delete from ${table} where user_id=any($1::text[])`, [Object.values(people).map((p) => p.id)]);
+  await database.query("delete from console_assistant_usage where subject_id=any($1::text[])", [[...Object.values(people).map((p) => p.id), ...companyIds]]);
   await database.query("delete from console_user where id=any($1::text[])", [
     Object.values(people).map((p) => p.id),
   ]);

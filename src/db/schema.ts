@@ -502,6 +502,25 @@ export const assistantProposals = pgTable(
   },
   (t) => [index("console_assistant_proposal_user_idx").on(t.userId, t.createdAt)],
 );
+/**
+ * What the assistant spent per day (São Paulo calendar day): one row per
+ * person and one per company. No foreign keys, so a day's count outlives the
+ * person or company it belongs to.
+ */
+export const assistantUsage = pgTable(
+  "console_assistant_usage",
+  {
+    kind: text("kind", { enum: ["person", "company"] }).notNull(),
+    /** The user id or the company id. */
+    subjectId: text("subject_id").notNull(),
+    day: date("day").notNull(),
+    /** Model tokens, prompt and output, every round. */
+    tokens: integer("tokens").notNull().default(0),
+    messages: integer("messages").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.subjectId, t.day] })],
+);
 /** What Anuntech offers, defined once; companies get linked to items. */
 export const catalogItems = pgTable("console_catalog_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

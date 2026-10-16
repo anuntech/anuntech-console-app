@@ -16,6 +16,7 @@ import { modelSupportsReasoning } from "./openrouter-models";
 import { describePage, openRecord, recordLine, type PageSnapshot, areaOfPath } from "./page-snapshot";
 import { createProposal, type ProposalCard } from "./assistant-proposals";
 import { HELP_ARTICLES } from "../help/articles";
+import { BUDGET_CLOSING_NOTE, BUDGET_ENDED } from "./budget-rules";
 
 export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
@@ -328,13 +329,16 @@ const screenTools = new Set(["preencher_tela", "clicar_na_tela"]);
  * One turn of the conversation: the model answers, calling tools (at most
  * MAX_TOOL_CALLS). Reads run with the caller's own permissions, narrowed to
  * one company once the turn has read text someone else wrote. Writes never
- * run here: each becomes a confirmation card the person clicks.
+ * run here: each becomes a confirmation card the person clicks. `spend` gets
+ * each round's tokens and says when the day's budget ran out: the turn then
+ * gets one last round, without tools, to answer with what it has.
  */
 export async function converse(
   actor: Actor,
   history: ChatTurn[],
   page?: PageSnapshot,
   onProgress?: (progress: AssistantProgress) => void,
+  spend?: (tokens: number) => Promise<boolean>,
 ): Promise<AssistantReply> {
   const config = await assistantConfig();
   let tools = toolCatalog(actor);
@@ -365,6 +369,7 @@ export async function converse(
   let calls = 0;
   let clicked = false;
   let tokens = 0;
+  let closing = false;
   const done = (reply: string): AssistantReply => ({ reply, tokens, steps: collapse(noted), actions, proposals });
 
   // Jev reads the intent first: the obvious cases end here, the rest reaches the model with a hint.
@@ -407,12 +412,15 @@ export async function converse(
   // The executor refuses anything the model was not offered for this message.
   const offered = new Set(tools.map((t) => t.function.name));
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const spent = calls >= MAX_TOOL_CALLS;
+    const spent = closing || calls >= MAX_TOOL_CALLS;
     const turn = await complete(config.model, messages, spent ? [] : tools, { maxTokens: retried ? 6000 : 3000, reasoning });
     tokens += turn.tokens;
     onProgress?.({ tokens });
+    const over = spend ? await spend(turn.tokens) : false;
+    if (closing) return done(turn.content || BUDGET_ENDED);
     if (!turn.toolCalls.length) {
       if (turn.content) return done(turn.content);
+      if (over) return done(BUDGET_ENDED);
       if (!retried) {
         // Nothing came back (usually the budget went to reasoning): ask once more, plainly.
         retried = true;
@@ -487,6 +495,11 @@ export async function converse(
       noted.set(outcome.summary, (noted.get(outcome.summary) ?? 0) + 1);
       if (outcome.actions) actions.push(...outcome.actions);
       answer(outcome.result);
+    }
+    // The day's budget ran out in this round: its calls ran, and the next round only answers.
+    if (over) {
+      closing = true;
+      messages.push({ role: "system", content: BUDGET_CLOSING_NOTE });
     }
   }
   return done("Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?");

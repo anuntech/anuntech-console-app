@@ -126,6 +126,9 @@ function decide(messages) {
         return `- ${JSON.stringify(row).slice(0, 200)}`;
       })
       .join("\n");
+  // The day's budget ran out mid-answer (M3): the last round answers in text with what the tools brought.
+  if (messages.at(-1)?.role === "system" && messages.at(-1).content.includes("limite de uso do assistente de hoje acabou"))
+    return reply(`Parei aqui: o limite de hoje acabou.\n\n${summarize()}`);
   // A model fooled by text it read (H4): the "internal procedure" in a ticket asks for another company and an invite.
   const target = messages
     .filter((m) => m.role === "tool" || m.role === "user")

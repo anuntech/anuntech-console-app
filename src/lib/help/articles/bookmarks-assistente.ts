@@ -544,6 +544,8 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       "nova conversa",
       "jev",
       "preencher formulario",
+      "limite do assistente",
+      "tokens",
     ],
     sections: [
       {
@@ -723,6 +725,18 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               {
                 term: "Muitas mensagens",
                 text: "Até 60 mensagens por hora. Acima disso, aparece “Muitas mensagens nesta hora. Espere um pouco e tente de novo.”.",
+              },
+              {
+                term: "Uso por dia",
+                text: "Cada pessoa usa até 400 mil tokens por dia, e cada empresa, somando todas as pessoas dela, até 1 milhão. O painel mostra quanto cada resposta gastou, como “9 s · 30 mil tokens”. Quem tem acesso a mais de uma empresa gasta do limite de todas elas. No limite, aparece “Você usou todo o limite do assistente de hoje. Ele volta a responder à meia-noite, horário de Brasília.”, ou o mesmo aviso com o nome da empresa.",
+              },
+              {
+                term: "Mensagens por empresa",
+                text: "Até 300 mensagens por dia em cada empresa, somando todas as pessoas. Acima disso, aparece “A empresa … chegou a 300 mensagens no assistente hoje, o limite do dia.”.",
+              },
+              {
+                term: "Limite no meio da resposta",
+                text: "Se o limite do dia acabar enquanto ele trabalha, ele responde com o que já consultou e avisa que volta à meia-noite.",
               },
               {
                 term: "Consultas por resposta",

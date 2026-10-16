@@ -11,8 +11,9 @@ import { readFileSync } from "node:fs";
  * - text a client wrote reaches the model wrapped, and after it the turn reads
  *   only that company: a ticket cannot steer the team's assistant elsewhere;
  * - clicks only on controls the page marked, fills only in the snapshot's form;
- * - at most 12 tool calls per answer, a stop at 402, and every call asks for
- *   providers that keep nothing.
+ * - at most 12 tool calls per answer, a stop at 402, a daily budget of tokens
+ *   per person and per company (and of messages per company), and every call
+ *   asks for providers that keep nothing.
  */
 export async function runAssistantTests({ database: db, ids, people, request, ok, marker, base, flags, openRouterFile }) {
   const json = { Origin: base, "Content-Type": "application/json" };
@@ -166,6 +167,93 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   ok(!!r.done && r.done.reply.includes("Limite de 12"), "No máximo 12 chamadas de ferramenta por resposta");
   r = await ask("admin", { message: "sem-creditos" });
   ok(!!r.error && /sem créditos/.test(r.error.error) && logged().filter((e) => e.credits).length === 1, "No 402 o assistente para, sem tentar com menos tokens");
+
+  // M3: the day's budget in the database (tokens per person and per company, messages per company).
+  const rules = readFileSync("src/lib/assistant/budget-rules.ts", "utf8");
+  const cap = (name) => Number(new RegExp(`${name} = ([\\d_]+);`).exec(rules)[1].replaceAll("_", ""));
+  const today = "(now() at time zone 'America/Sao_Paulo')::date";
+  const usage = async (kind, id) =>
+    (await db.query(`select tokens, messages from console_assistant_usage where kind=$1 and subject_id=$2 and day=${today}`, [kind, id])).rows[0] ?? { tokens: 0, messages: 0 };
+  const setUsage = (kind, id, { tokens, messages }) =>
+    db.query(
+      `insert into console_assistant_usage (kind,subject_id,day,tokens,messages) values ($1,$2,${today},$3,$4)
+       on conflict (kind,subject_id,day) do update set tokens=excluded.tokens, messages=excluded.messages`,
+      [kind, id, tokens, messages],
+    );
+  const chats = (from) => logged().slice(from).filter((e) => e.model && "messages" in e);
+  const manager0 = await usage("person", people.manager.id);
+  const companyA0 = await usage("company", ids.a);
+  const admin0 = await usage("person", people.admin.id);
+  r = await ask("manager", { message: "resumo" });
+  const manager1 = await usage("person", people.manager.id);
+  const companyA1 = await usage("company", ids.a);
+  ok(
+    r.done?.tokens > 0 && manager1.tokens - manager0.tokens === r.done.tokens && companyA1.tokens - companyA0.tokens === r.done.tokens,
+    "Os tokens de cada rodada somam no dia da pessoa e no da empresa",
+  );
+  ok(manager1.messages === manager0.messages + 1 && companyA1.messages === companyA0.messages + 1, "A mensagem conta no dia da pessoa e no da empresa");
+  r = await ask("admin", { message: "resumo" });
+  ok(
+    r.done?.tokens > 0 && (await usage("person", people.admin.id)).tokens - admin0.tokens === r.done.tokens && (await usage("company", ids.a)).tokens === companyA1.tokens,
+    "A equipe gasta só do próprio dia, nunca do da empresa",
+  );
+
+  let from = logged().length;
+  await setUsage("person", people.manager.id, { tokens: cap("DAILY_TOKENS_PER_PERSON"), messages: manager1.messages });
+  r = await ask("manager", { message: "resumo" });
+  ok(r.status === 429 && /^Você usou todo o limite do assistente de hoje\./.test(r.error?.error) && !chats(from).length, "Pessoa sem tokens no dia recebe 429, sem chamar o modelo");
+  ok((await usage("person", people.manager.id)).messages === manager1.messages, "Mensagem recusada não conta no dia");
+  await setUsage("person", people.manager.id, manager1);
+
+  await setUsage("company", ids.a, { tokens: cap("DAILY_TOKENS_PER_COMPANY"), messages: companyA1.messages });
+  r = await ask("manager", { message: "oi" });
+  ok(r.status === 429 && r.error?.error.startsWith(`A empresa QA Company A ${marker} usou todo o limite`), "Empresa sem tokens no dia: 429 com o nome dela");
+  r = await ask("support", { message: "oi" });
+  ok(r.status === 429, "O limite da empresa vale para todas as pessoas dela");
+  r = await ask("admin", { message: "oi" });
+  ok(r.status === 200 && !!r.done, "A equipe não para no limite da empresa");
+  await setUsage("company", ids.a, { tokens: companyA1.tokens, messages: cap("DAILY_MESSAGES_PER_COMPANY") });
+  r = await ask("manager", { message: "oi" });
+  ok(r.status === 429 && r.error?.error.startsWith(`A empresa QA Company A ${marker} chegou a ${cap("DAILY_MESSAGES_PER_COMPANY")} mensagens`), "Empresa no limite de mensagens do dia: 429");
+  await setUsage("company", ids.a, companyA1);
+
+  // A person with two companies spends from both, and either one out stops that person only.
+  const second = randomUUID();
+  await db.query("insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')", [second, ids.b, people.finance.email]);
+  const companyB0 = await usage("company", ids.b);
+  const companyA2 = await usage("company", ids.a);
+  r = await ask("finance", { message: "oi" });
+  ok(
+    r.done?.tokens > 0 &&
+      (await usage("company", ids.a)).tokens - companyA2.tokens === r.done.tokens &&
+      (await usage("company", ids.b)).tokens - companyB0.tokens === r.done.tokens,
+    "Quem tem duas empresas gasta do dia das duas",
+  );
+  await setUsage("company", ids.b, { tokens: cap("DAILY_TOKENS_PER_COMPANY"), messages: companyB0.messages + 1 });
+  r = await ask("finance", { message: "oi" });
+  ok(r.status === 429 && r.error?.error.startsWith(`A empresa QA Company B ${marker}`), "A segunda empresa sem tokens para quem tem acesso a ela");
+  r = await ask("manager", { message: "oi" });
+  ok(r.status === 200 && !!r.done, "Quem é só da primeira empresa continua");
+  await db.query("delete from console_memberships where id=$1", [second]);
+
+  const admin1 = await usage("person", people.admin.id);
+  await setUsage("person", people.admin.id, { tokens: cap("DAILY_TOKENS_PER_TEAM_MEMBER"), messages: admin1.messages });
+  r = await ask("admin", { message: "oi" });
+  ok(r.status === 429 && /^Você usou todo o limite do assistente de hoje\./.test(r.error?.error), "A equipe para no próprio limite do dia");
+  await setUsage("person", people.admin.id, admin1);
+
+  // The budget runs out mid-answer: the round's reads are kept, and one last round answers without tools.
+  const manager2 = await usage("person", people.manager.id);
+  await setUsage("person", people.manager.id, { tokens: cap("DAILY_TOKENS_PER_PERSON") - 1, messages: manager2.messages });
+  from = logged().length;
+  r = await ask("manager", { message: "resumo" });
+  const rounds = chats(from);
+  ok(
+    !!r.done?.reply.startsWith("Parei aqui") && r.done.reply.includes(`QA Company A ${marker}`) && rounds.length === 2 && rounds[0].tools > 0 && rounds[1].tools === undefined,
+    "Se o limite acaba no meio da resposta, a última rodada responde sem ferramentas",
+  );
+  ok((await usage("person", people.manager.id)).tokens === cap("DAILY_TOKENS_PER_PERSON") - 1 + r.done.tokens, "A rodada final também conta no dia");
+  await setUsage("person", people.manager.id, manager2);
   flags({ approved: true });
 
   // M2: every call asks for providers that keep nothing.
