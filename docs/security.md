@@ -160,7 +160,7 @@ H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (workt
 
 - **Vercel:** quais variáveis o Preview usa (banco, certificado do Inter, `CRON_SECRET` de produção?), o HSTS aplicado no domínio, a proteção dos previews e o Firewall.
 - **Neon:** os privilégios reais do papel no `DATABASE_URL`.
-- **OpenRouter:** se a conta força ZDR. Desde 16/10 cada chamada pede ZDR; falta conferir em produção que o modelo configurado tem provedor ZDR (senão o assistente responde "Nenhum provedor do modelo … atende sem guardar os dados") e que o Jev (`/api/v1/systemone`) aceita `provider` (se recusar, o log mostra `[assistant] Jev unavailable` e o assistente segue sem os atalhos).
+- **OpenRouter:** se a conta força ZDR. Desde 16/10 cada chamada pede ZDR por conta própria. Na primeira amostra real em produção (16/10, depois do deploy `d11a750`), o modelo respondeu sem recusa de provedor e o Jev respondeu com o parâmetro `provider` no `/api/v1/systemone`; o cartão de uma tarefa de teste apareceu e foi descartado.
 - **Domínio:** quais subdomínios de `anuntech.com` existem (pesa em M1).
 - **Comportamento real:** nenhum teste dinâmico foi feito. Como o modelo reage à injeção (H4) é provável, não demonstrado.
 
