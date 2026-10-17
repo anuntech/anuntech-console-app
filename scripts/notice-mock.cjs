@@ -91,7 +91,11 @@ globalThis.fetch = async (input, options = {}) => {
     if (url.pathname.startsWith("/chat/v1/send/message/"))
       return Response.json({
         id: url.pathname.split("/").at(-1),
-        status: flags.deliveryFailed ? "FAILED" : "DELIVERED",
+        status: flags.deliveryFailed
+          ? "FAILED"
+          : flags.whatsappQueued
+            ? "QUEUED"
+            : "DELIVERED",
       });
     if (
       url.pathname === "/emails" ||
