@@ -375,7 +375,7 @@ function ResponseFields({ policy }: { policy: ServicePolicy }) {
         )}
       </div>
       <FormField label="Cláusula" htmlFor="terms-rc">
-        <Input id="terms-rc" name="responseClause" maxLength={60} defaultValue={policy.clauses.response ?? ""} placeholder="Ex.: SUP 5.1" />
+        <Input id="terms-rc" name="responseClause" maxLength={60} defaultValue={policy.clauses.response ?? ""} placeholder="Ex.: SUP 6.1" />
       </FormField>
     </FormSection>
   );

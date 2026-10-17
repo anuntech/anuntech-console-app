@@ -3,6 +3,7 @@ import { and, eq, gt, inArray } from "drizzle-orm";
 import { ticketUploads } from "@/db/schema";
 import type { db } from "../db";
 import { safeFileName } from "../bookmarks/bookmark-validation";
+import { imageFormatOf } from "../images/image-format";
 import { DOCUMENT_ATTACHMENTS, limitLabel } from "./attachment-rules";
 export const MAX_TICKET_BYTES = DOCUMENT_ATTACHMENTS.maxBytes;
 const MAX_TICKET_FILES = DOCUMENT_ATTACHMENTS.max;
@@ -19,16 +20,16 @@ export async function normalizeTicketFile(content: Buffer, name: string) {
       mime: "application/pdf",
     };
   try {
+    // By the first bytes, before sharp: other formats never reach its decoders.
+    const format = imageFormatOf(content);
+    if (!format) throw new Error();
     const image = sharp(content, {
       limitInputPixels: 50_000_000,
       animated: false,
+      failOn: "warning",
     });
     const meta = await image.metadata();
-    if (
-      !["png", "jpeg", "webp"].includes(meta.format || "") ||
-      (meta.pages || 1) > 1
-    )
-      throw new Error();
+    if (meta.format !== format || (meta.pages || 1) > 1) throw new Error();
     const optimized = await image
       .rotate()
       .resize({

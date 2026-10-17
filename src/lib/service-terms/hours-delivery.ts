@@ -8,8 +8,8 @@ import { automationActorId } from "../ops/automation-actor";
 import { bankMonth, banksAtAlert, finalReport, hoursLabel, lastLoggedAt, monthOf, previousMonth } from "./hours-bank";
 
 /*
- * The hours bank's two notices to the company's Administradores (SUP 3.3 and
- * 3.4): the 80% alert of the month and the month's report. The team sends
+ * The hours bank's two notices to the company's Administradores (SUP 4.4 and
+ * 4.7): the 80% alert of the month and the month's report. The team sends
  * them by click; with the automation switched on, the routines send them too.
  * Either way the alert goes once per company and month (an automation event
  * claims it before sending) and every e-mail carries a fixed key.
@@ -81,7 +81,7 @@ export async function deliverBankAlert(companyId: string, who: Who): Promise<{ s
 
 /**
  * The month's report to the Administradores; sending starts the client's
- * window to contest it (SUP 3.4). Automatic sends go once, for a month with
+ * window to contest it (SUP 4.7). Automatic sends go once, for a month with
  * work logged and no report yet; the team may send a partial or repeated one.
  */
 export async function deliverHoursReport(companyId: string, month: string, who: Who): Promise<{ sent: number; skipped?: string; failed?: boolean } | null> {
@@ -200,7 +200,7 @@ export async function hoursPending() {
 /**
  * The hours beyond the bank in a closed month, ready to bill once the
  * report was sent and the client's window to contest it ended without a
- * contest (SUP 3.3 and 3.4). Null when there is nothing to bill.
+ * contest (SUP 4.3 and 4.7). Null when there is nothing to bill.
  */
 export async function overageCharge(companyId: string, month: string, now = new Date()) {
   const data = await bankMonth(companyId, month);

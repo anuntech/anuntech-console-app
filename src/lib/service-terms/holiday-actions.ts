@@ -10,7 +10,7 @@ import type { LocalHolidays } from "./business-calendar";
 
 /**
  * The seat's holidays beyond the national ones: the contracts count business
- * days without them (SUP 2.2). One per line, "25/01 Aniversário da cidade".
+ * days without them (SUP 3.2). One per line, "25/01 Aniversário da cidade".
  */
 export async function saveHolidays(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();

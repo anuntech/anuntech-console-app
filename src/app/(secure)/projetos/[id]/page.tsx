@@ -38,7 +38,7 @@ export default async function Project({
     actor.admin ? engagementLinks([id]) : null,
   ]);
   const now = new Date();
-  // A delivery in Revisão has a test window only where the contract sets one (SUP 4.3, Serviço 3.2).
+  // A delivery in Revisão has a test window only where the contract sets one (SUP 5.3, Serviço 4.2).
   const terms = snapshotOf(await governingTerms(row.project.companyId, id));
   const testDays = terms && !terms.personClient && (actor.admin || visibleToClient(terms, now)) ? terms.policy.testDays : null;
   const cal = testDays ? await loadCalendar() : null;

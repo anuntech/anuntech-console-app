@@ -101,7 +101,7 @@ export async function createProposal(input: { actor: Actor; tool: string; args: 
   const names = await referenceNames(input.actor, input.args);
   const nonce = randomBytes(32).toString("base64url");
   const title = proposalLabel(input.tool, input.args);
-  const details = proposalDetails(input.args, names);
+  const details = proposalDetails(input.args, names, input.tool);
   const expiresAt = new Date(Date.now() + PROPOSAL_TTL_MS);
   const [row] = await db
     .insert(assistantProposals)

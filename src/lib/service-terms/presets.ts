@@ -1,8 +1,8 @@
 /*
  * One "ficha" per contract template: the numbers each template's text
  * promises or asks, with the clause behind every one, read from the
- * templates as they stand (October 2026; only Synova is active, the others
- * wait for the lawyer). The team starts a company's conditions from one of
+ * templates as rewritten on 14/10/2026 after the legal team's review (all ten
+ * are active; the external lawyer has not read them yet). The team starts a company's conditions from one of
  * these and adjusts to what that company actually signed. A value the
  * template leaves as a {{placeholder}} (the hours bank) starts empty and
  * must be filled before publishing.
@@ -38,21 +38,21 @@ export const termsPresets: TermsPreset[] = [
       suspensionDays: 15,
       suspensionNotice: true,
       clauses: {
-        channel: "SUP 2.1",
-        hours: "SUP 2.2",
-        response: "SUP 5.1 e 5.2",
-        pausesWhileWaiting: "SUP 5.3 e 7.3",
-        clientResponseDays: "SUP 6.1(b)",
-        testDays: "SUP 4.3",
-        tacitAcceptance: "SUP 4.3",
-        hoursBank: "SUP 3.1 a 3.3",
-        reportContestDays: "SUP 3.4",
-        improvementBankLimitMinutes: "SUP 4.1 e 4.2",
-        improvementWarrantyDays: "SUP 4.4",
-        outOfHours: "SUP 1.4",
-        includesDevelopment: "SUP 1.3",
-        suspension: "SUP 7.3",
-        approvers: "SUP 2.3",
+        channel: "SUP 3.1",
+        hours: "SUP 3.2",
+        response: "SUP 6.1 e 6.3",
+        pausesWhileWaiting: "SUP 6.4 e 8.4",
+        clientResponseDays: "SUP 7.1(b)",
+        testDays: "SUP 5.3",
+        tacitAcceptance: "SUP 5.3",
+        hoursBank: "SUP 4.1 a 4.5",
+        reportContestDays: "SUP 4.7",
+        improvementBankLimitMinutes: "SUP 5.1 e 5.2",
+        improvementWarrantyDays: "SUP 5.4",
+        outOfHours: "SUP 6.2",
+        includesDevelopment: "SUP 2.3",
+        suspension: "SUP 8.4",
+        approvers: "SUP 3.3",
       },
     },
   },
@@ -68,8 +68,8 @@ export const termsPresets: TermsPreset[] = [
       outOfHours: "unspecified",
       includesDevelopment: false,
       suspensionDays: 15,
-      suspensionNotice: false,
-      clauses: { channel: "SYN 5.1", hours: "SYN 5.1", response: "SYN 5.1", suspension: "SYN 3.3" },
+      suspensionNotice: true,
+      clauses: { channel: "SYN 9.1", hours: "SYN 3.4 e 9.1", response: "SYN 9.1", suspension: "SYN 5.4" },
     },
   },
   {
@@ -85,7 +85,7 @@ export const termsPresets: TermsPreset[] = [
       includesDevelopment: false,
       suspensionDays: 15,
       suspensionNotice: true,
-      clauses: { channel: "SAAS 6.1", hours: "SAAS 2.4 e 6.1", response: "SAAS 6.1", includesDevelopment: "SAAS 1.4 e 6.1", suspension: "SAAS 4.3" },
+      clauses: { channel: "SAAS 10.1", hours: "SAAS 3.4 e 10.1", response: "SAAS 10.1", includesDevelopment: "SAAS 2.4 e 10.1", suspension: "SAAS 6.2" },
     },
   },
   {
@@ -102,7 +102,7 @@ export const termsPresets: TermsPreset[] = [
       includesDevelopment: false,
       suspensionDays: 15,
       suspensionNotice: true,
-      clauses: { channel: "INFRA 6.4", hours: "INFRA 2.3 e 6.4", response: "INFRA 6.4", outOfHours: "INFRA 6.4", includesDevelopment: "INFRA 1.4", suspension: "INFRA 4.3" },
+      clauses: { channel: "INFRA 8.5", hours: "INFRA 2.6 e 8.5", response: "INFRA 8.5", outOfHours: "INFRA 8.5", includesDevelopment: "INFRA 2.4", suspension: "INFRA 5.4" },
     },
   },
   {
@@ -119,7 +119,7 @@ export const termsPresets: TermsPreset[] = [
       includesDevelopment: false,
       suspensionDays: 15,
       suspensionNotice: true,
-      clauses: { channel: "EMAIL 5.1", hours: "EMAIL 2.4 e 5.1", response: "EMAIL 5.1", suspension: "EMAIL 3.4" },
+      clauses: { channel: "EMAIL 7.1", hours: "EMAIL 7.1", response: "EMAIL 7.1", suspension: "EMAIL 4.6" },
     },
   },
   {
@@ -136,7 +136,7 @@ export const termsPresets: TermsPreset[] = [
       outOfHours: "unspecified",
       includesDevelopment: false,
       warrantyUntil: null,
-      clauses: { response: "Serviço 5.1", clientResponseDays: "Serviço 2.3", testDays: "Serviço 3.2", tacitAcceptance: "Serviço 3.4", warrantyUntil: "Serviço 5.1" },
+      clauses: { response: "Serviço 7.1", clientResponseDays: "Serviço 3.3", testDays: "Serviço 4.2", tacitAcceptance: "Serviço 4.4", warrantyUntil: "Serviço 7.1" },
     },
   },
   { key: "custom", label: "Outro contrato", source: "Contrato próprio da empresa", policy: null },

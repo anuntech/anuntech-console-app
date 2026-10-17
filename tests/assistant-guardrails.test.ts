@@ -33,6 +33,21 @@ test("the card says what will happen with the data, ids replaced by names", () =
   assert.ok(long.length <= 1500 && long.endsWith("…"));
 });
 
+test("the card shows codes by the names the screens use, per tool", () => {
+  const ticket = Object.fromEntries(
+    proposalDetails({ tipo: "problem", impacto: "workaround", assunto: "Sem número" }, {}, "abrir_chamado").map((d) => [d.label, d.value]),
+  );
+  assert.equal(ticket.Tipo, "Parou ou deu erro");
+  assert.equal(ticket.Impacto, "Falha, mas dá para contornar, ou afeta muita gente");
+  assert.equal(ticket.Assunto, "Sem número");
+  // the same code reads differently for a task and for a ticket
+  assert.equal(proposalDetails({ situacao: "in_progress" }, {}, "mover_tarefa")[0].value, "Em andamento");
+  assert.equal(proposalDetails({ situacao: "in_progress" }, {}, "atualizar_chamado")[0].value, "Em atendimento");
+  assert.equal(proposalDetails({ papel: "manager" }, {}, "convidar_membro")[0].value, "Administrador");
+  // an argument without screen names keeps its value
+  assert.equal(proposalDetails({ tipo: "problem" }, {}, "ferramenta_nova")[0].value, "problem");
+});
+
 test("links: a Console path opens in the app, anything else shows where it goes", () => {
   assert.deepEqual(linkTarget("/financeiro/abc?x=1#y"), { kind: "internal", href: "/financeiro/abc?x=1#y" });
   for (const sneaky of ["//evil.com", "/\\evil.com", "/\t/evil.com", "/\\/evil.com", "javascript:alert(1)", "data:text/html,x", "mailto:a@b.c"])

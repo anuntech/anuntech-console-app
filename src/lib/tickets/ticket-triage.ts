@@ -11,7 +11,7 @@ import { suggestPriority, ticketImpactLabels, ticketImpacts, ticketKindHints, ti
  * After a ticket opens, Jev reads its text. When the text sounds worse than
  * what was ticked (a "Dúvida" that says the system stopped), the team sees a
  * suggested priority on the ticket and, for "Parou tudo", an e-mail now. The
- * priority is Anuntech's call (SUP 5.1): nothing changes on its own, and the
+ * priority is Anuntech's call (SUP 6.1): nothing changes on its own, and the
  * client never sees the suggestion.
  */
 

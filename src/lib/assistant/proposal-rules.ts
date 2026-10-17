@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { engagementLabels, priorityLabels, roleLabels, ticketLabels } from "../format";
+import { taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
+import { ticketImpactLabels, ticketKindLabels } from "../tickets/ticket-intake";
 
 /*
  * Pure rules for the assistant's confirmation cards: how a tool call is
@@ -106,6 +109,22 @@ const labelOf = (key: string) => {
   return fieldLabels[key] ?? words.charAt(0).toUpperCase() + words.slice(1);
 };
 
+/** Codes the card shows by the names the screens use, per tool and argument (the person decides on what they read). */
+const ticketValues = { tipo: ticketKindLabels, impacto: ticketImpactLabels, prioridade: priorityLabels, situacao: ticketLabels };
+const taskValues = { situacao: taskStatusLabels, prioridade: taskPriorityLabels };
+const intervalValues = { monthly: "Mensal", yearly: "Anual" };
+const valueLabels: Record<string, Record<string, Record<string, string>>> = {
+  abrir_chamado: ticketValues,
+  atualizar_chamado: ticketValues,
+  criar_tarefa: taskValues,
+  mover_tarefa: taskValues,
+  atualizar_tarefa: taskValues,
+  atualizar_projeto: { situacao: engagementLabels },
+  convidar_membro: { papel: roleLabels },
+  criar_item_do_catalogo: { tipo: { product: "Produto", service: "Serviço" }, intervalo: intervalValues },
+  vincular_item_do_catalogo: { intervalo: intervalValues },
+};
+
 const MAX_VALUE = 1500;
 const clip = (text: string) => (text.length > MAX_VALUE ? `${text.slice(0, MAX_VALUE - 1)}…` : text);
 
@@ -132,7 +151,7 @@ function valueText(value: unknown): string {
  * The card's lines: every argument, ids replaced by what they name (the
  * server resolves them with the person's access), long texts cut.
  */
-export function proposalDetails(args: Record<string, unknown>, names: Record<string, string> = {}) {
+export function proposalDetails(args: Record<string, unknown>, names: Record<string, string> = {}, tool = "") {
   return Object.entries(args)
     .filter(([, value]) => value !== undefined)
     .map(([key, value]) => ({
@@ -142,7 +161,9 @@ export function proposalDetails(args: Record<string, unknown>, names: Record<str
           ? value.map((v) => names[v as string]).join(", ")
           : typeof value === "string" && names[value]
             ? names[value]
-            : valueText(value),
+            : typeof value === "string" && valueLabels[tool]?.[key]?.[value]
+              ? valueLabels[tool][key][value]
+              : valueText(value),
       ),
     }));
 }

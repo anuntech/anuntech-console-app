@@ -63,7 +63,7 @@ export function outOfHoursLine(now: Date, cal: Calendar, dated = false) {
   return `A equipe volta às ${DAY_START / 60}h de ${label}.${dated ? " O prazo começa a contar a partir daí." : ""}`;
 }
 
-/** The commitment vs goal line (SUP 5.2), only where the contract has goals. */
+/** The commitment vs goal line (SUP 6.3), only where the contract has goals. */
 export function commitmentLine(terms: TermsSnapshot | null) {
   const hasGoals = !!terms && Object.values(terms.policy.response).some((r) => r?.goalMinutes);
   return hasGoals
@@ -126,7 +126,7 @@ export function termsSummary(terms: TermsSnapshot): { promises: TermsFact[]; ask
   if (p.hoursBank?.reportContestDays && silence)
     asks.push({ text: `Conteste o relatório de horas em até ${p.hoursBank.reportContestDays} dias úteis. Sem contestação, ele conta como aprovado.`, clause: c.reportContestDays });
   if (p.includesDevelopment && p.hoursBank)
-    asks.push({ text: "Falha causada por mudança feita sem avisar a Anuntech é tratada como melhoria e usa o banco de horas.", clause: "SUP 6.2" });
+    asks.push({ text: "Falha causada por mudança feita sem avisar a Anuntech é tratada como melhoria e usa o banco de horas.", clause: "SUP 7.2" });
   if (p.suspensionDays)
     asks.push({
       text: p.suspensionNotice
