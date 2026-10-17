@@ -11,6 +11,13 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    # TypeScript 7 has no JavaScript compiler API, and typescript-eslint (inside
+    # eslint-config-next, in CI and in the editor) refuses it until its support
+    # for TS >= 7.1 (typescript-eslint/typescript-eslint#10940). Stay on 6.0.x,
+    # the bridge release, until then.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     groups:
       prod-minor-patch:
         dependency-type: production
