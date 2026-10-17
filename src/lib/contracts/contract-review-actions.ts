@@ -3,8 +3,7 @@ import { and, count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auditEvents, companies, contractChangeRequests, contractSignatures, contracts } from "@/db/schema";
-import { getActor, type Actor } from "../access/access";
-import { hasPermission } from "../access/permissions";
+import { getActor, answersForClient, ASSISTED_DECISION, type Actor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
@@ -60,11 +59,10 @@ async function refuseAfterClientSigned(tx: Tx, c: { id: string; documentHash: st
   if (signed) throw Error("A sua empresa já assinou esta versão. Se algo precisa mudar, abra um chamado.");
 }
 
-/** Who answers for the client: the company's managers, who also sign. */
+/** Who answers for the client: the company's managers, who also sign. Assisted access is refused by name. */
 const clientSide = (actor: Actor, companyId: string) => {
-  if (actor.admin) return false;
-  const grant = actor.grants.find((g) => g.company.id === companyId);
-  return !!grant && hasPermission(grant.role, "finance");
+  if (actor.assisting) throw Error(ASSISTED_DECISION);
+  return answersForClient(actor, companyId);
 };
 
 const refresh = (contractId: string) => {

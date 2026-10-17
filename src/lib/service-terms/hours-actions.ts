@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auditEvents, hoursMonths, tickets, timeEntries } from "@/db/schema";
-import { canAccess, getActor } from "../access/access";
+import { answersForClient, ASSISTED_DECISION, getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
@@ -44,8 +44,6 @@ const failure = (e: unknown): ActionState => ({
         : "Não foi possível salvar.",
 });
 const consoleUrl = () => process.env.BETTER_AUTH_URL?.replace(/\/$/, "") || "https://console.anuntech.com";
-/** The company's Administrador (or the team) answers for it. */
-const answersFor = (actor: Awaited<ReturnType<typeof getActor>>, companyId: string) => !actor.admin && canAccess(actor, companyId, "finance");
 
 function refresh(companyId: string, ticketId?: string | null) {
   revalidatePath(`/empresas/${companyId}`);
@@ -155,7 +153,8 @@ export async function decideEstimate(_: ActionState, form: FormData): Promise<Ac
       .object({ ticketId: id, decision: z.enum(["approve", "decline"]), minutes: z.coerce.number().int().min(1) })
       .parse(Object.fromEntries(form));
     const [t] = await db.select().from(tickets).where(eq(tickets.id, input.ticketId));
-    if (!t || !answersFor(actor, t.companyId)) return { error: "Só um Administrador da empresa aprova estimativas." };
+    if (actor.assisting) return { error: ASSISTED_DECISION };
+    if (!t || !answersForClient(actor, t.companyId)) return { error: "Só um Administrador da empresa aprova estimativas." };
     const approved = input.decision === "approve";
     // The answer is to the estimate the person saw: a newer one in between is not approved by accident.
     const [decided] = await db
@@ -187,7 +186,8 @@ export async function approveOverage(_: ActionState, form: FormData): Promise<Ac
   const actor = await getActor();
   try {
     const input = z.object({ companyId: id, hours: hoursInput }).parse(Object.fromEntries(form));
-    if (!answersFor(actor, input.companyId)) return { error: "Só um Administrador da empresa aprova horas além do banco." };
+    if (actor.assisting) return { error: ASSISTED_DECISION };
+    if (!answersForClient(actor, input.companyId)) return { error: "Só um Administrador da empresa aprova horas além do banco." };
     if (!(await bankTerms(input.companyId, { client: true })))
       return { error: "As condições com banco de horas desta empresa ainda não estão publicadas." };
     const month = monthOf();
@@ -254,7 +254,8 @@ export async function contestHoursReport(_: ActionState, form: FormData): Promis
     const input = z
       .object({ companyId: id, month: z.string().regex(/^\d{4}-\d{2}$/), note: z.string().trim().min(5, "Conte o que não confere.").max(2000) })
       .parse(Object.fromEntries(form));
-    if (!answersFor(actor, input.companyId)) return { error: "Só um Administrador da empresa contesta o relatório." };
+    if (actor.assisting) return { error: ASSISTED_DECISION };
+    if (!answersForClient(actor, input.companyId)) return { error: "Só um Administrador da empresa contesta o relatório." };
     const [record] = await db.select().from(hoursMonths).where(and(eq(hoursMonths.companyId, input.companyId), eq(hoursMonths.month, input.month)));
     if (!record?.reportSentAt) return { error: "O relatório deste mês ainda não foi enviado." };
     if (record.contestedAt) return { error: "Este relatório já foi contestado." };
