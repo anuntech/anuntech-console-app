@@ -77,7 +77,7 @@ const input = z.object({
   tacitAcceptance: flag,
   testClause: clause,
   bankHours: hours,
-  /** Price of each hour beyond the bank (SUP 3.3), as typed ("150" or "150,00"); empty: not agreed. */
+  /** Price of each hour beyond the bank (SUP 4.3), as typed ("150" or "150,00"); empty: not agreed. */
   overage: z
     .string()
     .default("")

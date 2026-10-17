@@ -1,7 +1,7 @@
 /*
  * A ticket's clock under its company's conditions: when the first response
  * is due (a commitment), when the solution is aimed for (a goal), and how
- * waiting for the client stops it (SUP 5.3). Pure; the caller brings the
+ * waiting for the client stops it (SUP 6.4). Pure; the caller brings the
  * calendar and the snapshot taken when the ticket was opened.
  */
 import { addBusinessMinutes, businessMinutesBetween, type Calendar } from "./business-calendar";

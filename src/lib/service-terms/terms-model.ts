@@ -12,7 +12,7 @@ export const ticketLevels = ["critical", "high", "normal"] as const;
 export type TicketLevel = (typeof ticketLevels)[number];
 
 export type ResponseRule = {
-  /** A commitment (SUP 5.2). */
+  /** A commitment (SUP 6.3). */
   firstResponseMinutes: number;
   /** A goal, never a commitment; absent where the contract sets none. */
   goalMinutes?: number | null;
@@ -24,11 +24,11 @@ export type ServicePolicy = {
   response: Partial<Record<TicketLevel, ResponseRule>>;
   /** A faster first response when the whole service is down (Infra, E-mail). */
   outageFirstResponseMinutes?: number | null;
-  /** The clock stops while the ticket waits for the client (SUP 5.3). */
+  /** The clock stops while the ticket waits for the client (SUP 6.4). */
   pausesWhileWaiting: boolean;
-  /** Days the client has to answer the team (SUP 6.1 b). */
+  /** Days the client has to answer the team (SUP 7.1 b). */
   clientResponseDays?: number | null;
-  /** Days the client has to test a delivery (SUP 4.3). */
+  /** Days the client has to test a delivery (SUP 5.3). */
   testDays?: number | null;
   /** Silence or use in production counts as acceptance. */
   tacitAcceptance: boolean;
@@ -36,10 +36,10 @@ export type ServicePolicy = {
     monthlyMinutes: number;
     alertPercent: number;
     overageCents?: number | null;
-    /** Days to contest the monthly report (SUP 3.4). */
+    /** Days to contest the monthly report (SUP 4.7). */
     reportContestDays?: number | null;
   } | null;
-  /** Improvements up to this size come out of the hours bank with an approved estimate (SUP 4.1). */
+  /** Improvements up to this size come out of the hours bank with an approved estimate (SUP 5.1). */
   improvementBankLimitMinutes?: number | null;
   improvementWarrantyDays?: number | null;
   outOfHours: "not_included" | "if_contracted" | "unspecified";
