@@ -6,7 +6,7 @@ Como o Console é montado: stack, pastas, dados, acesso, integrações, rotinas 
 
 | Camada | Escolha |
 | --- | --- |
-| Aplicação | Next.js 16.4 (App Router, Server Components, Server Actions), React 19.2, TypeScript 5 |
+| Aplicação | Next.js 16.4 (App Router, Server Components, Server Actions), React 19.3, TypeScript 6.0 (ESLint 10 no lint) |
 | Interface | Tailwind CSS v4, shadcn (new-york) sobre Radix e Base UI, Lucide, Sonner |
 | Banco | PostgreSQL no Neon, Drizzle ORM 0.45, migrações SQL em `drizzle/` |
 | Autenticação | Better Auth 1.7: código por e-mail, código por WhatsApp, Google e verificação em duas etapas |
