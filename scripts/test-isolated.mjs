@@ -6,7 +6,41 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
 const name = `console_test_${randomBytes(8).toString("hex")}`;
+const localRun = `Rode contra o Postgres 17 local, como o CI:
+  npm run test:integration:local
+Isso cria ou liga o contêiner console-smoke-pg17 (Docker ou OrbStack) na porta 5434 e passa o DATABASE_URL dele. Sem o script:
+  docker run -d --name console-smoke-pg17 -e POSTGRES_PASSWORD=ci-test-only -p 127.0.0.1:5434:5432 postgres:17
+  DATABASE_URL=postgres://postgres:ci-test-only@127.0.0.1:5434/postgres npm run test:integration`;
+if (!process.env.DATABASE_URL) {
+  console.error(`Defina o DATABASE_URL do servidor de teste.\n${localRun}`);
+  process.exit(1);
+}
 const source = new URL(process.env.DATABASE_URL);
+// CREATE DATABASE lands on whatever server DATABASE_URL names, and .env.local
+// names the production Neon project: runs there on 16/10/2026 used up the
+// plan's quota and production refused every query on 17/10. Only this
+// machine's Postgres is accepted unless a remote host is named on purpose.
+// pg reads ?host= over the URL's host, and PGHOST when the URL has none.
+const host = (
+  source.searchParams.get("host") ||
+  source.hostname ||
+  process.env.PGHOST ||
+  "localhost"
+).toLowerCase();
+const localHost =
+  host.startsWith("/") ||
+  /^(localhost|.+\.localhost|127(\.\d{1,3}){3}|\[::1\]|::1)$/.test(host);
+const allowedHost = process.env.CONSOLE_TEST_ALLOW_REMOTE_DB?.toLowerCase();
+if (
+  !localHost &&
+  ![host, host.replace("-pooler.", ".")].includes(allowedHost)
+) {
+  console.error(`Integração recusada: o DATABASE_URL aponta para ${host}, fora desta máquina.
+O test-isolated.mjs cria o banco descartável no servidor do DATABASE_URL, e o do .env.local é o Neon de produção. Em 16/10/2026 as rodadas lá esgotaram a cota do plano e, em 17/10, o Console ficou fora do ar das 10:15 às 14:32 UTC.
+${localRun}
+Servidor de teste remoto, fora da conta Neon de produção: CONSOLE_TEST_ALLOW_REMOTE_DB=<host> libera só esse host.`);
+  process.exit(1);
+}
 source.hostname = source.hostname.replace("-pooler.", ".");
 const admin = new pg.Pool({ connectionString: source.toString() });
 let created = false;

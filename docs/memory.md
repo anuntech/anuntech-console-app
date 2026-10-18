@@ -27,6 +27,7 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 | 13/10 | Lousa nos bookmarks; os apps dos clientes (CMS Espaço Absolut, CMS MulheresFM, Roteiro Digital, Base Pendente) passam a abrir só dentro do Console |
 | 14/10 | Abrir um app dos clientes direto pela barra leva ao Console (`/abrir/<app>`); o login volta para o app. O Workspace é encerrado e workspace.anuntech.com passa a redirecionar para o Console |
 | 16/10 | App de reuniões do Mac publicado e retirado no mesmo dia (ver Decisões) |
+| 17/10 | Console fora do ar das 10:15 às 14:32 UTC: as rodadas de integração de 16/10 no Neon de produção esgotaram a cota do plano (ver Lições). Em 18/10 a integração passa a recusar servidor fora da máquina |
 
 ## Decisões
 
@@ -86,3 +87,4 @@ O contexto que não aparece no código: quem decide, onde as coisas estão, o qu
 - No zsh, `$VAR:r` é um modificador e não "a variável seguida de :r"; use `${VAR}`. E `for f in $LISTA` não separa por espaço.
 - O ditado nunca funcionou em produção de 06 a 09/10/2026 e ninguém foi avisado: o erro só aparecia como aviso no log. Depois de mexer em integração paga (modelo, provedor), testar em produção com uma amostra real antes de dar por pronto. A suíte de cobrança dependia da hora (avisos esperam as 8h); os servidores de teste rodam com `BILLING_NIGHT_HOLD=off`.
 - Uma verificação que supõe que o worker ainda não rodou passa no CI (segundos) e falha no Mac contra o Neon (40 minutos): a consulta de entrega do FLW, 5 minutos depois do aceite, chegava antes e o aviso já era "entregue". Fixe o estado no mock (`flags`) em vez de contar com o tempo, e rode a integração local num Postgres 17, como o CI.
+- A integração derrubou a produção (17/10/2026). O `test-isolated.mjs` cria o banco descartável no servidor do `DATABASE_URL`, e o do `.env.local` é o Neon de produção (projeto `anuntech-console-app`, plano Launch). As rodadas de 16/10 no Mac (a regressão levava uns 40 minutos lá) gastaram a cota do plano, que não distingue o banco de teste do de produção: os dois rodam no mesmo servidor. Em 17/10, das 10:15 às 14:32 UTC, toda consulta da produção recebeu "exceeded the quota" (código 53000), e só voltou quando o período de consumo reiniciou. Desde 18/10 o runner recusa, antes de conectar, qualquer servidor fora da máquina, e `npm run test:integration:local` sobe o Postgres 17 local ([rules.md](rules.md#testes)).

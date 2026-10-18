@@ -8,7 +8,7 @@ Valem para qualquer pessoa ou agente que mexa no Console. As regras de produto r
 2. Autenticação não concede acesso a empresas. Toda leitura e toda alteração passa por autorização no servidor.
 3. Nunca simular sucesso de pagamento ou de emissão fiscal quando o provedor não confirmou. Pagamento só com `RECEBIDO` do Inter; nota fiscal só quando a integração Focus existir.
 4. Preservar `.env.local` e nunca versionar segredos.
-5. Testes de integração criam dados num banco descartável. Nunca rodar contra produção nem com clientes reais.
+5. Testes de integração criam dados num banco descartável de um Postgres local. Nunca rodar contra produção nem com clientes reais (o `DATABASE_URL` do `.env.local` é o de produção).
 6. Manter as decisões de negócio coerentes com o código. Mudou uma regra, atualize [prd.md](prd.md) no mesmo commit.
 7. Mudou algo que o cliente vê (tela, botão, regra, limite, aviso)? Atualize o artigo da Ajuda (`src/lib/help/articles/`) no mesmo commit. O texto da ajuda é o que o cliente e o assistente leem.
 
@@ -56,7 +56,8 @@ O deploy não roda migrações. O procedimento usado até aqui:
 
 ## Testes
 
-- `npm test` para regras puras. `npm run test:integration` para o fluxo HTTP completo, sempre depois de `npm run build`.
+- `npm test` para regras puras. `npm run test:integration:local` para o fluxo HTTP completo num Postgres 17 local, sempre depois de `npm run build`.
+- A integração nunca roda no banco de produção. O `DATABASE_URL` do `.env.local` é o Neon de produção, e o banco descartável criado nele gasta a cota do plano: em 17/10/2026 isso deixou o Console fora do ar por mais de quatro horas. O `test-isolated.mjs` recusa servidor fora da máquina. Não contorne a recusa: `CONSOLE_TEST_ALLOW_REMOTE_DB=<host>` serve só para um servidor de teste separado, fora da conta Neon de produção.
 - Funcionalidade nova com server action ganha cobertura na suíte de integração correspondente em `scripts/`, incluindo a tentativa de acesso indevido (outra empresa, papel sem permissão, sessão ausente).
 - Nas suítes, formulário dentro de painel ou diálogo é postado pelo nome da action (`{ action: "nomeDaAction" }`), para o teste não depender do texto do botão.
 - O CI (GitHub Actions) precisa estar verde em `main`.
