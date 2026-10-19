@@ -1,0 +1,9 @@
+{
+  "object": "list",
+  "data": [
+    { "id": "anthropic/claude-sonnet-5", "name": "Claude Sonnet 5", "owned_by": "anthropic", "type": "language", "context_window": 1000000, "tags": ["tool-use", "reasoning", "vision"], "reasoning_options": ["low", "medium", "high"], "pricing": { "input": "0.000003", "output": "0.000015" }, "zdr": "all", "no_training": "all" },
+    { "id": "google/gemini-3.8-flash", "name": "Gemini 3.8 Flash", "owned_by": "google", "type": "language", "context_window": 1000000, "tags": ["tool-use"], "pricing": { "input": "0.0000003", "output": "0.0000025" }, "zdr": "some", "no_training": "some" },
+    { "id": "cohere/command-a", "name": "Command A", "owned_by": "cohere", "type": "language", "context_window": 256000, "tags": ["tool-use"], "pricing": { "input": "0.0000025", "output": "0.00001" }, "zdr": "none", "no_training": "none" },
+    { "id": "recraft/recraft-v4.1-flash", "name": "Recraft V4.1 Flash", "owned_by": "recraft", "type": "image", "tags": [], "pricing": { "image": "0.007" }, "zdr": "none", "no_training": "none" }
+  ]
+}

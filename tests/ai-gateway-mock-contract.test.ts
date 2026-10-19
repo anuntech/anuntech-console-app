@@ -125,6 +125,12 @@ test("402 stops with the Gateway's status, without a retry", async () => {
   assert.equal(logged().filter((e) => e.credits).length, before + 1);
 });
 
+test("a model with no provider that keeps nothing is refused in words the person can act on", async () => {
+  const parts = await read(streamText({ ...quiet, model: model(), maxRetries: 0, messages: [{ role: "user", content: "sem-zdr" }] }));
+  const failure = providerFailure(parts.find((p) => p.type === "error")?.error);
+  assert.deepEqual(failure, { status: 400, detail: "No ZDR (Zero Data Retention) providers available for model: anthropic/claude-sonnet-5" });
+});
+
 test("an error in the middle of the stream reaches the turn with its code", async () => {
   const parts = await read(streamText({ ...quiet, model: model(), messages: [{ role: "user", content: "corte-no-meio por favor" }] }));
   const error = parts.find((p) => p.type === "error")?.error;
@@ -261,9 +267,38 @@ test("Jev's own confidence wins over the chosen option's probability, and a refu
   // Both tries went private, and only to TypeSafe.
   for (const entry of logged().filter((e) => e.jev).slice(-2)) assert.deepEqual([entry.zeroDataRetention, entry.disallowPromptTraining, entry.only], [true, true, ["typesafe-ai"]]);
   assert.equal(await askJev({ mensagem: "x" }, { recusar_tudo: { type: "boolean", instructions: "x" } }), null);
+  // A refused question the caller needs: no second, paid, useless try.
+  const needed = logged().filter((e) => e.jev).length;
+  assert.equal(await askJev({ mensagem: "x" }, { recusar_intent: { type: "boolean", instructions: "x" }, area_financeiro: { type: "boolean", instructions: "y" } }, ["recusar_intent"]), null);
+  assert.equal(logged().filter((e) => e.jev).length, needed + 1);
   // A refused area stays in play (no opinion is not a "no"); a "no" leaves it out.
   assert.deepEqual(neededAreas(partial!, ["financeiro", "area"] as const), ["financeiro", "area"]);
   assert.deepEqual(neededAreas({ area_financeiro: { type: "boolean", probability: 0.1 }, area_chamados: { type: "boolean", probability: 0.9 } }, ["financeiro", "chamados"] as const), ["chamados"]);
+});
+
+test("a call that came whole, before any piece of the one written first, still runs in its own place", async () => {
+  const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } };
+  const model = wrapLanguageModel({
+    model: new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start", warnings: [] },
+            { type: "tool-call", toolCallId: "b", toolName: "ler_empresa", input: "{}" },
+            { type: "tool-input-start", id: "a", toolName: "listar_chamados" },
+            { type: "tool-input-end", id: "a" },
+            { type: "tool-call", toolCallId: "a", toolName: "listar_chamados", input: "{}" },
+            { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_calls" }, usage },
+          ],
+        }),
+      }),
+    }),
+    middleware: inModelOrder(roundState()),
+  });
+  const r = recorder();
+  await read(streamText({ ...quiet, model, prompt: "oi", tools: r.tools }));
+  // The whole call came first, so it is placed first.
+  assert.deepEqual(r.ran.map((c) => c.name), ["ler_empresa", "listar_chamados"]);
 });
 
 test("a call the provider ran itself goes on at once and does not read as cut", async () => {

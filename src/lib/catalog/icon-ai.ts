@@ -2,7 +2,7 @@ import "server-only";
 import { gateway, generateImage, NoImageGeneratedError, type Experimental_GeneratedImage } from "ai";
 import { gatewayStatus } from "../ai/gateway-errors";
 import { gatewayReady } from "../ai/gateway-env";
-import { retryIcon } from "./icon-rules";
+import { ICON_DEADLINE_MS, retryIcon } from "./icon-rules";
 import { reserveHourly } from "../http/hourly-limit";
 import { ImageError, normalizeImage } from "../images/normalize-image";
 
@@ -172,12 +172,13 @@ export async function generateCatalogIcons(
     throw new IconAiError(503, "A geração de ícones está desligada. Envie uma imagem ou escolha um ícone da galeria.");
   const prompt = catalogIconPrompt(item);
   const models = iconModels();
+  const begun = Date.now();
   let lastStatus = 0;
   for (const [index, model] of models.entries()) {
     const started = Date.now();
     let attempt = await requestImages(model, prompt, ICON_OPTIONS, signal);
     let cost = attempt.cost;
-    if (retryIcon(attempt.status, Date.now() - started, index === models.length - 1)) {
+    if (retryIcon(attempt.status, Date.now() - started, index === models.length - 1, ICON_DEADLINE_MS - (Date.now() - begun) - 1500)) {
       // Busy models hiccup; one short pause usually clears it.
       await new Promise((resolve) => setTimeout(resolve, 1500));
       if (signal.aborted) throw new IconAiError(499, "");

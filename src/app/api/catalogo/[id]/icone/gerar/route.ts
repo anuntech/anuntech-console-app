@@ -10,6 +10,7 @@ import {
   iconAiEnabled,
   reserveIconGeneration,
 } from "@/lib/catalog/icon-ai";
+import { ICON_DEADLINE_MS } from "@/lib/catalog/icon-rules";
 
 /*
  * "Gerar com IA" in the catalog editor: four icon options for one item, as
@@ -54,7 +55,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!reserved)
     return respond({ error: "Você gerou muitos ícones na última hora. Envie uma imagem ou tente mais tarde." }, 429);
 
-  const deadline = AbortSignal.timeout(75_000);
+  const deadline = AbortSignal.timeout(ICON_DEADLINE_MS);
   try {
     const images = await generateCatalogIcons(
       { name: item.name, description: item.description, hint },

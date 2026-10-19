@@ -495,4 +495,6 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   );
   ok(calls.filter((e) => e.jev).length > 0 && calls.filter((e) => e.jev).every((e) => e.only?.join() === "typesafe-ai"), "O Jev só vai ao endpoint da própria TypeSafe");
   ok(calls.filter((e) => "messages" in e).every((e) => e.stream === true), "Cada chamada do assistente chega em streaming");
+  // claude-sonnet-5 thinks (the catalog says so): every round asks for the short reasoning budget.
+  ok(calls.filter((e) => "messages" in e).every((e) => e.model === "anthropic/claude-sonnet-5" && e.reasoning === "low"), "O modelo que pensa recebe o raciocínio curto em toda rodada");
 }

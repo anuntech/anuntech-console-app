@@ -283,6 +283,8 @@ try {
         // A key wins over OIDC: a Vercel token in .env.local is never used, and the mock checks this one.
         AI_GATEWAY_API_KEY: "test",
         CONSOLE_TEST_ASSISTANT_FILE: aiFile,
+        // A saved copy of the Gateway's catalog: the model list, the fallback and the reasoning budget get exercised.
+        CONSOLE_TEST_MODELS_FILE: `${process.cwd()}/scripts/fixtures/gateway-models.json`,
         CONSOLE_TEST_NOTICE_FILE: noticeFile,
         CONSOLE_TEST_NOTICE_FLAGS: noticeFlags,
         // Notices go out at once at any hour (in production they wait for 08:00).

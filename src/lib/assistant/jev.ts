@@ -17,7 +17,8 @@ import { toolAreas, type ToolArea } from "./assistant-tools-kit";
 
 export const jevEnabled = () => gatewayReady() && process.env.ASSISTANT_JEV !== "off";
 
-const ask = (state: JevState, questions: Record<string, JevQuestion>) => (jevEnabled() ? askJev(state, questions) : Promise.resolve(null));
+const ask = (state: JevState, questions: Record<string, JevQuestion>, required: readonly string[]) =>
+  jevEnabled() ? askJev(state, questions, required) : Promise.resolve(null);
 
 /* ---------- intent, before the language model ---------- */
 
@@ -70,6 +71,7 @@ export async function routeIntent(input: {
         ]),
       ),
     },
+    ["intent"],
   );
   const intent = answers?.intent;
   const destination = answers?.destino;
@@ -102,6 +104,7 @@ export async function classifyTicket(input: { subject: string; body: string; kin
         criteria: input.impacts,
       },
     },
+    ["tipo", "impacto"],
   );
   const kind = answers?.tipo;
   const impact = answers?.impacto;

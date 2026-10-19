@@ -26,7 +26,12 @@ function confidenceOf(id: string, answer: { choice: string; probabilities?: Reco
   return answer.probabilities?.[answer.choice] ?? 0;
 }
 
-export async function askJev(state: JevState, questions: Record<string, JevQuestion>): Promise<Record<string, JevAnswer> | null> {
+/**
+ * Jev's answers, or null for no opinion. `required` names the questions the
+ * caller cannot do without: when Jev refuses one of them, a second try would
+ * be paid for and thrown away.
+ */
+export async function askJev(state: JevState, questions: Record<string, JevQuestion>, required: readonly string[] = []): Promise<Record<string, JevAnswer> | null> {
   // Both tries share the 6 seconds.
   const deadline = AbortSignal.timeout(6000);
   const once = (asked: Record<string, JevQuestion>) =>
@@ -46,7 +51,7 @@ export async function askJev(state: JevState, questions: Record<string, JevQuest
       result = await once(questions);
     } catch (error) {
       // The SDK drops every answer when Jev refuses one question: ask once more without the refused ones.
-      if (!Experimental_DecisionRefusalError.isInstance(error)) throw error;
+      if (!Experimental_DecisionRefusalError.isInstance(error) || error.questionIds.some((id) => required.includes(id))) throw error;
       const rest = Object.fromEntries(Object.entries(questions).filter(([id]) => !error.questionIds.includes(id)));
       if (!Object.keys(rest).length) throw error;
       result = await once(rest);

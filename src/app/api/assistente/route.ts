@@ -95,14 +95,15 @@ export async function POST(request: Request) {
           (tokens) => spendTokens(turn.budget, tokens),
         );
         if (writing) writer.write({ type: "text-end", id: textId });
+        // A database error's message is the SQL plus its parameters (the person's words, the reply): only the fault is logged.
         const conversationId = await appendExchange(actor.user.id, parsed.data.conversationId ?? null, message, reply).catch((error) => {
-          console.warn("[assistant] history not saved", error instanceof Error ? error.message : error);
+          if (!logDatabaseFault("assistant history", error)) console.warn("[assistant] history not saved", error instanceof Error ? error.name : typeof error);
           return parsed.data.conversationId ?? null;
         });
         if (conversationId)
-          await attachProposals(actor.user.id, reply.proposals.map((p) => p.id), conversationId).catch((error) =>
-            console.warn("[assistant] proposals not linked", error instanceof Error ? error.message : error),
-          );
+          await attachProposals(actor.user.id, reply.proposals.map((p) => p.id), conversationId).catch((error) => {
+            if (!logDatabaseFault("assistant proposals", error)) console.warn("[assistant] proposals not linked", error instanceof Error ? error.name : typeof error);
+          });
         if (reply.steps.length) writer.write({ type: "data-steps", id: "steps", data: reply.steps });
         // Only what the panel's schemas accept leaves the server (a navigation outside the Console never does).
         for (const card of reply.proposals) {

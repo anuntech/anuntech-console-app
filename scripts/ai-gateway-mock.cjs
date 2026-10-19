@@ -476,6 +476,8 @@ globalThis.fetch = async function (input, init) {
     // Only when a suite asks (fake test data): what the model read, to prove what never reaches it.
     prompt: mockFlags().logPrompts ? JSON.stringify(body.prompt) : undefined,
   });
+  // No provider that keeps nothing, in the flat shape the Gateway documents for it (the SDK cannot parse it).
+  if (lastUser.includes("sem-zdr")) return json({ error: `No ZDR (Zero Data Retention) providers available for model: ${model}`, type: "no_providers_available", statusCode: 400 }, 400);
   // Out of credits: the Gateway's 402, which no retry may repeat.
   if (lastUser.includes("sem-creditos")) return failure(402, "Insufficient funds. Add credits to continue.", "insufficient_funds");
   // A slow model on request, to watch the UI while the assistant works.

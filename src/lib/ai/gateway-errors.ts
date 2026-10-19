@@ -1,4 +1,5 @@
-import { GatewayError } from "@ai-sdk/gateway";
+import { APICallError } from "ai";
+import { GatewayError, GatewayResponseError } from "@ai-sdk/gateway";
 
 /*
  * What a failed Gateway call means for a retry or a fallback, and what its
@@ -19,7 +20,16 @@ export function stoppedBy(error: unknown): string | null {
 export function gatewayStatus(error: unknown): { status: number; detail: string } {
   if (GatewayError.isInstance(error)) {
     const stopped = stoppedBy(error);
-    return { status: error.statusCode, detail: stopped ? `timeout (${stopped})` : error.message.slice(0, 200) };
+    if (stopped) return { status: error.statusCode, detail: `timeout (${stopped})` };
+    if (GatewayResponseError.isInstance(error)) {
+      const inner = (error as { cause?: unknown }).cause;
+      // No answer at all (the network): the original call's words, and 0 for "not reached".
+      if (APICallError.isInstance(inner) && inner.statusCode === undefined && inner.responseBody === undefined) return { status: 0, detail: inner.message.slice(0, 200) };
+      // A refusal in a shape the SDK did not expect ({ error: "No ZDR …" }) keeps its words in `response`.
+      const said = (error as { response?: { error?: unknown } }).response?.error;
+      if (typeof said === "string" && said) return { status: error.statusCode, detail: said.slice(0, 200) };
+    }
+    return { status: error.statusCode, detail: error.message.slice(0, 200) };
   }
   // A missing or refused credential, as the SDK rewraps it: the status is gone, the name stays.
   if (error instanceof Error && error.name.startsWith("Gateway")) return { status: 401, detail: error.name };
