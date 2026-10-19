@@ -109,6 +109,7 @@ try {
     "--notifications-only": "scripts/notifications-smoke.mjs",
     "--billing-only": "scripts/smoke.mjs",
     "--regression-only": "scripts/smoke.mjs",
+    "--assistant-only": "scripts/smoke.mjs",
   };
   const focused = Object.keys(focusedSuites).find((flag) =>
     process.argv.includes(flag),
@@ -131,6 +132,9 @@ try {
         ...bankEnv,
         DATABASE_URL: target.toString(),
         CONSOLE_TEST_BILLING_ONLY: process.argv.includes("--billing-only")
+          ? "1"
+          : "",
+        CONSOLE_TEST_ASSISTANT_ONLY: process.argv.includes("--assistant-only")
           ? "1"
           : "",
       },

@@ -27,6 +27,8 @@ assert.match(
   "Use scripts/test-isolated.mjs para criar um banco descartável",
 );
 const port = process.env.CONSOLE_TEST_HTTP_PORT || "3101";
+// Only the assistant suite (test-isolated.mjs --assistant-only): the setup runs, the other sections do not.
+const assistantOnly = !!process.env.CONSOLE_TEST_ASSISTANT_ONLY;
 const base = `http://127.0.0.1:${port}`;
 const marker = randomUUID().slice(0, 8);
 const adminEmail = `qa-admin-${marker}@example.invalid`;
@@ -331,7 +333,7 @@ try {
         }),
       ],
     );
-  } else {
+  } else if (!assistantOnly) {
     const lookupPath = "/api/cadastro/consulta?tipo=cnpj&valor=12345678000199";
     ok(
       (await request(lookupPath)).status === 401,
@@ -2113,30 +2115,35 @@ try {
       [clientPreferenceKey],
     );
   }
-  await runBillingTests({
-    database,
-    ids,
-    people,
-    request,
-    submitForm,
-    flags,
-    sentNotices,
-    ok,
-    marker,
-  });
-  await runHandoffTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
-  await runSupportTests({ database, ids, people, request, submitForm, sentNotices, ok, marker, base });
-  await runNoticesTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
-  await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
-  await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
-  await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
-  await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
-  await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
-  await runMemberScopeTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
-  await runHelpTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
-  await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, openRouterFile });
-  await runContractSigningTests({ database, ids, request, ok, marker, base });
-  await runWorkspaceDomainTests({ people, ok, base, notFoundPage, passKeyId });
+  if (assistantOnly) {
+    // --assistant-only: just the assistant, against the same fixtures.
+    await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, openRouterFile });
+  } else {
+    await runBillingTests({
+      database,
+      ids,
+      people,
+      request,
+      submitForm,
+      flags,
+      sentNotices,
+      ok,
+      marker,
+    });
+    await runHandoffTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
+    await runSupportTests({ database, ids, people, request, submitForm, sentNotices, ok, marker, base });
+    await runNoticesTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
+    await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
+    await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
+    await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
+    await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
+    await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
+    await runMemberScopeTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
+    await runHelpTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
+    await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, openRouterFile });
+    await runContractSigningTests({ database, ids, request, ok, marker, base });
+    await runWorkspaceDomainTests({ people, ok, base, notFoundPage, passKeyId });
+  }
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );

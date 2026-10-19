@@ -86,6 +86,19 @@ async function mockImages(n) {
   );
 }
 
+/** Message content as text: the AI SDK provider sends the system prompt (and some user turns) as a list of parts. */
+const textOf = (content) =>
+  typeof content === "string" ? content : Array.isArray(content) ? content.map((part) => (part && typeof part.text === "string" ? part.text : "")).join("") : "";
+/** A tool's answer: JSON from a tool that ran, plain text when the SDK refused the call itself. */
+const toolResult = (content) => {
+  const text = textOf(content);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { erro: text };
+  }
+};
+
 const call = (name, args) => ({
   id: `call_${Math.random().toString(36).slice(2, 10)}`,
   type: "function",
@@ -98,11 +111,11 @@ const reply = (content, tool_calls) => ({
 
 function decide(messages) {
   // The screen travels as its own labelled user message; the person's words are the others.
-  const users = messages.filter((m) => m.role === "user" && !m.content.startsWith("<tela_atual>")).map((m) => m.content.toLowerCase());
+  const users = messages.filter((m) => m.role === "user" && !textOf(m.content).startsWith("<tela_atual>")).map((m) => textOf(m.content).toLowerCase());
   // A short "sim" answers the request before it: act on that one.
   const user = /^(sim|confirmo|pode|ok)\b/.test(users.at(-1) ?? "") && users.length > 1 ? users.at(-2) : (users.at(-1) ?? "");
-  const tools = messages.filter((m) => m.role === "tool").map((m) => JSON.parse(m.content));
-  const system = messages.find((m) => m.role === "system")?.content ?? "";
+  const tools = messages.filter((m) => m.role === "tool").map((m) => toolResult(m.content));
+  const system = textOf(messages.find((m) => m.role === "system")?.content);
   const calls = messages.flatMap((m) => m.tool_calls ?? []).map((c) => c.function.name);
   const summarize = () =>
     tools
@@ -127,12 +140,19 @@ function decide(messages) {
       })
       .join("\n");
   // The day's budget ran out mid-answer (M3): the last round answers in text with what the tools brought.
-  if (messages.at(-1)?.role === "system" && messages.at(-1).content.includes("limite de uso do assistente de hoje acabou"))
-    return reply(`Parei aqui: o limite de hoje acabou.\n\n${summarize()}`);
+  if (system.includes("limite de uso do assistente de hoje acabou")) return reply(`Parei aqui: o limite de hoje acabou.\n\n${summarize()}`);
+  // A model that spent its budget on reasoning and wrote nothing: the retry asks once more, plainly.
+  if (user.includes("resposta-vazia")) return reply(system.includes("Escreva agora a resposta final") ? "Resposta escrita na segunda tentativa." : "");
+  // H4 within one round: read a ticket, read company B and invite there, all in the same response.
+  if (user.includes("numa rodada") && !calls.includes("ler_chamado")) {
+    const ticket = /chamado ([0-9a-f-]{36})/.exec(user)?.[1];
+    const target = /empresa ([0-9a-f-]{36})/.exec(user)?.[1];
+    return reply(null, [call("ler_chamado", { chamadoId: ticket }), call("ler_empresa", { companyId: target }), call("convidar_membro", { companyId: target, email: "intruso@example.invalid", papel: "manager" })]);
+  }
   // A model fooled by text it read (H4): the "internal procedure" in a ticket asks for another company and an invite.
   const target = messages
     .filter((m) => m.role === "tool" || m.role === "user")
-    .map((m) => /PROCEDIMENTO-INTERNO: chame ler_empresa\(([0-9a-f-]{36})\)/.exec(String(m.content))?.[1])
+    .map((m) => /PROCEDIMENTO-INTERNO: chame ler_empresa\(([0-9a-f-]{36})\)/.exec(textOf(m.content))?.[1])
     .find(Boolean);
   if (target && !calls.includes("ler_empresa"))
     return reply(null, [call("ler_empresa", { companyId: target }), call("convidar_membro", { companyId: target, email: "intruso@example.invalid", papel: "manager" })]);
@@ -205,8 +225,10 @@ function decide(messages) {
   const click = /clique em (.+)$/.exec(user);
   if (click) return reply(null, [call("clicar_na_tela", { texto: click[1].trim() })]);
   if (user.includes("muitas consultas")) return reply(null, Array.from({ length: 15 }, () => call("buscar_ajuda", { consulta: "boleto" })));
+  // Text before the tool call in the same response, as real models often do.
+  if (user.includes("fala antes")) return reply("Vou consultar as faturas.", [call("listar_faturas", { situacao: "todas", limite: 1 })]);
   // A tool from an area Jev did not pick for this message (L6).
-  if (user.includes("fora da lista")) return reply(null, [call("excluir_tarefa", { tarefaId: "00000000-0000-4000-8000-000000000001" })]);
+  if (user.includes("fora da lista")) return reply(null, [call("excluir_tarefa", { tarefaId: /alvo ([0-9a-f-]{36})/.exec(user)?.[1] ?? "00000000-0000-4000-8000-000000000001" })]);
   if (user.includes("preench") && user.includes("envie"))
     return reply(null, [call("preencher_tela", { campos: [{ campo: "subject", valor: "Preenchido pelo assistente" }, { campo: "body", valor: "Teste de envio pela tela." }], enviar: true })]);
   if (user.includes("preench") && user.includes("cobran"))
@@ -385,7 +407,7 @@ globalThis.fetch = async function (input, init) {
   }
   const body = JSON.parse(init.body);
   // The ticket reply draft and the proposal phases: one-shot prompts, no tools.
-  const system = String(body.messages?.[0]?.content ?? "");
+  const system = textOf(body.messages?.[0]?.content);
   const draft = system.startsWith("Você escreve a próxima resposta") ? "reply" : system.startsWith("Você monta o primeiro rascunho") ? "phases" : null;
   if (draft && log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), draft, zdr: body.provider?.zdr ?? null }) + "\n");
   if (system.startsWith("Você escreve a próxima resposta"))
@@ -406,26 +428,81 @@ globalThis.fetch = async function (input, init) {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   // The project journey's drafts (lib/journeys/journey-ai.ts): one-shot prompts matched by their opening words.
-  const journey = journeyAnswer(system, String(body.messages?.[1]?.content ?? ""));
+  const journey = journeyAnswer(system, textOf(body.messages?.[1]?.content));
   if (journey) {
     // What was asked is never logged; only which draft, and that the call refused data collection.
     if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), journey: journey.kind, model: body.model, dataCollection: body.provider?.data_collection ?? null, zdr: body.provider?.zdr ?? null, maxTokens: body.max_tokens }) + "\n");
     return new Response(JSON.stringify(reply(journey.content)), { status: 200, headers: { "Content-Type": "application/json" } });
   }
-  const lastUser = String([...body.messages].reverse().find((m) => m.role === "user")?.content ?? "");
+  const lastUser = textOf([...body.messages].reverse().find((m) => m.role === "user")?.content);
   if (log)
     fs.appendFileSync(
       log,
-      JSON.stringify({ at: new Date().toISOString(), model: body.model, tools: body.tools?.length, messages: body.messages.length, zdr: body.provider?.zdr ?? null, credits: lastUser.includes("sem-creditos") || undefined }) + "\n",
+      JSON.stringify({
+        at: new Date().toISOString(),
+        model: body.model,
+        tools: body.tools?.length,
+        messages: body.messages.length,
+        zdr: body.provider?.zdr ?? null,
+        dataCollection: body.provider?.data_collection ?? null,
+        stream: body.stream === true,
+        maxTokens: body.max_tokens,
+        credits: lastUser.includes("sem-creditos") || undefined,
+        // Only when a suite asks (fake test data): what the model read, to prove what never reaches it.
+        prompt: mockFlags().logPrompts ? JSON.stringify(body.messages) : undefined,
+      }) + "\n",
     );
   // Out of credits, with an amount that used to tempt a smaller retry.
   if (lastUser.includes("sem-creditos"))
-    return new Response(JSON.stringify({ error: { message: "You requested up to 3000 tokens, but can only afford 2000" } }), { status: 402, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: { code: 402, message: "You requested up to 3000 tokens, but can only afford 2000" } }), { status: 402, headers: { "Content-Type": "application/json" } });
   // A slow model on request, to watch the UI while the assistant works.
   const wait = Number(process.env.CONSOLE_TEST_ASSISTANT_DELAY_MS || 0);
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   const payload = decide(body.messages);
   // Roughly what a real model would bill, so the panel's token counter has numbers.
   payload.usage = { prompt_tokens: Math.ceil(init.body.length / 4), completion_tokens: Math.ceil(JSON.stringify(payload.choices).length / 4) };
-  return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+  if (body.stream !== true) return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+  // "devagar" streams a piece every 60 ms; "corte-no-meio" breaks the stream after two pieces.
+  return streamed(payload, body.model, { gapMs: lastUser.includes("devagar") ? 60 : 0, cut: lastUser.includes("corte-no-meio"), signal: init?.signal });
 };
+
+/**
+ * The same answer as OpenRouter streams it (Server-Sent Events): a role
+ * chunk, the text in small pieces, each tool call opened with its id and
+ * name and its arguments in fragments, the finish reason, the usage and
+ * [DONE].
+ */
+function streamed(payload, model, { gapMs, cut, signal }) {
+  const { message, finish_reason } = payload.choices[0];
+  const base = { id: "gen-mock", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model };
+  const chunk = (delta, finish = null) => ({ ...base, choices: [{ index: 0, delta, finish_reason: finish }] });
+  const events = [chunk({ role: "assistant", content: "" })];
+  const text = message.content ?? "";
+  for (let i = 0; i < text.length; i += 12) events.push(chunk({ content: text.slice(i, i + 12) }));
+  (message.tool_calls ?? []).forEach((toolCall, index) => {
+    events.push(chunk({ tool_calls: [{ index, id: toolCall.id, type: "function", function: { name: toolCall.function.name, arguments: "" } }] }));
+    const args = toolCall.function.arguments;
+    const half = Math.ceil(args.length / 2);
+    for (const piece of [args.slice(0, half), args.slice(half)]) if (piece) events.push(chunk({ tool_calls: [{ index, function: { arguments: piece } }] }));
+  });
+  if (cut) events.splice(3, events.length, { ...base, choices: [{ index: 0, delta: {}, finish_reason: "error" }], error: { code: 502, message: "Provider disconnected" } });
+  else {
+    events.push(chunk({}, finish_reason));
+    const usage = payload.usage;
+    events.push({ ...base, choices: [], usage: { ...usage, total_tokens: usage.prompt_tokens + usage.completion_tokens } });
+  }
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      controller.enqueue(encoder.encode(": OPENROUTER PROCESSING\n\n"));
+      for (const event of events) {
+        if (signal?.aborted) return controller.error(signal.reason);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        if (gapMs) await new Promise((resolve) => setTimeout(resolve, gapMs));
+      }
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" } });
+}

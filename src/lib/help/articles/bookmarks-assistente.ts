@@ -580,7 +580,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               "Abra o assistente. Numa conversa nova, ele cumprimenta você pelo nome, pergunta como pode ajudar e mostra sugestões.",
               "Toque numa sugestão, que é enviada na hora, ou escreva no campo “Pergunte ou peça algo…”. Se preferir, use o microfone para [falar em vez de escrever](/ajuda/falar-em-vez-de-escrever).",
               "Envie com Enter ou com a seta. Shift+Enter quebra a linha.",
-              "Enquanto ele trabalha, aparece há quanto tempo ele está na resposta. Acima da resposta, etiquetas com ✓ mostram o que ele consultou ou fez, como “Consultei as faturas”.",
+              "A resposta aparece enquanto ele escreve. Enquanto ele trabalha, aparece há quanto tempo ele está na resposta, e as etiquetas com ✓ acima dela mostram, conforme acontecem, o que ele consultou ou fez, como “Consultei as faturas”.",
               "Os links da resposta abrem a tela certa do Console.",
               "Para mudar de assunto, toque em “Nova conversa”. A conversa anterior fica no “Histórico”.",
             ],
@@ -774,6 +774,10 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         a: "Cada cartão vale por 15 minutos e fica só na aba em que apareceu. Peça de novo ao assistente, que ele prepara outro.",
       },
       {
+        q: "A resposta parou no meio. E agora?",
+        a: "Quando uma resposta não termina, o texto que já tinha aparecido sai do painel e, no lugar dele, aparece em vermelho o que deu errado. Nada dessa resposta fica na conversa. Envie a mensagem de novo em instantes.",
+      },
+      {
         q: "O que quer dizer “Jev” nas etiquetas?",
         a: "É a parte do assistente que lê o seu pedido para responder mais rápido. Quando está claro que você só quer abrir uma tela ou falar com a equipe, ele responde na hora, por exemplo “Abrindo Chamados.”, com a etiqueta “Jev: abrir Chamados”. O Jev não aprova alterações: elas sempre passam pelo cartão.",
       },
@@ -783,7 +787,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
     ],
     related: ["falar-em-vez-de-escrever", "abrir-um-chamado", "seus-dados", "membro-ou-administrador"],
-    updatedAt: "2026-10-16",
+    updatedAt: "2026-10-19",
   },
   {
     slug: "falar-em-vez-de-escrever",

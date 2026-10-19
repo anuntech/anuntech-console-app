@@ -4,18 +4,12 @@ import { z } from "zod";
 import { allowedIds, canAccess, type Actor } from "../access/access";
 import type { Area } from "../access/permissions";
 import type { PageSnapshot } from "./page-snapshot";
+import type { PageAction } from "./assistant-stream";
 
 /* Shared plumbing for the assistant's tools: types, access scoping, form submission. */
 
-export type ClientAction =
-  | { type: "navigate"; href: string }
-  | { type: "open_support" }
-  /** Only into the form the snapshot named; submitting goes through a confirmation card. */
-  | { type: "fill"; form: string; fields: { campo: string; valor: string }[]; submit: boolean }
-  /** One control marked data-assistant-action, by its exact text. */
-  | { type: "click"; text: string }
-  /** Data behind the open screen changed (a tool wrote it); the page reloads its data. */
-  | { type: "refresh" };
+/** What a tool asks of the page; the same shape the panel reads (assistant-stream.ts). */
+export type ClientAction = PageAction;
 export type ToolOutcome = { result: unknown; summary: string; actions?: ClientAction[] };
 export type ToolContext = {
   actor: Actor;
