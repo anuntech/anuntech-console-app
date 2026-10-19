@@ -1,12 +1,15 @@
 import "server-only";
 import { z } from "zod";
-import { assistantConfig, PRIVATE_PROVIDERS } from "./assistant";
+import { AssistantError } from "./assistant-errors";
+import { assertGateway } from "./chat-model";
+import { oneShot, OUT_OF_FORMAT } from "./one-shot";
 import type { QuotePhase } from "../quotes/quote-model";
 
 /*
  * First phases for a proposal from what the client asked: the model reads
  * the title and the summary and proposes phases, hours and tasks. The team
  * sees them in the editor, adjusts and saves; nothing is saved or sent here.
+ * One private call through the AI Gateway (one-shot.ts).
  */
 
 const line = z.string().trim().min(1).max(160);
@@ -33,38 +36,23 @@ const PROMPT = [
 ].join("\n");
 
 export async function draftQuotePhases(input: { title: string; summary: string }): Promise<{ phases: QuotePhase[]; stack: string[] }> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("O assistente ainda não foi ligado: falta a chave do OpenRouter.");
-  const { model } = await assistantConfig();
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
-      "X-Title": "Anuntech Console",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: PROMPT },
-        { role: "user", content: `Título: ${input.title.slice(0, 160)}\n\nPedido do cliente:\n${input.summary.slice(0, 4000)}` },
-      ],
-      temperature: 0.2,
-      max_tokens: 2500,
-      provider: PRIVATE_PROVIDERS,
-    }),
-    signal: AbortSignal.timeout(55000),
-  });
-  const data = (await res.json().catch(() => null)) as { choices?: { message?: { content?: unknown } }[] } | null;
-  const content = data?.choices?.[0]?.message?.content;
-  const text = typeof content === "string" ? content : "";
-  const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  assertGateway();
   let parsed: z.infer<typeof answer>;
   try {
-    parsed = answer.parse(JSON.parse(json));
-  } catch {
-    throw new Error("A sugestão não veio num formato que o Console aceita. Tente de novo ou monte as fases à mão.");
+    parsed = await oneShot({
+      system: PROMPT,
+      user: `Título: ${input.title.slice(0, 160)}\n\nPedido do cliente:\n${input.summary.slice(0, 4000)}`,
+      maxTokens: 2500,
+      temperature: 0.2,
+      timeoutMs: 55000,
+      // Long JSON: no reasoning option, so no thinking is asked for (the model's default applies, as before).
+      reasoning: false,
+      schema: answer,
+    });
+  } catch (error) {
+    if (error instanceof AssistantError && error.message === OUT_OF_FORMAT)
+      throw new AssistantError("A sugestão não veio num formato que o Console aceita. Tente de novo ou monte as fases à mão.");
+    throw error;
   }
   return {
     phases: parsed.phases.map((p) => ({ ...p, hoursMax: Math.max(p.hoursMax, p.hoursMin) })),

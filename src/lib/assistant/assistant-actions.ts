@@ -8,7 +8,7 @@ import { assistantDocuments, assistantSettings, auditEvents } from "@/db/schema"
 import type { ActionState } from "../action-state";
 import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { DEFAULT_ASSISTANT_MODEL } from "./assistant";
-import { openRouterModels } from "./openrouter-models";
+import { gatewayModelId, gatewayModels } from "./gateway-models";
 import { KNOWLEDGE_DOCUMENT, limitLabel } from "../tickets/attachment-rules";
 
 const blocked = { error: "Você não tem permissão para fazer isso." };
@@ -41,12 +41,11 @@ export async function saveAssistantSettings(_: ActionState, form: FormData): Pro
       })
       .parse({ model: form.get("model") ?? "", prompt: form.get("prompt") ?? "" });
     const model = input.model || DEFAULT_ASSISTANT_MODEL;
-    // Free variants are served by providers that log prompts to train on them: client data never goes there.
-    if (/:free$/i.test(model)) return { error: "Modelos gratuitos (:free) guardam o que recebem. Escolha um modelo pago." };
-    // Anything the live catalog lists is fine (aliases start with "~"); otherwise the id must look like provider/model.
-    const known = (await openRouterModels()).some((m) => m.id === model);
-    if (!known && !/^~?[\w.\-]+\/[\w.\-:]+$/u.test(model))
-      return { error: "Use o id como aparece no OpenRouter, por exemplo anthropic/claude-sonnet-5 ou ~deepseek/deepseek-flash-latest." };
+    // The live catalog only lists models with a provider that keeps nothing; without it, the id must look like creator/model.
+    const models = await gatewayModels();
+    if (models.length && !models.some((m) => m.id === model))
+      return { error: "Este modelo não está na lista do AI Gateway com um provedor que não guarda os dados. Escolha um da lista." };
+    if (!gatewayModelId(model)) return { error: "Use o id como aparece no AI Gateway, por exemplo anthropic/claude-sonnet-5." };
     await db
       .insert(assistantSettings)
       .values({ id: "default", model, prompt: input.prompt, updatedBy: actor.user.id, updatedAt: new Date() })

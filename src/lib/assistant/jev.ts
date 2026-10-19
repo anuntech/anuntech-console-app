@@ -1,56 +1,24 @@
 import "server-only";
+import { gatewayReady } from "../ai/gateway-env";
+import { askJev, neededAreas, type JevQuestion, type JevState } from "./jev-ask";
 import { toolAreas, type ToolArea } from "./assistant-tools-kit";
 
 /**
- * Jev, TypeSafe's decision model, reached through OpenRouter with the same
- * key the assistant already uses. It does not write text: it answers typed
- * questions about a state in a few hundred milliseconds for a fraction of a
- * cent. The assistant uses it to read the intent before the language model
- * runs (and to short-circuit the obvious cases: opening a screen, calling the
- * team). It never approves a change: every write waits for the person's click
- * on a confirmation card (assistant-proposals.ts), so Jev being off, slow or
- * wrong can only cost a shortcut, never let an action through.
+ * Jev, TypeSafe's decision model, reached through the AI Gateway like every
+ * other AI call. It does not write text: it answers typed questions about a
+ * state in a few hundred milliseconds for a fraction of a cent. The
+ * assistant uses it to read the intent before the language model runs (and
+ * to short-circuit the obvious cases: opening a screen, calling the team).
+ * It never approves a change: every write waits for the person's click on a
+ * confirmation card (assistant-proposals.ts), so Jev being off, slow or wrong
+ * can only cost a shortcut, never let an action through.
  * Every failure here degrades to "no opinion".
  */
 
-type Question =
-  | { type: "choice"; instructions: string; criteria: Record<string, string> }
-  | { type: "noul"; instructions: string };
-type Answer =
-  | { type: "choice"; choice: string; probabilities: Record<string, number>; confidence: number }
-  | { type: "noul"; noul: number };
+export const jevEnabled = () => gatewayReady() && process.env.ASSISTANT_JEV !== "off";
 
-export const jevEnabled = () => !!process.env.OPENROUTER_API_KEY && process.env.ASSISTANT_JEV !== "off";
-const JEV_MODEL = process.env.ASSISTANT_JEV_MODEL || "~typesafe/jev-latest";
-
-async function ask(state: unknown, questions: Record<string, Question>): Promise<Record<string, Answer> | null> {
-  if (!jevEnabled()) return null;
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/systemone", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
-        "X-Title": "Anuntech Console",
-      },
-      // Providers that keep nothing (zdr), like every call; the chat calls also refuse data collection,
-      // which this endpoint has not been checked with yet (docs/task.md). If the endpoint ever refuses
-      // it, Jev reads as unavailable (logged below) and the assistant goes on without the shortcut.
-      body: JSON.stringify({ model: JEV_MODEL, state, questions, provider: { zdr: true } }),
-      signal: AbortSignal.timeout(6000),
-    });
-    const data = (await res.json().catch(() => null)) as { answers?: Record<string, Answer>; error?: { message?: string } } | null;
-    if (!res.ok || !data?.answers) {
-      console.warn("[assistant] Jev unavailable", { status: res.status, detail: data?.error?.message });
-      return null;
-    }
-    return data.answers;
-  } catch (error) {
-    console.warn("[assistant] Jev failed", error instanceof Error ? error.message : error);
-    return null;
-  }
-}
+const ask = (state: JevState, questions: Record<string, JevQuestion>, required: readonly string[]) =>
+  jevEnabled() ? askJev(state, questions, required) : Promise.resolve(null);
 
 /* ---------- intent, before the language model ---------- */
 
@@ -99,18 +67,16 @@ export async function routeIntent(input: {
       ...Object.fromEntries(
         (Object.entries(toolAreas) as [ToolArea, string][]).map(([key, description]) => [
           `area_${key}`,
-          { type: "noul", instructions: `Para atender a mensagem (considerando a resposta anterior), o assistente precisa mexer nesta área do Console: ${description}.` },
+          { type: "boolean", instructions: `Para atender a mensagem (considerando a resposta anterior), o assistente precisa mexer nesta área do Console: ${description}.` },
         ]),
       ),
     },
+    ["intent"],
   );
   const intent = answers?.intent;
   const destination = answers?.destino;
   if (!intent || intent.type !== "choice" || !(intent.choice in intents)) return null;
-  const areas = (Object.keys(toolAreas) as ToolArea[]).filter((key) => {
-    const answer = answers?.[`area_${key}`];
-    return answer?.type === "noul" && answer.noul >= 0.3;
-  });
+  const areas = neededAreas(answers!, Object.keys(toolAreas) as ToolArea[]);
   return {
     intent: intent.choice as Intent,
     confidence: intent.confidence,
@@ -138,6 +104,7 @@ export async function classifyTicket(input: { subject: string; body: string; kin
         criteria: input.impacts,
       },
     },
+    ["tipo", "impacto"],
   );
   const kind = answers?.tipo;
   const impact = answers?.impacto;

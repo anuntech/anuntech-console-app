@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
+  encodeWav,
+  uploadWaitMs,
   MAX_AUDIO_BYTES,
   MAX_SECONDS,
   MIME_ORDER,
@@ -8,6 +10,7 @@ import {
   MIN_SECONDS,
   PRIVACY_LINE,
   WARN_AT,
+  WAV_RATE,
 } from "@/lib/voice/voice-rules";
 
 /*
@@ -65,6 +68,34 @@ function permissionNotice(error: unknown) {
   return "O microfone está bloqueado para o Console. Libere o microfone nas configurações do navegador e tente de novo. Se você abriu o link pelo WhatsApp ou Instagram, abra no Safari ou no Chrome.";
 }
 
+/**
+ * The recording as 16 kHz mono WAV, which every transcription model reads
+ * (the best one for Portuguese takes no WebM or MP4); null when this browser
+ * cannot decode it, and the recording then goes as it is. Decoding into a
+ * context at WAV_RATE resamples on the way.
+ */
+async function asWav(audio: Blob): Promise<Blob | null> {
+  try {
+    const Offline =
+      window.OfflineAudioContext ?? (window as unknown as { webkitOfflineAudioContext?: typeof OfflineAudioContext }).webkitOfflineAudioContext;
+    if (!Offline) return null;
+    const bytes = await audio.arrayBuffer();
+    const context = new Offline(1, 1, WAV_RATE);
+    const decoded = await new Promise<AudioBuffer>((resolve, reject) => {
+      // Older Safari answers through the callbacks only.
+      void context.decodeAudioData(bytes, resolve, reject)?.then(resolve, reject);
+    });
+    const mono = new Float32Array(decoded.length);
+    for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
+      const data = decoded.getChannelData(channel);
+      for (let i = 0; i < data.length; i++) mono[i] += data[i] / decoded.numberOfChannels;
+    }
+    return new Blob([encodeWav(mono, decoded.sampleRate)], { type: "audio/wav" });
+  } catch {
+    return null;
+  }
+}
+
 /** One open microphone at a time: starting a recording ends another one (a transcription in flight goes on). */
 let live: { cancel: () => void } | null = null;
 
@@ -103,16 +134,21 @@ function createDictation(update: (patch: Partial<State>) => void) {
     const controller = new AbortController();
     request = controller;
     let timedOut = false;
-    const timer = window.setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, 50_000);
+    let timer = 0;
     update({ phase: "transcribing", notice: "Transcrevendo…", canRetry: false, seconds: 0, level: 0 });
     try {
+      const wav = await asWav(audio);
+      if (controller.signal.aborted) throw new DOMException("", "AbortError");
+      const upload = wav && wav.size <= MAX_AUDIO_BYTES ? wav : audio;
+      // The wait starts with the upload and grows with it: 2 minutes of WAV take a while on a slow phone line.
+      timer = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, uploadWaitMs(upload.size));
       const res = await fetch("/api/transcricao", {
         method: "POST",
-        body: audio,
-        headers: { "Content-Type": audio.type || "audio/webm" },
+        body: upload,
+        headers: { "Content-Type": upload.type || "audio/webm" },
         credentials: "same-origin",
         signal: controller.signal,
       });

@@ -12,6 +12,7 @@ import {
 import { cn } from "cn";
 import { requireAdmin } from "@/lib/access/access";
 import { checkIntegration } from "@/lib/integrations/integration-actions";
+import { gatewayCredential } from "@/lib/ai/gateway-env";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";
@@ -27,6 +28,7 @@ type Integration = {
 
 export async function IntegrationsSection() {
   await requireAdmin();
+  const aiCredential = gatewayCredential();
   const groups: { title: string; description: string; items: Integration[] }[] = [
     {
       title: "Dados e acesso",
@@ -66,11 +68,11 @@ export async function IntegrationsSection() {
           detail: "Códigos de acesso e avisos pelo WhatsApp. Cobranças dependem de modelo de mensagem aprovado.",
         },
         {
-          name: "OpenRouter",
+          name: "AI Gateway da Vercel",
           icon: <SparklesIcon />,
-          status: process.env.OPENROUTER_API_KEY ? "Credencial recebida" : "Pendente",
-          pending: !process.env.OPENROUTER_API_KEY,
-          detail: "O assistente do Console conversa e executa ações por aqui. Modelo e instruções em Assistente.",
+          status: aiCredential === "key" ? "Chave configurada" : aiCredential === "oidc" ? "Pelo OIDC da Vercel" : "Pendente",
+          pending: !aiCredential,
+          detail: "Toda a IA do Console passa por aqui: assistente, Jev, ditado, sugestões, jornadas e ícones. Modelo e instruções em Assistente.",
         },
       ],
     },

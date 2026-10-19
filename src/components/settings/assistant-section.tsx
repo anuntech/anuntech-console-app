@@ -6,7 +6,7 @@ import { assistantDocuments, user } from "@/db/schema";
 import { requireAdmin } from "@/lib/access/access";
 import { assistantConfig, DEFAULT_ASSISTANT_MODEL } from "@/lib/assistant/assistant";
 import { assistantTools } from "@/lib/assistant/assistant-tools";
-import { openRouterModels, SUGGESTED_MODEL_IDS } from "@/lib/assistant/openrouter-models";
+import { gatewayModels, SUGGESTED_MODEL_IDS } from "@/lib/assistant/gateway-models";
 import { ModelField } from "./model-field";
 import { NewKnowledgeDocument } from "./knowledge-document-sheet";
 import { removeAssistantDocument, saveAssistantSettings } from "@/lib/assistant/assistant-actions";
@@ -31,7 +31,7 @@ export async function AssistantSection() {
       .from(assistantDocuments)
       .leftJoin(user, eq(user.id, assistantDocuments.authorId))
       .orderBy(desc(assistantDocuments.updatedAt)),
-    openRouterModels(),
+    gatewayModels(),
   ]);
   const totalBytes = documents.reduce((sum, d) => sum + d.bytes, 0);
   return (
@@ -40,7 +40,7 @@ export async function AssistantSection() {
         <CardHeader>
           <SectionTitle
             title="Modelo e instruções"
-            description="O assistente fala pelo OpenRouter. As regras básicas (usar só o acesso da pessoa, não inventar, não criar cobranças) já estão no código; aqui você acrescenta o jeito da Anuntech."
+            description="O assistente fala pelo AI Gateway da Vercel, só com provedores que não guardam nem treinam com os dados. As regras básicas (usar só o acesso da pessoa, não inventar, não criar cobranças) já estão no código; aqui você acrescenta o jeito da Anuntech."
           />
         </CardHeader>
         <ServerForm action={saveAssistantSettings} className="contents">
@@ -49,16 +49,16 @@ export async function AssistantSection() {
             <p
               role="status"
               className={
-                config.keyConfigured
+                config.gatewayConfigured
                   ? "m-0 flex items-center gap-2 text-sm text-success"
                   : "m-0 flex items-start gap-2 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
               }
             >
-              {config.keyConfigured ? <CheckCircle2Icon className="size-4 shrink-0" /> : <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />}
+              {config.gatewayConfigured ? <CheckCircle2Icon className="size-4 shrink-0" /> : <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />}
               <span>
-                {config.keyConfigured
-                  ? "Chave do OpenRouter configurada no ambiente."
-                  : "Falta a variável OPENROUTER_API_KEY no projeto da Vercel. Até lá o assistente abre, mas avisa que está desligado."}
+                {config.gatewayConfigured
+                  ? "AI Gateway configurado neste ambiente."
+                  : "O AI Gateway não está configurado neste ambiente: falta AI_GATEWAY_API_KEY ou o token OIDC da Vercel. Até lá o assistente abre, mas avisa que está desligado."}
               </span>
             </p>
             <div>
@@ -72,8 +72,8 @@ export async function AssistantSection() {
               )}
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {models.length
-                  ? `Lista ao vivo do OpenRouter, só modelos que aceitam ferramentas, com o preço por milhão de tokens (entrada / saída). Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`
-                  : `Não deu para carregar a lista do OpenRouter agora. Digite o id como aparece em openrouter.ai/models; precisa aceitar ferramentas. Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`}
+                  ? `Lista ao vivo do AI Gateway, só modelos que aceitam ferramentas e têm um provedor que não guarda os dados, com o preço por milhão de tokens (entrada / saída). Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`
+                  : `Não deu para carregar a lista do AI Gateway agora. Digite o id como aparece em vercel.com/ai-gateway/models; precisa aceitar ferramentas. Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`}
               </p>
             </div>
             <div>

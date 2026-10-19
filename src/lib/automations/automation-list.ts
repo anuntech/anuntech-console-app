@@ -49,7 +49,7 @@ export const AUTOMATIONS = {
   ticketTriage: {
     group: "Equipe",
     label: "Triagem do Jev nos chamados novos",
-    description: "O Jev lê o assunto e a descrição pelo OpenRouter e sugere à equipe uma prioridade maior quando o texto parece mais grave. Nada muda sozinho.",
+    description: "O Jev lê o assunto e a descrição pelo AI Gateway e sugere à equipe uma prioridade maior quando o texto parece mais grave. Nada muda sozinho.",
   },
 } as const;
 export type AutomationKey = keyof typeof AUTOMATIONS;

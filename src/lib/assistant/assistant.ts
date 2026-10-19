@@ -13,14 +13,15 @@ import { hasPermission } from "../access/permissions";
 import { isStepCount, jsonSchema, streamText, tool as aiTool, type JSONSchema7, type ModelMessage, type ToolSet } from "ai";
 import { destinations, parseInput, runParsed, screenFor, toolCatalog, toolInputSchema, ToolError, type ClientAction, type Destination, type ToolArea, type ToolContext } from "./assistant-tools";
 import { intents, jevEnabled, routeIntent } from "./jev";
-import { modelSupportsReasoning } from "./openrouter-models";
+import { modelSupportsReasoning, usableModel } from "./gateway-models";
 import { describePage, openRecord, recordLine, type PageSnapshot, areaOfPath } from "./page-snapshot";
 import { createProposal, type ProposalCard } from "./assistant-proposals";
 import { HELP_ARTICLES } from "../help/articles";
 import { BUDGET_CLOSING_NOTE, BUDGET_ENDED } from "./budget-rules";
 import type { TurnPhase } from "./activity";
 import { AssistantError, failureText } from "./assistant-errors";
-import { chatModel, providerFailure, roundState, sdkError } from "./openrouter-chat";
+import { chatModel, providerFailure, roundState, sdkError } from "./chat-model";
+import { gatewayReady } from "../ai/gateway-env";
 import { logDatabaseFault } from "../action-errors";
 
 export { AssistantError } from "./assistant-errors";
@@ -63,13 +64,12 @@ export type AssistantProgress = { tokens: number; phase: TurnPhase };
 
 export async function assistantConfig() {
   const [row] = await db.select().from(assistantSettings).where(eq(assistantSettings.id, "default"));
-  const saved = row?.model?.trim();
   return {
-    // A free variant saved before they were refused falls back to the default: those providers keep what they read.
-    model: saved && !/:free$/i.test(saved) ? saved : DEFAULT_ASSISTANT_MODEL,
+    // A saved id the Gateway does not offer with a private provider (an old OpenRouter alias, a free variant) falls back to the default.
+    model: await usableModel(row?.model, DEFAULT_ASSISTANT_MODEL),
     prompt: row?.prompt ?? "",
     updatedAt: row?.updatedAt ?? null,
-    keyConfigured: !!process.env.OPENROUTER_API_KEY,
+    gatewayConfigured: gatewayReady(),
   };
 }
 
@@ -224,19 +224,18 @@ export async function systemPrompt(actor: Actor, custom: string, page?: Pick<Pag
 
 /* ---------- the call ---------- */
 
-export { PRIVATE_PROVIDERS } from "./openrouter-chat";
-
 /** The failure the person reads; anything that is not the provider's stays as it is, for the route to log. */
 function failed(error: unknown, model: string): unknown {
   if (error instanceof AssistantError) return error;
   const failure = providerFailure(error);
   if (failure) {
-    console.warn("[assistant] OpenRouter refused", { model, ...failure });
+    console.warn("[assistant] Gateway refused", { model, ...failure });
     return new AssistantError(failureText(failure, model));
   }
   // Any other error of the SDK may carry the request or the answer in its message: only its name is logged.
   if (sdkError(error)) {
-    console.error("[assistant] model call failed", { model, name: (error as Error).name });
+    const cause = (error as { cause?: unknown }).cause;
+    console.error("[assistant] model call failed", { model, name: (error as Error).name, cause: cause instanceof Error ? cause.name : undefined });
     return new AssistantError("O assistente falhou nesta resposta. Tente de novo em instantes.");
   }
   return error;
@@ -423,8 +422,8 @@ export async function converse(
   };
   const answer = (content: unknown) => (JSON.stringify(content) ?? "null").slice(0, 20000);
   const refuse = (erro: string) => answer({ erro });
-  // What the model call of the round just streamed left behind (openrouter-chat.ts): calls whose arguments
-  // never became JSON, refused as before the SDK, and a call cut before it was handed over.
+  // What the model call of the round just streamed left behind (chat-model.ts): calls whose arguments
+  // never became JSON, refused in words, and a call cut before the model finished it.
   const round = roundState();
   /** One tool call, as the model reads its result. Calls run one at a time, in the model's order. */
   const call = async (name: string, raw: unknown, id: string): Promise<string> => {
@@ -486,7 +485,7 @@ export async function converse(
     }
   };
   // The SDK (7.0.137) starts a round's calls together, in the order it got them, which `inModelOrder`
-  // (openrouter-chat.ts) makes the order the model wrote them. They run here one at a time, in that
+  // (chat-model.ts) makes the order the model wrote them. They run here one at a time, in that
   // order: what one call reads narrows the calls after it.
   let line: Promise<unknown> = Promise.resolve();
   const inOrder = (name: string, input: unknown, id: string) => {

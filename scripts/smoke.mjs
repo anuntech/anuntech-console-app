@@ -55,10 +55,10 @@ const passKey = Buffer.from(
 const noticeDir = mkdtempSync(join(tmpdir(), "console-notices-"));
 const noticeFile = join(noticeDir, "messages.jsonl"),
   noticeFlags = join(noticeDir, "flags.json"),
-  openRouterFile = join(noticeDir, "openrouter.jsonl");
+  aiFile = join(noticeDir, "ai-gateway.jsonl");
 const transcriptions = () => {
   try {
-    return readFileSync(openRouterFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((e) => e.transcription);
+    return readFileSync(aiFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((e) => e.transcription);
   } catch {
     return [];
   }
@@ -278,10 +278,13 @@ try {
         BETTER_AUTH_URL: base,
         GOOGLE_CLIENT_ID: "console-regression-test",
         GOOGLE_CLIENT_SECRET: "test",
-        // The OpenRouter mock goes last so it wraps the other mocks' fetch.
-        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs --require=${process.cwd()}/scripts/openrouter-mock.cjs`,
-        OPENROUTER_API_KEY: "test",
-        CONSOLE_TEST_ASSISTANT_FILE: openRouterFile,
+        // The AI Gateway mock goes last so it wraps the other mocks' fetch.
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs --require=${process.cwd()}/scripts/blob-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
+        // A key wins over OIDC: a Vercel token in .env.local is never used, and the mock checks this one.
+        AI_GATEWAY_API_KEY: "test",
+        CONSOLE_TEST_ASSISTANT_FILE: aiFile,
+        // A saved copy of the Gateway's catalog: the model list, the fallback and the reasoning budget get exercised.
+        CONSOLE_TEST_MODELS_FILE: `${process.cwd()}/scripts/fixtures/gateway-models.json`,
         CONSOLE_TEST_NOTICE_FILE: noticeFile,
         CONSOLE_TEST_NOTICE_FLAGS: noticeFlags,
         // Notices go out at once at any hour (in production they wait for 08:00).
@@ -481,20 +484,29 @@ try {
     // Dictation: the microphone is allowed for the Console only, and /api/transcricao turns audio into text.
     ok(ticketForm.headers.get("permissions-policy")?.includes("microphone=(self)") && ticketForm.headers.get("permissions-policy")?.includes("camera=()"), "Microfone liberado só para o próprio Console");
     ok(ticketForm.text.includes("Não escreva nem fale senhas"), "Com o microfone, o aviso de senhas vale também para o que se fala");
-    const speak = (who, body, type = "audio/webm;codecs=opus", headers = {}) =>
+    // The browser sends WAV (it converts the recording); WebM or MP4 only when it could not.
+    const speak = (who, body, type = "audio/wav", headers = {}) =>
       request("/api/transcricao", who, { method: "POST", body, headers: { Origin: base, "Content-Type": type, ...headers } });
     const audio = (prefix = "") => Buffer.concat([Buffer.from(prefix, "latin1"), Buffer.alloc(3000, 7)]);
     r = await speak("support", audio());
     ok(r.status === 200 && JSON.parse(r.text).text === "Texto ditado de teste", "Cliente dita e recebe o texto");
     const heard = transcriptions().at(-1);
-    ok(heard?.model === "openai/whisper-large-v3-turbo" && heard.format === "webm" && heard.zdr === true && heard.language === "pt" && heard.bytes === 3000, "Transcrição vai em português e só com provedores de retenção zero");
-    r = await speak("support", audio(), "audio/mp4");
-    ok(r.status === 200 && transcriptions().at(-1)?.format === "m4a", "Áudio do iPhone (mp4) vai como m4a");
+    ok(
+      heard?.model === "microsoft/mai-transcribe-2" && heard.locales?.join() === "pt-BR" && heard.zeroDataRetention === true && heard.disallowPromptTraining === true && heard.bytes === 3000,
+      "Transcrição vai em português e só com provedores de retenção zero",
+    );
+    for (const type of ["audio/webm;codecs=opus", "audio/mp4"]) {
+      const sent = transcriptions().length;
+      r = await speak("support", audio(), type);
+      ok(r.status === 200 && transcriptions().slice(sent).map((e) => e.model).join() === "spacexai/grok-stt", `Gravação que o navegador não converteu (${type}) vai só para o modelo que lê o formato`);
+    }
     const before = transcriptions().length;
     r = await speak("support", audio("FAILPRIMARY"));
-    ok(r.status === 200 && transcriptions().slice(before).map((e) => e.model).join() === "openai/whisper-large-v3-turbo,openai/whisper-large-v3", "Se o primeiro modelo falha, o segundo transcreve");
+    ok(r.status === 200 && transcriptions().slice(before).map((e) => e.model).join() === "microsoft/mai-transcribe-2,spacexai/grok-stt", "Se o primeiro modelo falha, o segundo transcreve");
     r = await speak("support", audio("SILENCE"));
     ok(r.status === 422 && JSON.parse(r.text).error.includes("Não deu para entender"), "Áudio sem fala volta com aviso, sem texto");
+    r = await speak("support", audio("INGLES"));
+    ok(r.status === 422 && !r.text.includes("Bombilla"), "Transcrição que volta em outro idioma não entra no campo");
     r = await speak("support", audio("FAILALL"));
     ok(r.status === 502 && JSON.parse(r.text).error.includes("Tente de novo"), "Falha dos dois modelos pede para tentar de novo");
     r = await speak(null, audio());
@@ -2117,7 +2129,7 @@ try {
   }
   if (assistantOnly) {
     // --assistant-only: just the assistant, against the same fixtures.
-    await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, openRouterFile });
+    await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, aiFile });
   } else {
     await runBillingTests({
       database,
@@ -2140,10 +2152,19 @@ try {
     await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
     await runMemberScopeTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
     await runHelpTests({ database, ids, people, request, submitForm, ok, marker, notFoundPage });
-    await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, openRouterFile });
+    await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, aiFile });
     await runContractSigningTests({ database, ids, request, ok, marker, base });
     await runWorkspaceDomainTests({ people, ok, base, notFoundPage, passKeyId });
   }
+  // Every AI call of the run, as the Gateway mock saw it: client data only to providers that keep nothing and train
+  // on nothing (the catalog icons carry none), and nothing left for OpenRouter or a Gateway path the mock does not know.
+  const aiCalls = readFileSync(aiFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  const clientData = aiCalls.filter((e) => "messages" in e || e.jev || e.draft || e.journey || e.transcription);
+  ok(
+    clientData.length > 0 && clientData.every((e) => e.zeroDataRetention === true && e.disallowPromptTraining === true),
+    `Toda chamada de IA com dado de cliente vai só a provedores que não guardam nem treinam (${clientData.length} chamadas)`,
+  );
+  ok(!aiCalls.some((e) => e.unexpected || e.drift), "Nenhuma chamada de IA fora do AI Gateway nem fora do protocolo conhecido");
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );

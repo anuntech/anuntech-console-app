@@ -1,14 +1,16 @@
 import "server-only";
 import { createHmac } from "node:crypto";
+import { gateway, NoTranscriptGeneratedError, transcribe as transcribeWith } from "ai";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { HOURLY_LIMIT, MAX_SECONDS, shouldFallback, transcriptionBody, voiceEnabledFrom, voiceModels, type AudioFormat } from "./voice-rules";
+import { gatewayStatus } from "../ai/gateway-errors";
+import { audioSeconds, extraCharges, HOURLY_LIMIT, languageCode, portuguese, shouldFallback, transcriptionOptions, voiceEnabledFrom, voiceModels, type AudioFormat } from "./voice-rules";
 
 /*
- * Speech to text through OpenRouter, with the key the assistant and Jev
- * already use. Jev itself only reads text and answers with decisions, so a
- * transcription model does this part: Whisper Large V3 Turbo, then Whisper Large V3.
- * Every call asks for providers with zero data retention, and the audio
+ * Speech to text through the AI Gateway, like every AI call of the Console.
+ * Jev itself only reads text and answers with decisions, so a transcription
+ * model does this part: MAI-Transcribe-2, then Grok STT (voice-rules.ts).
+ * Every call only reaches providers with zero data retention, and the audio
  * lives only in this request: nothing is stored or logged but the numbers.
  */
 
@@ -43,60 +45,61 @@ export async function reserveVoice(userId: string) {
  * longer than that counts as one more transcription for each extra 2 minutes.
  */
 export async function chargeLongAudio(userId: string, seconds: number | undefined) {
-  const extra = seconds ? Math.ceil(seconds / MAX_SECONDS) - 1 : 0;
+  const extra = extraCharges(seconds);
   if (extra <= 0) return;
   await db.execute(sql`UPDATE console_otp_limits SET count = count + ${extra} WHERE key = ${voiceKey(userId)}`);
 }
 
-type Reply = { text?: string; usage?: { seconds?: number; cost?: number }; error?: { message?: string } };
+/** The status a failed attempt counts as, for the fallback rule; 0 when the Gateway was not reached. */
+function failedStatus(error: unknown): { status: number; detail: string } {
+  if (NoTranscriptGeneratedError.isInstance(error)) return { status: 200, detail: "empty transcript" };
+  return gatewayStatus(error);
+}
 
 export async function transcribe(bytes: Buffer, format: AudioFormat, signal: AbortSignal): Promise<{ text: string; seconds?: number }> {
-  const data = bytes.toString("base64");
-  const models = voiceModels(process.env);
+  const models = voiceModels(process.env, format);
+  if (!models.length)
+    throw new VoiceError(415, "Este navegador gravou o áudio num formato que o Console não aceita. Digite o texto ou use outro navegador.");
   // Whether the last attempt answered, but with nothing heard.
   let unclear = false;
   for (const [index, model] of models.entries()) {
     const started = Date.now();
-    let status = 0;
-    let reply: Reply | null = null;
+    let status = 200;
+    let detail = "empty transcript";
     try {
-      const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
-          "X-Title": "Anuntech Console",
-        },
-        body: JSON.stringify(transcriptionBody(model, data, format)),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+      const result = await transcribeWith({
+        model: gateway.transcriptionModel(model),
+        audio: bytes,
+        providerOptions: transcriptionOptions(model),
+        // The fallback below is the retry; each attempt gets 20 seconds.
+        maxRetries: 0,
+        abortSignal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
       });
-      status = res.status;
-      reply = (await res.json().catch(() => null)) as Reply | null;
-    } catch {
+      // Grok took a Portuguese sample for English and garbled it: text in another language counts as unclear.
+      const text = portuguese(result.language) ? result.text.trim() : "";
+      if (!text && result.text.trim()) detail = `language ${languageCode(result.language)}`;
+      const seconds = audioSeconds(result, bytes);
+      if (text) {
+        console.info("[voice]", {
+          model,
+          format,
+          bytes: bytes.length,
+          seconds,
+          cost: (result.providerMetadata?.gateway as { cost?: unknown } | undefined)?.cost,
+          ms: Date.now() - started,
+          fallback: index > 0,
+        });
+        if (seconds === undefined) console.warn("[voice] duration unknown", { model, format, bytes: bytes.length });
+        return { text, seconds };
+      }
+    } catch (error) {
       // The person cancelled: nobody is waiting for an answer.
       if (signal.aborted) throw new VoiceError(499, "");
-    }
-    const text = reply?.text?.trim() ?? "";
-    if (status >= 200 && status < 300 && text) {
-      console.info("[voice]", {
-        model,
-        format,
-        bytes: bytes.length,
-        seconds: reply?.usage?.seconds,
-        cost: reply?.usage?.cost,
-        ms: Date.now() - started,
-        fallback: index > 0,
-      });
-      return { text, seconds: reply?.usage?.seconds };
+      ({ status, detail } = failedStatus(error));
     }
     const empty = status >= 200 && status < 300;
     unclear = empty;
-    console.warn("[voice] OpenRouter refused", {
-      model,
-      status,
-      detail: empty ? "empty transcript" : String(reply?.error?.message ?? `HTTP ${status}`).slice(0, 200),
-    });
+    console.warn("[voice] Gateway refused", { model, status, detail });
     if (status === 401 || status === 402 || status === 403)
       throw new VoiceError(503, "A transcrição está indisponível agora. Digite o texto ou tente mais tarde.");
     if (!shouldFallback(status, empty)) break;
