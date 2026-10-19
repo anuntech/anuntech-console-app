@@ -775,7 +775,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "A resposta parou no meio. E agora?",
-        a: "Quando uma resposta não termina, o texto que já tinha aparecido sai do painel e, no lugar dele, aparece em vermelho o que deu errado. Nada dessa resposta fica na conversa. Envie a mensagem de novo em instantes.",
+        a: "Quando uma resposta não termina, o texto que já tinha aparecido sai do painel e, no lugar dele, aparece em vermelho o que deu errado. Se a falha foi do assistente, nada dessa resposta fica na conversa: envie a mensagem de novo em instantes. Se o aviso é “Sem conexão com o Console agora”, a resposta pode ter terminado mesmo assim: confira no “Histórico” antes de enviar de novo.",
       },
       {
         q: "O que quer dizer “Jev” nas etiquetas?",

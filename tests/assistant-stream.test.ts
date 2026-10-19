@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { APICallError, RetryError, StreamProviderError } from "ai";
+import { APICallError, JSONParseError, RetryError, StreamProviderError, TypeValidationError } from "ai";
 import { failureText } from "../src/lib/assistant/assistant-errors";
-import { assistantDataSchemas, assistantMetadataSchema, messageText, refusalText } from "../src/lib/assistant/assistant-stream";
+import { assistantMetadataSchema, messageText, readActions, readCard, readPhase, refusalText } from "../src/lib/assistant/assistant-stream";
 import { providerFailure } from "../src/lib/assistant/openrouter-chat";
 
 const model = "anthropic/claude-sonnet-5";
@@ -31,6 +31,10 @@ test("a failure is read from what the AI SDK reports", () => {
   assert.deepEqual(providerFailure(new StreamProviderError({ message: "Provider disconnected", statusCode: 502 })), { status: 502, detail: "Provider disconnected" });
   assert.deepEqual(providerFailure({ code: 503, message: "busy" }), { status: 503, detail: "busy" });
   assert.equal(providerFailure(new DOMException("late", "TimeoutError"))?.timeout, true);
+  // A piece of the stream that could not be read: a fixed detail, never the piece (it may quote the answer).
+  const unreadable = new TypeValidationError({ value: { choices: [{ delta: { content: "A fatura da Acme venceu" } }] }, cause: new Error("bad") });
+  assert.deepEqual(providerFailure(unreadable), { detail: "resposta ilegível do provedor" });
+  assert.deepEqual(providerFailure(new JSONParseError({ text: "data: {\"content\":\"segredo\"", cause: new Error("bad") })), { detail: "resposta ilegível do provedor" });
   // A bug or a database fault is not the provider's: the route logs it and says something generic.
   assert.equal(providerFailure(new Error("relation does not exist")), null);
   assert.equal(providerFailure("x"), null);
@@ -51,20 +55,24 @@ test("the text of a message is its text parts, in order", () => {
   assert.equal(messageText(undefined), "");
 });
 
-test("page actions only take the person somewhere inside the Console", () => {
-  const actions = assistantDataSchemas.actions;
-  assert.ok(actions.safeParse([{ type: "navigate", href: "/financeiro?companyId=1" }]).success);
-  for (const href of ["https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)"])
-    assert.equal(actions.safeParse([{ type: "navigate", href }]).success, false, href);
-  assert.equal(actions.safeParse([{ type: "run_script", code: "x" }]).success, false);
-  assert.ok(actions.safeParse([{ type: "fill", form: "f1", fields: [{ campo: "a", valor: "b" }], submit: false }, { type: "refresh" }]).success);
+test("the panel's page actions only take the person somewhere inside the Console", () => {
+  assert.deepEqual(readActions([{ type: "navigate", href: "/financeiro?companyId=1" }]), [{ type: "navigate", href: "/financeiro?companyId=1" }]);
+  for (const href of ["https://evil.example", "//evil.example", "/\\evil.example", "javascript:alert(1)"]) assert.deepEqual(readActions([{ type: "navigate", href }]), [], href);
+  // One bad action is dropped, the rest of the answer's actions stay.
+  assert.deepEqual(readActions([{ type: "run_script", code: "x" }, { type: "refresh" }]), [{ type: "refresh" }]);
+  assert.deepEqual(readActions({ type: "refresh" }), []);
+  assert.equal(readActions([{ type: "fill", form: "f1", fields: [{ campo: "a", valor: "b" }], submit: false }]).length, 1);
 });
 
-test("a card without its nonce, or a phase this build does not know, is refused", () => {
+test("the panel drops a card without its nonce and reads an unknown phase as plain thinking", () => {
   const card = { id: "p1", nonce: "n".repeat(43), title: "Abrir um chamado", details: [], tainted: false, path: null, expiresAt: new Date().toISOString() };
-  assert.ok(assistantDataSchemas.proposal.safeParse(card).success);
-  assert.equal(assistantDataSchemas.proposal.safeParse({ ...card, nonce: "" }).success, false);
-  assert.ok(assistantDataSchemas.phase.safeParse({ phase: "reading", tokens: 10 }).success);
-  assert.equal(assistantDataSchemas.phase.safeParse({ phase: "thinking", tokens: 10 }).success, false);
+  assert.deepEqual(readCard(card), card);
+  assert.equal(readCard({ ...card, nonce: "" }), null);
+  assert.equal(readCard({ ...card, details: undefined }), null);
+  assert.deepEqual(readPhase({ phase: "reading", tokens: 10 }), { phase: "reading", tokens: 10 });
+  // A newer server's phase: thinking, with the tokens still counted.
+  assert.deepEqual(readPhase({ phase: "planning", tokens: 12 }), { phase: null, tokens: 12 });
+  assert.deepEqual(readPhase({ phase: "answer", tokens: "x" }), { phase: "answer", tokens: null });
+  assert.deepEqual(readPhase(null), { phase: null, tokens: null });
   assert.equal(assistantMetadataSchema.safeParse({ conversationId: "not-a-uuid" }).success, false);
 });

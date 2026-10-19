@@ -4,7 +4,8 @@ import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { z } from "zod";
 import { getActor } from "@/lib/access/access";
 import { AssistantError, converse, HOURLY_MESSAGES, type ChatTurn } from "@/lib/assistant/assistant";
-import type { AssistantMessage } from "@/lib/assistant/assistant-stream";
+import { readActions, readCard, type AssistantMessage } from "@/lib/assistant/assistant-stream";
+import { sdkError } from "@/lib/assistant/openrouter-chat";
 import { pageSnapshotSchema } from "@/lib/assistant/page-snapshot";
 import { appendExchange, conversationTurns } from "@/lib/assistant/assistant-history";
 import { attachProposals } from "@/lib/assistant/assistant-proposals";
@@ -103,8 +104,15 @@ export async function POST(request: Request) {
             console.warn("[assistant] proposals not linked", error instanceof Error ? error.message : error),
           );
         if (reply.steps.length) writer.write({ type: "data-steps", id: "steps", data: reply.steps });
-        for (const card of reply.proposals) writer.write({ type: "data-proposal", id: card.id, data: card });
-        if (reply.actions.length) writer.write({ type: "data-actions", data: reply.actions, transient: true });
+        // Only what the panel's schemas accept leaves the server (a navigation outside the Console never does).
+        for (const card of reply.proposals) {
+          const checked = readCard(card);
+          if (checked) writer.write({ type: "data-proposal", id: checked.id, data: checked });
+          else console.error("[assistant] card left out: not a valid card", { id: card.id });
+        }
+        const actions = readActions(reply.actions);
+        if (actions.length < reply.actions.length) console.error("[assistant] page actions left out", { sent: actions.length, of: reply.actions.length });
+        if (actions.length) writer.write({ type: "data-actions", data: actions, transient: true });
         writer.write({ type: "finish", finishReason: "stop", messageMetadata: { conversationId, ...(reply.tokens !== undefined ? { tokens: reply.tokens } : {}) } });
       } finally {
         settle();
@@ -113,7 +121,9 @@ export async function POST(request: Request) {
     // A failed turn saves nothing; the person reads what went wrong and the next step.
     onError: (error) => {
       if (error instanceof AssistantError) return error.message;
-      if (!logDatabaseFault("assistant turn", error)) console.error("[assistant] turn failed", error);
+      // An AI SDK error may carry the request or the answer in its message: only its name is logged.
+      if (sdkError(error)) console.error("[assistant] turn failed", { name: (error as Error).name });
+      else if (!logDatabaseFault("assistant turn", error)) console.error("[assistant] turn failed", error);
       return "O assistente falhou nesta resposta. Tente de novo em instantes.";
     },
   });

@@ -34,8 +34,9 @@ async function ask(state: unknown, questions: Record<string, Question>): Promise
         "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
         "X-Title": "Anuntech Console",
       },
-      // Same privacy floor as the chat calls. If the endpoint ever refuses it, Jev reads as unavailable
-      // (logged below) and the assistant goes on without the shortcut.
+      // Providers that keep nothing (zdr), like every call; the chat calls also refuse data collection,
+      // which this endpoint has not been checked with yet (docs/task.md). If the endpoint ever refuses
+      // it, Jev reads as unavailable (logged below) and the assistant goes on without the shortcut.
       body: JSON.stringify({ model: JEV_MODEL, state, questions, provider: { zdr: true } }),
       signal: AbortSignal.timeout(6000),
     });

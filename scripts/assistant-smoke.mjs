@@ -278,6 +278,12 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   ok(!!r.done && r.done.reply.includes("Erro:") && !r.done.reply.includes(`QA Company B ${marker}`), "Na mesma rodada, a leitura da empresa B depois do chamado de A é recusada");
   ok(r.done?.proposals?.find((p) => p.title === "Dar acesso a uma pessoa")?.tainted === true, "O convite da mesma rodada também vem marcado");
   ok((await db.query("select 1 from console_memberships where email='intruso@example.invalid'")).rowCount === 0, "Ninguém foi convidado na mesma rodada");
+  // The provider hands over a call with no arguments last: the order is still the model's, so listing the
+  // tickets (client text) comes first and the read of B after it is refused.
+  r = await ask("admin", { message: `sem argumentos primeiro empresa ${ids.b}`, page: { path: "/painel", title: "Visão geral", forms: [], actions: [] } });
+  ok(!!r.done && r.done.reply.includes("Erro:") && !r.done.reply.includes(`QA Company B ${marker}`), "Chamada sem argumentos, escrita antes, roda antes das outras");
+  r = await ask("admin", { message: "argumento quebrado" });
+  ok(!!r.done && r.done.reply.includes("Os argumentos não vieram em JSON válido."), "Chamada com argumentos que não fecham é recusada, não roda sem eles");
   flags({ approved: true });
   r = await ask("admin", { message: "resumo" });
   ok(!!r.done && r.done.reply.includes("QA Company"), "Sem texto de cliente na resposta, a equipe consulta empresas normalmente");
@@ -326,6 +332,36 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   // Text before a tool call in the same round: the reply keeps both, and the phases end on the answer.
   r = await ask("admin", { message: "fala antes de consultar a fatura" });
   ok(!!r.done && r.done.reply.startsWith("Vou consultar as faturas.\n\n") && r.done.reply.includes("Aqui está o que encontrei") && r.progress.at(-1)?.phase === "answer", "Texto antes da ferramenta fica na resposta, que termina na fase de resposta");
+  // After a round of tools, an empty answer is retried with every earlier round: one card, read from the results.
+  flags({ approved: true, jev: "fail", logPrompts: true });
+  from = logged().length;
+  r = await ask("manager", { message: "abra um chamado de teste depois vazia" });
+  const retried = chats(from).at(-1);
+  ok(
+    r.done?.proposals?.length === 1 && r.done.reply.includes("Cartão: Abrir um chamado") && retried?.maxTokens === 6000 && retried.prompt.includes('"role":"tool"'),
+    "A nova tentativa depois de ferramentas lê o que elas devolveram e não refaz o cartão",
+  );
+  flags({ approved: true, jev: "fail" });
+  // A round cut by the output limit leaves its call unrun: it is no answer, and the turn asks again, letting
+  // the model make the call it was cut on (complete but unrun, or cut inside its arguments).
+  for (const message of ["corta no limite", "corte sem texto"]) {
+    r = await ask("admin", { message });
+    ok(
+      r.status === 200 && !r.error && !!r.done?.reply.startsWith("Depois do corte.") && r.done.steps.includes("Consultei as faturas"),
+      `Rodada cortada pelo limite não vira resposta nem erro: a nova tentativa refaz a chamada (${message})`,
+    );
+  }
+  r = await ask("admin", { message: "texto e corte" });
+  ok(
+    r.done?.reply === "Encontrei as faturas.\n\nParte das consultas desta resposta não chegou a rodar. Se faltou algo, peça de novo.",
+    "Rodada cortada depois de texto mostrado fica com o texto e avisa, sem repetir",
+  );
+  // The usual cut: the limit lands inside the only call's arguments, so no call reaches the SDK at all.
+  r = await ask("admin", { message: "corte no meio" });
+  ok(
+    r.done?.reply === "Vou consultar as faturas.\n\nParte das consultas desta resposta não chegou a rodar. Se faltou algo, peça de novo.",
+    "Chamada cortada no meio dos argumentos também é vista como corte",
+  );
   // A model that wrote nothing gets one more, plain request, with more room to answer.
   from = logged().length;
   r = await ask("admin", { message: "resposta-vazia" });

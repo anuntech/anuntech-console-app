@@ -31,9 +31,11 @@ import { relativeLabel } from "@/lib/format";
 import { PROPOSAL_TTL_MS } from "@/lib/assistant/proposal-ttl";
 import { assistantActivity, type AssistantActivity, type DictationActivity, type TurnPhase } from "@/lib/assistant/activity";
 import {
-  assistantDataSchemas,
   assistantMetadataSchema,
   messageText,
+  readActions,
+  readCard,
+  readPhase,
   refusalText,
   type AssistantMessage,
   type PageAction,
@@ -112,6 +114,9 @@ const fromSaved = (m: SavedMessage): AssistantMessage => ({
   role: m.role,
   parts: [...(m.steps?.length ? [{ type: "data-steps" as const, id: "steps", data: m.steps }] : []), { type: "text" as const, text: m.content }],
 });
+
+/** The cards of a message, each checked (`readCard`). */
+const cardsOf = (message: AssistantMessage) => message.parts.flatMap((part) => (part.type === "data-proposal" ? [readCard(part.data)].filter((card) => card !== null) : []));
 
 /** The chips of a message: the last version of its steps. */
 function stepsOf(message: AssistantMessage) {
@@ -290,6 +295,12 @@ export function AssistantPanel({
   const [history, setHistory] = useState<Conversation[] | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // A conversation being deleted: until the server answers, nothing else sends, opens or deletes, or it
+  // could land in the thread being cleared.
+  const [removing, setRemoving] = useState<string | null>(null);
+  const removingRef = useRef<string | null>(null);
+  // A conversation being opened: deleting it meanwhile would leave the deleted thread on screen.
+  const openingRef = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   // Follows the answer as it streams, unless the person scrolled up to read.
   const stick = useRef(true);
@@ -309,15 +320,16 @@ export function AssistantPanel({
 
   const { messages, setMessages, sendMessage, status } = useChat<AssistantMessage>({
     transport,
-    dataPartSchemas: assistantDataSchemas,
+    // The data parts are read through readPhase, readActions and readCard (assistant-stream.ts).
     messageMetadataSchema: assistantMetadataSchema,
     // Text arrives in many small pieces; repaint at most every 50 ms.
     throttle: 50,
     onData: (part) => {
       if (part.type === "data-phase") {
-        request.current.tokens = part.data.tokens;
-        setWorking((current) => (current ? { ...current, tokens: part.data.tokens, phase: part.data.phase } : current));
-      } else if (part.type === "data-actions") request.current.actions = part.data;
+        const { phase, tokens } = readPhase(part.data);
+        if (tokens !== null) request.current.tokens = tokens;
+        setWorking((current) => (current ? { ...current, tokens: tokens ?? current.tokens, phase } : current));
+      } else if (part.type === "data-actions") request.current.actions = readActions(part.data);
     },
     onError: (error) => {
       request.current.error = error;
@@ -333,7 +345,7 @@ export function AssistantPanel({
     steps: stepsOf(message),
     failed: message.metadata?.failed,
     spent: spent[message.id],
-    proposals: message.parts.flatMap((part) => (part.type === "data-proposal" && cards[part.data.id] ? [{ ...part.data, ...cards[part.data.id] }] : [])),
+    proposals: cardsOf(message).flatMap((card) => (cards[card.id] ? [{ ...card, ...cards[card.id] }] : [])),
   }));
   const activity = assistantActivity({
     busy,
@@ -410,11 +422,23 @@ export function AssistantPanel({
     setMessages(next);
     setCards({});
     setSpent({});
+    stick.current = true;
   };
+  // A turn under way keeps its thread: switching away would drop its question and mix the threads.
   const openConversation = async (id: string) => {
-    const res = await fetch(`/api/assistente/conversas/${id}`);
-    if (!res.ok) return false;
-    const data = (await res.json()) as { id: string; messages: SavedMessage[] };
+    if (busy || sending.current || removingRef.current || openingRef.current) return false;
+    openingRef.current = id;
+    let data: { id: string; messages: SavedMessage[] };
+    try {
+      const res = await fetch(`/api/assistente/conversas/${id}`);
+      if (!res.ok || sending.current) return false;
+      data = (await res.json()) as { id: string; messages: SavedMessage[] };
+    } catch {
+      return false;
+    } finally {
+      openingRef.current = null;
+    }
+    if (sending.current || removingRef.current) return false;
     showMessages(data.messages.map(fromSaved));
     setConversationId(data.id);
     remember(data.id);
@@ -445,16 +469,28 @@ export function AssistantPanel({
     }
   };
   const removeConversation = async (id: string) => {
-    const res = await fetch(`/api/assistente/conversas/${id}`, {
-      method: "DELETE",
-    });
+    if (busy || sending.current || removingRef.current || openingRef.current) return;
+    const current = conversationId === id;
+    removingRef.current = id;
+    setRemoving(id);
+    let res: Response;
+    try {
+      res = await fetch(`/api/assistente/conversas/${id}`, {
+        method: "DELETE",
+      });
+    } catch {
+      res = Response.error();
+    } finally {
+      removingRef.current = null;
+      setRemoving(null);
+    }
     if (!res.ok) {
       toast.error("Não foi possível apagar a conversa.");
       return;
     }
-    setHistory((current) => current?.filter((c) => c.id !== id) ?? null);
+    setHistory((list) => list?.filter((c) => c.id !== id) ?? null);
     setConfirmDelete(null);
-    if (conversationId === id) {
+    if (current && !sending.current) {
       showMessages([]);
       setConversationId(null);
       remember(null);
@@ -474,7 +510,15 @@ export function AssistantPanel({
       .then(async (res) => {
         if (!res.ok) return remember(null);
         const data = (await res.json()) as { id: string; messages: SavedMessage[] };
-        setMessages(data.messages.map(fromSaved));
+        // A message sent before the saved thread arrived wins: the thread stays the one under way.
+        let restored = false;
+        setMessages((current) => {
+          if (sending.current || current.length) return current;
+          restored = true;
+          return data.messages.map(fromSaved);
+        });
+        if (!restored) return;
+        stick.current = true;
         setConversationId(data.id);
       })
       .catch(() => undefined);
@@ -593,7 +637,10 @@ export function AssistantPanel({
     }
   };
 
-  /** A turn that did not finish: what the person reads in its place. The server saved nothing. */
+  /**
+   * A turn that did not finish: what the person reads in its place. A failure on the server saves
+   * nothing; after a dropped connection the server may still finish and save it (Histórico shows it).
+   */
   const fail = (message: AssistantMessage | undefined, text: string) => {
     setMessages((current) => [
       ...current.filter((m) => m.role !== "assistant" || m.id !== message?.id),
@@ -617,7 +664,7 @@ export function AssistantPanel({
     const metadata = message.metadata ?? {};
     setSpent((current) => ({ ...current, [message.id]: { ms: clock() - startedAt, tokens: metadata.tokens ?? tokens } }));
     const deadline = startedAt + PROPOSAL_TTL_MS;
-    const fresh = message.parts.flatMap((part) => (part.type === "data-proposal" ? [part.data.id] : []));
+    const fresh = cardsOf(message).map((card) => card.id);
     if (fresh.length) setCards((current) => ({ ...current, ...Object.fromEntries(fresh.map((id) => [id, { status: "pending" as const, deadline }])) }));
     if (metadata.conversationId) {
       setConversationId(metadata.conversationId);
@@ -631,7 +678,7 @@ export function AssistantPanel({
   }
 
   const send = (text: string) => {
-    if (busy || sending.current || !text.trim()) return;
+    if (busy || sending.current || removingRef.current || !text.trim()) return;
     const message = text.trim();
     sending.current = true;
     setSettled(null);
@@ -748,6 +795,7 @@ export function AssistantPanel({
                   <li key={c.id} className="flex items-center gap-2 py-1">
                     <button
                       type="button"
+                      disabled={busy || removing !== null}
                       onClick={() => openConversation(c.id)}
                       className={cn(
                         "flex min-w-0 flex-1 flex-col rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent",
@@ -768,6 +816,7 @@ export function AssistantPanel({
                         type="button"
                         variant="destructive"
                         size="sm"
+                        disabled={busy || removing !== null}
                         onClick={() => removeConversation(c.id)}
                       >
                         Apagar?
@@ -779,6 +828,7 @@ export function AssistantPanel({
                         size="icon-sm"
                         aria-label={`Apagar "${c.title}"`}
                         className="text-muted-foreground"
+                        disabled={busy || removing !== null}
                         onClick={() => setConfirmDelete(c.id)}
                       >
                         <Trash2Icon />
@@ -922,7 +972,7 @@ export function AssistantPanel({
         <div className="border-t bg-background px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
           <MetalPromptBar
             autoFocus
-            busy={busy}
+            busy={busy || removing !== null}
             dictation={voice}
             onDictationChange={setDictation}
             chips={chips}

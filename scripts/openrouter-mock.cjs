@@ -104,9 +104,13 @@ const call = (name, args) => ({
   type: "function",
   function: { name, arguments: JSON.stringify(args) },
 });
-const reply = (content, tool_calls) => ({
+/** A call exactly as the model streamed its arguments: "" (none) or JSON that never closes. */
+const rawCall = (name, text, id = `call_${Math.random().toString(36).slice(2, 10)}`) => ({ id, type: "function", function: { name, arguments: text } });
+/** A call whose name and arguments come in its first piece, as some upstreams send them. */
+const wholeCall = (name, text) => ({ ...rawCall(name, text), whole: true });
+const reply = (content, tool_calls, finish_reason = tool_calls ? "tool_calls" : "stop") => ({
   id: "mock",
-  choices: [{ index: 0, message: { role: "assistant", content, tool_calls }, finish_reason: tool_calls ? "tool_calls" : "stop" }],
+  choices: [{ index: 0, message: { role: "assistant", content, tool_calls }, finish_reason }],
 });
 
 function decide(messages) {
@@ -142,7 +146,44 @@ function decide(messages) {
   // The day's budget ran out mid-answer (M3): the last round answers in text with what the tools brought.
   if (system.includes("limite de uso do assistente de hoje acabou")) return reply(`Parei aqui: o limite de hoje acabou.\n\n${summarize()}`);
   // A model that spent its budget on reasoning and wrote nothing: the retry asks once more, plainly.
-  if (user.includes("resposta-vazia")) return reply(system.includes("Escreva agora a resposta final") ? "Resposta escrita na segunda tentativa." : "");
+  const retry = system.includes("Escreva agora a resposta final");
+  if (user.includes("resposta-vazia")) return reply(retry ? "Resposta escrita na segunda tentativa." : "");
+  // The same after a round of tools: the retry must still read what they returned.
+  if (user.includes("depois vazia") && calls.includes("abrir_chamado") && !retry) return reply("");
+  // A round cut by the output limit in the middle of a call: the SDK does not run it, and the new attempt
+  // (its note lets tools run again) makes the call and answers from what it returned.
+  const cutRetry = system.includes("passou do limite de saída");
+  if (user.includes("corta no limite") || user.includes("corte sem texto")) {
+    if (cutRetry) return calls.includes("listar_faturas") ? reply(`Depois do corte. ${summarize()}`) : reply(null, [call("listar_faturas", { situacao: "todas", limite: 1 })]);
+    // Either the call is complete but unrun, or the limit lands inside its arguments.
+    return reply(null, [user.includes("corta no limite") ? call("listar_faturas", { situacao: "todas", limite: 1 }) : rawCall("listar_faturas", '{"situacao":"to')], "length");
+  }
+  // The same after text the person already read: that text is the answer.
+  if (user.includes("texto e corte")) return retry ? reply("Não deveria haver nova tentativa.") : reply("Encontrei as faturas.", [call("listar_faturas", { situacao: "todas", limite: 1 })], "length");
+  // The first call's arguments never stream (the provider sends it last), or never close.
+  if (user.includes("sem argumentos primeiro") && !calls.length)
+    return reply(null, [rawCall("listar_chamados", ""), call("ler_empresa", { companyId: /empresa ([0-9a-f-]{36})/.exec(user)?.[1] })]);
+  if (user.includes("argumento quebrado") && !calls.length) return reply(null, [rawCall("listar_faturas", '{"limite":')]);
+  // Upstreams that send no id, or the same id twice: the provider makes up new ones.
+  const b = /empresa ([0-9a-f-]{36})/.exec(user)?.[1];
+  if (user.includes("sem id primeiro") && !calls.length) return reply(null, [rawCall("listar_chamados", "", ""), rawCall("ler_empresa", JSON.stringify({ companyId: b }), "")]);
+  if (user.includes("id repetido") && !calls.length)
+    return reply(null, [rawCall("listar_chamados", "", "dup"), rawCall("ler_empresa", JSON.stringify({ companyId: b }), "dup"), rawCall("buscar_ajuda", '{"consulta":"boleto"}', "z")]);
+  // A complete call after one whose arguments come later; calls finished only at the end; every call in one chunk.
+  if (user.includes("inteira depois") && !calls.length) return reply(null, [rawCall("listar_chamados", ""), wholeCall("ler_empresa", JSON.stringify({ companyId: b }))]);
+  if (user.includes("duas no fim") && !calls.length) return reply(null, [rawCall("listar_chamados", ""), rawCall("buscar_ajuda", ""), call("ler_empresa", { companyId: b })]);
+  if (user.includes("todas juntas") && !calls.length) {
+    const together = reply(null, [wholeCall("listar_chamados", "{}"), wholeCall("ler_empresa", JSON.stringify({ companyId: b })), wholeCall("buscar_ajuda", '{"consulta":"boleto"}')]);
+    together.choices[0].message.together = true;
+    return together;
+  }
+  // Arguments the provider refuses to parse (a __proto__ key), whole in the first piece.
+  if (user.includes("proto primeiro") && !calls.length) return reply(null, [wholeCall("listar_chamados", '{"__proto__":{"x":1}}'), call("ler_empresa", { companyId: b })]);
+  // The output limit cuts the only call in the middle of its arguments, or right after its name, after text.
+  if (user.includes("corte no meio") && !retry) return reply("Vou consultar as faturas.", [rawCall("listar_faturas", '{"situacao":"to')], "length");
+  if (user.includes("corte depois do nome") && !retry) return reply("Vou consultar as faturas.", [rawCall("listar_faturas", "")], "length");
+  // An upstream that numbers ids per response: the same id comes back in the next round, valid this time.
+  if (user.includes("mesmo id") && calls.length < 2) return reply(null, [rawCall("listar_faturas", calls.length ? '{"limite":1}' : '{"limite":', "call_0")]);
   // H4 within one round: read a ticket, read company B and invite there, all in the same response.
   if (user.includes("numa rodada") && !calls.includes("ler_chamado")) {
     const ticket = /chamado ([0-9a-f-]{36})/.exec(user)?.[1];
@@ -479,9 +520,20 @@ function streamed(payload, model, { gapMs, cut, signal }) {
   const events = [chunk({ role: "assistant", content: "" })];
   const text = message.content ?? "";
   for (let i = 0; i < text.length; i += 12) events.push(chunk({ content: text.slice(i, i + 12) }));
-  (message.tool_calls ?? []).forEach((toolCall, index) => {
-    events.push(chunk({ tool_calls: [{ index, id: toolCall.id, type: "function", function: { name: toolCall.function.name, arguments: "" } }] }));
+  const calls = message.tool_calls ?? [];
+  // A call opens with its name (and, `whole`, all its arguments); `together` opens every call in one chunk.
+  const openings = calls.map((toolCall, index) => ({
+    index,
+    id: toolCall.id,
+    type: "function",
+    function: { name: toolCall.function.name, arguments: toolCall.whole ? toolCall.function.arguments : "" },
+  }));
+  if (message.together) events.push(chunk({ tool_calls: openings }));
+  calls.forEach((toolCall, index) => {
+    if (!message.together) events.push(chunk({ tool_calls: [openings[index]] }));
+    if (toolCall.whole) return;
     const args = toolCall.function.arguments;
+    // A call with no arguments streams nothing after its name.
     const half = Math.ceil(args.length / 2);
     for (const piece of [args.slice(0, half), args.slice(half)]) if (piece) events.push(chunk({ tool_calls: [{ index, function: { arguments: piece } }] }));
   });

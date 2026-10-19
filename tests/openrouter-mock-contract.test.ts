@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { isStepCount, jsonSchema, streamText, tool } from "ai";
-import { chatModel, providerFailure } from "../src/lib/assistant/openrouter-chat";
+import { chatModel, parsesLikeProvider, providerFailure, roundState } from "../src/lib/assistant/openrouter-chat";
 
 /*
  * The OpenRouter stand-in the integration suite runs against
@@ -105,4 +105,164 @@ test("an error in the middle of the stream reaches the turn with OpenRouter's co
   const parts = await read(streamText({ ...quiet, model: model(), messages: [{ role: "user", content: "corte-no-meio por favor" }] }));
   const error = parts.find((p) => p.type === "error")?.error;
   assert.deepEqual(providerFailure(error), { status: 502, detail: "Provider disconnected" });
+});
+
+test("a call whose arguments stream last still runs in the model's order", async () => {
+  const ran: string[] = [];
+  const record = (name: string) =>
+    tool({
+      description: name,
+      inputSchema: jsonSchema({ type: "object" }),
+      execute: async () => {
+        ran.push(name);
+        return "[]";
+      },
+    });
+  const b = "00000000-0000-4000-8000-00000000000b";
+  await read(
+    streamText({
+      ...quiet,
+      model: model(),
+      messages: [{ role: "user", content: `sem argumentos primeiro empresa ${b}` }],
+      tools: { listar_chamados: record("listar_chamados"), ler_empresa: record("ler_empresa") },
+    }),
+  );
+  // Without the reordering the provider hands over ler_empresa first: its arguments parse first.
+  assert.deepEqual(ran, ["listar_chamados", "ler_empresa"]);
+});
+
+test("a call whose arguments never became JSON is flagged instead of running with none", async () => {
+  const round = roundState();
+  const { malformed } = round;
+  let input: unknown;
+  const result = streamText({
+    ...quiet,
+    model: chatModel("anthropic/claude-sonnet-5", false, round),
+    messages: [{ role: "user", content: "argumento quebrado" }],
+    tools: {
+      listar_faturas: tool({
+        description: "Faturas",
+        inputSchema: jsonSchema({ type: "object" }),
+        execute: async (value: unknown) => {
+          input = value;
+          return "[]";
+        },
+      }),
+    },
+  });
+  await read(result);
+  const [call] = (await result.steps)[0].toolCalls;
+  // The provider still sends {}; the flag is what lets the turn refuse it.
+  assert.deepEqual(input, {});
+  assert.deepEqual([...malformed], [call.toolCallId]);
+});
+
+test("a round cut by the output limit leaves its call unrun", async () => {
+  let ran = false;
+  const result = streamText({
+    ...quiet,
+    model: model(),
+    messages: [{ role: "user", content: "corta no limite" }],
+    tools: { listar_faturas: tool({ description: "Faturas", inputSchema: jsonSchema({ type: "object" }), execute: async () => ((ran = true), "[]") }) },
+    stopWhen: isStepCount(3),
+  });
+  await read(result);
+  const steps = await result.steps;
+  // converse treats this round as no answer and asks again without it.
+  assert.equal(ran, false);
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].finishReason, "length");
+  assert.equal(steps[0].toolCalls.length, 1);
+});
+
+/** Tools that only record what ran, in which order, and whether the turn would refuse the call. */
+function recorder(round = roundState()) {
+  const { malformed } = round;
+  const ran: { name: string; input: unknown; flagged: boolean }[] = [];
+  const make = (name: string) =>
+    tool({
+      description: name,
+      inputSchema: jsonSchema({ type: "object" }),
+      execute: async (input: unknown, { toolCallId }) => {
+        ran.push({ name, input, flagged: malformed.has(toolCallId) });
+        return "[]";
+      },
+    });
+  return { ran, round, tools: { listar_chamados: make("listar_chamados"), ler_empresa: make("ler_empresa"), buscar_ajuda: make("buscar_ajuda"), listar_faturas: make("listar_faturas") } };
+}
+const B = "00000000-0000-4000-8000-00000000000b";
+
+test("calls without an id keep the model's order", async () => {
+  const r = recorder();
+  await read(streamText({ ...quiet, model: chatModel("m", false, r.round), messages: [{ role: "user", content: `sem id primeiro empresa ${B}` }], tools: r.tools }));
+  assert.deepEqual(r.ran.map((c) => c.name), ["listar_chamados", "ler_empresa"]);
+});
+
+test("calls that repeat an id keep the model's order", async () => {
+  const r = recorder();
+  await read(streamText({ ...quiet, model: chatModel("m", false, r.round), messages: [{ role: "user", content: `id repetido empresa ${B}` }], tools: r.tools }));
+  assert.deepEqual(r.ran.map((c) => c.name), ["listar_chamados", "ler_empresa", "buscar_ajuda"]);
+});
+
+test("a malformed call is refused in its own round only, even when the next round reuses its id", async () => {
+  const r = recorder();
+  await read(
+    streamText({ ...quiet, model: chatModel("m", false, r.round), messages: [{ role: "user", content: "mesmo id" }], tools: r.tools, stopWhen: isStepCount(4) }),
+  );
+  assert.deepEqual(
+    r.ran.map((c) => [c.input, c.flagged]),
+    [
+      [{}, true],
+      [{ limite: 1 }, false],
+    ],
+  );
+});
+
+const order = async (content: string) => {
+  const r = recorder();
+  await read(streamText({ ...quiet, model: chatModel("m", false, r.round), messages: [{ role: "user", content: `${content} empresa ${B}` }], tools: r.tools }));
+  return r.ran;
+};
+
+test("a call complete in its first piece waits for the call written before it", async () => {
+  assert.deepEqual((await order("inteira depois")).map((c) => c.name), ["listar_chamados", "ler_empresa"]);
+});
+
+test("calls the provider finishes only at the end keep the model's order", async () => {
+  assert.deepEqual((await order("duas no fim")).map((c) => c.name), ["listar_chamados", "buscar_ajuda", "ler_empresa"]);
+});
+
+test("several complete calls in one piece keep the model's order", async () => {
+  assert.deepEqual((await order("todas juntas")).map((c) => c.name), ["listar_chamados", "ler_empresa", "buscar_ajuda"]);
+});
+
+test("arguments the provider will not parse keep the order and are refused", async () => {
+  const ran = await order("proto primeiro");
+  assert.deepEqual(
+    ran.map((c) => [c.name, c.input, c.flagged]),
+    [
+      ["listar_chamados", {}, true],
+      ["ler_empresa", { companyId: B }, false],
+    ],
+  );
+  assert.equal(parsesLikeProvider('{"__proto__":{"x":1}}'), false);
+  assert.equal(parsesLikeProvider('{"a":{"constructor":{"prototype":{}}}}'), false);
+  assert.equal(parsesLikeProvider('{"constructor":"x","limite":1}'), true);
+});
+
+test("a call cut by the output limit before it was handed over is reported", async () => {
+  for (const content of ["corte no meio", "corte depois do nome"]) {
+    const r = recorder();
+    const result = streamText({ ...quiet, model: chatModel("m", false, r.round), messages: [{ role: "user", content }], tools: r.tools });
+    await read(result);
+    const [step] = await result.steps;
+    // No call reaches the SDK at all, so only the middleware knows the round was cut.
+    assert.equal(step.finishReason, "length", content);
+    assert.equal(step.toolCalls.length, 0, content);
+    assert.equal(r.round.unfinished, true, content);
+    assert.equal(r.ran.length, 0, content);
+  }
+  const plain = recorder();
+  await read(streamText({ ...quiet, model: chatModel("m", false, plain.round), messages: [{ role: "user", content: "oi" }], tools: plain.tools }));
+  assert.equal(plain.round.unfinished, false);
 });

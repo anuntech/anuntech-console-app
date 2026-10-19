@@ -1,13 +1,16 @@
 import { z } from "zod";
 import type { UIMessage } from "ai";
-import { TURN_PHASES } from "./activity";
+import { TURN_PHASES, type TurnPhase } from "./activity";
 
 /*
  * The assistant's wire format: an AI SDK UI message stream (SSE). The reply
  * streams as one text part; everything else travels as the data parts below,
- * so the route writes and the panel reads the same shapes, checked on both
- * ends. Tool calls and their results never reach the browser: the route
- * writes only these parts.
+ * so the route writes and the panel reads the same shapes. The route checks
+ * what it writes and the panel reads every part through `readPhase`,
+ * `readActions` and `readCard`: ai 7.0.137 looks `dataPartSchemas` up by the
+ * prefixed type ("data-phase"), so passing these schemas to useChat would
+ * check nothing. Tool calls and their results never reach the browser: the
+ * route writes only these parts.
  */
 
 /** What an answer (or a confirmed card) asks of the page; the panel carries it out. */
@@ -66,6 +69,28 @@ export const assistantMetadataSchema = z.object({
 export type AssistantMetadata = z.infer<typeof assistantMetadataSchema>;
 export type AssistantData = { [K in keyof typeof assistantDataSchemas]: z.infer<(typeof assistantDataSchemas)[K]> };
 export type AssistantMessage = UIMessage<AssistantMetadata, AssistantData>;
+
+/** Where the turn is; a phase this build does not know (a newer server) reads as plain thinking. */
+export function readPhase(data: unknown): { phase: TurnPhase | null; tokens: number | null } {
+  const value = (data ?? {}) as { phase?: unknown; tokens?: unknown };
+  const phase = assistantDataSchemas.phase.shape.phase.safeParse(value.phase);
+  const tokens = typeof value.tokens === "number" && Number.isFinite(value.tokens) && value.tokens >= 0 ? value.tokens : null;
+  return { phase: phase.success ? phase.data : null, tokens };
+}
+
+/** The page actions of an answer; anything that is not one (a link outside the Console) is dropped. */
+export function readActions(data: unknown): PageAction[] {
+  return (Array.isArray(data) ? data : []).flatMap((action) => {
+    const parsed = pageActionSchema.safeParse(action);
+    return parsed.success ? [parsed.data] : [];
+  });
+}
+
+/** A card, or null when the part is not one (no nonce, missing data). */
+export function readCard(data: unknown): ProposalCard | null {
+  const parsed = proposalCardSchema.safeParse(data);
+  return parsed.success ? parsed.data : null;
+}
 
 /** The text of a message, its text parts in order. */
 export function messageText(message: Pick<AssistantMessage, "parts"> | undefined) {
