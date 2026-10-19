@@ -179,8 +179,8 @@ export function providerFailure(error: unknown): ProviderFailure | null {
       // Something that failed here before any answer (a body that cannot be sent, a bug) comes back as a 500
       // around the original error: it is not the Gateway's, and the route logs it as a fault.
       if (!APICallError.isInstance(inner)) return null;
-      // A network failure has no body of its own: the original call says what happened.
-      if (!(cause as { response?: { error?: unknown } }).response?.error) return { status: inner.statusCode, detail: inner.message };
+      // A network failure got no answer at all: the original call says what happened.
+      if (inner.statusCode === undefined && inner.responseBody === undefined) return { detail: inner.message };
     }
     return { status: cause.statusCode, detail: gatewayDetail(cause) };
   }

@@ -101,6 +101,25 @@ export function wavSeconds(bytes: Uint8Array): number | null {
   return byteRate >= 1000 ? (bytes.length - 44) / byteRate : null;
 }
 
+/**
+ * How long a recording was: the model's own figure, its last segment's end
+ * or a WAV's header, whichever is largest (a header can only make it count
+ * for more). Undefined when nothing says.
+ */
+export function audioSeconds(result: { durationInSeconds?: number; segments: { endSecond: number }[] }, bytes: Uint8Array): number | undefined {
+  return Math.max(result.durationInSeconds ?? 0, result.segments.at(-1)?.endSecond ?? 0, wavSeconds(bytes) ?? 0) || undefined;
+}
+
+/**
+ * Extra transcriptions a long recording costs: one for each 2 minutes past
+ * the first. A recording the browser stopped at the limit runs a fraction of
+ * a second over it, so the first second past each 2 minutes is free.
+ */
+export const extraCharges = (seconds: number | undefined) => (seconds ? Math.max(0, Math.ceil((seconds - 1) / MAX_SECONDS) - 1) : 0);
+
+/** A language as the log may show it: a code like "en" or "pt-BR", else "other". */
+export const languageCode = (language: string | null | undefined) => (/^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i.test(language ?? "") ? language! : "other");
+
 /** Whether a transcript came back in Portuguese; an answer that names no language passes. */
 export const portuguese = (language: string | null | undefined) => !language || /^(pt|por)/i.test(language);
 

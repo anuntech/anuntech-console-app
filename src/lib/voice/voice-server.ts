@@ -1,10 +1,10 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { gateway, NoTranscriptGeneratedError, transcribe as transcribeWith } from "ai";
-import { GatewayError } from "@ai-sdk/gateway";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { HOURLY_LIMIT, MAX_SECONDS, portuguese, shouldFallback, transcriptionOptions, voiceEnabledFrom, voiceModels, wavSeconds, type AudioFormat } from "./voice-rules";
+import { gatewayStatus } from "../ai/gateway-errors";
+import { audioSeconds, extraCharges, HOURLY_LIMIT, languageCode, portuguese, shouldFallback, transcriptionOptions, voiceEnabledFrom, voiceModels, type AudioFormat } from "./voice-rules";
 
 /*
  * Speech to text through the AI Gateway, like every AI call of the Console.
@@ -45,7 +45,7 @@ export async function reserveVoice(userId: string) {
  * longer than that counts as one more transcription for each extra 2 minutes.
  */
 export async function chargeLongAudio(userId: string, seconds: number | undefined) {
-  const extra = seconds ? Math.ceil(seconds / MAX_SECONDS) - 1 : 0;
+  const extra = extraCharges(seconds);
   if (extra <= 0) return;
   await db.execute(sql`UPDATE console_otp_limits SET count = count + ${extra} WHERE key = ${voiceKey(userId)}`);
 }
@@ -53,15 +53,7 @@ export async function chargeLongAudio(userId: string, seconds: number | undefine
 /** The status a failed attempt counts as, for the fallback rule; 0 when the Gateway was not reached. */
 function failedStatus(error: unknown): { status: number; detail: string } {
   if (NoTranscriptGeneratedError.isInstance(error)) return { status: 200, detail: "empty transcript" };
-  if (GatewayError.isInstance(error)) {
-    // A deadline comes back as a 500 around the abort: say so, the status alone looks like the Gateway failing.
-    const cause = (error as { cause?: unknown }).cause;
-    const late = cause instanceof Error && (cause.name === "TimeoutError" || cause.name === "AbortError");
-    return { status: error.statusCode, detail: late ? `timeout (${cause.name})` : error.message.slice(0, 200) };
-  }
-  // A missing or refused credential, as the SDK rewraps it: the status is gone, the name stays.
-  if (error instanceof Error && error.name.startsWith("Gateway")) return { status: 401, detail: error.name };
-  return { status: 0, detail: error instanceof Error ? error.name : "unknown" };
+  return gatewayStatus(error);
 }
 
 export async function transcribe(bytes: Buffer, format: AudioFormat, signal: AbortSignal): Promise<{ text: string; seconds?: number }> {
@@ -85,10 +77,8 @@ export async function transcribe(bytes: Buffer, format: AudioFormat, signal: Abo
       });
       // Grok took a Portuguese sample for English and garbled it: text in another language counts as unclear.
       const text = portuguese(result.language) ? result.text.trim() : "";
-      if (!text && result.text.trim()) detail = `language ${result.language}`;
-      // The model may leave the duration out: the last segment's end, or a WAV's header, says it too.
-      // The largest wins, so a header can only make a recording count for more.
-      const seconds = Math.max(result.durationInSeconds ?? 0, result.segments.at(-1)?.endSecond ?? 0, wavSeconds(bytes) ?? 0) || undefined;
+      if (!text && result.text.trim()) detail = `language ${languageCode(result.language)}`;
+      const seconds = audioSeconds(result, bytes);
       if (text) {
         console.info("[voice]", {
           model,

@@ -24,7 +24,7 @@ export const SUGGESTED_MODEL_IDS = [
   "google/gemini-2.5-flash",
 ];
 
-type Raw = {
+export type Raw = {
   id: string;
   name?: string;
   owned_by?: string;
@@ -44,6 +44,36 @@ const perMillion = (value?: string) => {
 
 /** An id as the Gateway writes them ("creator/model-1.5"); OpenRouter aliases (~, :free) never are. */
 export const gatewayModelId = (id: string) => /^[\w.-]+\/[\w.-]+$/u.test(id);
+
+/**
+ * The catalog's entries the settings may offer: language models that call
+ * tools, with an id as the Gateway writes them and a provider that keeps
+ * nothing ("all" or "some" of them). That field is not in the documented
+ * schema: if it ever disappears, nothing is filtered by it (every request
+ * still asks for zero retention, and a model without it is refused), and the
+ * log says so.
+ */
+export function offeredModels(entries: Raw[]): GatewayModel[] {
+  const marked = entries.some((m) => typeof m.zdr === "string");
+  if (!marked) console.warn("[assistant] Gateway models carry no zdr field");
+  return entries
+    .filter((m) => m.type === "language" && m.tags?.includes("tool-use") && (!marked || m.zdr === "all" || m.zdr === "some") && gatewayModelId(m.id))
+    .map((m) => {
+      const promptPerMillion = perMillion(m.pricing?.input);
+      const completionPerMillion = perMillion(m.pricing?.output);
+      return {
+        id: m.id,
+        name: m.name || m.id.split("/")[1],
+        provider: m.owned_by || m.id.split("/")[0],
+        contextLength: m.context_window ?? 0,
+        promptPerMillion,
+        completionPerMillion,
+        free: !promptPerMillion && !completionPerMillion,
+        reasoning: !!m.tags?.includes("reasoning") || !!m.reasoning_options?.length,
+      };
+    })
+    .sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
+}
 
 /**
  * The language models the Gateway offers that can call tools and have at
@@ -80,28 +110,7 @@ async function loadModels(): Promise<GatewayModel[]> {
     });
     if (!res.ok) return failed(`HTTP ${res.status}`);
     const data = (await res.json()) as { data?: Raw[] };
-    // Only models with a provider that keeps nothing ("all" or "some" of them). The field is not in the
-    // documented schema: if it ever disappears, nothing is filtered by it (every request still asks for
-    // zero retention and a model without it is refused), and the log says so.
-    const marked = (data.data ?? []).some((m) => typeof m.zdr === "string");
-    if (!marked) console.warn("[assistant] Gateway models carry no zdr field");
-    const models = (data.data ?? [])
-      .filter((m) => m.type === "language" && m.tags?.includes("tool-use") && (!marked || m.zdr === "all" || m.zdr === "some") && gatewayModelId(m.id))
-      .map((m) => {
-        const promptPerMillion = perMillion(m.pricing?.input);
-        const completionPerMillion = perMillion(m.pricing?.output);
-        return {
-          id: m.id,
-          name: m.name || m.id.split("/")[1],
-          provider: m.owned_by || m.id.split("/")[0],
-          contextLength: m.context_window ?? 0,
-          promptPerMillion,
-          completionPerMillion,
-          free: !promptPerMillion && !completionPerMillion,
-          reasoning: !!m.tags?.includes("reasoning") || !!m.reasoning_options?.length,
-        };
-      })
-      .sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
+    const models = offeredModels(data.data ?? []);
     if (!models.length) return failed("empty list");
     cached = { at: Date.now(), ttl: TTL_MS, models };
     return models;

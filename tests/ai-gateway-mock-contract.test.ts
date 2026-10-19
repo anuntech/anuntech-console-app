@@ -7,7 +7,7 @@ import test from "node:test";
 import { experimental_decide as decide, gateway, generateImage, generateText, isStepCount, jsonSchema, simulateReadableStream, streamText, tool, transcribe, wrapLanguageModel } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { chatModel, inModelOrder, parsesSecurely, privateModel, providerFailure, roundState } from "../src/lib/assistant/chat-model";
-import { askJev } from "../src/lib/assistant/jev-ask";
+import { askJev, neededAreas } from "../src/lib/assistant/jev-ask";
 import { encodeWav, transcriptionOptions } from "../src/lib/voice/voice-rules";
 
 /*
@@ -258,7 +258,12 @@ test("Jev's own confidence wins over the chosen option's probability, and a refu
   // The SDK throws on any refusal; Jev is asked once more without the refused question.
   assert.deepEqual(Object.keys(partial ?? {}).sort(), ["area_financeiro", "intent"]);
   assert.equal(logged().filter((e) => e.jev).length, before + 2);
+  // Both tries went private, and only to TypeSafe.
+  for (const entry of logged().filter((e) => e.jev).slice(-2)) assert.deepEqual([entry.zeroDataRetention, entry.disallowPromptTraining, entry.only], [true, true, ["typesafe-ai"]]);
   assert.equal(await askJev({ mensagem: "x" }, { recusar_tudo: { type: "boolean", instructions: "x" } }), null);
+  // A refused area stays in play (no opinion is not a "no"); a "no" leaves it out.
+  assert.deepEqual(neededAreas(partial!, ["financeiro", "area"] as const), ["financeiro", "area"]);
+  assert.deepEqual(neededAreas({ area_financeiro: { type: "boolean", probability: 0.1 }, area_chamados: { type: "boolean", probability: 0.9 } }, ["financeiro", "chamados"] as const), ["chamados"]);
 });
 
 test("a call the provider ran itself goes on at once and does not read as cut", async () => {
@@ -299,6 +304,7 @@ test("dictation sends WAV with Portuguese to MAI, privately", async () => {
     maxRetries: 0,
   });
   assert.equal(result.text, "Texto ditado de teste");
+  assert.equal(result.language, "pt");
   const entry = logged().filter((e) => e.transcription).at(-1)!;
   assert.deepEqual([entry.mediaType, entry.bytes, entry.locales], ["audio/wav", 44 + 6000, ["pt-BR"]]);
   assert.deepEqual([entry.zeroDataRetention, entry.disallowPromptTraining], [true, true]);

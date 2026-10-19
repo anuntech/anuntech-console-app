@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts && node --conditions=react-server --import tsx --test tests/profile-avatar.test.mts",
+    "test": "tsx --test tests/*.test.ts && node --conditions=react-server --import tsx --test tests/profile-avatar.test.mts tests/gateway-models.test.mts",
     "test:integration": "node --env-file-if-exists=.env.local scripts/test-isolated.mjs",
     "test:integration:local": "node scripts/test-local.mjs",
     "db:generate": "drizzle-kit generate",

@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   audioFormat,
+  audioSeconds,
+  extraCharges,
+  languageCode,
   encodeWav,
   joinTranscript,
   MAX_AUDIO_BYTES,
@@ -96,6 +99,22 @@ test("a WAV's length comes from its header; anything else has none", () => {
   const odd = new Uint8Array(two);
   new DataView(odd.buffer).setUint32(28, 10, true);
   assert.equal(wavSeconds(odd), null);
+});
+
+test("a recording's length comes from the model, its segments or a WAV header, and the limit's slop is free", () => {
+  const wav = new Uint8Array(encodeWav(new Float32Array(WAV_RATE * 3), WAV_RATE));
+  const filler = new Uint8Array(100).fill(7);
+  assert.equal(audioSeconds({ durationInSeconds: 300, segments: [] }, filler), 300);
+  assert.equal(audioSeconds({ segments: [{ endSecond: 250 }] }, filler), 250);
+  assert.equal(audioSeconds({ segments: [] }, wav), 3);
+  // A header can only make a recording count for more.
+  assert.equal(audioSeconds({ durationInSeconds: 1, segments: [] }, wav), 3);
+  assert.equal(audioSeconds({ segments: [] }, filler), undefined);
+  assert.equal(extraCharges(undefined), 0);
+  assert.equal(extraCharges(120.25), 0, "a recording stopped at 2 minutes counts once");
+  assert.equal(extraCharges(125), 1);
+  assert.equal(extraCharges(300), 2);
+  assert.deepEqual(["en", "pt-BR", "something else entirely", null].map(languageCode), ["en", "pt-BR", "other", "other"]);
 });
 
 test("only Portuguese reaches the field, and the wait grows with the upload", () => {

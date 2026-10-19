@@ -1,6 +1,6 @@
 import "server-only";
 import { gatewayReady } from "../ai/gateway-env";
-import { askJev, type JevQuestion, type JevState } from "./jev-ask";
+import { askJev, neededAreas, type JevQuestion, type JevState } from "./jev-ask";
 import { toolAreas, type ToolArea } from "./assistant-tools-kit";
 
 /**
@@ -74,10 +74,7 @@ export async function routeIntent(input: {
   const intent = answers?.intent;
   const destination = answers?.destino;
   if (!intent || intent.type !== "choice" || !(intent.choice in intents)) return null;
-  const areas = (Object.keys(toolAreas) as ToolArea[]).filter((key) => {
-    const answer = answers?.[`area_${key}`];
-    return answer?.type === "boolean" && answer.probability >= 0.3;
-  });
+  const areas = neededAreas(answers!, Object.keys(toolAreas) as ToolArea[]);
   return {
     intent: intent.choice as Intent,
     confidence: intent.confidence,

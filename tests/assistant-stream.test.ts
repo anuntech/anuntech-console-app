@@ -27,6 +27,7 @@ test("no English from the SDK reaches the person through the generic text", () =
   assert.doesNotMatch(failureText({ detail: "model stream ended" }, model), /não foi aceito/);
   // A 5xx that names the model is a hiccup: the person should try again, not switch models.
   assert.doesNotMatch(failureText({ status: 503, detail: "Model overloaded" }, model), /não foi aceito/);
+  assert.match(failureText({ status: 400, detail: "Model x does not support tool calling" }, model), /^O modelo "anthropic\/claude-sonnet-5" não foi aceito pelo AI Gateway/);
 });
 
 test("a failure is read from what the Gateway reports", () => {
@@ -46,9 +47,17 @@ test("a failure is read from what the Gateway reports", () => {
   assert.equal(providerFailure(Object.assign(new Error("Unauthenticated request"), { name: "GatewayAuthenticationError" }))?.status, 401);
   // A fault here before any answer (a body that cannot be sent) is not the Gateway's: the route logs it as a bug.
   assert.equal(providerFailure(new GatewayResponseError({ message: "Invalid error response format: Gateway request failed: Do not know how to serialize a BigInt", cause: new TypeError("Do not know how to serialize a BigInt") })), null);
-  // A network failure: the original call's words, not the wrapper's.
-  const offline = new GatewayResponseError({ response: {}, cause: apiError(500, "Cannot connect to API: fetch failed") });
-  assert.deepEqual(providerFailure(offline), { status: 500, detail: "Cannot connect to API: fetch failed" });
+  // A network failure, as the SDK builds it (no status, no body): the original call's words, not the wrapper's.
+  const unreachable = new APICallError({ message: "Cannot connect to API: getaddrinfo ENOTFOUND ai-gateway.vercel.sh", url: "https://ai-gateway.vercel.sh/v4/ai/language-model", requestBodyValues: {}, isRetryable: true });
+  const offline = new GatewayResponseError({ statusCode: 500, response: {}, cause: unreachable });
+  assert.deepEqual(providerFailure(offline), { detail: "Cannot connect to API: getaddrinfo ENOTFOUND ai-gateway.vercel.sh" });
+  // An answer in an unknown shape keeps the wrapper's fixed words: its raw body never reaches the person.
+  const body = '{"message":"Request too large","model":"anthropic/claude-sonnet-5"}';
+  const odd = new GatewayResponseError({ statusCode: 413, response: JSON.parse(body), cause: new APICallError({ message: body, url: "https://ai-gateway.vercel.sh/v4/ai/language-model", requestBodyValues: {}, statusCode: 413, responseBody: body }) });
+  assert.equal(providerFailure(odd)?.detail, odd.message);
+  // A deadline as the Gateway provider really returns it: a 500 around the abort.
+  const deadline = new GatewayResponseError({ statusCode: 500, response: {}, cause: new DOMException("The operation was aborted due to timeout", "TimeoutError") });
+  assert.equal(providerFailure(deadline)?.timeout, true);
   // Their message or cause may carry the request: the route logs only the name.
   for (const error of [noPrivate, cut, unauthenticated, apiError(500, "x")]) assert.equal(sdkError(error), true);
   assert.equal(sdkError(new Error("relation does not exist")), false);

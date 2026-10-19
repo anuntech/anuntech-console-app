@@ -69,3 +69,15 @@ export async function askJev(state: JevState, questions: Record<string, JevQuest
     return null;
   }
 }
+
+/**
+ * The areas a message needs: those Jev said yes to (0.3 or more), and those
+ * it refused to answer. A refused question is no opinion, not a "no": dropping
+ * its area would take tools away from the turn.
+ */
+export function neededAreas<T extends string>(answers: Record<string, JevAnswer>, keys: readonly T[]): T[] {
+  return keys.filter((key) => {
+    const answer = answers[`area_${key}`];
+    return !answer || (answer.type === "boolean" && answer.probability >= 0.3);
+  });
+}
