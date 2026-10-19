@@ -7,6 +7,7 @@ import { assistantConversations, assistantMessages, assistantProposals, auditEve
 import { saoPauloDate } from "../dates";
 import { runTool, ToolError, type ClientAction } from "./assistant-tools";
 import { callHash, PROPOSAL_TTL_MS, proposalDetails, proposalLabel } from "./proposal-rules";
+import type { ProposalCard } from "./assistant-stream";
 
 /*
  * Every change the assistant wants to make waits here as a proposal: one tool
@@ -15,17 +16,7 @@ import { callHash, PROPOSAL_TTL_MS, proposalDetails, proposalLabel } from "./pro
  * runs once, from the person's click, with their own access checked again.
  */
 
-export type ProposalCard = {
-  id: string;
-  nonce: string;
-  title: string;
-  details: { label: string; value: string }[];
-  /** Prepared after the turn read text written by someone else: the card says so. */
-  tainted: boolean;
-  /** Screen actions apply only on this page. */
-  path: string | null;
-  expiresAt: string;
-};
+export type { ProposalCard } from "./assistant-stream";
 
 const hashNonce = (nonce: string) => createHash("sha256").update(nonce).digest("hex");
 const strings = (value: unknown) => (Array.isArray(value) ? value : [value]).filter((v): v is string => typeof v === "string");

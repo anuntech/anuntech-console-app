@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useChat } from "@ai-sdk/react";
+import { AISDKError, APICallError, DefaultChatTransport } from "ai";
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -27,22 +29,24 @@ import { openSupportWidget } from "@/components/shell/support-trigger";
 import { toast } from "@/components/shell/notifications";
 import { relativeLabel } from "@/lib/format";
 import { PROPOSAL_TTL_MS } from "@/lib/assistant/proposal-ttl";
-import { assistantActivity, TURN_PHASES, type AssistantActivity, type DictationActivity, type TurnPhase } from "@/lib/assistant/activity";
+import { assistantActivity, type AssistantActivity, type DictationActivity, type TurnPhase } from "@/lib/assistant/activity";
+import {
+  assistantMetadataSchema,
+  messageText,
+  readActions,
+  readCard,
+  readPhase,
+  refusalText,
+  type AssistantMessage,
+  type PageAction,
+  type ProposalCard as Proposal,
+} from "@/lib/assistant/assistant-stream";
 import { MessageMarkdown } from "./message-markdown";
 import { clickPage, fillPage, snapshotPage } from "./page-bridge";
 
 export type AssistantShortcut = { href: string; label: string };
-/** A change the assistant prepared; it runs only when the person confirms it here. */
-type Proposal = {
-  id: string;
-  nonce: string;
-  title: string;
-  details: { label: string; value: string }[];
-  tainted: boolean;
-  path: string | null;
-  expiresAt: string;
-};
-type ProposalState = Proposal & {
+/** Where a card the assistant prepared stands in this tab; it runs only when the person confirms it here. */
+type CardState = {
   status: "pending" | "busy" | "done" | "failed" | "dismissed";
   message?: string;
   /**
@@ -53,6 +57,7 @@ type ProposalState = Proposal & {
    */
   deadline: number;
 };
+type ProposalState = Proposal & CardState;
 type Turn = {
   id: string;
   role: "user" | "assistant";
@@ -64,62 +69,60 @@ type Turn = {
   /** Confirmation cards; they live in this tab only (a reload drops them and they expire). */
   proposals?: ProposalState[];
 };
-type PageAction =
-  | { type: "navigate"; href: string }
-  | { type: "open_support" }
-  | { type: "fill"; form: string; fields: { campo: string; valor: string }[]; submit: boolean }
-  | { type: "click"; text: string }
-  | { type: "refresh" };
 type Conversation = {
   id: string;
   title: string;
   updatedAt: string;
   messages: number;
 };
+type SavedMessage = { id: string; role: "user" | "assistant"; content: string; steps?: string[] };
 const STORAGE_KEY = "assistant:conversation";
 
 const fallbackError = "O assistente não respondeu. Tente de novo em instantes.";
+const offline = "Sem conexão com o Console agora. Tente de novo em instantes.";
 
 /**
- * Reads a turn as it streams: progress lines report the tokens spent so far
- * and where the turn is, then one line carries the reply or the error.
- * Refusals before the turn starts come back as plain JSON.
+ * Only the new message, the screen and the conversation's id go to the
+ * server: earlier turns come from the saved conversation there, never from
+ * this tab.
  */
-async function readTurn(
-  res: Response,
-  onProgress: (tokens: number, phase: TurnPhase | null) => void,
-): Promise<Reply | { error: string }> {
-  if (!res.body || !res.headers.get("content-type")?.includes("ndjson")) {
-    const data = (await res.json().catch(() => null)) as (Reply & { error?: string }) | null;
-    return res.ok && data && !data.error ? data : { error: data?.error || fallbackError };
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let result: Reply | { error: string } | null = null;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (value) buffer += decoder.decode(value, { stream: true });
-    let end: number;
-    while ((end = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, end).trim();
-      buffer = buffer.slice(end + 1);
-      if (!line) continue;
-      let event: { type?: string; tokens?: number; phase?: TurnPhase; error?: string } & Partial<Reply>;
-      try {
-        event = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      // A phase this tab does not know (a newer server) reads as plain thinking.
-      if (event.type === "progress")
-        onProgress(event.tokens ?? 0, event.phase && TURN_PHASES.includes(event.phase) ? event.phase : null);
-      else if (event.type === "done") result = event as Reply;
-      else if (event.type === "error") result = { error: event.error || fallbackError };
-    }
-    if (done) break;
-  }
-  return result ?? { error: "A resposta chegou incompleta. Tente de novo." };
+const transport = new DefaultChatTransport<AssistantMessage>({
+  api: "/api/assistente",
+  prepareSendMessagesRequest: ({ messages, body }) => ({
+    body: { message: messageText(messages.at(-1)), page: body?.page, conversationId: body?.conversationId },
+  }),
+});
+
+/**
+ * What the person reads when a turn did not finish. A refusal before the
+ * turn (limits, an unreadable message) carries the server's own words; an
+ * error the server streamed is already written for the person.
+ */
+function failureOf(error: Error | undefined) {
+  if (!error) return "A resposta chegou incompleta. Tente de novo.";
+  if (APICallError.isInstance(error)) return refusalText(error.responseBody) ?? fallbackError;
+  // The request never reached the Console, or the connection dropped.
+  if (error instanceof TypeError) return offline;
+  // Anything else the SDK raised (a part this tab could not read) is not for the person.
+  if (AISDKError.isInstance(error)) return fallbackError;
+  return error.message || fallbackError;
+}
+
+/** A conversation saved on the server, as this tab shows it. */
+const fromSaved = (m: SavedMessage): AssistantMessage => ({
+  id: m.id,
+  role: m.role,
+  parts: [...(m.steps?.length ? [{ type: "data-steps" as const, id: "steps", data: m.steps }] : []), { type: "text" as const, text: m.content }],
+});
+
+/** The cards of a message, each checked (`readCard`). */
+const cardsOf = (message: AssistantMessage) => message.parts.flatMap((part) => (part.type === "data-proposal" ? [readCard(part.data)].filter((card) => card !== null) : []));
+
+/** The chips of a message: the last version of its steps. */
+function stepsOf(message: AssistantMessage) {
+  let steps: string[] | undefined;
+  for (const part of message.parts) if (part.type === "data-steps") steps = part.data;
+  return steps;
 }
 
 // Read in event handlers only (the compiler's purity rule can't tell them from render).
@@ -162,15 +165,6 @@ function subscribeWide(onChange: () => void) {
 }
 const getWide = () => window.matchMedia(wideQuery).matches;
 const getServerWide = () => false;
-
-type Reply = {
-  reply: string;
-  tokens?: number;
-  steps: string[];
-  conversationId?: string | null;
-  actions: PageAction[];
-  proposals?: Proposal[];
-};
 
 /** One card: what will happen, with the data, and the buttons that decide it. */
 function ProposalCard({
@@ -257,7 +251,8 @@ function suggestionsFor(admin: boolean, finance: boolean, support: boolean) {
  * The Console's assistant: a conversation that reads and acts on the
  * person's own data through the API, which runs every tool with their
  * permissions. Lives next to the dock, keeps the thread while the app
- * navigates, and hands off to the human support chat when asked.
+ * navigates, and hands off to the human support chat when asked. The answer
+ * streams in as it is written (AI SDK useChat over /api/assistente).
  *
  * On wide screens it moves beside the page while it works, so the person
  * keeps using the Console; closed, it keeps working and says when it's done.
@@ -286,9 +281,10 @@ export function AssistantPanel({
   voice?: boolean;
 }) {
   const router = useRouter();
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [busy, setBusy] = useState(false);
   const [working, setWorking] = useState<{ startedAt: number; tokens: number; phase: TurnPhase | null } | null>(null);
+  // Cards and timings by id: the messages themselves come from the chat.
+  const [cards, setCards] = useState<Record<string, CardState>>({});
+  const [spent, setSpent] = useState<Record<string, { ms: number; tokens: number }>>({});
   // How the last turn (or confirmed card) ended. Seen in the open panel, it shows for a few seconds;
   // unseen, the dock keeps it until the panel opens.
   const [settled, setSettled] = useState<{ kind: "done" | "error"; seen: boolean } | null>(null);
@@ -299,7 +295,15 @@ export function AssistantPanel({
   const [history, setHistory] = useState<Conversation[] | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // A conversation being deleted: until the server answers, nothing else sends, opens or deletes, or it
+  // could land in the thread being cleared.
+  const [removing, setRemoving] = useState<string | null>(null);
+  const removingRef = useRef<string | null>(null);
+  // A conversation being opened: deleting it meanwhile would leave the deleted thread on screen.
+  const openingRef = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  // Follows the answer as it streams, unless the person scrolled up to read.
+  const stick = useRef(true);
   const wide = useSyncExternalStore(subscribeWide, getWide, getServerWide);
   const [docked, setDocked] = useState(false);
   // Centered by hand: sending stops moving it aside until it is moved back.
@@ -310,6 +314,39 @@ export function AssistantPanel({
   useEffect(() => {
     live.current = { open, side };
   }, [open, side]);
+  // The request under way: when it started, the tokens so far and what it asks of the page at the end.
+  const request = useRef<{ startedAt: number; tokens: number; actions: PageAction[]; error?: Error }>({ startedAt: 0, tokens: 0, actions: [] });
+  const sending = useRef(false);
+
+  const { messages, setMessages, sendMessage, status } = useChat<AssistantMessage>({
+    transport,
+    // The data parts are read through readPhase, readActions and readCard (assistant-stream.ts).
+    messageMetadataSchema: assistantMetadataSchema,
+    // Text arrives in many small pieces; repaint at most every 50 ms.
+    throttle: 50,
+    onData: (part) => {
+      if (part.type === "data-phase") {
+        const { phase, tokens } = readPhase(part.data);
+        if (tokens !== null) request.current.tokens = tokens;
+        setWorking((current) => (current ? { ...current, tokens: tokens ?? current.tokens, phase } : current));
+      } else if (part.type === "data-actions") request.current.actions = readActions(part.data);
+    },
+    onError: (error) => {
+      request.current.error = error;
+    },
+    onFinish: ({ message, isAbort, isError, finishReason }) => finish(message, isAbort, isError, finishReason),
+  });
+  const busy = status === "submitted" || status === "streaming";
+
+  const turns: Turn[] = messages.map((message) => ({
+    id: message.id,
+    role: message.role === "user" ? "user" : "assistant",
+    content: messageText(message),
+    steps: stepsOf(message),
+    failed: message.metadata?.failed,
+    spent: spent[message.id],
+    proposals: cardsOf(message).flatMap((card) => (cards[card.id] ? [{ ...card, ...cards[card.id] }] : [])),
+  }));
   const activity = assistantActivity({
     busy,
     phase: working?.phase ?? null,
@@ -327,21 +364,17 @@ export function AssistantPanel({
     return () => clearTimeout(timer);
   }, [settled]);
   // A card the person never answered expires on the server; here it stops waiting too.
-  const expireCards = (limit: number) => {
-    const expired = (p: ProposalState) => p.status === "pending" && p.deadline <= limit;
-    setTurns((current) =>
-      current.map((turn) =>
-        turn.proposals?.some(expired)
-          ? {
-              ...turn,
-              proposals: turn.proposals.map((p) =>
-                expired(p) ? { ...p, status: "failed" as const, message: "Este cartão expirou. Peça de novo ao assistente." } : p,
-              ),
-            }
-          : turn,
-      ),
-    );
-  };
+  const expireCards = (limit: number) =>
+    setCards((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const [id, card] of Object.entries(current))
+        if (card.status === "pending" && card.deadline <= limit) {
+          next[id] = { ...card, status: "failed", message: "Este cartão expirou. Peça de novo ao assistente." };
+          changed = true;
+        }
+      return changed ? next : current;
+    });
   const nextDeadline = turns
     .flatMap((turn) => turn.proposals ?? [])
     .filter((p) => p.status === "pending")
@@ -384,33 +417,36 @@ export function AssistantPanel({
       /* private mode or blocked storage: the thread still lives in this tab */
     }
   };
+  /** Another conversation on screen: the cards and timings of the one before go with it. */
+  const showMessages = (next: AssistantMessage[]) => {
+    setMessages(next);
+    setCards({});
+    setSpent({});
+    stick.current = true;
+  };
+  // A turn under way keeps its thread: switching away would drop its question and mix the threads.
   const openConversation = async (id: string) => {
-    const res = await fetch(`/api/assistente/conversas/${id}`);
-    if (!res.ok) return false;
-    const data = (await res.json()) as {
-      id: string;
-      messages: {
-        id: string;
-        role: "user" | "assistant";
-        content: string;
-        steps?: string[];
-      }[];
-    };
-    setTurns(
-      data.messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        steps: m.steps,
-      })),
-    );
+    if (busy || sending.current || removingRef.current || openingRef.current) return false;
+    openingRef.current = id;
+    let data: { id: string; messages: SavedMessage[] };
+    try {
+      const res = await fetch(`/api/assistente/conversas/${id}`);
+      if (!res.ok || sending.current) return false;
+      data = (await res.json()) as { id: string; messages: SavedMessage[] };
+    } catch {
+      return false;
+    } finally {
+      openingRef.current = null;
+    }
+    if (sending.current || removingRef.current) return false;
+    showMessages(data.messages.map(fromSaved));
     setConversationId(data.id);
     remember(data.id);
     setView("chat");
     return true;
   };
   const startNew = () => {
-    setTurns([]);
+    showMessages([]);
     setSettled(null);
     setConversationId(null);
     remember(null);
@@ -433,17 +469,29 @@ export function AssistantPanel({
     }
   };
   const removeConversation = async (id: string) => {
-    const res = await fetch(`/api/assistente/conversas/${id}`, {
-      method: "DELETE",
-    });
+    if (busy || sending.current || removingRef.current || openingRef.current) return;
+    const current = conversationId === id;
+    removingRef.current = id;
+    setRemoving(id);
+    let res: Response;
+    try {
+      res = await fetch(`/api/assistente/conversas/${id}`, {
+        method: "DELETE",
+      });
+    } catch {
+      res = Response.error();
+    } finally {
+      removingRef.current = null;
+      setRemoving(null);
+    }
     if (!res.ok) {
       toast.error("Não foi possível apagar a conversa.");
       return;
     }
-    setHistory((current) => current?.filter((c) => c.id !== id) ?? null);
+    setHistory((list) => list?.filter((c) => c.id !== id) ?? null);
     setConfirmDelete(null);
-    if (conversationId === id) {
-      setTurns([]);
+    if (current && !sending.current) {
+      showMessages([]);
       setConversationId(null);
       remember(null);
     }
@@ -461,33 +509,35 @@ export function AssistantPanel({
     fetch(`/api/assistente/conversas/${stored}`)
       .then(async (res) => {
         if (!res.ok) return remember(null);
-        const data = (await res.json()) as {
-          id: string;
-          messages: {
-            id: string;
-            role: "user" | "assistant";
-            content: string;
-            steps?: string[];
-          }[];
-        };
-        setTurns(
-          data.messages.map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            steps: m.steps,
-          })),
-        );
+        const data = (await res.json()) as { id: string; messages: SavedMessage[] };
+        // A message sent before the saved thread arrived wins: the thread stays the one under way.
+        let restored = false;
+        setMessages((current) => {
+          if (sending.current || current.length) return current;
+          restored = true;
+          return data.messages.map(fromSaved);
+        });
+        if (!restored) return;
+        stick.current = true;
         setConversationId(data.id);
       })
       .catch(() => undefined);
-  }, []);
+    // setMessages is stable for the panel's life: this runs once.
+  }, [setMessages]);
 
+  // Opening the panel starts at the latest message.
+  useEffect(() => {
+    if (open) stick.current = true;
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const node = scroller.current;
-    if (node) node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
-  }, [turns, busy, open, side]);
+    if (node && stick.current) node.scrollTop = node.scrollHeight;
+  }, [messages, working, open, side, view]);
+  const followScroll = () => {
+    const node = scroller.current;
+    if (node) stick.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48;
+  };
 
   const close = () => onOpenChange(false);
   // Beside the page the panel stays while the page changes; centered, it gets out of the way.
@@ -550,14 +600,8 @@ export function AssistantPanel({
     }
   };
 
-  const updateProposal = (id: string, change: Partial<ProposalState>) =>
-    setTurns((current) =>
-      current.map((turn) =>
-        turn.proposals?.some((p) => p.id === id)
-          ? { ...turn, proposals: turn.proposals.map((p) => (p.id === id ? { ...p, ...change } : p)) }
-          : turn,
-      ),
-    );
+  const updateCard = (id: string, change: Partial<CardState>) =>
+    setCards((current) => (current[id] ? { ...current, [id]: { ...current[id], ...change } } : current));
 
   /** The person's click: the only way a change the assistant prepared happens. */
   const decide = async (proposal: ProposalState, decisao: "confirmar" | "descartar") => {
@@ -567,7 +611,7 @@ export function AssistantPanel({
       toast.error(`Esta ação é da tela ${proposal.path}. Abra essa tela e confirme de novo.`);
       return;
     }
-    updateProposal(proposal.id, { status: "busy" });
+    updateCard(proposal.id, { status: "busy" });
     try {
       const res = await fetch(`/api/assistente/propostas/${proposal.id}`, {
         method: "POST",
@@ -575,33 +619,73 @@ export function AssistantPanel({
         body: JSON.stringify({ nonce: proposal.nonce, decisao }),
       });
       if (decisao === "descartar") {
-        updateProposal(proposal.id, res.ok ? { status: "dismissed", message: "Descartado." } : { status: "failed", message: "Esta confirmação não está mais pendente." });
+        updateCard(proposal.id, res.ok ? { status: "dismissed", message: "Descartado." } : { status: "failed", message: "Esta confirmação não está mais pendente." });
         return;
       }
       const data = (await res.json().catch(() => null)) as { summary?: string; actions?: PageAction[]; error?: string } | null;
       if (!res.ok || !data?.summary) {
-        updateProposal(proposal.id, { status: "failed", message: data?.error || "Não deu certo. Tente de novo em instantes." });
+        updateCard(proposal.id, { status: "failed", message: data?.error || "Não deu certo. Tente de novo em instantes." });
         setSettled({ kind: "error", seen: live.current.open });
         return;
       }
-      updateProposal(proposal.id, { status: "done", message: data.summary });
+      updateCard(proposal.id, { status: "done", message: data.summary });
       setSettled({ kind: "done", seen: live.current.open });
       applyActions(data.actions ?? []);
     } catch {
-      updateProposal(proposal.id, { status: "pending" });
+      updateCard(proposal.id, { status: "pending" });
       toast.error("Sem conexão com o Console agora. Tente de novo em instantes.");
     }
   };
 
-  const send = async (text: string) => {
-    if (busy || !text.trim()) return;
+  /**
+   * A turn that did not finish: what the person reads in its place. A failure on the server saves
+   * nothing; after a dropped connection the server may still finish and save it (Histórico shows it).
+   */
+  const fail = (message: AssistantMessage | undefined, text: string) => {
+    setMessages((current) => [
+      ...current.filter((m) => m.role !== "assistant" || m.id !== message?.id),
+      { id: crypto.randomUUID(), role: "assistant", parts: [{ type: "text", text }], metadata: { failed: true } },
+    ]);
+    setSettled({ kind: "error", seen: live.current.open });
+    announce(true);
+  };
+
+  /** The turn ended, one way or another. */
+  function finish(message: AssistantMessage, isAbort: boolean, isError: boolean, finishReason: string | undefined) {
+    const { startedAt, tokens, actions, error } = request.current;
+    sending.current = false;
+    setWorking(null);
+    // Only when the panel itself went away; the server finishes and saves the turn anyway.
+    if (isAbort) return;
+    if (isError || finishReason !== "stop" || message.role !== "assistant") {
+      fail(message, failureOf(isError ? error : undefined));
+      return;
+    }
+    const metadata = message.metadata ?? {};
+    setSpent((current) => ({ ...current, [message.id]: { ms: clock() - startedAt, tokens: metadata.tokens ?? tokens } }));
+    const deadline = startedAt + PROPOSAL_TTL_MS;
+    const fresh = cardsOf(message).map((card) => card.id);
+    if (fresh.length) setCards((current) => ({ ...current, ...Object.fromEntries(fresh.map((id) => [id, { status: "pending" as const, deadline }])) }));
+    if (metadata.conversationId) {
+      setConversationId(metadata.conversationId);
+      remember(metadata.conversationId);
+    }
+    setSettled({ kind: "done", seen: live.current.open });
+    announce(false);
+    // Closed, the person moved on to something else: only refresh what it
+    // changed, never take them to another page or type into their screen.
+    applyActions(live.current.open ? actions : actions.filter((action) => action.type === "refresh"));
+  }
+
+  const send = (text: string) => {
+    if (busy || sending.current || removingRef.current || !text.trim()) return;
     const message = text.trim();
-    setTurns((current) => [...current, { id: crypto.randomUUID(), role: "user" as const, content: message }]);
-    setBusy(true);
+    sending.current = true;
     setSettled(null);
     const startedAt = clock();
-    let spentTokens = 0;
+    request.current = { startedAt, tokens: 0, actions: [] };
     setWorking({ startedAt, tokens: 0, phase: null });
+    stick.current = true;
     if (!keepCentered && getWide()) setDocked(true);
     // Reading the screen is a bonus: if it fails, the message still goes, without it.
     let page: ReturnType<typeof snapshotPage> | undefined;
@@ -612,77 +696,9 @@ export function AssistantPanel({
       console.warn("[assistant] could not read the screen", error);
       page = undefined;
     }
-    try {
-      // Earlier turns come from the saved conversation on the server, never from this tab.
-      const res = await fetch("/api/assistente", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          page,
-          conversationId: conversationId ?? undefined,
-        }),
-      });
-      const data = await readTurn(res, (tokens, phase) => {
-        spentTokens = tokens;
-        setWorking({ startedAt, tokens, phase });
-      });
-      if ("error" in data) {
-        setTurns((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: data.error,
-            failed: true,
-          },
-        ]);
-        setSettled({ kind: "error", seen: live.current.open });
-        announce(true);
-        return;
-      }
-      const reply = data;
-      setTurns((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: reply.reply,
-          steps: reply.steps,
-          spent: { ms: clock() - startedAt, tokens: reply.tokens ?? spentTokens },
-          proposals: reply.proposals?.map((p) => ({ ...p, status: "pending" as const, deadline: startedAt + PROPOSAL_TTL_MS })),
-        },
-      ]);
-      if (reply.conversationId) {
-        setConversationId(reply.conversationId);
-        remember(reply.conversationId);
-      }
-      setSettled({ kind: "done", seen: live.current.open });
-      announce(false);
-      // Closed, the person moved on to something else: only refresh what it
-      // changed, never take them to another page or type into their screen.
-      applyActions(
-        live.current.open
-          ? reply.actions
-          : reply.actions.filter((action) => action.type === "refresh"),
-      );
-    } catch {
-      setTurns((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content:
-            "Sem conexão com o Console agora. Tente de novo em instantes.",
-          failed: true,
-        },
-      ]);
-      setSettled({ kind: "error", seen: live.current.open });
-      announce(true);
-    } finally {
-      setBusy(false);
-      setWorking(null);
-    }
+    sendMessage({ text: message }, { body: { page, conversationId: conversationId ?? undefined } }).catch((error) =>
+      console.warn("[assistant] turn not finished", error),
+    );
   };
 
   // Beside the page the composer is narrower: two shortcuts fit without scrolling.
@@ -779,6 +795,7 @@ export function AssistantPanel({
                   <li key={c.id} className="flex items-center gap-2 py-1">
                     <button
                       type="button"
+                      disabled={busy || removing !== null}
                       onClick={() => openConversation(c.id)}
                       className={cn(
                         "flex min-w-0 flex-1 flex-col rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent",
@@ -799,6 +816,7 @@ export function AssistantPanel({
                         type="button"
                         variant="destructive"
                         size="sm"
+                        disabled={busy || removing !== null}
                         onClick={() => removeConversation(c.id)}
                       >
                         Apagar?
@@ -810,6 +828,7 @@ export function AssistantPanel({
                         size="icon-sm"
                         aria-label={`Apagar "${c.title}"`}
                         className="text-muted-foreground"
+                        disabled={busy || removing !== null}
                         onClick={() => setConfirmDelete(c.id)}
                       >
                         <Trash2Icon />
@@ -827,6 +846,7 @@ export function AssistantPanel({
         ) : (
           <div
             ref={scroller}
+            onScroll={followScroll}
             className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-5"
           >
             {turns.length === 0 ? (
@@ -881,7 +901,8 @@ export function AssistantPanel({
             ) : (
               <ol className="m-0 flex list-none flex-col gap-4 p-0">
                 {turns.map((turn) =>
-                  turn.role === "user" ? (
+                  // An answer only shows once something of it arrived: chips, text or a card.
+                  turn.role === "assistant" && !turn.content && !turn.steps?.length && !turn.proposals?.length ? null : turn.role === "user" ? (
                     <li key={turn.id} className="flex justify-end">
                       <p className="m-0 max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap text-primary-foreground">
                         {turn.content}
@@ -951,7 +972,7 @@ export function AssistantPanel({
         <div className="border-t bg-background px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
           <MetalPromptBar
             autoFocus
-            busy={busy}
+            busy={busy || removing !== null}
             dictation={voice}
             onDictationChange={setDictation}
             chips={chips}

@@ -1013,21 +1013,28 @@ export const assistantTools: AnyTool[] = [
 ];
 
 /**
- * The tool list as OpenRouter/OpenAI expect it, filtered by who is asking
- * and, when Jev has read the message, by the areas it touches: core tools
- * (listings, navigation, support, knowledge) always go; the rest only when
- * their area is selected. `null` sends everything.
+ * The tools this person may use, filtered, when Jev has read the message, by
+ * the areas it touches: core tools (listings, navigation, support,
+ * knowledge) always go; the rest only when their area is selected. `null`
+ * offers everything.
  */
 export function toolCatalog(actor: Pick<Actor, "admin">, areas: ReadonlySet<ToolArea> | null = null) {
   return assistantTools
     .filter((t) => !t.staffOnly || actor.admin)
     .filter((t) => !t.clientOnly || !actor.admin)
-    .filter((t) => !areas || !t.area || areas.has(t.area))
-    .map((t) => {
-      const schema = z.toJSONSchema(t.input) as Record<string, unknown>;
-      delete schema.$schema;
-      return { type: "function" as const, function: { name: t.name, description: t.description, parameters: schema } };
-    });
+    .filter((t) => !areas || !t.area || areas.has(t.area));
+}
+
+const inputSchemas = new Map<string, Record<string, unknown>>();
+/** A tool's arguments as JSON Schema, what the model reads; computed once, the definitions never change. */
+export function toolInputSchema(def: AnyTool) {
+  let schema = inputSchemas.get(def.name);
+  if (!schema) {
+    schema = z.toJSONSchema(def.input) as Record<string, unknown>;
+    delete schema.$schema;
+    inputSchemas.set(def.name, schema);
+  }
+  return schema;
 }
 
 export const toolNamed = (name: string) => assistantTools.find((t) => t.name === name);
@@ -1043,15 +1050,35 @@ export function parseCall(
   rawArguments: string,
   allowed?: ReadonlySet<string>,
 ): { def: AnyTool; input: Record<string, unknown> } | { error: string } {
-  const def = toolNamed(name);
-  if (!def || (def.staffOnly && !ctx.actor.admin) || (def.clientOnly && ctx.actor.admin)) return { error: `Ferramenta desconhecida: ${name}.` };
-  if (allowed && !allowed.has(name)) return { error: `A ferramenta ${name} não foi oferecida para esta mensagem. Use só as ferramentas da lista.` };
+  const offered = offeredTool(ctx, name, allowed);
+  if ("error" in offered) return offered;
   let parsed: unknown;
   try {
     parsed = rawArguments ? JSON.parse(rawArguments) : {};
   } catch {
     return { error: "Os argumentos não vieram em JSON válido." };
   }
+  return parseInput(ctx, name, parsed, allowed);
+}
+
+/** The tool by name, if this person may use it and it was offered for this message. */
+function offeredTool(ctx: ToolContext, name: string, allowed?: ReadonlySet<string>): { def: AnyTool } | { error: string } {
+  const def = toolNamed(name);
+  if (!def || (def.staffOnly && !ctx.actor.admin) || (def.clientOnly && ctx.actor.admin)) return { error: `Ferramenta desconhecida: ${name}.` };
+  if (allowed && !allowed.has(name)) return { error: `A ferramenta ${name} não foi oferecida para esta mensagem. Use só as ferramentas da lista.` };
+  return { def };
+}
+
+/** `parseCall` for arguments already read from JSON (the AI SDK reads them). */
+export function parseInput(
+  ctx: ToolContext,
+  name: string,
+  parsed: unknown,
+  allowed?: ReadonlySet<string>,
+): { def: AnyTool; input: Record<string, unknown> } | { error: string } {
+  const offered = offeredTool(ctx, name, allowed);
+  if ("error" in offered) return offered;
+  const { def } = offered;
   let input = def.input.safeParse(withoutNulls(parsed));
   if (!input.success) {
     // Models often send optional fields as "" instead of leaving them out; drop the

@@ -10,7 +10,8 @@ import { assistantDocuments, assistantSettings, companies, contracts, engagement
 import { saoPauloDate } from "../dates";
 import { longDateLabel } from "../format";
 import { hasPermission } from "../access/permissions";
-import { destinations, parseCall, runParsed, screenFor, toolCatalog, ToolError, type ClientAction, type Destination, type ToolArea, type ToolContext } from "./assistant-tools";
+import { isStepCount, jsonSchema, streamText, tool as aiTool, type JSONSchema7, type ModelMessage, type ToolSet } from "ai";
+import { destinations, parseInput, runParsed, screenFor, toolCatalog, toolInputSchema, ToolError, type ClientAction, type Destination, type ToolArea, type ToolContext } from "./assistant-tools";
 import { intents, jevEnabled, routeIntent } from "./jev";
 import { modelSupportsReasoning } from "./openrouter-models";
 import { describePage, openRecord, recordLine, type PageSnapshot, areaOfPath } from "./page-snapshot";
@@ -18,9 +19,20 @@ import { createProposal, type ProposalCard } from "./assistant-proposals";
 import { HELP_ARTICLES } from "../help/articles";
 import { BUDGET_CLOSING_NOTE, BUDGET_ENDED } from "./budget-rules";
 import type { TurnPhase } from "./activity";
+import { AssistantError, failureText } from "./assistant-errors";
+import { chatModel, providerFailure, roundState, sdkError } from "./openrouter-chat";
+import { logDatabaseFault } from "../action-errors";
+
+export { AssistantError } from "./assistant-errors";
 
 export const DEFAULT_ASSISTANT_MODEL = "anthropic/claude-sonnet-5";
 const MAX_ROUNDS = 8;
+/** The model's share of a turn, below the route's 120 s: past it the turn fails in words, not by being cut off. */
+const TURN_MS = 105_000;
+/** One round: the request, the answer streaming in and its tool calls. */
+const ROUND_MS = 90_000;
+/** Less time than this left in the turn: no new attempt, which would only time out. */
+const MIN_RETRY_MS = 20_000;
 /** Tool calls one answer may make, reads and cards together. */
 export const MAX_TOOL_CALLS = 12;
 /** Messages per person per rolling hour, counted in the database (every instance shares it). */
@@ -212,90 +224,22 @@ export async function systemPrompt(actor: Actor, custom: string, page?: Pick<Pag
 
 /* ---------- the call ---------- */
 
-type Message =
-  | { role: "system" | "user" | "assistant"; content: string; tool_calls?: ToolCall[] }
-  | { role: "tool"; tool_call_id: string; content: string };
-type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
+export { PRIVATE_PROVIDERS } from "./openrouter-chat";
 
-export class AssistantError extends Error {}
-
-/** Providers differ on the shape of `content`; this flattens it to text. */
-const textOf = (content: unknown): string =>
-  typeof content === "string"
-    ? content
-    : Array.isArray(content)
-      ? content.map((part) => (part && typeof part === "object" && "text" in part ? String((part as { text: unknown }).text ?? "") : "")).join("")
-      : "";
-
-type Completion = { content: string; toolCalls: ToolCall[]; finishReason: string | null; tokens: number };
-
-/** Client data only goes to providers that keep nothing and train on nothing. */
-export const PRIVATE_PROVIDERS = { zdr: true, data_collection: "deny" } as const;
-
-async function complete(
-  model: string,
-  messages: Message[],
-  tools: ReturnType<typeof toolCatalog>,
-  options: { maxTokens: number; reasoning: boolean; attempt?: number },
-): Promise<Completion> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new AssistantError("O assistente ainda não foi ligado: falta a chave do OpenRouter nas variáveis do ambiente.");
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
-      "X-Title": "Anuntech Console",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      // Past the tool budget the last round goes without tools, so the model has to answer.
-      ...(tools.length ? { tools, tool_choice: "auto" } : {}),
-      temperature: 0.3,
-      max_tokens: options.maxTokens,
-      provider: PRIVATE_PROVIDERS,
-      // Thinking models spend the output budget on reasoning first; keep it short so text remains.
-      ...(options.reasoning ? { reasoning: { effort: "low" } } : {}),
-    }),
-    signal: AbortSignal.timeout(90000),
-  });
-  const data = (await res.json().catch(() => null)) as
-    | {
-        choices?: { message: { content?: unknown; tool_calls?: ToolCall[] }; finish_reason?: string }[];
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
-        error?: { message?: string };
-      }
-    | null;
-  if (!res.ok || !data?.choices?.length) {
-    const detail = data?.error?.message ?? `HTTP ${res.status}`;
-    console.warn("[assistant] OpenRouter refused", { model, status: res.status, detail, maxTokens: options.maxTokens });
-    if (res.status === 401) throw new AssistantError("A chave do OpenRouter foi recusada. Confira em Configurações › Assistente.");
-    // Out of credits stops here: no smaller retry that spends what is left.
-    if (res.status === 402) throw new AssistantError("A conta do OpenRouter está sem créditos. Adicione créditos em openrouter.ai/settings/credits para o assistente voltar.");
-    if ((res.status === 429 || res.status >= 500) && !(options.attempt ?? 0)) {
-      // Busy models hiccup; one short pause usually clears it.
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      return complete(model, messages, tools, { ...options, attempt: 1 });
-    }
-    if (res.status === 429)
-      throw new AssistantError("O modelo está no limite de uso do OpenRouter agora. Tente de novo em instantes ou escolha outro modelo em Configurações › Assistente.");
-    if (/data policy|data collection|zero data retention|zdr|privacy/i.test(detail))
-      throw new AssistantError(`Nenhum provedor do modelo "${model}" atende sem guardar os dados. Escolha outro modelo em Configurações › Assistente.`);
-    if (res.status === 404 || /model/i.test(detail)) throw new AssistantError(`O modelo "${model}" não foi aceito pelo OpenRouter: ${detail}`);
-    throw new AssistantError(`O OpenRouter não respondeu (${detail}). Tente de novo em instantes.`);
+/** The failure the person reads; anything that is not the provider's stays as it is, for the route to log. */
+function failed(error: unknown, model: string): unknown {
+  if (error instanceof AssistantError) return error;
+  const failure = providerFailure(error);
+  if (failure) {
+    console.warn("[assistant] OpenRouter refused", { model, ...failure });
+    return new AssistantError(failureText(failure, model));
   }
-  const choice = data.choices[0];
-  const completion = {
-    content: textOf(choice.message.content).trim(),
-    toolCalls: choice.message.tool_calls ?? [],
-    finishReason: choice.finish_reason ?? null,
-    tokens: (data.usage?.prompt_tokens ?? 0) + (data.usage?.completion_tokens ?? 0),
-  };
-  if (!completion.content && !completion.toolCalls.length)
-    console.warn("[assistant] empty reply", { model, finishReason: completion.finishReason, usage: data.usage, maxTokens: options.maxTokens });
-  return completion;
+  // Any other error of the SDK may carry the request or the answer in its message: only its name is logged.
+  if (sdkError(error)) {
+    console.error("[assistant] model call failed", { model, name: (error as Error).name });
+    return new AssistantError("O assistente falhou nesta resposta. Tente de novo em instantes.");
+  }
+  return error;
 }
 
 /* ---------- a turn that read someone else's text ---------- */
@@ -330,32 +274,50 @@ async function narrowActor(actor: Actor, companyId: string | null): Promise<Acto
 /** Filling a form without sending changes nothing yet; a click presses a control the page marked as safe. */
 const screenTools = new Set(["preencher_tela", "clicar_na_tela"]);
 
+const RETRY_NOTE = "Escreva agora a resposta final em texto, em português, usando o que as ferramentas devolveram. Não chame mais ferramentas.";
+/** After a round the output limit cut before its tools ran: the calls are still to be made. */
+const CUT_NOTE =
+  "A rodada anterior passou do limite de saída antes de as ferramentas rodarem. Chame de novo só as ferramentas necessárias, sem raciocínio longo, e depois responda em texto, em português.";
+
+/** What a turn reports while it runs, for the panel. */
+export type TurnEvents = {
+  /** Where the turn is and the tokens spent so far. */
+  progress?: (progress: AssistantProgress) => void;
+  /** The next piece of the reply; all of them, in order, are exactly `reply`. */
+  text?: (delta: string) => void;
+  /** What the tools did so far, as chips. */
+  steps?: (steps: string[]) => void;
+};
+
 /**
  * One turn of the conversation: the model answers, calling tools (at most
- * MAX_TOOL_CALLS). Reads run with the caller's own permissions, narrowed to
- * one company once the turn has read text someone else wrote. Writes never
- * run here: each becomes a confirmation card the person clicks. `spend` gets
- * each round's tokens and says when the day's budget ran out: the turn then
- * gets one last round, without tools, to answer with what it has.
+ * MAX_TOOL_CALLS, one after another), and the reply streams as it is
+ * written. Reads run with the caller's own permissions, narrowed to one
+ * company once the turn has read text someone else wrote. Writes never run
+ * here: each becomes a confirmation card the person clicks. `spend` gets each
+ * round's tokens and says when the day's budget ran out: the turn then gets
+ * one last round, without tools, to answer with what it has.
  */
 export async function converse(
   actor: Actor,
   history: ChatTurn[],
   page?: PageSnapshot,
-  onProgress?: (progress: AssistantProgress) => void,
+  events: TurnEvents = {},
   spend?: (tokens: number) => Promise<boolean>,
 ): Promise<AssistantReply> {
+  const deadline = Date.now() + TURN_MS;
   const config = await assistantConfig();
-  let tools = toolCatalog(actor);
+  let catalog = toolCatalog(actor);
   const [prompt, reasoning, recordCompany] = await Promise.all([
     systemPrompt(actor, config.prompt, page),
     modelSupportsReasoning(config.model),
     page ? companyOfRecord(page.path) : null,
   ]);
   const turns = trimHistory(history);
-  const messages: Message[] = [{ role: "system", content: prompt }, ...turns];
+  const messages: ModelMessage[] = turns.map((t) => ({ role: t.role, content: t.content }));
   // The screen travels as a labelled block right before the person's message.
   if (page && turns.length) messages.splice(messages.length - 1, 0, { role: "user", content: describePage(page) });
+  let instructions = prompt;
   const noted = new Map<string, number>();
   const actions: ClientAction[] = [];
   const proposals: ProposalCard[] = [];
@@ -370,12 +332,44 @@ export async function converse(
     if (narrowed?.key !== (only ?? "")) narrowed = { key: only ?? "", actor: await narrowActor(actor, only) };
     return narrowed.actor;
   };
-  let retried = false;
-  let calls = 0;
-  let clicked = false;
+
+  // The reply as it streams: each round's text, a blank line apart, never starting or ending blank.
+  let reply = "";
+  let open = false;
+  let held = "";
+  const say = (delta: string) => {
+    let text = held + delta;
+    held = "";
+    if (!open) {
+      text = text.replace(/^\s+/, "");
+      if (!text) return;
+      if (reply) text = `\n\n${text}`;
+      open = true;
+    }
+    held = /\s+$/.exec(text)?.[0] ?? "";
+    if (held) text = text.slice(0, -held.length);
+    if (!text) return;
+    reply += text;
+    events.text?.(text);
+  };
+  const endBlock = () => {
+    open = false;
+    held = "";
+  };
   let tokens = 0;
-  let closing = false;
-  const done = (reply: string): AssistantReply => ({ reply, tokens, steps: collapse(noted), actions, proposals });
+  let phase: TurnPhase | null = null;
+  const report = (next: TurnPhase) => {
+    phase = next;
+    events.progress?.({ tokens, phase });
+  };
+  /** A whole answer written here, not by the model (a limit, a fallback). */
+  const sayAll = (text: string) => {
+    endBlock();
+    report("answer");
+    say(text);
+    endBlock();
+  };
+  const done = (): AssistantReply => ({ reply, tokens, steps: collapse(noted), actions, proposals });
 
   // Jev reads the intent first: the obvious cases end here, the rest reaches the model with a hint.
   if (jevEnabled() && turns.length) {
@@ -388,17 +382,20 @@ export async function converse(
     );
     const route = await routeIntent({ message: last, previousAssistant, path: page?.path ?? "", formOnScreen: !!page?.forms.length, destinations: allowedScreens });
     if (route) {
-      if (route.intent === "humano" && route.confidence >= 0.9 && !actor.admin)
-        return { reply: "Abrindo o chat com a equipe da Anuntech. Eles respondem por ali.", steps: ["Jev: você quer falar com a equipe"], actions: [{ type: "open_support" }], proposals: [] };
+      if (route.intent === "humano" && route.confidence >= 0.9 && !actor.admin) {
+        say("Abrindo o chat com a equipe da Anuntech. Eles respondem por ali.");
+        return { reply, steps: ["Jev: você quer falar com a equipe"], actions: [{ type: "open_support" }], proposals: [] };
+      }
       if (route.intent === "navegar" && route.destination && route.destinationConfidence >= 0.9) {
         try {
           const screen = screenFor(actor, route.destination as Destination);
-          return { reply: `Abrindo ${screen.label}.`, steps: [`Jev: abrir ${screen.label}`], actions: [{ type: "navigate", href: screen.href }], proposals: [] };
+          say(`Abrindo ${screen.label}.`);
+          return { reply, steps: [`Jev: abrir ${screen.label}`], actions: [{ type: "navigate", href: screen.href }], proposals: [] };
         } catch {
           /* not allowed for this person: let the model explain */
         }
       }
-      messages[0].content += `\n\nLeitura rápida da intenção (Jev, ${Math.round(route.confidence * 100)}%): ${route.intent} — ${intents[route.intent]}.`;
+      instructions += `\n\nLeitura rápida da intenção (Jev, ${Math.round(route.confidence * 100)}%): ${route.intent} — ${intents[route.intent]}.`;
       // Only the tools of the areas this message touches travel to the model; listings and navigation always do.
       // When Jev sees a request for data or an action but no clear area, the model keeps the whole catalog.
       const areas = new Set(route.areas);
@@ -409,60 +406,47 @@ export async function converse(
       const unsure = !areas.size && (route.intent === "consultar" || route.intent === "criar" || route.intent === "tela");
       if (!unsure) {
         const subset = toolCatalog(actor, areas);
-        console.info("[assistant] tools", { sent: subset.length, of: tools.length, areas: [...areas] });
-        tools = subset;
+        console.info("[assistant] tools", { sent: subset.length, of: catalog.length, areas: [...areas] });
+        catalog = subset;
       }
     }
   }
-  // The executor refuses anything the model was not offered for this message.
-  const offered = new Set(tools.map((t) => t.function.name));
-  for (let round = 0; round < MAX_ROUNDS; round++) {
-    const spent = closing || calls >= MAX_TOOL_CALLS;
-    const turn = await complete(config.model, messages, spent ? [] : tools, { maxTokens: retried ? 6000 : 3000, reasoning });
-    tokens += turn.tokens;
-    onProgress?.({ tokens, phase: turn.toolCalls.length && !closing ? "tools" : "answer" });
-    const over = spend ? await spend(turn.tokens) : false;
-    if (closing) return done(turn.content || BUDGET_ENDED);
-    if (!turn.toolCalls.length) {
-      if (turn.content) return done(turn.content);
-      if (over) return done(BUDGET_ENDED);
-      if (!retried) {
-        // Nothing came back (usually the budget went to reasoning): ask once more, plainly.
-        retried = true;
-        messages.push({ role: "system", content: "Escreva agora a resposta final em texto, em português, usando o que as ferramentas devolveram. Não chame mais ferramentas." });
-        continue;
-      }
-      return done("Não consegui formular uma resposta. Pode repetir de outro jeito?");
-    }
-    messages.push({ role: "assistant", content: turn.content, tool_calls: turn.toolCalls });
-    for (const call of turn.toolCalls) {
-      const name = call.function.name;
-      const answer = (content: unknown) => messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(content).slice(0, 20000) });
-      const refuse = (erro: string) => answer({ erro });
-      if (++calls > MAX_TOOL_CALLS) {
-        refuse(`Limite de ${MAX_TOOL_CALLS} chamadas de ferramenta nesta resposta. Responda com o que já tem e diga o que ficou para a próxima mensagem.`);
-        continue;
-      }
-      const parsed = parseCall(ctx, name, call.function.arguments, offered);
-      if ("error" in parsed) {
-        refuse(parsed.error);
-        continue;
-      }
+
+  // The model is offered these tools only; a call to any other is refused before it runs.
+  const offered = new Set(catalog.map((t) => t.name));
+  let calls = 0;
+  let clicked = false;
+  let closing = false;
+  const note = (summary: string) => {
+    noted.set(summary, (noted.get(summary) ?? 0) + 1);
+    events.steps?.(collapse(noted));
+  };
+  const answer = (content: unknown) => (JSON.stringify(content) ?? "null").slice(0, 20000);
+  const refuse = (erro: string) => answer({ erro });
+  // What the model call of the round just streamed left behind (openrouter-chat.ts): calls whose arguments
+  // never became JSON, refused as before the SDK, and a call cut before it was handed over.
+  const round = roundState();
+  /** One tool call, as the model reads its result. Calls run one at a time, in the model's order. */
+  const call = async (name: string, raw: unknown, id: string): Promise<string> => {
+    if (++calls > MAX_TOOL_CALLS)
+      return refuse(`Limite de ${MAX_TOOL_CALLS} chamadas de ferramenta nesta resposta. Responda com o que já tem e diga o que ficou para a próxima mensagem.`);
+    if (round.malformed.has(id)) return refuse("Os argumentos não vieram em JSON válido.");
+    try {
+      const parsed = parseInput(ctx, name, raw, offered);
+      if ("error" in parsed) return refuse(parsed.error);
       const { def } = parsed;
       let input = parsed.input;
       if (def.write) {
-        if (name === "clicar_na_tela" && clicked) {
-          refuse("Um clique por resposta. Diga à pessoa o que falta clicar.");
-          continue;
-        }
+        if (name === "clicar_na_tela" && clicked) return refuse("Um clique por resposta. Diga à pessoa o que falta clicar.");
         try {
           if (def.prepare) input = def.prepare(ctx, input as never);
           const direct = screenTools.has(name) && !tainted.size && !(name === "preencher_tela" && input.enviar === true);
+          let result: string;
           if (direct) {
             const outcome = await def.run(ctx, input as never);
-            noted.set(outcome.summary, (noted.get(outcome.summary) ?? 0) + 1);
+            note(outcome.summary);
             if (outcome.actions) actions.push(...outcome.actions);
-            answer(outcome.result);
+            result = answer(outcome.result);
           } else {
             const card = await createProposal({
               actor,
@@ -472,43 +456,147 @@ export async function converse(
               path: screenTools.has(name) && page ? page.path.split(/[?#]/)[0] : null,
             });
             proposals.push(card);
-            noted.set(`Para você confirmar: ${card.title}`, (noted.get(`Para você confirmar: ${card.title}`) ?? 0) + 1);
-            answer({
+            note(`Para você confirmar: ${card.title}`);
+            result = answer({
               aguardandoConfirmacao: true,
               acao: card.title,
               aviso: "A ação virou um cartão no painel. Nada foi feito ainda: só acontece quando a pessoa clicar em Confirmar. Diga isso em uma frase, sem repetir todos os dados.",
             });
           }
           if (name === "clicar_na_tela") clicked = true;
+          return result;
         } catch (error) {
           if (!(error instanceof ToolError)) throw error;
-          refuse(error.message);
+          return refuse(error.message);
         }
-        continue;
       }
       // Reads: once text from someone else came in, the rest of the turn sees only that company.
-      if (tainted.size && def.staffOnly) {
-        refuse("Esta resposta leu texto escrito por cliente, e ferramentas só da equipe ficam de fora até a próxima mensagem. Explique isso à pessoa.");
-        continue;
-      }
+      if (tainted.size && def.staffOnly)
+        return refuse("Esta resposta leu texto escrito por cliente, e ferramentas só da equipe ficam de fora até a próxima mensagem. Explique isso à pessoa.");
       const reader = await readActor();
       const outcome = await runParsed({ ...ctx, actor: reader }, def, input);
-      if ("error" in outcome) {
-        refuse(outcome.error);
-        continue;
-      }
-      noted.set(outcome.summary, (noted.get(outcome.summary) ?? 0) + 1);
+      if ("error" in outcome) return refuse(outcome.error);
+      note(outcome.summary);
       if (outcome.actions) actions.push(...outcome.actions);
-      answer(outcome.result);
+      return answer(outcome.result);
+    } catch (error) {
+      // A bug or a database fault: the model reads a generic line, never the error itself.
+      if (!logDatabaseFault(`assistant ${name}`, error)) console.error(`[assistant] ${name} failed`, error);
+      return refuse("A ferramenta falhou por um erro interno. Sugira tentar de novo ou falar com a equipe.");
     }
-    onProgress?.({ tokens, phase: "reading" });
-    // The day's budget ran out in this round: its calls ran, and the next round only answers.
-    if (over) {
-      closing = true;
-      messages.push({ role: "system", content: BUDGET_CLOSING_NOTE });
+  };
+  // The SDK (7.0.137) starts a round's calls together, in the order it got them, which `inModelOrder`
+  // (openrouter-chat.ts) makes the order the model wrote them. They run here one at a time, in that
+  // order: what one call reads narrows the calls after it.
+  let line: Promise<unknown> = Promise.resolve();
+  const inOrder = (name: string, input: unknown, id: string) => {
+    const next = line.then(() => call(name, input, id));
+    line = next.catch(() => undefined);
+    return next;
+  };
+  // Arguments arrive as the model wrote them; `call` checks them with the tool's own schema and Portuguese errors.
+  const tools: ToolSet = Object.fromEntries(
+    catalog.map((def) => [
+      def.name,
+      aiTool({ description: def.description, inputSchema: jsonSchema(toolInputSchema(def) as JSONSchema7), execute: (input: unknown, { toolCallId }) => inOrder(def.name, input, toolCallId) }),
+    ]),
+  );
+
+  const model = chatModel(config.model, reasoning, round);
+  let rounds = 0;
+  let closedAt: number | null = null;
+  /** Rounds of the model until it answers without tools, at most what is left of MAX_ROUNDS. */
+  const run = async (extra: string, maxOutputTokens: number, context: ModelMessage[]) => {
+    const start = rounds;
+    const system = extra ? `${instructions}\n\n${extra}` : instructions;
+    const result = streamText({
+      model,
+      instructions: system,
+      messages: context,
+      tools,
+      stopWhen: isStepCount(MAX_ROUNDS - start),
+      prepareStep: ({ stepNumber }) => {
+        // Past the tool budget, or the day's, the round goes without tools, so the model has to answer.
+        if (!closing && calls < MAX_TOOL_CALLS) return undefined;
+        if (!closing) return { activeTools: [] };
+        closedAt ??= start + stepNumber;
+        return { activeTools: [], instructions: `${system}\n\n${BUDGET_CLOSING_NOTE}` };
+      },
+      temperature: 0.3,
+      maxOutputTokens,
+      // One more try when the model is busy (429, 5xx); none for a refused key or missing credits.
+      maxRetries: 1,
+      // A round, its first piece and each pause between pieces are bounded, and so is the whole turn.
+      timeout: { totalMs: Math.max(1_000, deadline - Date.now()), stepMs: ROUND_MS, firstChunkMs: ROUND_MS, chunkMs: ROUND_MS },
+      // Failures come through the stream below; the SDK's own log would print the whole request, client data included.
+      onError: () => undefined,
+      onStepEnd: async (step) => {
+        rounds++;
+        const used = (step.usage.inputTokens ?? 0) + (step.usage.outputTokens ?? 0);
+        tokens += used;
+        // The day's budget ran out in this round: its calls ran, and the next round only answers.
+        if (spend && (await spend(used))) closing = true;
+        if (!step.text.trim() && !step.toolCalls.length)
+          console.warn("[assistant] empty reply", { model: config.model, finishReason: step.finishReason, usage: step.usage, maxOutputTokens });
+        report(step.toolCalls.length ? "reading" : "answer");
+      },
+    });
+    endBlock();
+    try {
+      for await (const part of result.fullStream) {
+        if (part.type === "text-start" || part.type === "finish-step") endBlock();
+        else if (part.type === "text-delta") {
+          if (phase !== "answer" && part.text.trim()) report("answer");
+          say(part.text);
+        } else if (part.type === "tool-input-start") {
+          if (phase !== "tools") report("tools");
+        } else if (part.type === "error") throw part.error;
+        else if (part.type === "abort") throw new DOMException("O modelo não respondeu a tempo.", "TimeoutError");
+      }
+      return await result.steps;
+    } catch (error) {
+      throw failed(error, config.model);
+    } finally {
+      endBlock();
     }
+  };
+
+  const first = await run("", 3000, messages);
+  let steps = first;
+  for (let retried = false; ; retried = true) {
+    const last = steps.at(-1);
+    // The SDK runs a round's calls only when the model finished it ("stop", "tool-calls"); a round cut
+    // by the output limit leaves its calls unrun (or, cut mid-arguments, never handed over), so it is no answer yet.
+    const cut = !!last && last.finishReason !== "tool-calls" && last.finishReason !== "stop" && (last.toolCalls.length > 0 || round.unfinished);
+    if (cut) console.warn("[assistant] tool calls cut off", { model: config.model, finishReason: last?.finishReason, calls: last?.toolCalls.length });
+    if (closedAt !== null) {
+      if (!last?.text.trim()) sayAll(BUDGET_ENDED);
+      return done();
+    }
+    // A cut round that already showed text stays the answer: asking again would write it twice.
+    if (cut && last?.text.trim()) {
+      sayAll("Parte das consultas desta resposta não chegou a rodar. Se faltou algo, peça de novo.");
+      return done();
+    }
+    if (last?.toolCalls.length && !cut && rounds >= MAX_ROUNDS) {
+      sayAll("Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?");
+      return done();
+    }
+    if (last?.text.trim() && !cut) return done();
+    if (closing) {
+      sayAll(BUDGET_ENDED);
+      return done();
+    }
+    if (retried || rounds >= MAX_ROUNDS || deadline - Date.now() < MIN_RETRY_MS) {
+      sayAll("Não consegui formular uma resposta. Pode repetir de outro jeito?");
+      return done();
+    }
+    // Nothing usable came back (usually the budget went to reasoning): ask once more, plainly, with every
+    // earlier round (each one's calls and results) and without the empty or cut one. A cut round's calls
+    // never ran, so that attempt may call tools again.
+    const earlier = first.slice(0, -1).flatMap((step) => step.response.messages);
+    steps = await run(cut ? CUT_NOTE : RETRY_NOTE, 6000, [...messages, ...earlier]);
   }
-  return done("Fiz várias consultas mas não cheguei a uma resposta final. Pode dividir o pedido em partes menores?");
 }
 
 /** "Consultei as faturas ×7" instead of seven identical chips. */

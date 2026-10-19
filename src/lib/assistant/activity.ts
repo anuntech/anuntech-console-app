@@ -13,9 +13,9 @@ export type AssistantActivity =
   | "error"
   | "done";
 
-/** Where a turn is, from the server's progress lines (lib/assistant/assistant.ts). */
-export type TurnPhase = "tools" | "reading" | "answer";
-export const TURN_PHASES: readonly TurnPhase[] = ["tools", "reading", "answer"];
+/** Where a turn is, from the server's `data-phase` parts (lib/assistant/assistant-stream.ts). */
+export const TURN_PHASES = ["tools", "reading", "answer"] as const;
+export type TurnPhase = (typeof TURN_PHASES)[number];
 
 /** The microphone in the composer (components/console/use-dictation). */
 export type DictationActivity = "idle" | "starting" | "recording" | "transcribing" | "error";
