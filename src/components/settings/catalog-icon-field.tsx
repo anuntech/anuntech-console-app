@@ -57,7 +57,7 @@ export function CatalogIconField({
   itemId?: string;
   name: string;
   initialIcon: string | null;
-  /** Whether "Gerar com IA" is on (OpenRouter configured and ICON_AI not off). */
+  /** Whether "Gerar com IA" is on (AI Gateway configured and ICON_AI not off). */
   iconAi: boolean;
 }) {
   const router = useRouter();

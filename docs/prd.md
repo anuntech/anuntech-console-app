@@ -200,7 +200,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Nada de sucesso simulado: pagamento só com confirmação do Inter; nota fiscal só quando a integração existir.
 - Idempotência em tudo que sai do Console: emissão bancária, e-mails e WhatsApp.
 - Auditoria de toda alteração relevante.
-- Voz: o áudio do ditado vai para transcrição no OpenRouter, só com provedores de retenção zero, e não é guardado em lugar nenhum. Fica no Console apenas o texto que a pessoa envia. Limites: 2 minutos por gravação e 30 transcrições por pessoa por hora.
+- Voz: o áudio do ditado vai para transcrição pelo AI Gateway da Vercel, só com provedores de retenção zero, e não é guardado em lugar nenhum. Fica no Console apenas o texto que a pessoa envia. Limites: 2 minutos por gravação e 30 transcrições por pessoa por hora.
 - Acessibilidade WCAG 2.2 AA como referência (ver [design.md](design.md)).
 
 ## Fora do escopo agora

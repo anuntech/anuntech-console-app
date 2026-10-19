@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getActor } from "@/lib/access/access";
 import { AssistantError, converse, HOURLY_MESSAGES, type ChatTurn } from "@/lib/assistant/assistant";
 import { readActions, readCard, type AssistantMessage } from "@/lib/assistant/assistant-stream";
-import { sdkError } from "@/lib/assistant/openrouter-chat";
+import { sdkError } from "@/lib/assistant/chat-model";
 import { pageSnapshotSchema } from "@/lib/assistant/page-snapshot";
 import { appendExchange, conversationTurns } from "@/lib/assistant/assistant-history";
 import { attachProposals } from "@/lib/assistant/assistant-proposals";

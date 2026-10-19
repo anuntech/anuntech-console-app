@@ -5,12 +5,14 @@ import { db } from "../db";
 import { termsSummary } from "../service-terms/terms-text";
 import { visibleToClient } from "../service-terms/ticket-clock";
 import { ticketLabels } from "../format";
-import { assistantConfig, PRIVATE_PROVIDERS } from "./assistant";
+import { assertGateway } from "./chat-model";
+import { oneShot } from "./one-shot";
 
 /*
  * A reply the team reviews before sending: the model reads the ticket's
  * conversation and the company's conditions and writes in Anuntech's voice.
- * It goes into the reply box only; the person edits and sends it.
+ * It goes into the reply box only; the person edits and sends it. One
+ * private call through the AI Gateway (one-shot.ts).
  */
 
 const VOICE = [
@@ -22,8 +24,7 @@ const VOICE = [
 ].join("\n");
 
 export async function draftTicketReply(ticketId: string) {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("O assistente ainda não foi ligado: falta a chave do OpenRouter.");
+  assertGateway();
   const [row] = await db
     .select({ ticket: tickets, company: companies.name })
     .from(tickets)
@@ -50,30 +51,7 @@ export async function draftTicketReply(ticketId: string) {
   ]
     .filter(Boolean)
     .join("\n\n");
-  const { model } = await assistantConfig();
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
-      "X-Title": "Anuntech Console",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: VOICE },
-        { role: "user", content: context },
-      ],
-      temperature: 0.3,
-      max_tokens: 700,
-      provider: PRIVATE_PROVIDERS,
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
-  const data = (await res.json().catch(() => null)) as { choices?: { message?: { content?: unknown } }[] } | null;
-  const content = data?.choices?.[0]?.message?.content;
-  const text = typeof content === "string" ? content.trim() : "";
-  if (!res.ok || !text) throw new Error("O modelo não respondeu agora. Tente de novo ou escreva a resposta.");
+  // A short reply: the whole output limit goes to the text, with no thinking first.
+  const text = await oneShot({ system: VOICE, user: context, maxTokens: 700, temperature: 0.3, timeoutMs: 45000, reasoning: false });
   return text.slice(0, 4000);
 }

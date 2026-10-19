@@ -1,12 +1,18 @@
 import "server-only";
+import { gateway, generateImage, NoImageGeneratedError, type Experimental_GeneratedImage } from "ai";
+import { GatewayError } from "@ai-sdk/gateway";
+import { gatewayReady } from "../ai/gateway-env";
 import { reserveHourly } from "../http/hourly-limit";
 import { ImageError, normalizeImage } from "../images/normalize-image";
 
 /*
- * "Gerar com IA" in the catalog editor: four icon options from OpenRouter's
- * image endpoint, with the key the assistant already uses. The prompt is built
- * here from the catalog row (never from a name the browser sends) in the style
- * of the bundled gallery, so a generated icon sits well next to those. The
+ * "Gerar com IA" in the catalog editor: four icon options from an image model
+ * through the AI Gateway, like every AI call of the Console. The prompt is
+ * built here from the catalog row (never from a name the browser sends) in the
+ * style of the bundled gallery, so a generated icon sits well next to those.
+ * It carries no client data (the item's name and description, and the team's
+ * art direction), so it goes without the zero-retention filter the other
+ * calls use: Recraft, the best of the icon models, has no such provider. The
  * options only travel back to the screen; nothing is stored until someone
  * picks one, and the prompt is never logged: only model, count, time and cost.
  */
@@ -18,7 +24,6 @@ export const MAX_ICON_HINT = 200;
 const MAX_DESCRIPTION = 300;
 /** Largest decoded image accepted from the provider. */
 const MAX_GENERATED_BYTES = 8 * 1024 * 1024;
-const MAX_GENERATED_BASE64 = Math.ceil(MAX_GENERATED_BYTES / 3) * 4;
 const ACCEPTED = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 export const DEFAULT_ICON_MODEL = "recraft/recraft-v4.1-flash";
@@ -36,9 +41,9 @@ export class IconAiError extends Error {
 
 const GENERIC = "Não foi possível gerar agora. Tente de novo ou envie uma imagem.";
 
-/** On when OpenRouter is configured, unless ICON_AI=off turns it off. */
+/** On when the AI Gateway is configured, unless ICON_AI=off turns it off. */
 export function iconAiEnabled(env: Record<string, string | undefined> = process.env) {
-  return !!env.OPENROUTER_API_KEY && env.ICON_AI !== "off";
+  return gatewayReady(env) && env.ICON_AI !== "off";
 }
 
 /** The models to try, in order: the fallback is skipped when "off" or the same as the first. */
@@ -79,14 +84,9 @@ export function reserveIconGeneration(userId: string) {
   return reserveHourly("catalog-icon", userId, ICON_HOURLY_LIMIT);
 }
 
-type Reply = {
-  data?: { b64_json?: unknown; media_type?: unknown }[];
-  usage?: { cost?: unknown };
-  error?: { message?: unknown };
-};
 type Attempt = { status: number; images: Buffer[]; cost: number; detail?: string };
 
-/** The type by its first bytes, for replies that leave media_type out (normalizeImage checks it again). */
+/** The type by its first bytes, for images that come without one (normalizeImage checks it again). */
 function sniffType(bytes: Buffer) {
   if (bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
@@ -94,14 +94,13 @@ function sniffType(bytes: Buffer) {
   return "";
 }
 
-/** Decodes, checks and normalizes what came back; anything odd is dropped. */
-async function decode(reply: Reply | null) {
+/** Checks and normalizes what came back; anything odd is dropped. */
+async function decode(generated: Experimental_GeneratedImage[]) {
   const images: Buffer[] = [];
-  for (const item of reply?.data ?? []) {
-    const data = typeof item?.b64_json === "string" ? item.b64_json : "";
-    if (!data || data.length > MAX_GENERATED_BASE64) continue;
-    const bytes = Buffer.from(data, "base64");
-    const type = typeof item?.media_type === "string" && item.media_type ? item.media_type.toLowerCase() : sniffType(bytes);
+  for (const item of generated) {
+    const bytes = Buffer.from(item.uint8Array);
+    if (!bytes.length || bytes.length > MAX_GENERATED_BYTES) continue;
+    const type = ACCEPTED.has(item.mediaType?.toLowerCase() ?? "") ? item.mediaType.toLowerCase() : sniffType(bytes);
     if (!ACCEPTED.has(type)) continue;
     try {
       images.push(
@@ -119,39 +118,35 @@ async function decode(reply: Reply | null) {
   return images;
 }
 
+/** The status a failed call counts as, for the retry and fallback rules; 0 when the Gateway was not reached. */
+function failed(error: unknown): Attempt {
+  if (NoImageGeneratedError.isInstance(error)) return { status: 200, images: [], cost: 0, detail: "no image" };
+  if (GatewayError.isInstance(error)) return { status: error.statusCode, images: [], cost: 0, detail: error.message.slice(0, 160) };
+  // A missing or refused credential, as the SDK rewraps it: the status is gone, the name stays.
+  if (error instanceof Error && error.name.startsWith("Gateway")) return { status: 401, images: [], cost: 0, detail: error.name };
+  return { status: 0, images: [], cost: 0, detail: "unreachable" };
+}
+
 async function requestImages(model: string, prompt: string, n: number, signal: AbortSignal): Promise<Attempt> {
-  let status = 0;
-  let reply: Reply | null = null;
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/images", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.BETTER_AUTH_URL || "https://console.anuntech.com",
-        "X-Title": "Anuntech Console",
-      },
-      body: JSON.stringify({
-        model,
-        prompt,
-        aspect_ratio: "1:1",
-        n,
-        // GPT Image bills by output tokens: medium is plenty for a 256 px icon.
-        ...(model.startsWith("openai/gpt-image") ? { quality: "medium" } : {}),
-      }),
-      signal: AbortSignal.any([signal, AbortSignal.timeout(50_000)]),
+    const result = await generateImage({
+      model: gateway.imageModel(model),
+      prompt,
+      n,
+      aspectRatio: "1:1",
+      // GPT Image bills by output tokens: medium is plenty for a 256 px icon.
+      ...(model.startsWith("openai/gpt-image") ? { providerOptions: { openai: { quality: "medium" } } } : {}),
+      // The retry and the fallback below are the policy; the SDK's own would double them.
+      maxRetries: 0,
+      abortSignal: AbortSignal.any([signal, AbortSignal.timeout(50_000)]),
     });
-    status = res.status;
-    reply = (await res.json().catch(() => null)) as Reply | null;
-  } catch {
+    const cost = Number((result.providerMetadata?.gateway as { cost?: unknown } | undefined)?.cost ?? 0);
+    return { status: 200, images: await decode(result.images), cost: Number.isFinite(cost) ? cost : 0 };
+  } catch (error) {
     // The person closed the dialog: nobody is waiting for the images.
     if (signal.aborted) throw new IconAiError(499, "");
-    return { status: 0, images: [], cost: 0, detail: "unreachable" };
+    return failed(error);
   }
-  const cost = typeof reply?.usage?.cost === "number" ? reply.usage.cost : 0;
-  if (status < 200 || status >= 300)
-    return { status, images: [], cost, detail: String(reply?.error?.message ?? `HTTP ${status}`).slice(0, 160) };
-  return { status, images: await decode(reply), cost };
 }
 
 /** Several single-image calls at once, for models that take n=1 only (or sent fewer than asked). */
@@ -210,11 +205,12 @@ export async function generateCatalogIcons(
       return images.slice(0, ICON_OPTIONS);
     }
     lastStatus = status;
-    console.warn("[icon-ai] OpenRouter refused", { model, status, detail: detail ?? "no usable image", ms: Date.now() - started });
-    if (status === 401 || status === 403)
-      throw new IconAiError(503, "A chave do OpenRouter foi recusada. Confira em Configurações › Assistente.");
+    console.warn("[icon-ai] Gateway refused", { model, status, detail: detail ?? "no usable image", ms: Date.now() - started });
+    if (status === 401) throw new IconAiError(503, "O AI Gateway recusou o acesso do Console. Confira a credencial do projeto na Vercel.");
+    if (status === 403)
+      throw new IconAiError(503, "O AI Gateway não liberou a geração de imagens para esta conta. Confira os créditos no painel da Vercel.");
     if (status === 402)
-      throw new IconAiError(503, "A conta do OpenRouter está sem créditos. Adicione créditos em openrouter.ai/settings/credits para gerar ícones.");
+      throw new IconAiError(503, "A conta do AI Gateway está sem créditos. Adicione créditos no painel da Vercel, em AI Gateway, para gerar ícones.");
     if (signal.aborted) throw new IconAiError(499, "");
   }
   if (lastStatus === 429)

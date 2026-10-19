@@ -2,10 +2,10 @@ import { createHmac, randomUUID } from "node:crypto";
 import sharp from "sharp";
 
 /**
- * Ícones do catálogo: a equipe envia, gera com IA (mock do OpenRouter), escolhe
+ * Ícones do catálogo: a equipe envia, gera com IA (mock do AI Gateway), escolhe
  * da galeria e remove; quem vê um produto feito do item carrega o ícone, quem
  * não vê recebe 404. O Blob roda em memória no servidor de teste
- * (scripts/openrouter-mock.cjs), nunca num armazenamento real.
+ * (scripts/blob-mock.cjs), nunca num armazenamento real.
  */
 export async function runCatalogIconTests({ database: db, ids, people, request, submitForm, ok, marker, base }) {
   const one = async (sql, values = []) => (await db.query(sql, values)).rows[0];

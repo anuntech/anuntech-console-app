@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 /**
  * Assistente: the guardrails of the 16/10/2026 audit (H4–H6, M1–M4), through
- * HTTP against the OpenRouter stand-in (scripts/openrouter-mock.cjs), which
+ * HTTP against the AI Gateway stand-in (scripts/ai-gateway-mock.cjs), which
  * streams like the real API, and the AI SDK on the server.
  * - only the Console itself may talk to it (Origin and JSON), the body is only
  *   the message, the screen and the conversation's id, and the history comes
@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
  *   asks for providers that keep nothing and train on nothing;
  * - the panel may go away mid-answer: the turn still finishes and is saved.
  */
-export async function runAssistantTests({ database: db, ids, people, request, ok, marker, base, flags, openRouterFile }) {
+export async function runAssistantTests({ database: db, ids, people, request, ok, marker, base, flags, aiFile }) {
   const json = { Origin: base, "Content-Type": "application/json" };
   // Everything the server streamed in this suite, to check what never reaches the browser.
   const streamed = [];
@@ -124,7 +124,7 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
     request(`/api/assistente/propostas/${proposal.id}`, who, { method: "POST", headers, body: JSON.stringify({ nonce, decisao }) });
   const logged = () => {
     try {
-      return readFileSync(openRouterFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+      return readFileSync(aiFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
     } catch {
       return [];
     }
@@ -371,7 +371,7 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   const cut = `corte-no-meio ${marker}`;
   r = await ask("admin", { message: cut });
   ok(
-    r.status === 200 && !!r.error && !r.done && /^O OpenRouter não respondeu/.test(r.error.error) && (await db.query("select 1 from console_assistant_messages where content=$1", [cut])).rowCount === 0,
+    r.status === 200 && !!r.error && !r.done && /^O AI Gateway não respondeu/.test(r.error.error) && (await db.query("select 1 from console_assistant_messages where content=$1", [cut])).rowCount === 0,
     "Queda no meio da resposta vira erro em português e nada é guardado",
   );
   // The panel goes away after the first piece: the turn still finishes, is saved and counts.
@@ -488,7 +488,11 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   );
 
   // M2: every call asks for providers that keep nothing and train on nothing.
-  const calls = logged().slice(logStart).filter((e) => e.model || e.jev);
-  ok(calls.length > 0 && calls.every((e) => e.zdr === true), "Assistente e Jev pedem provedores sem retenção (zdr)");
-  ok(calls.filter((e) => e.model).every((e) => e.dataCollection === "deny" && e.stream === true), "Cada chamada do assistente pede provedores que não guardam dados e chega em streaming");
+  const calls = logged().slice(logStart).filter((e) => "messages" in e || e.jev);
+  ok(
+    calls.length > 0 && calls.every((e) => e.zeroDataRetention === true && e.disallowPromptTraining === true),
+    "Assistente e Jev só vão a provedores que não guardam nem treinam com os dados",
+  );
+  ok(calls.filter((e) => e.jev).length > 0 && calls.filter((e) => e.jev).every((e) => e.only?.join() === "typesafe-ai"), "O Jev só vai ao endpoint da própria TypeSafe");
+  ok(calls.filter((e) => "messages" in e).every((e) => e.stream === true), "Cada chamada do assistente chega em streaming");
 }

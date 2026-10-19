@@ -424,7 +424,7 @@ export const quoteVersions = pgTable(
 /** How the in-Console assistant is tuned: one row, edited by staff. */
 export const assistantSettings = pgTable("console_assistant_settings", {
   id: text("id").primaryKey().default("default"),
-  /** OpenRouter model id, e.g. "anthropic/claude-sonnet-4.5". */
+  /** AI Gateway model id, e.g. "anthropic/claude-sonnet-4.5". */
   model: text("model").notNull().default("anthropic/claude-sonnet-4.5"),
   /** Instructions appended to the built-in system prompt. */
   prompt: text("prompt").notNull().default(""),

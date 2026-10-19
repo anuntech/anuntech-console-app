@@ -1,12 +1,16 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- Node preload test harness uses CommonJS. */
 // Test-process only. Never imported by the application or shipped to Vercel.
-// Stands in for OpenRouter: answers with scripted tool calls chosen from the
-// last user message, so the assistant's tool loop, permissions and UI can be
-// exercised without a real model. Records every request for inspection.
+// Stands in for the Vercel AI Gateway: answers the chat with scripted tool
+// calls chosen from the last user message, and Jev, the drafts, dictation and
+// icons with fixed answers, so every AI path of the Console can be exercised
+// without a real model. Records every request (never the audio, the prompt
+// only when a suite asks) for inspection. Any other AI request (a Gateway path
+// it does not know, OpenRouter) is refused and logged as `unexpected`: a test
+// run never reaches a real provider.
 const fs = require("node:fs");
-const { MockAgent, setGlobalDispatcher } = require("undici");
 const originalFetch = globalThis.fetch;
 const log = process.env.CONSOLE_TEST_ASSISTANT_FILE;
+const record = (entry) => log && fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), ...entry }) + "\n");
 // Switches the suites flip while the server runs (the notice mock reads the same file): { jev: "fail" } breaks Jev.
 const mockFlags = () => {
   try {
@@ -15,63 +19,9 @@ const mockFlags = () => {
     return {};
   }
 };
-
-/*
- * Vercel Blob stand-in, in memory: uploaded catalog icons (and anything else on
- * Blob) never reach a real store from the test server. @vercel/blob calls
- * undici's own fetch, not globalThis.fetch, and undici reads its global
- * dispatcher, so a MockAgent answers the Blob API and the store hosts and lets
- * every other request through untouched. The token only names a fake store.
- */
-process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_consoletest_mock";
-const blobs = new Map();
-const blobAgent = new MockAgent();
-blobAgent.enableNetConnect();
-const blobJson = (statusCode, value) => ({ statusCode, data: JSON.stringify(value), responseOptions: { headers: { "content-type": "application/json" } } });
-const blobHeader = (headers, name) => {
-  const entries = Array.isArray(headers) ? Object.fromEntries(headers.reduce((pairs, value, index) => (index % 2 ? pairs : [...pairs, [headers[index], headers[index + 1]]]), [])) : headers ?? {};
-  const key = Object.keys(entries).find((k) => k.toLowerCase() === name);
-  return key ? String(entries[key]) : "";
-};
-const blobBytes = (body) => (typeof body === "string" ? Buffer.from(body) : ArrayBuffer.isView(body) ? Buffer.from(body.buffer, body.byteOffset, body.byteLength) : null);
-const blobApi = blobAgent.get("https://vercel.com");
-blobApi
-  .intercept({ path: (path) => /^\/api\/blob\/?\?/.test(path), method: "PUT" })
-  .reply((opts) => {
-    const pathname = new URL(opts.path, "https://vercel.com").searchParams.get("pathname");
-    const body = blobBytes(opts.body);
-    if (!pathname || !body) return blobJson(400, { error: { code: "bad_request", message: "Invalid upload" } });
-    if (blobs.has(pathname) && blobHeader(opts.headers, "x-allow-overwrite") !== "1")
-      return blobJson(400, { error: { code: "bad_request", message: "This blob already exists" } });
-    const contentType = blobHeader(opts.headers, "x-content-type") || "application/octet-stream";
-    blobs.set(pathname, { body, contentType });
-    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), blob: "put", pathname, bytes: body.length }) + "\n");
-    const url = `https://consoletest.${blobHeader(opts.headers, "x-vercel-blob-access") || "private"}.blob.vercel-storage.com/${pathname}`;
-    return blobJson(200, { url, downloadUrl: `${url}?download=1`, pathname, contentType, contentDisposition: "inline", etag: '"mock"' });
-  })
-  .persist();
-blobApi
-  .intercept({ path: (path) => /^\/api\/blob\/delete\b/.test(path), method: "POST" })
-  .reply((opts) => {
-    const { urls = [] } = JSON.parse(blobBytes(opts.body)?.toString("utf8") || "{}");
-    for (const value of urls) {
-      const pathname = /^https?:\/\//.test(value) ? decodeURIComponent(new URL(value).pathname.slice(1)) : value;
-      blobs.delete(pathname);
-      if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), blob: "delete", pathname }) + "\n");
-    }
-    return blobJson(200, {});
-  })
-  .persist();
-blobAgent
-  .get(/^https:\/\/[a-z0-9-]+\.(?:private|public)\.blob\.vercel-storage\.com$/)
-  .intercept({ path: () => true, method: "GET" })
-  .reply((opts) => {
-    const blob = blobs.get(decodeURIComponent(new URL(opts.path, "https://store.invalid").pathname.slice(1)));
-    if (!blob) return { statusCode: 404, data: "" };
-    return { statusCode: 200, data: blob.body, responseOptions: { headers: { "content-type": blob.contentType, "content-length": String(blob.body.length) } } };
-  })
-  .persist();
-setGlobalDispatcher(blobAgent);
+const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+/** The Gateway's error body: the SDK reads `type` into its error class and keeps the HTTP status. */
+const failure = (status, message, type = "internal_server_error") => json({ error: { message, type } }, status);
 
 /** Small valid PNGs in different colors, standing in for generated icons. */
 async function mockImages(n) {
@@ -86,7 +36,7 @@ async function mockImages(n) {
   );
 }
 
-/** Message content as text: the AI SDK provider sends the system prompt (and some user turns) as a list of parts. */
+/** Message content as text: a string, or the text of a list of parts. */
 const textOf = (content) =>
   typeof content === "string" ? content : Array.isArray(content) ? content.map((part) => (part && typeof part.text === "string" ? part.text : "")).join("") : "";
 /** A tool's answer: JSON from a tool that ran, plain text when the SDK refused the call itself. */
@@ -99,6 +49,31 @@ const toolResult = (content) => {
   }
 };
 
+/** A tool result part's output as the text the model reads. */
+const outputText = (output) =>
+  !output ? "" : output.type === "text" || output.type === "error-text" ? String(output.value ?? "") : JSON.stringify(output.value ?? null);
+
+/**
+ * The Gateway's prompt (AI SDK messages: parts, tool calls and tool results)
+ * in the shape `decide` reads: one message per tool result, and each
+ * assistant message with its tool calls.
+ */
+function asMessages(prompt) {
+  return (prompt ?? []).flatMap((message) => {
+    if (message.role === "system") return [{ role: "system", content: textOf(message.content) }];
+    if (message.role === "tool")
+      return (message.content ?? []).filter((part) => part.type === "tool-result").map((part) => ({ role: "tool", tool_call_id: part.toolCallId, content: outputText(part.output) }));
+    if (message.role === "assistant") {
+      const parts = Array.isArray(message.content) ? message.content : [];
+      const tool_calls = parts
+        .filter((part) => part.type === "tool-call")
+        .map((part) => ({ id: part.toolCallId, type: "function", function: { name: part.toolName, arguments: typeof part.input === "string" ? part.input : JSON.stringify(part.input ?? {}) } }));
+      return [{ role: "assistant", content: textOf(parts.filter((part) => part.type === "text")), ...(tool_calls.length ? { tool_calls } : {}) }];
+    }
+    return [{ role: message.role, content: textOf(message.content) }];
+  });
+}
+
 const call = (name, args) => ({
   id: `call_${Math.random().toString(36).slice(2, 10)}`,
   type: "function",
@@ -106,7 +81,7 @@ const call = (name, args) => ({
 });
 /** A call exactly as the model streamed its arguments: "" (none) or JSON that never closes. */
 const rawCall = (name, text, id = `call_${Math.random().toString(36).slice(2, 10)}`) => ({ id, type: "function", function: { name, arguments: text } });
-/** A call whose name and arguments come in its first piece, as some upstreams send them. */
+/** A call whose arguments come whole in its first piece. */
 const wholeCall = (name, text) => ({ ...rawCall(name, text), whole: true });
 const reply = (content, tool_calls, finish_reason = tool_calls ? "tool_calls" : "stop") => ({
   id: "mock",
@@ -160,29 +135,20 @@ function decide(messages) {
   }
   // The same after text the person already read: that text is the answer.
   if (user.includes("texto e corte")) return retry ? reply("Não deveria haver nova tentativa.") : reply("Encontrei as faturas.", [call("listar_faturas", { situacao: "todas", limite: 1 })], "length");
-  // The first call's arguments never stream (the provider sends it last), or never close.
+  // The first call's arguments come last (the Gateway hands it over after the second), or never close.
   if (user.includes("sem argumentos primeiro") && !calls.length)
     return reply(null, [rawCall("listar_chamados", ""), call("ler_empresa", { companyId: /empresa ([0-9a-f-]{36})/.exec(user)?.[1] })]);
   if (user.includes("argumento quebrado") && !calls.length) return reply(null, [rawCall("listar_faturas", '{"limite":')]);
-  // Upstreams that send no id, or the same id twice: the provider makes up new ones.
   const b = /empresa ([0-9a-f-]{36})/.exec(user)?.[1];
-  if (user.includes("sem id primeiro") && !calls.length) return reply(null, [rawCall("listar_chamados", "", ""), rawCall("ler_empresa", JSON.stringify({ companyId: b }), "")]);
-  if (user.includes("id repetido") && !calls.length)
-    return reply(null, [rawCall("listar_chamados", "", "dup"), rawCall("ler_empresa", JSON.stringify({ companyId: b }), "dup"), rawCall("buscar_ajuda", '{"consulta":"boleto"}', "z")]);
-  // A complete call after one whose arguments come later; calls finished only at the end; every call in one chunk.
+  // A complete call after one whose arguments come later; calls finished only at the end.
   if (user.includes("inteira depois") && !calls.length) return reply(null, [rawCall("listar_chamados", ""), wholeCall("ler_empresa", JSON.stringify({ companyId: b }))]);
   if (user.includes("duas no fim") && !calls.length) return reply(null, [rawCall("listar_chamados", ""), rawCall("buscar_ajuda", ""), call("ler_empresa", { companyId: b })]);
-  if (user.includes("todas juntas") && !calls.length) {
-    const together = reply(null, [wholeCall("listar_chamados", "{}"), wholeCall("ler_empresa", JSON.stringify({ companyId: b })), wholeCall("buscar_ajuda", '{"consulta":"boleto"}')]);
-    together.choices[0].message.together = true;
-    return together;
-  }
-  // Arguments the provider refuses to parse (a __proto__ key), whole in the first piece.
+  // Arguments the SDK refuses to parse (a __proto__ key), whole in the first piece.
   if (user.includes("proto primeiro") && !calls.length) return reply(null, [wholeCall("listar_chamados", '{"__proto__":{"x":1}}'), call("ler_empresa", { companyId: b })]);
   // The output limit cuts the only call in the middle of its arguments, or right after its name, after text.
   if (user.includes("corte no meio") && !retry) return reply("Vou consultar as faturas.", [rawCall("listar_faturas", '{"situacao":"to')], "length");
   if (user.includes("corte depois do nome") && !retry) return reply("Vou consultar as faturas.", [rawCall("listar_faturas", "")], "length");
-  // An upstream that numbers ids per response: the same id comes back in the next round, valid this time.
+  // A provider that numbers ids per response: the same id comes back in the next round, valid this time.
   if (user.includes("mesmo id") && calls.length < 2) return reply(null, [rawCall("listar_faturas", calls.length ? '{"limite":1}' : '{"limite":', "call_0")]);
   // H4 within one round: read a ticket, read company B and invite there, all in the same response.
   if (user.includes("numa rodada") && !calls.includes("ler_chamado")) {
@@ -287,7 +253,7 @@ function decide(messages) {
   if (user.includes("projeto")) return reply(null, [call("listar_projetos_e_produtos", {})]);
   if (user.includes("nova cobran")) return reply(null, [call("abrir_tela", { destino: "nova_cobranca" })]);
   if (user.includes("segredo")) return reply(null, [call("criar_projeto", { companyId: "00000000-0000-4000-8000-000000000000", nome: "x" })]);
-  return reply(`Recebi: "${user}". Sou o mock do OpenRouter e só sei falar de boletos, chamados, projetos e resumos.`);
+  return reply(`Recebi: "${user}". Sou o mock do AI Gateway e só sei falar de boletos, chamados, projetos e resumos.`);
 }
 
 /**
@@ -359,200 +325,222 @@ function journeyAnswer(system, user) {
   return null;
 }
 
+/** The privacy options a request carried, as every log line records them. */
+const privacy = (providerOptions) => ({
+  zeroDataRetention: providerOptions?.gateway?.zeroDataRetention ?? null,
+  disallowPromptTraining: providerOptions?.gateway?.disallowPromptTraining ?? null,
+});
+
+const GATEWAY = "https://ai-gateway.vercel.sh/";
+
 globalThis.fetch = async function (input, init) {
-  const url = typeof input === "string" ? input : input.url;
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (!url.startsWith(GATEWAY) && !url.includes("openrouter.ai")) return originalFetch.apply(this, arguments);
+  const path = url.slice(GATEWAY.length - 1).split("?")[0];
   // The model catalog comes from a saved copy, so the settings page works offline too.
-  if (url.includes("openrouter.ai/api/v1/models")) {
+  if (path === "/v1/models") {
     const file = process.env.CONSOLE_TEST_MODELS_FILE;
-    if (!file || !fs.existsSync(file)) return new Response(JSON.stringify({ data: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    if (!file || !fs.existsSync(file)) return json({ object: "list", data: [] });
     return new Response(fs.readFileSync(file), { status: 200, headers: { "Content-Type": "application/json" } });
   }
-  if (
-    !url.includes("openrouter.ai/api/v1/chat/completions") &&
-    !url.includes("openrouter.ai/api/v1/systemone") &&
-    !url.includes("openrouter.ai/api/v1/audio/transcriptions") &&
-    !url.includes("openrouter.ai/api/v1/images")
-  )
-    return originalFetch.apply(this, arguments);
-  // Live mode: let the real OpenRouter answer, bypassing the OTP harness's outbound block.
-  if (process.env.CONSOLE_TEST_OPENROUTER_LIVE === "1" && globalThis.__nativeFetch) {
-    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), live: true, url, model: JSON.parse(init.body).model }) + "\n");
-    return globalThis.__nativeFetch.apply(this, arguments);
+  const endpoints = ["/v4/ai/language-model", "/v4/ai/decision-model", "/v4/ai/transcription-model", "/v4/ai/image-model"];
+  if (!url.startsWith(GATEWAY) || !endpoints.includes(path)) {
+    record({ unexpected: url.replace(/\?.*$/, "") });
+    return failure(599, "unexpected AI request in test");
   }
-  if (url.includes("/api/v1/images")) {
-    // Catalog icons: n small PNGs. The prompt is never logged, only its size.
-    // A hint with FALHA-ICONE fails every model; UM-POR-VEZ refuses n > 1, like single-image providers.
-    const req = JSON.parse(init.body);
-    const prompt = String(req.prompt ?? "");
-    const n = Math.max(1, Math.min(Number(req.n) || 1, 10));
-    if (log)
-      fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), images: true, model: req.model, n, aspectRatio: req.aspect_ratio, promptChars: prompt.length }) + "\n");
-    const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
-    if (prompt.includes("FALHA-ICONE")) return json({ error: { message: "Provider unavailable" } }, 503);
-    if (prompt.includes("UM-POR-VEZ") && n > 1) return json({ error: { message: "n must be 1 for this model" } }, 400);
-    const images = await mockImages(n);
-    return json({
-      created: Math.floor(Date.now() / 1000),
-      data: images.map((image) => ({ b64_json: image.toString("base64"), media_type: "image/png" })),
-      usage: { cost: 0.001 * n },
-    });
-  }
-  if (url.includes("/audio/transcriptions")) {
-    // Speech to text: logs what was asked (never the audio) and answers by the first bytes.
-    const req = JSON.parse(init.body);
-    const audio = Buffer.from(req.input_audio?.data ?? "", "base64");
-    const head = audio.subarray(0, 16).toString("latin1");
-    if (log)
-      fs.appendFileSync(
-        log,
-        JSON.stringify({ at: new Date().toISOString(), transcription: true, model: req.model, format: req.input_audio?.format, bytes: audio.length, zdr: req.provider?.zdr, language: req.language, data: undefined }) + "\n",
-      );
-    const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
-    if (head.startsWith("FAILALL")) return json({ error: { message: "Provider unavailable" } }, 503);
-    if (head.startsWith("FAILPRIMARY") && req.model === "openai/whisper-large-v3-turbo") return json({ error: { message: "Provider unavailable" } }, 503);
-    if (head.startsWith("SILENCE")) return json({ text: "", usage: { seconds: 1, cost: 0 } });
-    // LONG plays a recording of 5 minutes: it costs 3 of the hourly transcriptions.
-    if (head.startsWith("LONG")) return json({ text: "Texto ditado de teste", usage: { seconds: 300, cost: 0 } });
-    return json({ text: "Texto ditado de teste", usage: { seconds: 1, cost: 0 } });
-  }
-  if (url.includes("/systemone")) {
-    // Jev stand-in: keyword intent and areas. { jev: "fail" } in the flags file plays Jev down.
-    const req = JSON.parse(init.body);
-    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), jev: true, zdr: req.provider?.zdr ?? null }) + "\n");
-    if (mockFlags().jev === "fail") return new Response(JSON.stringify({ error: { code: 503, message: "Provider returned error" } }), { status: 503, headers: { "Content-Type": "application/json" } });
-    const answers = {};
-    const message = String(req.state?.mensagem ?? "").toLowerCase();
-    if (req.questions.intent) {
-      const intent = /falar|atendente|humano/.test(message) ? "humano" : /abre a tela|abrir a tela|vai para|me leva/.test(message) ? "navegar" : /preench/.test(message) ? "tela" : /crie|abra um|criar/.test(message) ? "criar" : "consultar";
-      const destino = intent !== "navegar" ? "nenhuma" : /cobran/.test(message) ? "nova_cobranca" : /or[cç]amento/.test(message) ? "novo_orcamento" : /chamado/.test(message) ? "abrir_chamado" : "painel";
-      answers.intent = { type: "choice", choice: intent, probabilities: { [intent]: 1 }, confidence: 1 };
-      answers.destino = { type: "choice", choice: destino, probabilities: { [destino]: 1 }, confidence: 1 };
-    }
-    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul|clique|bot[aã]o/ };
-    for (const [key, pattern] of Object.entries(areaWords)) if (req.questions[`area_${key}`]) answers[`area_${key}`] = { type: "noul", noul: pattern.test(message) ? 0.9 : 0.1 };
-    // A new ticket read by its text: "parou" or "fora do ar" reads as a stopped system.
-    if (req.questions.tipo) {
-      const text = `${req.state?.assunto ?? ""} ${req.state?.descricao ?? ""}`.toLowerCase();
-      const down = /parou|fora do ar|n[aã]o abre/.test(text);
-      answers.tipo = { type: "choice", choice: down ? "problem" : "question", probabilities: {}, confidence: 0.95 };
-      answers.impacto = { type: "choice", choice: down ? "down" : "other", probabilities: {}, confidence: 0.95 };
-    }
-    if (req.questions.aprovado) {
-      const recent = req.state?.conversa_recente ?? [];
-      const person = [...recent].reverse().find((m) => m.de === "pessoa")?.texto?.toLowerCase() ?? "";
-      // CONSOLE_TEST_JEV_REJECT=1 plays a strict Jev that never sees approval.
-      const approved = process.env.CONSOLE_TEST_JEV_REJECT !== "1" && /\b(sim|aprovo|pode|fa[cç]a|crie|abra|confirmo|preencha|envie|manda|vincul\w*)\b/.test(person);
-      answers.aprovado = { type: "noul", noul: approved ? 0.95 : 0.15 };
-    }
-    return new Response(JSON.stringify({ model: "typesafe/jev-mock", answers, usage: { cost: 0 } }), { status: 200, headers: { "Content-Type": "application/json" } });
+  // The protocol the SDK speaks today: a change here fails loudly instead of passing by accident.
+  const headers = new Headers(init?.headers);
+  if (headers.get("authorization") !== `Bearer ${process.env.AI_GATEWAY_API_KEY}` || headers.get("ai-gateway-protocol-version") !== "0.0.1") {
+    record({ drift: path, auth: headers.get("ai-gateway-auth-method") });
+    return failure(400, "mock: protocol drift", "invalid_request_error");
   }
   const body = JSON.parse(init.body);
-  // The ticket reply draft and the proposal phases: one-shot prompts, no tools.
-  const system = textOf(body.messages?.[0]?.content);
-  const draft = system.startsWith("Você escreve a próxima resposta") ? "reply" : system.startsWith("Você monta o primeiro rascunho") ? "phases" : null;
-  if (draft && log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), draft, zdr: body.provider?.zdr ?? null }) + "\n");
-  if (system.startsWith("Você escreve a próxima resposta"))
-    return new Response(JSON.stringify(reply("Rascunho de teste: confira o acesso e responda por aqui.")), { status: 200, headers: { "Content-Type": "application/json" } });
-  if (system.startsWith("Você monta o primeiro rascunho"))
-    return new Response(
-      JSON.stringify(
-        reply(
-          JSON.stringify({
-            phases: [
-              { name: "Descoberta", description: "Entender o fluxo", hoursMin: 8, hoursMax: 12, weeks: 1, tasks: [{ title: "Entrevistas", description: "Com a equipe" }] },
-              { name: "Construção", description: "Telas e regras", hoursMin: 40, hoursMax: 60, weeks: 4, tasks: [{ title: "Cadastro", description: "" }] },
-            ],
-            stack: ["Next.js"],
-          }),
-        ),
-      ),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-  // The project journey's drafts (lib/journeys/journey-ai.ts): one-shot prompts matched by their opening words.
-  const journey = journeyAnswer(system, textOf(body.messages?.[1]?.content));
-  if (journey) {
-    // What was asked is never logged; only which draft, and that the call refused data collection.
-    if (log) fs.appendFileSync(log, JSON.stringify({ at: new Date().toISOString(), journey: journey.kind, model: body.model, dataCollection: body.provider?.data_collection ?? null, zdr: body.provider?.zdr ?? null, maxTokens: body.max_tokens }) + "\n");
-    return new Response(JSON.stringify(reply(journey.content)), { status: 200, headers: { "Content-Type": "application/json" } });
+  const model = headers.get("ai-language-model-id") ?? headers.get("ai-model-id");
+
+  if (path === "/v4/ai/image-model") {
+    // Catalog icons: n small PNGs. The prompt is never logged, only its size.
+    // A hint with FALHA-ICONE fails every model; UM-POR-VEZ refuses n > 1, like single-image providers.
+    const prompt = String(body.prompt ?? "");
+    const n = Math.max(1, Math.min(Number(body.n) || 1, 10));
+    record({ images: true, model, n, aspectRatio: body.aspectRatio, promptChars: prompt.length, ...privacy(body.providerOptions) });
+    if (prompt.includes("FALHA-ICONE")) return failure(503, "Provider unavailable");
+    if (prompt.includes("UM-POR-VEZ") && n > 1) return failure(400, "n must be 1 for this model", "invalid_request_error");
+    const images = await mockImages(n);
+    return json({ images: images.map((image) => image.toString("base64")), warnings: [], providerMetadata: { gateway: { cost: String(0.001 * n) } } });
   }
-  const lastUser = textOf([...body.messages].reverse().find((m) => m.role === "user")?.content);
-  if (log)
-    fs.appendFileSync(
-      log,
+
+  if (path === "/v4/ai/transcription-model") {
+    // Speech to text: logs what was asked (never the audio) and answers by the first bytes.
+    const audio = Buffer.from(body.audio ?? "", "base64");
+    const head = audio.subarray(0, 16).toString("latin1");
+    record({
+      transcription: true,
+      model,
+      mediaType: body.mediaType,
+      bytes: audio.length,
+      locales: body.providerOptions?.azure?.locales ?? null,
+      ...privacy(body.providerOptions),
+    });
+    if (head.startsWith("FAILALL")) return failure(503, "Provider unavailable");
+    if (head.startsWith("FAILPRIMARY") && model === "microsoft/mai-transcribe-2") return failure(503, "Provider unavailable");
+    if (head.startsWith("SILENCE")) return json({ text: "", durationInSeconds: 1 });
+    // LONG plays a recording of 5 minutes: it costs 3 of the hourly transcriptions.
+    if (head.startsWith("LONG")) return json({ text: "Texto ditado de teste", durationInSeconds: 300 });
+    return json({ text: "Texto ditado de teste", durationInSeconds: 1, providerMetadata: { gateway: { cost: "0" } } });
+  }
+
+  if (path === "/v4/ai/decision-model") {
+    // Jev stand-in: keyword intent and areas. { jev: "fail" } in the flags file plays Jev down.
+    record({ jev: true, model, only: body.providerOptions?.gateway?.only ?? null, ...privacy(body.providerOptions) });
+    if (mockFlags().jev === "fail") return failure(503, "Provider returned error");
+    const state = (body.stateParts ?? []).find((part) => part.type === "json")?.value ?? {};
+    const questions = body.questions ?? {};
+    // A complete distribution, as the SDK checks it: the chosen option most likely, the rest sharing what is left.
+    const choose = (id, wanted, confidence = 1) => {
+      const keys = Object.keys(questions[id].criteria);
+      const choice = keys.includes(wanted) ? wanted : keys[0];
+      const rest = keys.length > 1 ? (1 - confidence) / (keys.length - 1) : 0;
+      return { type: "choice", choice, probabilities: Object.fromEntries(keys.map((key) => [key, key === choice ? (keys.length > 1 ? confidence : 1) : rest])) };
+    };
+    const answers = {};
+    const message = String(state.mensagem ?? "").toLowerCase();
+    if (questions.intent) {
+      const intent = /falar|atendente|humano/.test(message) ? "humano" : /abre a tela|abrir a tela|vai para|me leva/.test(message) ? "navegar" : /preench/.test(message) ? "tela" : /crie|abra um|criar/.test(message) ? "criar" : "consultar";
+      const destino = intent !== "navegar" ? "nenhuma" : /cobran/.test(message) ? "nova_cobranca" : /or[cç]amento/.test(message) ? "novo_orcamento" : /chamado/.test(message) ? "abrir_chamado" : "painel";
+      answers.intent = choose("intent", intent);
+      if (questions.destino) answers.destino = choose("destino", destino);
+    }
+    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul|clique|bot[aã]o/ };
+    for (const [key, pattern] of Object.entries(areaWords)) if (questions[`area_${key}`]) answers[`area_${key}`] = { type: "boolean", probability: pattern.test(message) ? 0.9 : 0.1 };
+    // A new ticket read by its text: "parou" or "fora do ar" reads as a stopped system.
+    if (questions.tipo) {
+      const text = `${state.assunto ?? ""} ${state.descricao ?? ""}`.toLowerCase();
+      const down = /parou|fora do ar|n[aã]o abre/.test(text);
+      answers.tipo = choose("tipo", down ? "problem" : "question", 0.95);
+      if (questions.impacto) answers.impacto = choose("impacto", down ? "down" : "other", 0.95);
+    }
+    // Anything else asked gets a plain answer, so the SDK never sees a missing one.
+    for (const [id, question] of Object.entries(questions))
+      if (!answers[id]) answers[id] = question.type === "choice" ? choose(id, Object.keys(question.criteria)[0]) : { type: "boolean", probability: 0.5 };
+    return json({ answers, model, usage: { inputTokens: 0, outputTokens: 0 }, warnings: [] });
+  }
+
+  // Text: the chat streams; the drafts and the journey answer at once.
+  const streaming = headers.get("ai-language-model-streaming") === "true";
+  const messages = asMessages(body.prompt);
+  const system = textOf(messages.find((m) => m.role === "system")?.content);
+  const firstUser = textOf(messages.find((m) => m.role === "user")?.content);
+  const usage = (prompt, completion) => ({
+    inputTokens: { total: prompt, noCache: prompt, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: completion, text: completion, reasoning: 0 },
+  });
+  const whole = (text) => json({ content: [{ type: "text", text }], finishReason: { unified: "stop", raw: "stop" }, usage: usage(Math.ceil(init.body.length / 4), Math.ceil(text.length / 4)), warnings: [] });
+  // The ticket reply draft and the proposal phases: one-shot prompts, no tools.
+  const draft = system.startsWith("Você escreve a próxima resposta") ? "reply" : system.startsWith("Você monta o primeiro rascunho") ? "phases" : null;
+  if (draft) {
+    record({ draft, model, reasoning: body.reasoning ?? null, maxTokens: body.maxOutputTokens, ...privacy(body.providerOptions) });
+    if (draft === "reply") return whole("Rascunho de teste: confira o acesso e responda por aqui.");
+    return whole(
       JSON.stringify({
-        at: new Date().toISOString(),
-        model: body.model,
-        tools: body.tools?.length,
-        messages: body.messages.length,
-        zdr: body.provider?.zdr ?? null,
-        dataCollection: body.provider?.data_collection ?? null,
-        stream: body.stream === true,
-        maxTokens: body.max_tokens,
-        credits: lastUser.includes("sem-creditos") || undefined,
-        // Only when a suite asks (fake test data): what the model read, to prove what never reaches it.
-        prompt: mockFlags().logPrompts ? JSON.stringify(body.messages) : undefined,
-      }) + "\n",
+        phases: [
+          { name: "Descoberta", description: "Entender o fluxo", hoursMin: 8, hoursMax: 12, weeks: 1, tasks: [{ title: "Entrevistas", description: "Com a equipe" }] },
+          { name: "Construção", description: "Telas e regras", hoursMin: 40, hoursMax: 60, weeks: 4, tasks: [{ title: "Cadastro", description: "" }] },
+        ],
+        stack: ["Next.js"],
+      }),
     );
-  // Out of credits, with an amount that used to tempt a smaller retry.
-  if (lastUser.includes("sem-creditos"))
-    return new Response(JSON.stringify({ error: { code: 402, message: "You requested up to 3000 tokens, but can only afford 2000" } }), { status: 402, headers: { "Content-Type": "application/json" } });
+  }
+  // The project journey's drafts (lib/journeys/journey-ai.ts): one-shot prompts matched by their opening words.
+  const journey = journeyAnswer(system, firstUser);
+  if (journey) {
+    // What was asked is never logged; only which draft, and the privacy options it carried.
+    record({ journey: journey.kind, model, maxTokens: body.maxOutputTokens, ...privacy(body.providerOptions) });
+    return whole(journey.content);
+  }
+  const lastUser = textOf([...messages].reverse().find((m) => m.role === "user")?.content);
+  record({
+    model,
+    tools: body.tools?.length,
+    messages: messages.length,
+    stream: streaming,
+    maxTokens: body.maxOutputTokens,
+    reasoning: body.reasoning ?? null,
+    credits: lastUser.includes("sem-creditos") || undefined,
+    ...privacy(body.providerOptions),
+    // Only when a suite asks (fake test data): what the model read, to prove what never reaches it.
+    prompt: mockFlags().logPrompts ? JSON.stringify(body.prompt) : undefined,
+  });
+  // Out of credits: the Gateway's 402, which no retry may repeat.
+  if (lastUser.includes("sem-creditos")) return failure(402, "Insufficient funds. Add credits to continue.", "insufficient_funds");
   // A slow model on request, to watch the UI while the assistant works.
   const wait = Number(process.env.CONSOLE_TEST_ASSISTANT_DELAY_MS || 0);
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-  const payload = decide(body.messages);
+  const payload = decide(messages);
   // Roughly what a real model would bill, so the panel's token counter has numbers.
-  payload.usage = { prompt_tokens: Math.ceil(init.body.length / 4), completion_tokens: Math.ceil(JSON.stringify(payload.choices).length / 4) };
-  if (body.stream !== true) return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
-  // "devagar" streams a piece every 60 ms; "corte-no-meio" breaks the stream after two pieces.
-  return streamed(payload, body.model, { gapMs: lastUser.includes("devagar") ? 60 : 0, cut: lastUser.includes("corte-no-meio"), signal: init?.signal });
+  const billed = usage(Math.ceil(init.body.length / 4), Math.ceil(JSON.stringify(payload.choices).length / 4));
+  if (!streaming) {
+    const { message, finish_reason } = payload.choices[0];
+    const content = [
+      ...(message.content ? [{ type: "text", text: message.content }] : []),
+      ...(message.tool_calls ?? []).map((c) => ({ type: "tool-call", toolCallId: c.id, toolName: c.function.name, input: c.function.arguments })),
+    ];
+    return json({ content, finishReason: { unified: unified(finish_reason), raw: finish_reason }, usage: billed, warnings: [] });
+  }
+  // "devagar" streams a piece every 60 ms; "corte-no-meio" breaks the stream after three pieces.
+  return streamed(payload, billed, model, { gapMs: lastUser.includes("devagar") ? 60 : 0, cut: lastUser.includes("corte-no-meio"), signal: init?.signal });
+};
+
+/** The AI SDK's name for a finish reason. */
+const unified = (reason) => (reason === "tool_calls" ? "tool-calls" : reason === "length" ? "length" : reason === "stop" ? "stop" : "other");
+
+/** Whether text is a complete JSON value. */
+const closes = (text) => {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /**
- * The same answer as OpenRouter streams it (Server-Sent Events): a role
- * chunk, the text in small pieces, each tool call opened with its id and
- * name and its arguments in fragments, the finish reason, the usage and
- * [DONE].
+ * The same answer as the Gateway streams it (Server-Sent Events of AI SDK
+ * stream parts): the text in small pieces, each tool call opened with its id
+ * and name and its arguments in pieces, in the order the model wrote them.
+ * The finished calls come at the end, in the order their arguments closed (a
+ * call with none comes last), so the middleware has to put them back. Cut by
+ * the output limit, a call whose arguments never closed is never finished.
  */
-function streamed(payload, model, { gapMs, cut, signal }) {
+function streamed(payload, usage, model, { gapMs, cut, signal }) {
   const { message, finish_reason } = payload.choices[0];
-  const base = { id: "gen-mock", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model };
-  const chunk = (delta, finish = null) => ({ ...base, choices: [{ index: 0, delta, finish_reason: finish }] });
-  const events = [chunk({ role: "assistant", content: "" })];
+  const events = [{ type: "stream-start", warnings: [] }, { type: "response-metadata", id: "gen-mock", modelId: model, timestamp: new Date().toISOString() }];
   const text = message.content ?? "";
-  for (let i = 0; i < text.length; i += 12) events.push(chunk({ content: text.slice(i, i + 12) }));
-  const calls = message.tool_calls ?? [];
-  // A call opens with its name (and, `whole`, all its arguments); `together` opens every call in one chunk.
-  const openings = calls.map((toolCall, index) => ({
-    index,
-    id: toolCall.id,
-    type: "function",
-    function: { name: toolCall.function.name, arguments: toolCall.whole ? toolCall.function.arguments : "" },
-  }));
-  if (message.together) events.push(chunk({ tool_calls: openings }));
-  calls.forEach((toolCall, index) => {
-    if (!message.together) events.push(chunk({ tool_calls: [openings[index]] }));
-    if (toolCall.whole) return;
-    const args = toolCall.function.arguments;
-    // A call with no arguments streams nothing after its name.
-    const half = Math.ceil(args.length / 2);
-    for (const piece of [args.slice(0, half), args.slice(half)]) if (piece) events.push(chunk({ tool_calls: [{ index, function: { arguments: piece } }] }));
-  });
-  if (cut) events.splice(3, events.length, { ...base, choices: [{ index: 0, delta: {}, finish_reason: "error" }], error: { code: 502, message: "Provider disconnected" } });
-  else {
-    events.push(chunk({}, finish_reason));
-    const usage = payload.usage;
-    events.push({ ...base, choices: [], usage: { ...usage, total_tokens: usage.prompt_tokens + usage.completion_tokens } });
+  if (text) {
+    events.push({ type: "text-start", id: "t0" });
+    for (let i = 0; i < text.length; i += 12) events.push({ type: "text-delta", id: "t0", delta: text.slice(i, i + 12) });
+    events.push({ type: "text-end", id: "t0" });
   }
+  const calls = message.tool_calls ?? [];
+  for (const toolCall of calls) {
+    const args = toolCall.function.arguments;
+    events.push({ type: "tool-input-start", id: toolCall.id, toolName: toolCall.function.name });
+    const half = toolCall.whole ? args.length : Math.ceil(args.length / 2);
+    for (const piece of [args.slice(0, half), args.slice(half)]) if (piece) events.push({ type: "tool-input-delta", id: toolCall.id, delta: piece });
+    events.push({ type: "tool-input-end", id: toolCall.id });
+  }
+  const finished = calls.filter((toolCall) => finish_reason !== "length" || closes(toolCall.function.arguments));
+  for (const toolCall of [...finished].sort((a, b) => Number(!a.function.arguments) - Number(!b.function.arguments)))
+    events.push({ type: "tool-call", toolCallId: toolCall.id, toolName: toolCall.function.name, input: toolCall.function.arguments });
+  if (cut) events.splice(3, events.length, { type: "error", error: { message: "Provider disconnected", statusCode: 502 } });
+  else events.push({ type: "finish", finishReason: { unified: unified(finish_reason), raw: finish_reason }, usage, providerMetadata: { gateway: { cost: "0" } } });
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      controller.enqueue(encoder.encode(": OPENROUTER PROCESSING\n\n"));
       for (const event of events) {
         if (signal?.aborted) return controller.error(signal.reason);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         if (gapMs) await new Promise((resolve) => setTimeout(resolve, gapMs));
       }
-      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       controller.close();
     },
   });

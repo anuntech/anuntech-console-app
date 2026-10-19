@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useFillable } from "@/components/console/fillable";
-import { CheckIcon, ChevronDownIcon, CpuIcon, PencilLineIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, CpuIcon } from "lucide-react";
 import { cn } from "cn";
 import {
   Command,
@@ -10,7 +10,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -49,9 +48,10 @@ export function priceLabel(model: Pick<ModelOption, "promptPerMillion" | "comple
 const contextLabel = (tokens: number) => (tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens));
 
 /**
- * Picks the OpenRouter model: a searchable list of the models that accept
- * tools, with price per million tokens, suggestions first. An id that is
- * not in the list can still be typed by hand.
+ * Picks the AI Gateway model: a searchable list of the models that accept
+ * tools and have a provider that keeps nothing, with price per million
+ * tokens, suggestions first. Only ids in the list are saved; a saved id that
+ * left the list shows in a plain field until another one is chosen.
  */
 export function ModelField({
   id,
@@ -162,21 +162,6 @@ export function ModelField({
               <CommandEmpty>Nenhum modelo com esse nome.</CommandEmpty>
               {picks.length > 0 && <CommandGroup heading="Sugeridos">{picks.map(row)}</CommandGroup>}
               <CommandGroup heading={`Todos com ferramentas (${models.length})`}>{models.map(row)}</CommandGroup>
-              <CommandSeparator />
-              <CommandGroup>
-                <CommandItem
-                  value="__custom"
-                  keywords={["outro", "digitar", "id"]}
-                  onSelect={() => {
-                    setCustom(true);
-                    setOpen(false);
-                  }}
-                  className="gap-3 py-2 text-muted-foreground"
-                >
-                  <PencilLineIcon className="size-4" />
-                  Digitar outro id
-                </CommandItem>
-              </CommandGroup>
             </CommandList>
           </Command>
         </PopoverContent>

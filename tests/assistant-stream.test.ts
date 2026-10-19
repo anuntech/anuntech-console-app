@@ -1,27 +1,50 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { APICallError, JSONParseError, RetryError, StreamProviderError, TypeValidationError } from "ai";
+import { AISDKError, APICallError, JSONParseError, RetryError, StreamProviderError, TypeValidationError } from "ai";
+import { GatewayInternalServerError, GatewayModelNotFoundError, GatewayRateLimitError, GatewayResponseError } from "@ai-sdk/gateway";
 import { failureText } from "../src/lib/assistant/assistant-errors";
 import { assistantMetadataSchema, messageText, readActions, readCard, readPhase, refusalText } from "../src/lib/assistant/assistant-stream";
-import { providerFailure } from "../src/lib/assistant/openrouter-chat";
+import { providerFailure, sdkError } from "../src/lib/assistant/chat-model";
 
 const model = "anthropic/claude-sonnet-5";
 const apiError = (statusCode: number, message: string) =>
-  new APICallError({ message, url: "https://openrouter.ai/api/v1/chat/completions", requestBodyValues: {}, statusCode });
+  new APICallError({ message, url: "https://ai-gateway.vercel.sh/v4/ai/language-model", requestBodyValues: {}, statusCode });
 
-test("OpenRouter's refusals read in Portuguese, with the next step", () => {
-  assert.match(failureText({ status: 401, detail: "No auth" }, model), /^A chave do OpenRouter foi recusada\./);
-  assert.match(failureText({ status: 402, detail: "can only afford 2000" }, model), /sem créditos/);
-  assert.match(failureText({ status: 429, detail: "Rate limited" }, model), /limite de uso do OpenRouter/);
-  assert.match(failureText({ status: 404, detail: "No endpoints found matching your data policy" }, model), /atende sem guardar os dados/);
-  assert.match(failureText({ status: 400, detail: "anthropic/x is not a valid model ID" }, model), /^O modelo "anthropic\/claude-sonnet-5" não foi aceito/);
-  assert.equal(failureText({ status: 502, detail: "Provider disconnected" }, model), "O OpenRouter não respondeu (Provider disconnected). Tente de novo em instantes.");
+test("the Gateway's refusals read in Portuguese, with the next step", () => {
+  assert.match(failureText({ status: 401, detail: "credencial recusada" }, model), /^O AI Gateway recusou o acesso do Console\./);
+  assert.match(failureText({ status: 402, detail: "Insufficient funds" }, model), /sem créditos/);
+  assert.match(failureText({ status: 403, detail: "Model not available on the free tier" }, model), /não liberou o modelo "anthropic\/claude-sonnet-5"/);
+  assert.match(failureText({ status: 429, detail: "Rate limited" }, model), /^O modelo está no limite de uso agora/);
+  assert.match(failureText({ status: 400, detail: "No ZDR (Zero Data Retention) providers available for model: x" }, model), /atende sem guardar os dados/);
+  assert.match(failureText({ status: 400, detail: "no_providers_available" }, model), /atende sem guardar os dados/);
+  assert.match(failureText({ status: 404, detail: "Model not found" }, model), /^O modelo "anthropic\/claude-sonnet-5" não foi aceito pelo AI Gateway/);
+  assert.equal(failureText({ status: 502, detail: "Provider disconnected" }, model), "O AI Gateway não respondeu (Provider disconnected). Tente de novo em instantes.");
   assert.match(failureText({ detail: "", timeout: true }, model), /demorou demais/);
 });
 
 test("no English from the SDK reaches the person through the generic text", () => {
   // Without a status (not an API answer), "model" in the detail does not make it a model refusal.
   assert.doesNotMatch(failureText({ detail: "model stream ended" }, model), /não foi aceito/);
+});
+
+test("a failure is read from what the Gateway reports", () => {
+  assert.deepEqual(providerFailure(new GatewayInternalServerError({ message: "Insufficient funds", statusCode: 402 })), { status: 402, detail: "Insufficient funds" });
+  assert.deepEqual(providerFailure(new GatewayModelNotFoundError({ message: "Model x not found" })), { status: 404, detail: "Model x not found" });
+  const busy = new RetryError({ message: "Failed after 2 attempts", reason: "maxRetriesExceeded", errors: [new GatewayRateLimitError({ message: "Rate limited" })] });
+  assert.deepEqual(providerFailure(busy), { status: 429, detail: "Rate limited" });
+  // The documented refusal when no provider keeps nothing does not fit the SDK's error shape: its words stay in `response`.
+  const noPrivate = new GatewayResponseError({ statusCode: 400, response: { error: "No ZDR (Zero Data Retention) providers available for model: x", type: "no_providers_available" } });
+  assert.deepEqual(providerFailure(noPrivate), { status: 400, detail: "No ZDR (Zero Data Retention) providers available for model: x" });
+  // A deadline that cut the request: the Gateway wraps the abort as a 500.
+  const cut = new GatewayInternalServerError({ message: "Gateway request failed: aborted due to timeout", cause: new DOMException("late", "TimeoutError") });
+  assert.equal(providerFailure(cut)?.timeout, true);
+  // A missing credential, as the SDK rewraps it in production: no status, only the name.
+  const unauthenticated = new AISDKError({ name: "GatewayError", message: "Unauthenticated. Configure AI_GATEWAY_API_KEY or use a provider module." });
+  assert.equal(providerFailure(unauthenticated)?.status, 401);
+  assert.equal(providerFailure(Object.assign(new Error("Unauthenticated request"), { name: "GatewayAuthenticationError" }))?.status, 401);
+  // Their message or cause may carry the request: the route logs only the name.
+  for (const error of [noPrivate, cut, unauthenticated, apiError(500, "x")]) assert.equal(sdkError(error), true);
+  assert.equal(sdkError(new Error("relation does not exist")), false);
 });
 
 test("a failure is read from what the AI SDK reports", () => {
