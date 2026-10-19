@@ -503,6 +503,8 @@ try {
     ok(r.status === 200 && transcriptions().slice(before).map((e) => e.model).join() === "microsoft/mai-transcribe-2,spacexai/grok-stt", "Se o primeiro modelo falha, o segundo transcreve");
     r = await speak("support", audio("SILENCE"));
     ok(r.status === 422 && JSON.parse(r.text).error.includes("Não deu para entender"), "Áudio sem fala volta com aviso, sem texto");
+    r = await speak("support", audio("INGLES"));
+    ok(r.status === 422 && !r.text.includes("Bombilla"), "Transcrição que volta em outro idioma não entra no campo");
     r = await speak("support", audio("FAILALL"));
     ok(r.status === 502 && JSON.parse(r.text).error.includes("Tente de novo"), "Falha dos dois modelos pede para tentar de novo");
     r = await speak(null, audio());

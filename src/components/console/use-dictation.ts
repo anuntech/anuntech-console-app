@@ -2,6 +2,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   encodeWav,
+  uploadWaitMs,
   MAX_AUDIO_BYTES,
   MAX_SECONDS,
   MIME_ORDER,
@@ -133,15 +134,17 @@ function createDictation(update: (patch: Partial<State>) => void) {
     const controller = new AbortController();
     request = controller;
     let timedOut = false;
-    const timer = window.setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, 50_000);
+    let timer = 0;
     update({ phase: "transcribing", notice: "Transcrevendo…", canRetry: false, seconds: 0, level: 0 });
     try {
       const wav = await asWav(audio);
       if (controller.signal.aborted) throw new DOMException("", "AbortError");
       const upload = wav && wav.size <= MAX_AUDIO_BYTES ? wav : audio;
+      // The wait starts with the upload and grows with it: 2 minutes of WAV take a while on a slow phone line.
+      timer = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, uploadWaitMs(upload.size));
       const res = await fetch("/api/transcricao", {
         method: "POST",
         body: upload,

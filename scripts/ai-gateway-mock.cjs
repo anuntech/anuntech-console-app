@@ -386,7 +386,9 @@ globalThis.fetch = async function (input, init) {
     if (head.startsWith("SILENCE")) return json({ text: "", durationInSeconds: 1 });
     // LONG plays a recording of 5 minutes: it costs 3 of the hourly transcriptions.
     if (head.startsWith("LONG")) return json({ text: "Texto ditado de teste", durationInSeconds: 300 });
-    return json({ text: "Texto ditado de teste", durationInSeconds: 1, providerMetadata: { gateway: { cost: "0" } } });
+    // INGLES plays a model that took Portuguese for English (as Grok did live): the text must not reach the field.
+    if (head.startsWith("INGLES")) return json({ text: "Bombilla osis dima de cobranza", language: "en", durationInSeconds: 1 });
+    return json({ text: "Texto ditado de teste", language: "pt", durationInSeconds: 1, providerMetadata: { gateway: { cost: "0" } } });
   }
 
   if (path === "/v4/ai/decision-model") {
@@ -419,10 +421,14 @@ globalThis.fetch = async function (input, init) {
       answers.tipo = choose("tipo", down ? "problem" : "question", 0.95);
       if (questions.impacto) answers.impacto = choose("impacto", down ? "down" : "other", 0.95);
     }
-    // Anything else asked gets a plain answer, so the SDK never sees a missing one.
+    // Anything else asked gets a plain answer, so the SDK never sees a missing one; a question whose id
+    // starts with "recusar" is refused, as Jev refuses one question at a time.
     for (const [id, question] of Object.entries(questions))
-      if (!answers[id]) answers[id] = question.type === "choice" ? choose(id, Object.keys(question.criteria)[0]) : { type: "boolean", probability: 0.5 };
-    return json({ answers, model, usage: { inputTokens: 0, outputTokens: 0 }, warnings: [] });
+      if (id.startsWith("recusar")) answers[id] = { type: "refusal" };
+      else if (!answers[id]) answers[id] = question.type === "choice" ? choose(id, Object.keys(question.criteria)[0]) : { type: "boolean", probability: 0.5 };
+    // "confiança própria": TypeSafe's own confidence statistic, which is not the chosen option's probability.
+    const providerMetadata = message.includes("confiança própria") && answers.intent ? { typesafe: { confidence: { intent: 0.42 } } } : undefined;
+    return json({ answers, model, usage: { inputTokens: 0, outputTokens: 0 }, warnings: [], ...(providerMetadata ? { providerMetadata } : {}) });
   }
 
   // Text: the chat streams; the drafts and the journey answer at once.

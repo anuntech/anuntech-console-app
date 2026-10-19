@@ -80,6 +80,30 @@ export function transcriptionOptions(model: string) {
   };
 }
 
+/**
+ * How long the browser waits for a transcription, from the upload on: the
+ * server's two attempts (20 s each) plus the upload itself at a slow phone
+ * line's 40 kB (320 kbit) a second.
+ */
+export const uploadWaitMs = (bytes: number) => 50_000 + Math.ceil(bytes / 40);
+
+/**
+ * The length of a WAV from its header (data size over byte rate), so a long
+ * recording costs what it is even when the model leaves the duration out;
+ * null for anything else.
+ */
+export function wavSeconds(bytes: Uint8Array): number | null {
+  if (bytes.length < 44) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const tag = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4));
+  if (tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
+  const byteRate = view.getUint32(28, true);
+  return byteRate >= 1000 ? (bytes.length - 44) / byteRate : null;
+}
+
+/** Whether a transcript came back in Portuguese; an answer that names no language passes. */
+export const portuguese = (language: string | null | undefined) => !language || /^(pt|por)/i.test(language);
+
 /** 16-bit PCM WAV, mono, from samples in [-1, 1]: the format every transcription model reads. */
 export function encodeWav(samples: Float32Array, rate: number): ArrayBuffer {
   const size = samples.length * 2;

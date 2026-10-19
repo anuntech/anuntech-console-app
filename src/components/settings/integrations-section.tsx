@@ -12,7 +12,7 @@ import {
 import { cn } from "cn";
 import { requireAdmin } from "@/lib/access/access";
 import { checkIntegration } from "@/lib/integrations/integration-actions";
-import { gatewayReady } from "@/lib/ai/gateway-env";
+import { gatewayCredential } from "@/lib/ai/gateway-env";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";
@@ -28,6 +28,7 @@ type Integration = {
 
 export async function IntegrationsSection() {
   await requireAdmin();
+  const aiCredential = gatewayCredential();
   const groups: { title: string; description: string; items: Integration[] }[] = [
     {
       title: "Dados e acesso",
@@ -69,8 +70,8 @@ export async function IntegrationsSection() {
         {
           name: "AI Gateway da Vercel",
           icon: <SparklesIcon />,
-          status: gatewayReady() ? "Credencial recebida" : "Pendente",
-          pending: !gatewayReady(),
+          status: aiCredential === "key" ? "Chave configurada" : aiCredential === "oidc" ? "Pelo OIDC da Vercel" : "Pendente",
+          pending: !aiCredential,
           detail: "Toda a IA do Console passa por aqui: assistente, Jev, ditado, sugestões, jornadas e ícones. Modelo e instruções em Assistente.",
         },
       ],

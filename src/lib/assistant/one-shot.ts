@@ -25,8 +25,9 @@ export type OneShotOptions = {
   /** The caller's own cancel (the request closing, for example). */
   signal?: AbortSignal;
   /**
-   * Thinking models think briefly first (the default). False leaves the
-   * provider's default, for short answers that need the whole output limit.
+   * Thinking models get a short reasoning budget (the default). False sends
+   * no reasoning option at all, so the model's own default applies, as the
+   * drafts always had: asking for thinking would spend their short limit.
    */
   reasoning?: boolean;
 };
@@ -56,7 +57,8 @@ async function call(options: OneShotOptions, model: string, reasoning: boolean, 
     }
     // Any other error of the SDK may carry the request or the answer in its message: only its name is logged.
     if (sdkError(error)) {
-      console.error("[assistant] one-shot failed", { model, name: (error as Error).name });
+      const cause = (error as { cause?: unknown }).cause;
+      console.error("[assistant] one-shot failed", { model, name: (error as Error).name, cause: cause instanceof Error ? cause.name : undefined });
       throw new AssistantError("A IA falhou nesta resposta. Tente de novo em instantes.");
     }
     throw error;

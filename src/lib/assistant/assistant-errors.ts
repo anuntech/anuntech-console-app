@@ -22,6 +22,7 @@ export function failureText({ status, detail, timeout }: ProviderFailure, model:
   if (status === 403)
     return `O AI Gateway não liberou o modelo "${model}" para esta conta. Confira os créditos no painel da Vercel ou escolha outro modelo em Configurações › Assistente.`;
   if (status === 429) return "O modelo está no limite de uso agora. Tente de novo em instantes ou escolha outro modelo em Configurações › Assistente.";
-  if (status === 404 || (status !== undefined && /model/i.test(detail))) return `O modelo "${model}" não foi aceito pelo AI Gateway: ${detail}`;
+  // A 5xx that names the model ("Model overloaded") is a hiccup, not a refusal of the model.
+  if (status === 404 || (status !== undefined && status >= 400 && status < 500 && /model/i.test(detail))) return `O modelo "${model}" não foi aceito pelo AI Gateway: ${detail}`;
   return `O AI Gateway não respondeu (${detail || (status ? `HTTP ${status}` : "sem detalhe")}). Tente de novo em instantes.`;
 }

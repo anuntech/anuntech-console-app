@@ -4,7 +4,7 @@ import { gateway, NoTranscriptGeneratedError, transcribe as transcribeWith } fro
 import { GatewayError } from "@ai-sdk/gateway";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { HOURLY_LIMIT, MAX_SECONDS, shouldFallback, transcriptionOptions, voiceEnabledFrom, voiceModels, type AudioFormat } from "./voice-rules";
+import { HOURLY_LIMIT, MAX_SECONDS, portuguese, shouldFallback, transcriptionOptions, voiceEnabledFrom, voiceModels, wavSeconds, type AudioFormat } from "./voice-rules";
 
 /*
  * Speech to text through the AI Gateway, like every AI call of the Console.
@@ -53,7 +53,12 @@ export async function chargeLongAudio(userId: string, seconds: number | undefine
 /** The status a failed attempt counts as, for the fallback rule; 0 when the Gateway was not reached. */
 function failedStatus(error: unknown): { status: number; detail: string } {
   if (NoTranscriptGeneratedError.isInstance(error)) return { status: 200, detail: "empty transcript" };
-  if (GatewayError.isInstance(error)) return { status: error.statusCode, detail: error.message.slice(0, 200) };
+  if (GatewayError.isInstance(error)) {
+    // A deadline comes back as a 500 around the abort: say so, the status alone looks like the Gateway failing.
+    const cause = (error as { cause?: unknown }).cause;
+    const late = cause instanceof Error && (cause.name === "TimeoutError" || cause.name === "AbortError");
+    return { status: error.statusCode, detail: late ? `timeout (${cause.name})` : error.message.slice(0, 200) };
+  }
   // A missing or refused credential, as the SDK rewraps it: the status is gone, the name stays.
   if (error instanceof Error && error.name.startsWith("Gateway")) return { status: 401, detail: error.name };
   return { status: 0, detail: error instanceof Error ? error.name : "unknown" };
@@ -78,18 +83,24 @@ export async function transcribe(bytes: Buffer, format: AudioFormat, signal: Abo
         maxRetries: 0,
         abortSignal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
       });
-      const text = result.text.trim();
+      // Grok took a Portuguese sample for English and garbled it: text in another language counts as unclear.
+      const text = portuguese(result.language) ? result.text.trim() : "";
+      if (!text && result.text.trim()) detail = `language ${result.language}`;
+      // The model may leave the duration out: the last segment's end, or a WAV's header, says it too.
+      // The largest wins, so a header can only make a recording count for more.
+      const seconds = Math.max(result.durationInSeconds ?? 0, result.segments.at(-1)?.endSecond ?? 0, wavSeconds(bytes) ?? 0) || undefined;
       if (text) {
         console.info("[voice]", {
           model,
           format,
           bytes: bytes.length,
-          seconds: result.durationInSeconds,
+          seconds,
           cost: (result.providerMetadata?.gateway as { cost?: unknown } | undefined)?.cost,
           ms: Date.now() - started,
           fallback: index > 0,
         });
-        return { text, seconds: result.durationInSeconds };
+        if (seconds === undefined) console.warn("[voice] duration unknown", { model, format, bytes: bytes.length });
+        return { text, seconds };
       }
     } catch (error) {
       // The person cancelled: nobody is waiting for an answer.

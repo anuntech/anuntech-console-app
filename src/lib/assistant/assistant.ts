@@ -234,7 +234,8 @@ function failed(error: unknown, model: string): unknown {
   }
   // Any other error of the SDK may carry the request or the answer in its message: only its name is logged.
   if (sdkError(error)) {
-    console.error("[assistant] model call failed", { model, name: (error as Error).name });
+    const cause = (error as { cause?: unknown }).cause;
+    console.error("[assistant] model call failed", { model, name: (error as Error).name, cause: cause instanceof Error ? cause.name : undefined });
     return new AssistantError("O assistente falhou nesta resposta. Tente de novo em instantes.");
   }
   return error;

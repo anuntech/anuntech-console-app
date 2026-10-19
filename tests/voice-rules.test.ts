@@ -6,11 +6,14 @@ import {
   joinTranscript,
   MAX_AUDIO_BYTES,
   MAX_SECONDS,
+  portuguese,
   shouldFallback,
   transcriptionOptions,
+  uploadWaitMs,
   voiceEnabledFrom,
   voiceModels,
   WAV_RATE,
+  wavSeconds,
 } from "../src/lib/voice/voice-rules";
 
 test("recorded Content-Types map to the formats the transcription models take", () => {
@@ -56,7 +59,9 @@ test("every transcription asks for zero data retention, and Portuguese where the
 test("dictation follows the AI Gateway, with VOICE_INPUT=off as the switch", () => {
   assert.equal(voiceEnabledFrom({ AI_GATEWAY_API_KEY: "k" }), true);
   assert.equal(voiceEnabledFrom({ VERCEL_OIDC_TOKEN: "t" }), true);
-  assert.equal(voiceEnabledFrom({ VERCEL: "1" }), true);
+  assert.equal(voiceEnabledFrom({ VERCEL_ENV: "production" }), true);
+  // A preview deployment gets AI only with a key or a token of its own.
+  assert.equal(voiceEnabledFrom({ VERCEL: "1", VERCEL_ENV: "preview" }), false);
   assert.equal(voiceEnabledFrom({ AI_GATEWAY_API_KEY: "k", VOICE_INPUT: "off" }), false);
   assert.equal(voiceEnabledFrom({ VOICE_INPUT: "on", OPENROUTER_API_KEY: "k" }), false);
 });
@@ -81,6 +86,24 @@ test("the browser's WAV is 16-bit mono PCM with a correct header, loud samples c
   assert.deepEqual([view.getUint16(20, true), view.getUint16(22, true), view.getUint32(24, true), view.getUint16(34, true)], [1, 1, 16000, 16]);
   assert.equal(view.getUint32(40, true), 10);
   assert.deepEqual([0, 1, 2, 3, 4].map((i) => view.getInt16(44 + i * 2, true)), [0, 32767, -32768, 32767, -16384]);
+});
+
+test("a WAV's length comes from its header; anything else has none", () => {
+  const two = new Uint8Array(encodeWav(new Float32Array(WAV_RATE * 2), WAV_RATE));
+  assert.equal(wavSeconds(two), 2);
+  assert.equal(wavSeconds(new Uint8Array(100).fill(7)), null);
+  // A header that claims a byte rate too low to be real is not believed.
+  const odd = new Uint8Array(two);
+  new DataView(odd.buffer).setUint32(28, 10, true);
+  assert.equal(wavSeconds(odd), null);
+});
+
+test("only Portuguese reaches the field, and the wait grows with the upload", () => {
+  for (const language of ["pt", "pt-BR", "portuguese", null, undefined]) assert.equal(portuguese(language), true, String(language));
+  for (const language of ["en", "es"]) assert.equal(portuguese(language), false, language);
+  assert.equal(uploadWaitMs(0), 50_000);
+  // Two minutes of WAV: the 50 s of transcription plus the upload at 320 kbit/s.
+  assert.ok(uploadWaitMs(44 + MAX_SECONDS * WAV_RATE * 2) > 140_000);
 });
 
 test("two minutes of speech fit under the body limit, which fits under Vercel's", () => {

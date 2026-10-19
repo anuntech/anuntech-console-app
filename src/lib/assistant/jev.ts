@@ -1,6 +1,6 @@
 import "server-only";
-import { experimental_decide as decide, gateway } from "ai";
-import { gatewayReady, PRIVATE_GATEWAY } from "../ai/gateway-env";
+import { gatewayReady } from "../ai/gateway-env";
+import { askJev, type JevQuestion, type JevState } from "./jev-ask";
 import { toolAreas, type ToolArea } from "./assistant-tools-kit";
 
 /**
@@ -15,41 +15,9 @@ import { toolAreas, type ToolArea } from "./assistant-tools-kit";
  * Every failure here degrades to "no opinion".
  */
 
-type Question =
-  | { type: "choice"; instructions: string; criteria: Record<string, string> }
-  | { type: "boolean"; instructions: string };
-/** A choice's confidence is the probability Jev gave the option it chose (0 when it sent none). */
-type Answer = { type: "choice"; choice: string; confidence: number } | { type: "boolean"; probability: number };
-
 export const jevEnabled = () => gatewayReady() && process.env.ASSISTANT_JEV !== "off";
-const JEV_MODEL = process.env.ASSISTANT_JEV_MODEL || "typesafe-ai/jev";
 
-async function ask(state: Record<string, unknown>, questions: Record<string, Question>): Promise<Record<string, Answer> | null> {
-  if (!jevEnabled()) return null;
-  try {
-    const { answers } = await decide({
-      model: gateway.decisionModel(JEV_MODEL),
-      state: state as never,
-      questions,
-      // Private like every call, and only TypeSafe's own endpoint: another host serves the same model
-      // without the zero-retention promise.
-      providerOptions: { gateway: { ...PRIVATE_GATEWAY, only: ["typesafe-ai"] } },
-      maxRetries: 0,
-      abortSignal: AbortSignal.timeout(6000),
-    });
-    const read: Record<string, Answer> = {};
-    for (const [id, answer] of Object.entries(answers)) {
-      if (answer.type === "choice") read[id] = { type: "choice", choice: answer.choice, confidence: answer.probabilities?.[answer.choice] ?? 0 };
-      else if (answer.type === "boolean") read[id] = { type: "boolean", probability: answer.probability };
-    }
-    return read;
-  } catch (error) {
-    // Only what kind of failure: the error's cause carries the request, client text included.
-    const status = (error as { statusCode?: unknown }).statusCode;
-    console.warn("[assistant] Jev unavailable", { name: error instanceof Error ? error.name : "unknown", status: typeof status === "number" ? status : undefined });
-    return null;
-  }
-}
+const ask = (state: JevState, questions: Record<string, JevQuestion>) => (jevEnabled() ? askJev(state, questions) : Promise.resolve(null));
 
 /* ---------- intent, before the language model ---------- */
 

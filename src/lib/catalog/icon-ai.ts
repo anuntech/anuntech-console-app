@@ -121,7 +121,12 @@ async function decode(generated: Experimental_GeneratedImage[]) {
 /** The status a failed call counts as, for the retry and fallback rules; 0 when the Gateway was not reached. */
 function failed(error: unknown): Attempt {
   if (NoImageGeneratedError.isInstance(error)) return { status: 200, images: [], cost: 0, detail: "no image" };
-  if (GatewayError.isInstance(error)) return { status: error.statusCode, images: [], cost: 0, detail: error.message.slice(0, 160) };
+  if (GatewayError.isInstance(error)) {
+    // A deadline comes back as a 500 around the abort: say so, the status alone looks like the Gateway failing.
+    const cause = (error as { cause?: unknown }).cause;
+    const late = cause instanceof Error && (cause.name === "TimeoutError" || cause.name === "AbortError");
+    return { status: error.statusCode, images: [], cost: 0, detail: late ? `timeout (${cause.name})` : error.message.slice(0, 160) };
+  }
   // A missing or refused credential, as the SDK rewraps it: the status is gone, the name stays.
   if (error instanceof Error && error.name.startsWith("Gateway")) return { status: 401, images: [], cost: 0, detail: error.name };
   return { status: 0, images: [], cost: 0, detail: "unreachable" };
@@ -180,7 +185,8 @@ export async function generateCatalogIcons(
     const started = Date.now();
     let attempt = await requestImages(model, prompt, ICON_OPTIONS, signal);
     let cost = attempt.cost;
-    if (retryable(attempt.status)) {
+    // A quick hiccup is worth one more try; a slow failure (its deadline) leaves the time to the fallback.
+    if (retryable(attempt.status) && Date.now() - started < 20_000) {
       // Busy models hiccup; one short pause usually clears it.
       await new Promise((resolve) => setTimeout(resolve, 1500));
       if (signal.aborted) throw new IconAiError(499, "");

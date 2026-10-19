@@ -13,10 +13,16 @@
 export const PRIVATE_GATEWAY = { zeroDataRetention: true, disallowPromptTraining: true } as const;
 
 /**
- * Whether the Gateway can authenticate: an API key (local work, tests), or
- * the project's OIDC token, which Vercel hands every function at runtime and
- * `vercel env pull` writes locally. Without either, AI features stay off.
+ * How the Gateway authenticates here: an API key (local work, tests), or the
+ * project's OIDC token, which Vercel hands every production function at
+ * runtime and `vercel env pull` writes locally. Preview deployments only get
+ * AI with a token or a key of their own, so they never spend the team's
+ * credits by default. Null keeps every AI feature off.
  */
-export function gatewayReady(env: Record<string, string | undefined> = process.env) {
-  return !!env.AI_GATEWAY_API_KEY || !!env.VERCEL_OIDC_TOKEN || env.VERCEL === "1";
+export function gatewayCredential(env: Record<string, string | undefined> = process.env): "key" | "oidc" | null {
+  if (env.AI_GATEWAY_API_KEY) return "key";
+  if (env.VERCEL_OIDC_TOKEN || env.VERCEL_ENV === "production") return "oidc";
+  return null;
 }
+
+export const gatewayReady = (env: Record<string, string | undefined> = process.env) => gatewayCredential(env) !== null;

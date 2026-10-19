@@ -10,7 +10,7 @@ import {
   wrapLanguageModel,
   type LanguageModelMiddleware,
 } from "ai";
-import { GatewayError } from "@ai-sdk/gateway";
+import { GatewayError, GatewayResponseError } from "@ai-sdk/gateway";
 import { gatewayReady, PRIVATE_GATEWAY } from "../ai/gateway-env";
 import { AssistantError, type ProviderFailure } from "./assistant-errors";
 
@@ -136,7 +136,9 @@ export function inModelOrder(round: RoundState): LanguageModelMiddleware {
                 opened.add(String(part.id));
                 seen(String(part.id));
               }
-              if (part.type === "tool-call") {
+              // A call the provider ran itself is followed by its result: it goes on at once, and is not cut.
+              if (part.type === "tool-call" && part.providerExecuted) opened.delete(String(part.toolCallId));
+              else if (part.type === "tool-call") {
                 seen(String(part.toolCallId));
                 held.push(part);
                 return;
@@ -172,7 +174,15 @@ export function providerFailure(error: unknown): ProviderFailure | null {
   if (GatewayError.isInstance(cause)) {
     const inner = (cause as { cause?: unknown }).cause;
     const stopped = cause.name === "GatewayTimeoutError" || (inner instanceof Error && (inner.name === "TimeoutError" || inner.name === "AbortError"));
-    return stopped ? { detail: cause.message, timeout: true } : { status: cause.statusCode, detail: gatewayDetail(cause) };
+    if (stopped) return { detail: cause.message, timeout: true };
+    if (GatewayResponseError.isInstance(cause) && inner instanceof Error) {
+      // Something that failed here before any answer (a body that cannot be sent, a bug) comes back as a 500
+      // around the original error: it is not the Gateway's, and the route logs it as a fault.
+      if (!APICallError.isInstance(inner)) return null;
+      // A network failure has no body of its own: the original call says what happened.
+      if (!(cause as { response?: { error?: unknown } }).response?.error) return { status: inner.statusCode, detail: inner.message };
+    }
+    return { status: cause.statusCode, detail: gatewayDetail(cause) };
   }
   // A missing or refused credential, as the SDK rewraps it: the status is gone, the name stays.
   if (cause instanceof Error && (cause.name === "GatewayAuthenticationError" || (cause.name === "GatewayError" && /unauthenticated/i.test(cause.message))))

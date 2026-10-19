@@ -4,8 +4,10 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { experimental_decide as decide, gateway, generateImage, generateText, isStepCount, jsonSchema, streamText, tool, transcribe } from "ai";
-import { chatModel, parsesSecurely, privateModel, providerFailure, roundState } from "../src/lib/assistant/chat-model";
+import { experimental_decide as decide, gateway, generateImage, generateText, isStepCount, jsonSchema, simulateReadableStream, streamText, tool, transcribe, wrapLanguageModel } from "ai";
+import { MockLanguageModelV4 } from "ai/test";
+import { chatModel, inModelOrder, parsesSecurely, privateModel, providerFailure, roundState } from "../src/lib/assistant/chat-model";
+import { askJev } from "../src/lib/assistant/jev-ask";
 import { encodeWav, transcriptionOptions } from "../src/lib/voice/voice-rules";
 
 /*
@@ -240,6 +242,50 @@ test("Jev's answers pass the SDK's checks, and only TypeSafe's private endpoint 
   assert.deepEqual(answers.area_financeiro, { type: "boolean", probability: 0.9 });
   const entry = logged().filter((e) => e.jev).at(-1)!;
   assert.deepEqual([entry.zeroDataRetention, entry.disallowPromptTraining, entry.only], [true, true, ["typesafe-ai"]]);
+});
+
+test("Jev's own confidence wins over the chosen option's probability, and a refused question costs only its answer", async () => {
+  const criteria = { consultar: "ver", navegar: "ir" };
+  const own = await askJev({ mensagem: "me leva para a tela, confiança própria" }, { intent: { type: "choice", instructions: "Intenção", criteria } });
+  assert.deepEqual(own?.intent, { type: "choice", choice: "navegar", confidence: 0.42 });
+  const plain = await askJev({ mensagem: "me leva para a tela" }, { intent: { type: "choice", instructions: "Intenção", criteria } });
+  assert.deepEqual(plain?.intent, { type: "choice", choice: "navegar", confidence: 1 });
+  const before = logged().filter((e) => e.jev).length;
+  const partial = await askJev(
+    { mensagem: "qual meu boleto" },
+    { intent: { type: "choice", instructions: "Intenção", criteria }, recusar_area: { type: "boolean", instructions: "Área" }, area_financeiro: { type: "boolean", instructions: "Financeiro" } },
+  );
+  // The SDK throws on any refusal; Jev is asked once more without the refused question.
+  assert.deepEqual(Object.keys(partial ?? {}).sort(), ["area_financeiro", "intent"]);
+  assert.equal(logged().filter((e) => e.jev).length, before + 2);
+  assert.equal(await askJev({ mensagem: "x" }, { recusar_tudo: { type: "boolean", instructions: "x" } }), null);
+});
+
+test("a call the provider ran itself goes on at once and does not read as cut", async () => {
+  const round = roundState();
+  const model = wrapLanguageModel({
+    model: new MockLanguageModelV4({
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start", warnings: [] },
+            { type: "tool-input-start", id: "p1", toolName: "busca", providerExecuted: true },
+            { type: "tool-input-end", id: "p1" },
+            { type: "tool-call", toolCallId: "p1", toolName: "busca", input: "{}", providerExecuted: true },
+            { type: "tool-result", toolCallId: "p1", toolName: "busca", result: { ok: true } },
+            { type: "text-start", id: "t" },
+            { type: "text-delta", id: "t", delta: "Pronto." },
+            { type: "text-end", id: "t" },
+            { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } } },
+          ],
+        }),
+      }),
+    }),
+    middleware: inModelOrder(round),
+  });
+  const types = (await read(streamText({ ...quiet, model, prompt: "oi" }))).map((p) => p.type);
+  assert.ok(types.indexOf("tool-call") < types.indexOf("tool-result"), types.join());
+  assert.equal(round.unfinished, false);
 });
 
 test("dictation sends WAV with Portuguese to MAI, privately", async () => {

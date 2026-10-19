@@ -49,15 +49,24 @@ export const gatewayModelId = (id: string) => /^[\w.-]+\/[\w.-]+$/u.test(id);
  * The language models the Gateway offers that can call tools and have at
  * least one provider that keeps nothing, refreshed hourly from its public
  * catalog. An empty list means the fetch failed; the settings page then falls
- * back to a plain field. A failure is remembered for a few minutes, so a turn
- * never waits on a catalog that is down.
+ * back to a plain field. A failure is remembered for a few minutes, and
+ * requests that arrive while the catalog loads share one fetch, so a turn
+ * waits on it at most once and briefly.
  */
 let cached: { at: number; ttl: number; models: GatewayModel[] } | null = null;
+let loading: Promise<GatewayModel[]> | null = null;
 const TTL_MS = 60 * 60 * 1000;
 const FAILED_TTL_MS = 5 * 60 * 1000;
 
-export async function gatewayModels(): Promise<GatewayModel[]> {
-  if (cached && Date.now() - cached.at < cached.ttl) return cached.models;
+export function gatewayModels(): Promise<GatewayModel[]> {
+  if (cached && Date.now() - cached.at < cached.ttl) return Promise.resolve(cached.models);
+  loading ??= loadModels().finally(() => {
+    loading = null;
+  });
+  return loading;
+}
+
+async function loadModels(): Promise<GatewayModel[]> {
   const failed = (detail: string) => {
     console.warn("[assistant] Gateway models unavailable", detail);
     cached = { at: Date.now(), ttl: FAILED_TTL_MS, models: [] };
@@ -67,13 +76,17 @@ export async function gatewayModels(): Promise<GatewayModel[]> {
     const res = await fetch("https://ai-gateway.vercel.sh/v1/models", {
       headers: { Accept: "application/json" },
       cache: "no-store",
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return failed(`HTTP ${res.status}`);
     const data = (await res.json()) as { data?: Raw[] };
+    // Only models with a provider that keeps nothing ("all" or "some" of them). The field is not in the
+    // documented schema: if it ever disappears, nothing is filtered by it (every request still asks for
+    // zero retention and a model without it is refused), and the log says so.
+    const marked = (data.data ?? []).some((m) => typeof m.zdr === "string");
+    if (!marked) console.warn("[assistant] Gateway models carry no zdr field");
     const models = (data.data ?? [])
-      // No private provider: the request would be refused, so the model is never offered.
-      .filter((m) => m.type === "language" && m.tags?.includes("tool-use") && m.zdr !== "none" && gatewayModelId(m.id))
+      .filter((m) => m.type === "language" && m.tags?.includes("tool-use") && (!marked || m.zdr === "all" || m.zdr === "some") && gatewayModelId(m.id))
       .map((m) => {
         const promptPerMillion = perMillion(m.pricing?.input);
         const completionPerMillion = perMillion(m.pricing?.output);

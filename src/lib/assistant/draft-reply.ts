@@ -51,7 +51,7 @@ export async function draftTicketReply(ticketId: string) {
   ]
     .filter(Boolean)
     .join("\n\n");
-  // A short reply: the whole output limit goes to the text, with no thinking first.
+  // A short reply: no reasoning option, so no thinking is asked for (the model's default applies, as before).
   const text = await oneShot({ system: VOICE, user: context, maxTokens: 700, temperature: 0.3, timeoutMs: 45000, reasoning: false });
   return text.slice(0, 4000);
 }

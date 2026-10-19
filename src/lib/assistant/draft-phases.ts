@@ -45,7 +45,7 @@ export async function draftQuotePhases(input: { title: string; summary: string }
       maxTokens: 2500,
       temperature: 0.2,
       timeoutMs: 55000,
-      // The phases are long JSON: the whole output limit goes to them, with no thinking first.
+      // Long JSON: no reasoning option, so no thinking is asked for (the model's default applies, as before).
       reasoning: false,
       schema: answer,
     });

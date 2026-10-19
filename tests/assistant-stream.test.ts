@@ -25,6 +25,8 @@ test("the Gateway's refusals read in Portuguese, with the next step", () => {
 test("no English from the SDK reaches the person through the generic text", () => {
   // Without a status (not an API answer), "model" in the detail does not make it a model refusal.
   assert.doesNotMatch(failureText({ detail: "model stream ended" }, model), /não foi aceito/);
+  // A 5xx that names the model is a hiccup: the person should try again, not switch models.
+  assert.doesNotMatch(failureText({ status: 503, detail: "Model overloaded" }, model), /não foi aceito/);
 });
 
 test("a failure is read from what the Gateway reports", () => {
@@ -42,6 +44,11 @@ test("a failure is read from what the Gateway reports", () => {
   const unauthenticated = new AISDKError({ name: "GatewayError", message: "Unauthenticated. Configure AI_GATEWAY_API_KEY or use a provider module." });
   assert.equal(providerFailure(unauthenticated)?.status, 401);
   assert.equal(providerFailure(Object.assign(new Error("Unauthenticated request"), { name: "GatewayAuthenticationError" }))?.status, 401);
+  // A fault here before any answer (a body that cannot be sent) is not the Gateway's: the route logs it as a bug.
+  assert.equal(providerFailure(new GatewayResponseError({ message: "Invalid error response format: Gateway request failed: Do not know how to serialize a BigInt", cause: new TypeError("Do not know how to serialize a BigInt") })), null);
+  // A network failure: the original call's words, not the wrapper's.
+  const offline = new GatewayResponseError({ response: {}, cause: apiError(500, "Cannot connect to API: fetch failed") });
+  assert.deepEqual(providerFailure(offline), { status: 500, detail: "Cannot connect to API: fetch failed" });
   // Their message or cause may carry the request: the route logs only the name.
   for (const error of [noPrivate, cut, unauthenticated, apiError(500, "x")]) assert.equal(sdkError(error), true);
   assert.equal(sdkError(new Error("relation does not exist")), false);
