@@ -22,6 +22,12 @@ export function appBlockText(
         description: "O endereço cadastrado não é de um app que roda dentro do Console.",
       };
     case "inactive":
+      // Suspended by Anuntech (late payment, a breach of the terms): the way back is to settle it.
+      if (context.status === "suspended")
+        return {
+          title: `${context.product ?? "Este produto"} está suspenso`,
+          description: "Nenhum dado foi apagado. Pague as faturas vencidas em Financeiro ou abra um chamado para falar com a equipe.",
+        };
       return {
         title: `${context.product ?? "Este produto"} está ${statusText[context.status ?? ""] ?? "inativo"}`,
         description: "Enquanto isso, o app não abre pelo Console. Fale com a Anuntech para retomar.",

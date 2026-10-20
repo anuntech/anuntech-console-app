@@ -7,6 +7,7 @@ import { interBase } from "@/lib/integrations/integrations";
 import { reconcileCharge } from "@/lib/billing/billing-sync";
 import { locateUncertainCharges } from "@/lib/billing/billing-locate";
 import { trackedCron } from "@/lib/ops/cron-health";
+import { settleSuspensions } from "@/lib/suspensions/suspensions";
 
 export const maxDuration = 300;
 async function run(request: Request) {
@@ -63,12 +64,15 @@ async function run(request: Request) {
     }
     // Issues that never got an answer: looked up at the bank by reference, never issued again.
     const located = Date.now() < deadline ? await locateUncertainCharges().catch(() => 0) : 0;
-    if (checked || located) {
+    // A client who paid everything overdue: the schedule is called off, a suspended product goes to the team to bring back.
+    const settled = Date.now() < deadline ? await settleSuspensions().catch(() => ({ cancelled: 0, settled: 0 })) : { cancelled: 0, settled: 0 };
+    if (settled.cancelled || settled.settled) revalidatePath("/produtos");
+    if (checked || located || settled.cancelled || settled.settled) {
       revalidatePath("/financeiro");
       revalidatePath("/painel");
     }
     return Response.json(
-      { checked, failed, located },
+      { checked, failed, located, ...settled },
       { status: failed ? 503 : 200, headers: { "Cache-Control": "no-store" } },
     );
   } finally {

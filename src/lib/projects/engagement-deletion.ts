@@ -14,6 +14,7 @@ import {
   serviceTerms,
   timeEntries,
   journeys,
+  engagementSuspensions,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -81,6 +82,8 @@ export async function deleteEngagement(_: ActionState, form: FormData): Promise<
         .returning({ id: tickets.id });
       // Conditions about this item end with it; logged hours stay in the company's bank.
       await tx.delete(serviceTerms).where(eq(serviceTerms.engagementId, row.id));
+      // So do its suspensions; the audit log keeps what happened.
+      await tx.delete(engagementSuspensions).where(eq(engagementSuspensions.engagementId, row.id));
       await tx.update(timeEntries).set({ engagementId: null }).where(eq(timeEntries.engagementId, row.id));
       // A project journey keeps going without it.
       await tx.update(journeys).set({ engagementId: null }).where(eq(journeys.engagementId, row.id));

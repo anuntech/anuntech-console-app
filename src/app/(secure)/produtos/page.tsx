@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
-import { and, asc, count, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { catalogItems, companies, engagements, subscriptions } from "@/db/schema";
+import { catalogItems, companies, engagementSuspensions, engagements, subscriptions } from "@/db/schema";
 import { productNextDueDate } from "@/lib/billing/product-due";
 import { allowedIds, canSeeMoney, engagementWhere, getActor } from "@/lib/access/access";
 import { catalogIconSrc } from "@/lib/catalog/catalog-icons";
@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
 import { ProductsList } from "@/components/produtos/products-list";
+import { SuspendedNotice } from "@/components/produtos/suspension";
+import { openSuspensions } from "@/lib/suspensions/suspensions";
+import { suspensionView } from "@/lib/suspensions/suspension-view";
 export const metadata: Metadata = {
   title: "Produtos e serviços",
   description: "Os produtos e serviços que cada empresa tem com a Anuntech.",
@@ -36,7 +39,8 @@ export default async function Products({
   const visible = and(inArray(engagements.kind, ["product", "service"]), engagementWhere(actor, engagements.id, engagements.companyId));
   const where = and(
     visible,
-    query.status === "all" ? undefined : eq(engagements.status, query.status),
+    // A suspended product is still contracted: it stays with the active ones.
+    query.status === "all" ? undefined : query.status === "active" ? inArray(engagements.status, ["active", "suspended"]) : eq(engagements.status, query.status),
     query.company ? eq(engagements.companyId, query.company) : undefined,
     search
       ? or(ilike(engagements.name, `%${search}%`), ilike(companies.name, `%${search}%`))
@@ -69,6 +73,7 @@ export default async function Products({
         company: companies.name,
         catalogItemId: engagements.catalogItemId,
         icon: catalogItems.icon,
+        suspensionKind: catalogItems.suspensionKind,
       })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
@@ -102,11 +107,24 @@ export default async function Products({
       : db
           .select({ n: count() })
           .from(engagements)
-          .where(and(visible, ne(engagements.status, "active")))
+          .where(and(visible, notInArray(engagements.status, ["active", "suspended"])))
           .then(([found]) => found.n),
   ]);
   // Staff see "Excluir" only where nothing billed or signed points at the item.
   const links = actor.admin ? await engagementLinks(rows.map((row) => row.id)) : null;
+  // Staff get the whole open suspension (the menu and the checklist); a client only that it is suspended and since when.
+  const suspensions = await openSuspensions(rows.map((row) => row.id));
+  // Every suspended product the client sees, whatever page or filter is open.
+  const suspended = actor.admin
+    ? []
+    : (
+        await db
+          .select({ name: engagements.name, companyId: engagements.companyId, since: engagementSuspensions.suspendedAt, reason: engagementSuspensions.reason })
+          .from(engagementSuspensions)
+          .innerJoin(engagements, eq(engagements.id, engagementSuspensions.engagementId))
+          .where(and(visible, eq(engagements.status, "suspended"), isNull(engagementSuspensions.liftedAt)))
+          .orderBy(asc(engagements.name))
+      ).map((row) => ({ name: row.name, since: row.since?.toISOString() ?? null, reason: row.reason, canPay: canSeeMoney(actor, row.companyId) }));
   // Products whose URL is an app that only runs inside the Console open there.
   const apps = protectedApps();
   return (
@@ -116,6 +134,7 @@ export default async function Products({
         title="Produtos e serviços"
         count={total}
       />
+      {suspended.length > 0 && <SuspendedNotice products={suspended} />}
       <ProductsList
         view={view}
         actions={
@@ -128,8 +147,9 @@ export default async function Products({
             </Button>
           )
         }
-        rows={rows.map(({ amountCents, interval, nextDueDate, subscriptionId, catalogItemId, icon, ...row }) => ({
+        rows={rows.map(({ amountCents, interval, nextDueDate, subscriptionId, catalogItemId, icon, suspensionKind, ...row }) => ({
           ...row,
+          suspension: suspensionView(suspensions.get(row.id), suspensionKind, actor.admin),
           kind: row.kind === "service" ? "service" : "product",
           appPage: row.kind === "product" && appForUrl(row.url, apps) ? `/apps/${row.id}` : null,
           icon: catalogIconSrc(catalogItemId, icon),

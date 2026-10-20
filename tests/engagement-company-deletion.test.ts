@@ -77,6 +77,7 @@ test("company deletion knows every table that points at a company", () => {
     "console_hours_months.company_id": "not null",
     "console_automation_events.company_id": "null",
     "console_journeys.company_id": "null",
+    "console_engagement_suspensions.company_id": "not null",
     // Kept, set to null: the history outlives the company.
     "console_audit_events.company_id": "null",
   });
@@ -91,6 +92,7 @@ test("the children deleted with a company or its work are all accounted for", ()
     // Deleted with it.
     "console_tasks.engagement_id": "not null",
     "console_service_terms.engagement_id": "null",
+    "console_engagement_suspensions.engagement_id": "not null",
     // Kept, unlinked.
     "console_tickets.engagement_id": "null",
     "console_time_entries.engagement_id": "null",

@@ -10,6 +10,7 @@ const statusTones: Record<string, { pill: string; dot: string }> = {
     pill: "bg-secondary text-muted-foreground",
     dot: "bg-muted-foreground/50",
   },
+  suspended: { pill: "bg-destructive-soft text-destructive", dot: "bg-destructive" },
 };
 
 export function EngagementStatusBadge({

@@ -5,6 +5,7 @@ import { runSupportTests } from "./support-smoke.mjs";
 import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
+import { runSuspensionTests } from "./suspension-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
 import { runHelpTests } from "./help-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
@@ -2147,6 +2148,7 @@ try {
     await runNoticesTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
     await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
     await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
+    await runSuspensionTests({ database, people, request, submitForm, sentNotices, ok, marker, companyIds });
     await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
     await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
     await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
@@ -2196,6 +2198,7 @@ try {
   // Conditions point at contracts, links point at proposals; automation records go before companies and people.
   for (const table of ["console_time_entries", "console_hours_months", "console_service_terms"])
     await database.query(`delete from ${table} where company_id=any($1::text[])`, [companyIds]);
+  await database.query("delete from console_engagement_suspensions where company_id=any($1::text[])", [companyIds]);
   // Products point at recurrences (and proposals): unlink before deleting those.
   await database.query("update console_engagements set quote_id=null, subscription_id=null where company_id=any($1::text[])", [companyIds]);
   // Project journeys point at companies, proposals and people: they go first.

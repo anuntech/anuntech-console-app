@@ -1480,3 +1480,8 @@ select option { background: var(--background); color: var(--foreground); }
 }
 .assistant-filled { animation: assistant-fill 1.6s ease-out; border-radius: 8px; }
 @media (prefers-reduced-motion: reduce) { .assistant-filled { animation: none; outline: 2px solid var(--primary); outline-offset: 1px; } }
+
+/* The overview's eye (MoneyToggle): values blurred in place, so nothing shifts when they show. */
+[data-money] { transition: filter 150ms ease; }
+[data-money-hidden] [data-money] { filter: blur(0.45em); user-select: none; }
+@media (prefers-reduced-motion: reduce) { [data-money] { transition: none; } }

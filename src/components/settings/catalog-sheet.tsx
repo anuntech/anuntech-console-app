@@ -13,6 +13,7 @@ import { FormSheet } from "@/components/console/form-sheet";
 import { MoneyField } from "@/components/console/money-field";
 import { saveCatalogItem } from "@/lib/catalog/catalog-actions";
 import { CatalogIconField } from "./catalog-icon-field";
+import { SUSPENSION_KINDS, suspensionKindHints, suspensionKindLabels, type SuspensionKind } from "@/lib/suspensions/suspension-rules";
 
 export type CatalogItemValues = {
   id?: string;
@@ -28,6 +29,7 @@ export type CatalogItemValues = {
   deadlines: string | null;
   /** A gallery path or a stored blob pathname; see lib/catalog/catalog-icons.ts. */
   icon: string | null;
+  suspensionKind?: SuspensionKind;
 };
 
 const KINDS = [
@@ -162,6 +164,7 @@ function CatalogFields({ item, iconAi }: { item: CatalogItemValues | null; iconA
           </NativeSelect>
         </FormField>
       </div>
+      <SuspensionKindField initial={item?.suspensionKind ?? "manual"} />
       {kind === "service" &&
         SERVICE_FIELDS.map((field) => (
           <FormField key={field.name} label={field.label} htmlFor={`catalog-${field.name}`}>
@@ -177,5 +180,21 @@ function CatalogFields({ item, iconAi }: { item: CatalogItemValues | null; iconA
           </FormField>
         ))}
     </>
+  );
+}
+
+/** How a suspended item is blocked: decides the steps the team follows (lib/suspensions/suspension-rules.ts). */
+function SuspensionKindField({ initial }: { initial: SuspensionKind }) {
+  const [value, setValue] = useState<SuspensionKind>(initial);
+  return (
+    <FormField label="Como bloquear na suspensão" htmlFor="catalog-suspension" hint={suspensionKindHints[value]}>
+      <NativeSelect id="catalog-suspension" name="suspensionKind" value={value} onChange={(event) => setValue(event.target.value as SuspensionKind)}>
+        {SUSPENSION_KINDS.map((option) => (
+          <NativeSelectOption key={option} value={option}>
+            {suspensionKindLabels[option]}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+    </FormField>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { PhoneCallIcon } from "lucide-react";
+import { BanIcon, PhoneCallIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,12 @@ import { FormError, ServerForm, SubmitButton } from "@/components/console/server
 import { registerCollectionContact } from "@/lib/billing/collection-actions";
 import type { CollectionCase } from "@/lib/billing/collections";
 import { currency, dateLabel, dateTimeLabel } from "@/lib/format";
+import { EngagementStatusBadge } from "@/components/projetos/project-badges";
+import { SuspensionStageBadge, useSuspension } from "@/components/produtos/suspension";
+import type { SuspensionView } from "@/lib/suspensions/suspension-view";
+
+/** An overdue client's product, to suspend from here (lib/suspensions). */
+export type CollectionProduct = { id: string; name: string; status: string; companyId: string; appPage: string | null; suspension?: SuspensionView };
 
 const channel: Record<string, string> = { email: "e-mail", whatsapp: "WhatsApp" };
 
@@ -51,8 +57,20 @@ function ContactDialog({ item, open, onOpenChange }: { item: CollectionCase; ope
 type Marked = { id: string; description: string; company: string; amountCents: number; dueDate: string };
 
 /** One card per overdue client: what is owed, what the contract allows, what was agreed, and a text to adapt. */
-export function CollectionsList({ cases, marked, expired }: { cases: CollectionCase[]; marked: Marked[]; expired: { n: number; cents: number } }) {
+export function CollectionsList({
+  cases,
+  products,
+  marked,
+  expired,
+}: {
+  cases: CollectionCase[];
+  products: CollectionProduct[];
+  marked: Marked[];
+  expired: { n: number; cents: number };
+}) {
   const [contact, setContact] = useState<CollectionCase | null>(null);
+  const suspension = useSuspension(products);
+  const cards = (list: CollectionCase[]) => <CaseCards cases={list} products={products} onContact={setContact} onSuspend={suspension.open} />;
   const open = cases.filter((item) => !item.waitingPromise);
   const waiting = cases.filter((item) => item.waitingPromise);
   return (
@@ -70,11 +88,11 @@ export function CollectionsList({ cases, marked, expired }: { cases: CollectionC
           <CardContent className="py-10 text-center text-sm text-muted-foreground">Nenhum cliente com boleto vencido.</CardContent>
         </Card>
       )}
-      {open.length > 0 && <CaseCards cases={open} onContact={setContact} />}
+      {open.length > 0 && cards(open)}
       {waiting.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="m-0 text-sm font-semibold text-foreground">Aguardando a data combinada</h2>
-          <CaseCards cases={waiting} onContact={setContact} />
+          {cards(waiting)}
         </section>
       )}
       {marked.length > 0 && (
@@ -104,11 +122,22 @@ export function CollectionsList({ cases, marked, expired }: { cases: CollectionC
         </section>
       )}
       {contact && <ContactDialog key={contact.companyId} item={contact} open onOpenChange={(open) => !open && setContact(null)} />}
+      {suspension.element}
     </div>
   );
 }
 
-function CaseCards({ cases, onContact }: { cases: CollectionCase[]; onContact: (item: CollectionCase) => void }) {
+function CaseCards({
+  cases,
+  products,
+  onContact,
+  onSuspend,
+}: {
+  cases: CollectionCase[];
+  products: CollectionProduct[];
+  onContact: (item: CollectionCase) => void;
+  onSuspend: (product: CollectionProduct) => void;
+}) {
   return (
     <div className="flex flex-col gap-4">
       {cases.map((item) => (
@@ -160,6 +189,25 @@ function CaseCards({ cases, onContact }: { cases: CollectionCase[]; onContact: (
                 </span>
               )}
             </div>
+            {!item.archived && products.some((p) => p.companyId === item.companyId) && (
+              <ul className="m-0 grid list-none gap-1.5 border-t p-0 pt-3">
+                {products
+                  .filter((p) => p.companyId === item.companyId)
+                  .map((product) => (
+                    <li key={product.id} className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="truncate text-foreground">{product.name}</span>
+                        {product.status !== "active" && <EngagementStatusBadge status={product.status} />}
+                        <SuspensionStageBadge suspension={product.suspension} />
+                      </span>
+                      <Button size="sm" variant="outline" onClick={() => onSuspend(product)}>
+                        <BanIcon />
+                        {product.suspension ? "Ver suspensão" : "Suspender…"}
+                      </Button>
+                    </li>
+                  ))}
+              </ul>
+            )}
             <details className="rounded-lg border bg-field/60 px-3 py-2">
               <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Texto sugerido para enviar</summary>
               <p className="m-0 mt-2 text-sm whitespace-pre-line [overflow-wrap:anywhere] text-foreground">{item.message}</p>

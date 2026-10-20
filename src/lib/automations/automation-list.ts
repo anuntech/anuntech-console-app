@@ -46,6 +46,11 @@ export const AUTOMATIONS = {
     label: "Resumo semanal aos Administradores",
     description: "Toda segunda, um resumo por empresa: chamados, o que espera o cliente, entregas em Revisão, banco de horas e próxima fatura. Semana sem movimento não manda nada.",
   },
+  suspensionSettle: {
+    group: "Equipe",
+    label: "Suspensão depois do pagamento",
+    description: "Quando o Inter confirma o pagamento de todas as faturas vencidas, a suspensão agendada é cancelada e o produto suspenso entra em \"Pago: reativar\" no resumo. Ninguém é reativado sem a equipe.",
+  },
   ticketTriage: {
     group: "Equipe",
     label: "Triagem do Jev nos chamados novos",

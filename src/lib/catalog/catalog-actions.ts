@@ -15,6 +15,7 @@ import type { ActionState } from "../action-state";
 import { logDatabaseFault } from "../action-errors";
 import { moneyToCents } from "../access/permissions";
 import { isGalleryIcon, suggestGalleryIcon } from "./catalog-icons";
+import { SUSPENSION_KINDS } from "../suspensions/suspension-rules";
 
 const id = z.string().uuid();
 const blocked = { error: "Você não tem permissão para fazer isso." };
@@ -59,6 +60,7 @@ export async function saveCatalogItem(_: ActionState, form: FormData): Promise<A
         expectedResults: text(5000),
         deadlines: text(5000),
         icon: text(200),
+        suspensionKind: z.enum(SUSPENSION_KINDS).optional(),
       })
       .parse(Object.fromEntries(form));
     if (input.url && !isWebUrl(input.url)) return { error: "Informe um link HTTP ou HTTPS válido." };
@@ -79,6 +81,8 @@ export async function saveCatalogItem(_: ActionState, form: FormData): Promise<A
       whatWeNeed: input.kind === "service" ? input.whatWeNeed || null : null,
       expectedResults: input.kind === "service" ? input.expectedResults || null : null,
       deadlines: input.kind === "service" ? input.deadlines || null : null,
+      // Left as it was when the form does not carry it.
+      ...(input.suspensionKind ? { suspensionKind: input.suspensionKind } : {}),
       updatedAt: new Date(),
     };
     const itemId = input.id
