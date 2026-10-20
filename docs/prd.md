@@ -42,6 +42,7 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 
 - Equipe: faturamento recebido e a receber por mês, pendências que precisam de atenção (cobranças em rascunho, falhas, atrasos), últimos chamados, últimas faturas e atividade recente.
 - Cliente: faturas a pagar (com link de pagamento), pendências, projetos com progresso, produtos e serviços, últimos chamados e bookmarks.
+- Valores escondidos (desde 20/10/2026): na Visão geral, os valores em dinheiro começam borrados, para a equipe e para quem vê o financeiro da empresa. O botão do olho no topo mostra ou esconde, e a escolha fica num cookie do navegador (lido no servidor, então a página já chega como a pessoa deixou). O Membro, que não vê valores, não tem o botão.
 
 ### Empresas
 

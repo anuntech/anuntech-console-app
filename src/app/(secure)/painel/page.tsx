@@ -36,7 +36,7 @@ import { auditEvents, companies, contracts, invoices, journeys, quotes, serviceT
 import { JOURNEY_STALLED_DAYS } from "@/lib/journeys/journey-model";
 import { journeyMovedAt } from "@/lib/journeys/journey-queries";
 import { getActor } from "@/lib/access/access";
-import { auditLabels, currency, dateLabel, relativeLabel } from "@/lib/format";
+import { auditLabels, dateLabel, relativeLabel } from "@/lib/format";
 import { saoPauloDate } from "@/lib/dates";
 import { addDays, EXPIRY_WARNING_DAYS } from "@/lib/contracts/contract-table";
 import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
@@ -48,6 +48,9 @@ import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { BillingChart, type BillingMonth } from "@/components/painel/billing-chart";
 import { ActivityFeed, AttentionList, KpiTile, type ActivityEntry, type AttentionItem } from "@/components/painel/dashboard-parts";
 import { ClientDashboard } from "@/components/painel/client-dashboard";
+import { Money, MoneyScope } from "@/components/console/money";
+import { MoneyToggle } from "@/components/console/money-toggle";
+import { moneyHidden } from "@/lib/money-visibility-server";
 
 export const metadata: Metadata = {
   title: "Visão geral",
@@ -311,7 +314,7 @@ export default async function Dashboard() {
       icon: <AlertTriangleIcon />,
       tone: "critical" as const,
       title: "Expiradas no Inter sem pagamento",
-      detail: `${currency(expiredDebt.reduce((sum, i) => sum + i.amountCents, 0))} que ninguém cobrou de novo`,
+      detail: <><Money cents={expiredDebt.reduce((sum, i) => sum + i.amountCents, 0)} /> que ninguém cobrou de novo</>,
       count: expiredDebt.length,
       href: "/financeiro?status=expired",
     },
@@ -320,7 +323,7 @@ export default async function Dashboard() {
       icon: <ClockIcon />,
       tone: "warning" as const,
       title: "Boletos que o Inter encerra em até 7 dias",
-      detail: `${currency(expiring.reduce((sum, i) => sum + i.amountCents, 0))} ainda sem pagamento`,
+      detail: <><Money cents={expiring.reduce((sum, i) => sum + i.amountCents, 0)} /> ainda sem pagamento</>,
       count: expiring.length,
       href: expiring.length === 1 ? `/financeiro/${expiring[0].id}` : "/financeiro?status=overdue",
     },
@@ -338,7 +341,7 @@ export default async function Dashboard() {
       icon: <AlertTriangleIcon />,
       tone: "critical" as const,
       title: "Faturas vencidas",
-      detail: `${currency(cents(overdue.total))} em atraso`,
+      detail: <><Money cents={cents(overdue.total)} /> em atraso</>,
       count: overdue.n,
       href: "/financeiro?status=overdue",
     },
@@ -616,13 +619,16 @@ export default async function Dashboard() {
   const firstName = (actor.user.name || "").trim().split(/\s+/)[0];
   const dateLine = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(now);
 
+  const valuesHidden = await moneyHidden();
+
   return (
-    <>
+    <MoneyScope hidden={valuesHidden}>
       <PageHeader
         title="Visão geral"
         description={`${greeting(now)}${firstName ? `, ${firstName}` : ""} · ${dateLine}`}
         actions={
           <>
+            <MoneyToggle hidden={valuesHidden} />
             <Button variant="outline" asChild>
               <Link href="/empresas/nova">
                 <PlusIcon />
@@ -663,23 +669,23 @@ export default async function Dashboard() {
       <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiTile
           label={`Recebido em ${thisMonth.longLabel.split(" ")[0]}`}
-          value={currency(thisMonth.receivedCents)}
+          value={<Money cents={thisMonth.receivedCents} />}
           icon={<WalletIcon />}
           tone="good"
           delta={receivedDelta}
-          detail={<span>de {currency(thisMonth.receivedCents + thisMonth.openCents)} com vencimento no mês</span>}
+          detail={<span>de <Money cents={thisMonth.receivedCents + thisMonth.openCents} /> com vencimento no mês</span>}
           href="/financeiro?status=paid"
         />
         <KpiTile
           label="A receber"
-          value={currency(cents(toReceive.total))}
+          value={<Money cents={cents(toReceive.total)} />}
           icon={<CircleDollarSignIcon />}
           detail={plural(toReceive.n, "fatura em aberto", "faturas em aberto")}
           href="/financeiro?status=issued"
         />
         <KpiTile
           label="Em atraso"
-          value={currency(cents(overdue.total))}
+          value={<Money cents={cents(overdue.total)} />}
           icon={<AlertTriangleIcon />}
           tone={overdue.n > 0 ? "critical" : "default"}
           detail={overdue.n > 0 ? plural(overdue.n, "fatura vencida", "faturas vencidas") : "Nenhuma fatura vencida"}
@@ -749,7 +755,7 @@ export default async function Dashboard() {
                   <RecentRow
                     key={invoice.id}
                     href={`/financeiro/${invoice.id}`}
-                    title={<span className="tabular-nums">{currency(invoice.amountCents)}</span>}
+                    title={<span className="tabular-nums"><Money cents={invoice.amountCents} /></span>}
                     detail={`${company} · ${dateLabel(invoice.dueDate)}`}
                     status={
                       <InvoiceStatusBadge
@@ -773,6 +779,6 @@ export default async function Dashboard() {
           </CardContent>
         </Card>
       </div>
-    </>
+    </MoneyScope>
   );
 }

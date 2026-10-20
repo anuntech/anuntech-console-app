@@ -73,7 +73,7 @@ export type AttentionItem = {
   key: string;
   icon: ReactNode;
   title: string;
-  detail?: string;
+  detail?: ReactNode;
   count: number;
   href: string;
   tone?: Tone;

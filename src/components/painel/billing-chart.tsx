@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { cn } from "cn";
-import { currency } from "@/lib/format";
+import { Money } from "@/components/console/money";
 
 export type BillingMonth = {
   /** "2026-09" */
@@ -42,10 +42,10 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
         <div aria-live="polite">
           <p className="text-xs text-muted-foreground">{current.longLabel}</p>
           <p className="mt-0.5 text-2xl font-semibold tracking-[-0.02em] text-foreground tabular-nums">
-            {currency(current.receivedCents + current.openCents)}
+            <Money cents={current.receivedCents + current.openCents} />
           </p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {currency(current.receivedCents)} recebido · {currency(current.openCents)} a receber
+            <Money cents={current.receivedCents} /> recebido · <Money cents={current.openCents} /> a receber
           </p>
         </div>
         <ul className="flex items-center gap-4 text-xs text-muted-foreground" aria-label="Legenda">
@@ -64,7 +64,7 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
         <div className="flex h-44 flex-col justify-between py-px text-right text-[11px] text-muted-foreground tabular-nums">
           {ticks.map((tick) => (
             <span key={tick} className="-translate-y-1/2 first:translate-y-0 last:translate-y-0 leading-none">
-              {tick ? compact(tick) : "R$ 0"}
+              <Money>{tick ? compact(tick) : "R$ 0"}</Money>
             </span>
           ))}
         </div>
@@ -135,8 +135,12 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
           {months.map((m) => (
             <tr key={m.month}>
               <th scope="row">{m.longLabel}</th>
-              <td>{currency(m.receivedCents)}</td>
-              <td>{currency(m.openCents)}</td>
+              <td>
+                <Money cents={m.receivedCents} />
+              </td>
+              <td>
+                <Money cents={m.openCents} />
+              </td>
             </tr>
           ))}
         </tbody>

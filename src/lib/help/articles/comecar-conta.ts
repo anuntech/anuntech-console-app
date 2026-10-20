@@ -569,6 +569,10 @@ export const comecarContaArticles: HelpArticle[] = [
             kind: "p",
             text: "No topo aparecem a saudação, o seu primeiro nome, a data de hoje e o botão “Abrir chamado”.",
           },
+          {
+            kind: "p",
+            text: "Para o Administrador, os valores começam borrados, para ninguém ver de relance. O botão do olho, ao lado de “Abrir chamado”, mostra ou esconde os valores, e o Console lembra a sua escolha neste navegador.",
+          },
         ],
       },
       {
@@ -583,7 +587,7 @@ export const comecarContaArticles: HelpArticle[] = [
               { term: "A pagar", text: "Só para o Administrador: até 5 faturas em aberto ou vencidas, da que vence primeiro para a última, com o botão “Pagar” quando a fatura tem link de pagamento. Sem fatura em aberto, aparece “Nada a pagar agora” e, se houver recorrência, o valor e o vencimento da próxima cobrança." },
               { term: "Precisa de atenção", text: "O que depende de alguém da sua empresa hoje." },
               { term: "Projetos", text: "Até 4 projetos ativos ou pausados, com o progresso das tarefas." },
-              { term: "Produtos e serviços", text: "Até 5 itens ativos. Um app abre dentro do Console, um produto com site abre em outra aba, um serviço abre a página dele e os outros abrem a lista." },
+              { term: "Produtos e serviços", text: "Até 5 itens ativos ou suspensos, os suspensos primeiro. Um app abre dentro do Console, um produto com site abre em outra aba, um serviço abre a página dele e os outros abrem a lista." },
               { term: "Últimos chamados", text: "Os 5 chamados atualizados mais recentemente, com a situação de cada um." },
               { term: "Bookmarks", text: "Os 5 últimos links, arquivos e lousas que você pode ver. Um link abre em outra aba, um arquivo é baixado e uma lousa abre no Console." },
             ],
@@ -703,7 +707,7 @@ export const comecarContaArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para a Visão geral", href: "/painel" }],
     related: ["conhecer-o-console", "abrir-um-chamado", "banco-de-horas", "membro-ou-administrador"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-20",
   },
   {
     slug: "meu-perfil",

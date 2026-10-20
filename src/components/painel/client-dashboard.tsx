@@ -27,7 +27,7 @@ import { ProductIcon } from "@/components/console/product-icon";
 import { allowedIds, canAccess, engagementWhere, ticketWhere, type Actor } from "@/lib/access/access";
 import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
-import { currency, dateLabel } from "@/lib/format";
+import { dateLabel } from "@/lib/format";
 import { appForUrl, protectedApps } from "@/lib/apps/registry";
 import { saoPauloDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,9 @@ import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
 import { AttentionList, KpiTile, type AttentionItem } from "@/components/painel/dashboard-parts";
+import { Money, MoneyScope } from "@/components/console/money";
+import { MoneyToggle } from "@/components/console/money-toggle";
+import { moneyHidden } from "@/lib/money-visibility-server";
 
 /**
  * The client's Painel: what they have with Anuntech and what needs them,
@@ -311,7 +314,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
       icon: <AlertTriangleIcon />,
       tone: "critical" as const,
       title: "Faturas vencidas para pagar",
-      detail: `${currency(Number(dueTotals.overdueTotal))} em atraso`,
+      detail: <><Money cents={Number(dueTotals.overdueTotal)} /> em atraso</>,
       count: dueTotals.overdueN,
       href: "/financeiro?status=overdue",
     },
@@ -404,22 +407,29 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
     });
   }
   const firstName = (actor.user.name || "").trim().split(/\s+/)[0];
+  // Only someone who sees money gets the eye; a Membro has no values to hide.
+  const valuesHidden = canFinance && (await moneyHidden());
   const dateLine = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(now);
   const next = openInvoices[0]?.invoice;
 
   return (
-    <>
+    <MoneyScope hidden={valuesHidden}>
       <PageHeader
         title="Visão geral"
         description={`${greeting(now)}${firstName ? `, ${firstName}` : ""} · ${dateLine}`}
         actions={
-          canSupport && (
-            <Button asChild>
-              <Link href="/chamados/novo">
-                <PlusIcon />
-                Abrir chamado
-              </Link>
-            </Button>
+          (canFinance || canSupport) && (
+            <>
+              {canFinance && <MoneyToggle hidden={valuesHidden} />}
+              {canSupport && (
+                <Button asChild>
+                  <Link href="/chamados/novo">
+                    <PlusIcon />
+                    Abrir chamado
+                  </Link>
+                </Button>
+              )}
+            </>
           )
         }
       />
@@ -434,7 +444,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         {canFinance && (
           <KpiTile
             label="A pagar"
-            value={currency(Number(dueTotals.total))}
+            value={<Money cents={Number(dueTotals.total)} />}
             icon={<WalletIcon />}
             tone={dueTotals.overdueN > 0 ? "critical" : "default"}
             detail={
@@ -443,7 +453,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                   ? `${plural(dueTotals.overdueN, "vencida", "vencidas")} · ${plural(dueTotals.n, "fatura", "faturas")}`
                   : `Próxima em ${dateLabel(next!.dueDate)}`
                 : nextCharge
-                  ? `Próxima: ${currency(nextCharge.amountCents)} em ${dateLabel(nextCharge.dueDate)}`
+                  ? <>Próxima: <Money cents={nextCharge.amountCents} /> em {dateLabel(nextCharge.dueDate)}</>
                   : "Nada em aberto"
             }
             // The list's "Em aberto" leaves out overdue invoices; those are the urgent ones.
@@ -485,14 +495,14 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                         <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">{invoice.description}</span>
                         <span className="block truncate text-xs text-muted-foreground">
                           {/* on phones the amount and the status ride in this line */}
-                          <span className="tabular-nums sm:hidden">{currency(invoice.amountCents)} · </span>
+                          <span className="tabular-nums sm:hidden"><Money cents={invoice.amountCents} /> · </span>
                           {manyCompanies ? `${company} · ` : ""}
                           <span className={late ? "text-destructive sm:text-muted-foreground" : undefined}>
                             {late ? "venceu" : "vence"} {dateLabel(invoice.dueDate)}
                           </span>
                         </span>
                       </Link>
-                      <span className="hidden text-sm font-medium text-foreground tabular-nums sm:block">{currency(invoice.amountCents)}</span>
+                      <span className="hidden text-sm font-medium text-foreground tabular-nums sm:block"><Money cents={invoice.amountCents} /></span>
                       <span className="hidden sm:contents">
                         <InvoiceStatusBadge status={late ? "overdue" : "issued"} />
                       </span>
@@ -511,7 +521,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                 title="Nada a pagar agora"
                 description={
                   nextCharge
-                    ? `A próxima cobrança, de ${currency(nextCharge.amountCents)}, vence em ${dateLabel(nextCharge.dueDate)}. Boleto e Pix chegam até ${dateLabel(nextCharge.issueDate)}.`
+                    ? <>A próxima cobrança, de <Money cents={nextCharge.amountCents} />, vence em {dateLabel(nextCharge.dueDate)}. Boleto e Pix chegam até {dateLabel(nextCharge.issueDate)}.</>
                     : "Quando houver uma fatura em aberto, ela aparece aqui."
                 }
                 className="py-10"
@@ -631,6 +641,6 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           )}
         </Widget>
       </div>
-    </>
+    </MoneyScope>
   );
 }
