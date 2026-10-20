@@ -21,13 +21,13 @@ export const SUSPENSION_KINDS = ["app", "vm", "email", "manual"] as const;
 export type SuspensionKind = (typeof SUSPENSION_KINDS)[number];
 export const suspensionKindLabels: Record<SuspensionKind, string> = {
   app: "Sistema (CMS, Synova, SaaS)",
-  vm: "Máquina virtual",
+  vm: "Aplicação hospedada (Vercel, Hetzner e outros)",
   email: "Servidor de e-mail",
   manual: "Outro (passos à mão)",
 };
 export const suspensionKindHints: Record<SuspensionKind, string> = {
   app: "Bloqueia a área de quem administra; o site público continua no ar.",
-  vm: "Snapshot e desligamento, mantendo disco e IP. Nada é apagado.",
+  vm: "Na Vercel, pausar o projeto; num servidor (Hetzner e outros), snapshot e desligar. Dados, domínio e IP ficam. Nada é apagado.",
   email: "Bloqueia o envio; a caixa continua recebendo e guardando tudo.",
   manual: "A equipe segue os passos combinados para o produto.",
 };
@@ -38,8 +38,8 @@ export type SuspensionStep = { key: string; label: string };
 export const suspendSteps: Record<SuspensionKind, SuspensionStep[]> = {
   app: [{ key: "app-blocked", label: "Acesso à área administrativa bloqueado (o site público continua no ar)" }],
   vm: [
-    { key: "vm-snapshot", label: "Snapshot da máquina feito" },
-    { key: "vm-off", label: "Máquina desligada, com disco e IP mantidos" },
+    { key: "vm-snapshot", label: "Cópia de segurança feita (snapshot do servidor ou backup do banco)" },
+    { key: "vm-off", label: "Aplicação pausada ou servidor desligado, com dados, domínio e IP mantidos" },
   ],
   email: [
     { key: "email-smtp", label: "Envio (SMTP) bloqueado nas caixas, recebimento mantido" },
@@ -52,7 +52,7 @@ export const suspendSteps: Record<SuspensionKind, SuspensionStep[]> = {
 export const liftSteps: Record<SuspensionKind, SuspensionStep[]> = {
   app: [{ key: "app-unblocked", label: "Acesso liberado" }],
   vm: [
-    { key: "vm-on", label: "Máquina ligada e respondendo" },
+    { key: "vm-on", label: "Aplicação ou servidor de volta e respondendo" },
   ],
   email: [
     { key: "email-smtp-on", label: "Envio liberado nas caixas" },

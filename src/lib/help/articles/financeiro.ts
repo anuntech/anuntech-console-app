@@ -695,7 +695,7 @@ export const financeiroArticles: HelpArticle[] = [
             items: [
               "Quando as condições pedem aviso, os Administradores e os contatos de cobrança recebem antes um e-mail “Aviso de suspensão”, com a data, as faturas vencidas e o link para pagar. Se o pagamento for confirmado antes da data, a suspensão é cancelada sozinha.",
               "No dia, a equipe confirma a suspensão e chega o e-mail “Serviço suspenso”. Em [Produtos e serviços](/produtos), o item aparece como “Suspenso”, com uma faixa no topo da página, os botões “Pagar agora” e “Falar com a equipe”, e a [Visão geral](/painel) mostra o aviso em “Precisa de atenção”.",
-              "Suspensão não apaga nada. Um produto que abre pelo Console deixa de abrir (o site público continua no ar); numa máquina virtual ou num e-mail, a equipe bloqueia o acesso sem apagar dados, e a caixa de e-mail continua recebendo mensagens.",
+              "Suspensão não apaga nada. Um produto que abre pelo Console deixa de abrir (o site público continua no ar); numa aplicação hospedada ou num e-mail, a equipe bloqueia o acesso sem apagar dados, e a caixa de e-mail continua recebendo mensagens.",
               "O Console e os chamados continuam funcionando durante a suspensão, e a cobrança mensal continua como no contrato.",
               "Depois que o pagamento de todas as faturas vencidas é confirmado, a equipe reativa o serviço e chega o e-mail “Serviço reativado”.",
             ],
