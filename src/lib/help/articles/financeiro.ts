@@ -691,6 +691,16 @@ export const financeiroArticles: HelpArticle[] = [
             text: "Só a equipe da Anuntech decide uma suspensão, seguindo essas condições. Se a linha não aparece em Como trabalhamos e você tiver dúvida, pergunte à equipe por um [chamado](/chamados/novo).",
           },
           {
+            kind: "list",
+            items: [
+              "Quando as condições pedem aviso, os Administradores e os contatos de cobrança recebem antes um e-mail “Aviso de suspensão”, com a data, as faturas vencidas e o link para pagar. Se o pagamento for confirmado antes da data, a suspensão é cancelada sozinha.",
+              "No dia, a equipe confirma a suspensão e chega o e-mail “Serviço suspenso”. Em [Produtos e serviços](/produtos), o item aparece como “Suspenso”, com uma faixa no topo da página, os botões “Pagar agora” e “Falar com a equipe”, e a [Visão geral](/painel) mostra o aviso em “Precisa de atenção”.",
+              "Suspensão não apaga nada. Um produto que abre pelo Console deixa de abrir (o site público continua no ar); numa máquina virtual ou num e-mail, a equipe bloqueia o acesso sem apagar dados, e a caixa de e-mail continua recebendo mensagens.",
+              "O Console e os chamados continuam funcionando durante a suspensão, e a cobrança mensal continua como no contrato.",
+              "Depois que o pagamento de todas as faturas vencidas é confirmado, a equipe reativa o serviço e chega o e-mail “Serviço reativado”.",
+            ],
+          },
+          {
             kind: "p",
             text: "O Membro também lê essa regra em Como trabalhamos, mas só o Administrador vê as faturas.",
           },
@@ -715,6 +725,10 @@ export const financeiroArticles: HelpArticle[] = [
         a: "Só se as condições do seu contrato preverem, com o número de dias que aparece em Como trabalhamos, no quadro “O que o seu contrato pede”. Quem decide é a equipe da Anuntech.",
       },
       {
+        q: "Meu produto aparece como “Suspenso”. Como volto a usar?",
+        a: "Pague as faturas vencidas em Financeiro (o botão “Pagar agora”, em Produtos e serviços, leva até elas). Assim que o banco confirma o pagamento, a equipe reativa o serviço e você recebe um e-mail. Nenhum dado foi apagado. Se a suspensão não for por atraso, ou se já pagou, fale com a equipe por um chamado.",
+      },
+      {
         q: "A página de pagamento não mostra mais o boleto e o Pix. Preciso pagar?",
         a: "Depende do que ela diz. “Boleto e Pix vencidos”: o prazo do banco acabou sem pagamento e o valor continua em aberto. Fale com a Anuntech para receber uma nova forma de pagamento. “Cobrança substituída”: a Anuntech mandou uma nova cobrança no lugar, e você paga por ela. “Fatura cancelada”, com “Não é necessário pagar esta fatura.”: a Anuntech cancelou a cobrança e não há nada a pagar por ela.",
       },
@@ -732,7 +746,7 @@ export const financeiroArticles: HelpArticle[] = [
       { label: "Ver Como trabalhamos", href: "/como-trabalhamos" },
     ],
     related: ["pagar-uma-fatura", "avisos-de-cobranca", "como-trabalhamos", "faturas"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-20",
   },
   {
     slug: "nota-fiscal",

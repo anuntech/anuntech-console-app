@@ -24,6 +24,7 @@ export async function CatalogSection() {
       deadlines: catalogItems.deadlines,
       active: catalogItems.active,
       icon: catalogItems.icon,
+      suspensionKind: catalogItems.suspensionKind,
     })
     .from(catalogItems)
     .orderBy(asc(catalogItems.active), asc(catalogItems.name));

@@ -12,6 +12,7 @@ import {
   primaryKey,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 const created = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
@@ -544,6 +545,10 @@ export const catalogItems = pgTable("console_catalog_items", {
   /** A bundled gallery path ("/brand/catalog-icons/x.webp") or a private blob
       pathname ("catalog-icons/<id>/<uuid>.webp"); see src/lib/catalog/catalog-icons.ts. */
   icon: text("icon"),
+  /** How a suspended product is blocked (lib/suspensions/suspension-rules.ts): the steps the team follows. */
+  suspensionKind: text("suspension_kind", { enum: ["app", "vm", "email", "manual"] })
+    .notNull()
+    .default("manual"),
   createdAt: created(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -560,7 +565,8 @@ export const engagements = pgTable(
     kind: text("kind", { enum: ["product", "project", "service"] }).notNull(),
     /** The accepted proposal a project was built from. */
     quoteId: text("quote_id").references((): AnyPgColumn => quotes.id),
-    status: text("status", { enum: ["active", "paused", "completed"] })
+    /** "suspended" is set only through console_engagement_suspensions (lib/suspensions). */
+    status: text("status", { enum: ["active", "paused", "completed", "suspended"] })
       .notNull()
       .default("active"),
     description: text("description"),
@@ -589,6 +595,46 @@ export const membershipEngagements = pgTable(
   (t) => [
     primaryKey({ columns: [t.membershipId, t.engagementId] }),
     index("console_membership_engagements_engagement_idx").on(t.engagementId),
+  ],
+);
+/**
+ * A product or service Anuntech suspends (late payment or a breach of the
+ * terms), with its whole history: scheduled with a notice, suspended, and
+ * lifted (paid, by hand, or the schedule cancelled). At most one open row per
+ * engagement. `steps` holds the blocking checklist the team confirmed, with
+ * who and when, since the Console does not host the product itself.
+ */
+export const engagementSuspensions = pgTable(
+  "console_engagement_suspensions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    engagementId: text("engagement_id")
+      .notNull()
+      .references(() => engagements.id),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id),
+    reason: text("reason", { enum: ["overdue", "terms", "other"] }).notNull(),
+    /** For the team only: why, and what was agreed. */
+    note: text("note"),
+    /** The day it is due to be suspended; the team confirms it then. */
+    scheduledFor: date("scheduled_for"),
+    noticeSentAt: timestamp("notice_sent_at", { withTimezone: true }),
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+    /** Every overdue invoice was paid while suspended: the team brings it back. */
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    liftedAt: timestamp("lifted_at", { withTimezone: true }),
+    liftReason: text("lift_reason", { enum: ["paid", "manual", "cancelled", "archived"] }),
+    liftNote: text("lift_note"),
+    steps: jsonb("steps").$type<Record<string, { at: string; by: string }>>().notNull().default({}),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+  },
+  (t) => [
+    uniqueIndex("console_engagement_suspension_open_unique").on(t.engagementId).where(sql`${t.liftedAt} is null`),
+    index("console_engagement_suspension_company_idx").on(t.companyId),
   ],
 );
 /** Work inside a project: one card on the board. `company_id` mirrors the

@@ -5,6 +5,7 @@ import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
+  BanIcon,
   BookmarkIcon,
   ExternalLinkIcon,
   FileTextIcon,
@@ -256,17 +257,19 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         company: companies.name,
         catalogItemId: engagements.catalogItemId,
         icon: catalogItems.icon,
+        status: engagements.status,
       })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
       .leftJoin(catalogItems, eq(catalogItems.id, engagements.catalogItemId))
-      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), eq(engagements.status, "active")))
-      .orderBy(asc(engagements.name))
+      // A suspended product is still contracted, and shown first.
+      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), inArray(engagements.status, ["active", "suspended"])))
+      .orderBy(desc(sql`${engagements.status} = 'suspended'`), asc(engagements.name))
       .limit(5),
     db
       .select({ n: count() })
       .from(engagements)
-      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), eq(engagements.status, "active"))),
+      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), inArray(engagements.status, ["active", "suspended"]))),
     canSupport
       ? db
           .select({ ticket: tickets, company: companies.name })
@@ -336,6 +339,18 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
     },
   ];
   const attention = candidates.filter((item): item is AttentionItem => item !== false);
+  // Suspended products come first: the client pays or talks to the team (the list on Produtos says how).
+  const suspended = products.filter((product) => product.status === "suspended");
+  if (suspended.length)
+    attention.unshift({
+      key: "suspended",
+      icon: <BanIcon />,
+      tone: "critical",
+      title: suspended.length === 1 ? `${suspended[0].name} está suspenso` : "Produtos suspensos",
+      detail: "Nenhum dado foi apagado. Veja como reativar",
+      count: suspended.length,
+      href: "/produtos",
+    });
 
   const firstSteps = await firstStepsFor(actor);
   // With nothing open, the next recurring charge says when the next boleto comes.
@@ -560,7 +575,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                     external={!!link}
                     leading={<ProductIcon src={catalogIconSrc(product.catalogItemId, product.icon)} name={product.name} size={32} />}
                     title={product.name}
-                    detail={[product.kind === "product" ? "Produto" : "Serviço", manyCompanies ? product.company : null].filter(Boolean).join(" · ")}
+                    detail={[product.status === "suspended" ? "Suspenso" : null, product.kind === "product" ? "Produto" : "Serviço", manyCompanies ? product.company : null].filter(Boolean).join(" · ")}
                   />
                 );
               })}

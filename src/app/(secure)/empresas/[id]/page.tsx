@@ -150,7 +150,7 @@ export default async function Company({
   // What still runs, offered to wind down in the archive dialog.
   const [[recurrences], [runningItems], [signedContracts]] = await Promise.all([
     db.select({ n: count() }).from(subscriptions).where(and(eq(subscriptions.companyId, id), eq(subscriptions.status, "active"))),
-    db.select({ n: count() }).from(engagements).where(and(eq(engagements.companyId, id), inArray(engagements.status, ["active", "paused"]))),
+    db.select({ n: count() }).from(engagements).where(and(eq(engagements.companyId, id), inArray(engagements.status, ["active", "paused", "suspended"]))),
     db
       .select({ n: count() })
       .from(contracts)

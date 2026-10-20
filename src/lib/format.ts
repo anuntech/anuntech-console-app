@@ -91,6 +91,7 @@ export const engagementLabels: Record<string, string> = {
   active: "Ativo",
   paused: "Pausado",
   completed: "Concluído",
+  suspended: "Suspenso",
 };
 
 export const auditLabels: Record<string, string> = {
@@ -159,6 +160,13 @@ export const auditLabels: Record<string, string> = {
   "membership.revoked": "Acesso revogado",
   "engagement.created": "Produto ou projeto cadastrado",
   "engagement.status_changed": "Situação do produto ou projeto alterada",
+  "suspension.scheduled": "Suspensão agendada",
+  "suspension.suspended": "Produto suspenso",
+  "suspension.cancelled": "Suspensão cancelada",
+  "suspension.settled": "Cliente pagou com produto suspenso",
+  "suspension.lifted": "Produto reativado",
+  "suspension.notice_recorded": "Aviso de suspensão registrado",
+  "suspension.step": "Passo de bloqueio marcado",
   "engagement.updated": "Produto ou projeto atualizado",
   "engagement.deleted": "Produto ou projeto excluído",
   "app.opened": "App aberto no Console",

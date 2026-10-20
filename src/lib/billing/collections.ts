@@ -9,6 +9,7 @@ import { paymentUrl } from "./payment-link";
 import { addDays } from "./recurrence";
 import { governingTerms, snapshotOf } from "../service-terms/terms";
 import { visibleToClient } from "../service-terms/ticket-clock";
+import { suspensionFollowUp } from "../suspensions/suspensions";
 
 /*
  * Overdue clients, for the team: the automatic reminders stop on the 25th
@@ -139,9 +140,10 @@ export async function markedReceived() {
 
 /** For the digest and the Painel: clients past the automatic reminders, with no promise ahead; charges Inter shows as marked received. */
 export async function collectionFollowUp(today = saoPauloDate()) {
-  const [queue, marked, fiscal] = await Promise.all([
+  const [queue, marked, suspensions, fiscal] = await Promise.all([
     collectionQueue(today),
     markedReceived(),
+    suspensionFollowUp(today),
     // Paid by clients set to get an invoice (NFS-e): the queue to issue by hand until Focus is connected.
     db
       .select({ id: invoices.id, description: invoices.description, company: companies.name, amountCents: invoices.amountCents })
@@ -163,6 +165,7 @@ export async function collectionFollowUp(today = saoPauloDate()) {
   ]);
   const cases = queue.filter((c) => c.oldestDays > REMINDERS_END_DAY && !c.waitingPromise);
   const groups = [
+    ...suspensions,
     {
       key: "marked-received",
       title: "Marcadas como recebidas no Inter, fora do boleto: confirme o pagamento",

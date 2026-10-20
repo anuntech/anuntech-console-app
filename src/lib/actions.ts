@@ -2,7 +2,7 @@
 import { prepareTicketFiles, takeTicketUploads } from "./tickets/ticket-files";
 import { DOCUMENT_ATTACHMENTS } from "./tickets/attachment-rules";
 import { z } from "zod";
-import { and, eq, inArray, or, sql, isNull } from "drizzle-orm";
+import { and, eq, inArray, ne, or, sql, isNull } from "drizzle-orm";
 import { chargeSourceEvent, chargeSourceKinds, preparedChargeEvents } from "./billing/charge-sources";
 import { releasePreparedCharges } from "./billing/prepared-release";
 import { revalidatePath } from "next/cache";
@@ -17,6 +17,7 @@ import { getActor, canAccess, canSeeEngagement, canSeeTicket } from "./access/ac
 import {
   companies,
   engagements,
+  engagementSuspensions,
   tickets,
   messages,
   invoices,
@@ -207,11 +208,14 @@ export async function updateEngagement(
     const input = z
       .object({ id, status: z.enum(["active", "paused", "completed"]), pauseBilling: z.literal("yes").optional() })
       .parse(Object.fromEntries(form));
+    const [current] = await db.select({ status: engagements.status }).from(engagements).where(eq(engagements.id, input.id));
+    if (current?.status === "suspended") return { error: "Produto suspenso: reative pela suspensão, no menu do produto." };
     const pausedBilling = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(engagements)
         .set({ status: input.status })
-        .where(eq(engagements.id, input.id))
+        // A suspended product comes back only through its suspension (lib/suspensions).
+        .where(and(eq(engagements.id, input.id), ne(engagements.status, "suspended")))
         .returning();
       if (!row) throw Error();
       await tx.insert(auditEvents).values({
@@ -1086,8 +1090,13 @@ export async function setCompanyArchived(
         const completed = await tx
           .update(engagements)
           .set({ status: "completed" })
-          .where(and(eq(engagements.companyId, row.id), inArray(engagements.status, ["active", "paused"])))
+          .where(and(eq(engagements.companyId, row.id), inArray(engagements.status, ["active", "paused", "suspended"])))
           .returning({ id: engagements.id });
+        // A closed client has nothing left to suspend or bring back.
+        await tx
+          .update(engagementSuspensions)
+          .set({ liftedAt: new Date(), liftReason: "archived" })
+          .where(and(eq(engagementSuspensions.companyId, row.id), isNull(engagementSuspensions.liftedAt)));
         for (const item of completed)
           await tx.insert(auditEvents).values({ actorId: actor.user.id, companyId: row.id, action: "engagement.status_changed", entityId: item.id, details: { status: "completed", reason: "company_archived" } });
         if (completed.length) done.push(completed.length === 1 ? "1 vínculo concluído" : `${completed.length} vínculos concluídos`);

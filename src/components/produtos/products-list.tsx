@@ -6,6 +6,7 @@ import { useState, type ReactNode } from "react";
 import {
   AppWindowIcon,
   ArrowUpRightIcon,
+  BanIcon,
   Building2Icon,
   ChevronRightIcon,
   CircleCheckIcon,
@@ -65,6 +66,8 @@ import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules"
 import { useEngagementStatus, type EngagementStatus } from "@/components/projetos/engagement-status";
 import { DeleteEngagementDialog } from "@/components/projetos/delete-engagement-dialog";
 import { ProductSheet, type ProductFormValues } from "./product-form";
+import { SuspensionStageBadge, useSuspension } from "./suspension";
+import type { SuspensionView } from "@/lib/suspensions/suspension-view";
 
 /** Present only where the viewer sees money (the team and the company's Administradores). */
 export type ProductMoney = {
@@ -89,6 +92,8 @@ export type ProductRow = {
   money?: ProductMoney;
   /** Staff only: what points at it, so "Excluir" shows only when it can go. */
   links?: EngagementLinks;
+  /** Staff only: the open suspension, scheduled or carried out. */
+  suspension?: SuspensionView;
 };
 const intervalLabel = { monthly: "/mês", yearly: "/ano" } as const;
 
@@ -117,6 +122,7 @@ function ProductRowActions({
   link,
   onEdit,
   onStatus,
+  onSuspend,
 }: {
   row: ProductRow;
   admin: boolean;
@@ -124,6 +130,7 @@ function ProductRowActions({
   link: string | null;
   onEdit: (values: ProductFormValues) => void;
   onStatus: (id: string, status: EngagementStatus, name?: string) => void;
+  onSuspend: (row: ProductRow) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
   const deletable = admin && canDeleteEngagement(row.links);
@@ -190,7 +197,14 @@ function ProductRowActions({
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {row.status !== "active" && (
+          {(row.suspension || row.status === "active") && (
+            <DropdownMenuItem onSelect={() => onSuspend(row)}>
+              <BanIcon />
+              {row.suspension ? (row.status === "suspended" ? "Suspensão e reativação" : "Ver suspensão agendada") : "Suspender…"}
+            </DropdownMenuItem>
+          )}
+          {/* A suspended product changes only through its suspension. */}
+          {row.status !== "active" && row.status !== "suspended" && (
             <DropdownMenuItem onSelect={() => onStatus(row.id, "active")}>
               <PlayIcon />
               {row.status === "paused" ? "Reativar" : "Reabrir"}
@@ -202,7 +216,7 @@ function ProductRowActions({
               Pausar
             </DropdownMenuItem>
           )}
-          {row.status !== "completed" && (
+          {row.status !== "completed" && row.status !== "suspended" && (
             <DropdownMenuItem onSelect={() => onStatus(row.id, "completed", row.name)}>
               <CircleCheckIcon />
               Encerrar
@@ -368,6 +382,7 @@ export function ProductsList({
   const [layout, chooseLayout] = useListLayout("products", view);
   const [editing, setEditing] = useState<ProductFormValues | null>(null);
   const { change, form: statusForm } = useEngagementStatus();
+  const suspension = useSuspension(rows);
   const href = (patch: Partial<ProjectListQuery>) => projectListHref({ ...query, ...patch }, "/produtos");
   const go = (patch: Partial<ProjectListQuery>) => router.push(href(patch), { scroll: false });
   const filtered = !!query.search || !!query.company || query.status !== "active";
@@ -386,7 +401,7 @@ export function ProductsList({
   const menu = (row: ProductRow) => {
     const { consolePage, link } = destinationOf(row);
     return (
-      <ProductRowActions row={row} admin={admin} consolePage={consolePage} link={link} onEdit={setEditing} onStatus={change} />
+      <ProductRowActions row={row} admin={admin} consolePage={consolePage} link={link} onEdit={setEditing} onStatus={change} onSuspend={suspension.open} />
     );
   };
 
@@ -476,9 +491,10 @@ export function ProductsList({
                 subtitle={subtitle(row, true)}
                 actions={menu(row)}
                 footer={
-                  (row.status !== "active" || row.money?.nextDueDate) && (
+                  (row.status !== "active" || row.suspension || row.money?.nextDueDate) && (
                     <>
                       {row.status !== "active" && <EngagementStatusBadge status={row.status} />}
+                      <SuspensionStageBadge suspension={row.suspension} />
                       {row.money?.nextDueDate && (
                         <span className="ml-auto shrink-0 tabular-nums">Vence em {dateLabel(row.money.nextDueDate)}</span>
                       )}
@@ -529,7 +545,10 @@ export function ProductsList({
                   />
                   {companyColumn && <CompanyCell>{row.company}</CompanyCell>}
                   <TableCell>
-                    <EngagementStatusBadge status={row.status} />
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <EngagementStatusBadge status={row.status} />
+                      <SuspensionStageBadge suspension={row.suspension} />
+                    </span>
                   </TableCell>
                   {showMoney && (
                     <>
@@ -590,6 +609,7 @@ export function ProductsList({
             values={editing}
           />
           {statusForm}
+          {suspension.element}
         </>
       )}
     </ListCard>

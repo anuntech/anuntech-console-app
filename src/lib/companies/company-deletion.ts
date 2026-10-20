@@ -27,6 +27,7 @@ import {
   serviceTerms,
   timeEntries,
   userMilestones,
+  engagementSuspensions,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -118,6 +119,7 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
       await tx.update(timeEntries).set({ engagementId: null }).where(inArray(timeEntries.engagementId, itsWork));
       await tx.delete(hoursMonths).where(eq(hoursMonths.companyId, company.id));
       await tx.delete(serviceTerms).where(eq(serviceTerms.companyId, company.id));
+      await tx.delete(engagementSuspensions).where(eq(engagementSuspensions.companyId, company.id));
       await tx.delete(userMilestones).where(eq(userMilestones.companyId, company.id));
       // What the automations did for it (reminders sent, debts decided) goes with it.
       await tx.delete(automationEvents).where(eq(automationEvents.companyId, company.id));

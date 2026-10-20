@@ -444,6 +444,22 @@ export default async function Dashboard() {
     detail: "Mais de 25 dias, sem data de pagamento combinada; o texto sai pronto",
     href: "/financeiro/atrasos",
   });
+  followItem(["suspensions-due"], {
+    key: "suspensions-due",
+    icon: <WalletIcon />,
+    tone: "critical",
+    title: "Suspensões para confirmar hoje",
+    detail: "Agendadas com aviso; o cliente ainda não pagou",
+    href: "/produtos?status=all",
+  });
+  followItem(["suspensions-paid"], {
+    key: "suspensions-paid",
+    icon: <WalletIcon />,
+    tone: "warning",
+    title: "Clientes que pagaram com produto suspenso",
+    detail: "Reative e siga os passos para liberar o acesso",
+    href: "/produtos?status=all",
+  });
   followItem(["marked-received"], {
     key: "marked-received",
     icon: <WalletIcon />,
