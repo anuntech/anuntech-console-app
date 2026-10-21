@@ -8,15 +8,24 @@ globalThis.fetch = async (input, options = {}) => {
     url === "https://api.wts.chat/chat/v1/send/otp"
   ) {
     const body = JSON.parse(options.body);
+    const code = url.includes("resend")
+      ? body.text.match(/\b\d{6}\b/)?.[0]
+      : body.code;
+    // E-mails without a code (invitations, notices) fail as they always did,
+    // unless the suite asks to read them in CONSOLE_TEST_MAIL_FILE.
+    if (!code) {
+      if (!process.env.CONSOLE_TEST_MAIL_FILE)
+        throw TypeError("Unexpected e-mail without a code in OTP test");
+      fs.appendFileSync(
+        process.env.CONSOLE_TEST_MAIL_FILE,
+        JSON.stringify({ to: body.to[0], subject: body.subject }) + "\n",
+        { mode: 0o600 },
+      );
+      return Response.json({ id: crypto.randomUUID() });
+    }
     const record = url.includes("resend")
-      ? {
-          channel: "email",
-          to: body.to[0],
-          subject: body.subject,
-          // Notices without a code (an account deletion) are recorded too.
-          code: body.text.match(/\b\d{6}\b/)?.[0],
-        }
-      : { channel: "whatsapp", to: `+${body.to}`, code: body.code };
+      ? { channel: "email", to: body.to[0], code }
+      : { channel: "whatsapp", to: `+${body.to}`, code };
     fs.appendFileSync(
       process.env.CONSOLE_TEST_OTP_FILE,
       JSON.stringify(record) + "\n",

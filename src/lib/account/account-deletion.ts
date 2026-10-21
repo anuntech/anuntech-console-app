@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, eq, gt, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import {
   account,
   accountEmails,
@@ -14,6 +14,7 @@ import {
   consoleStaffMembers,
   membershipEngagements,
   memberships,
+  pushDevices,
   session,
   ticketUploads,
   twoFactor,
@@ -256,6 +257,10 @@ export async function deleteAccount(
 
     // Personal content and every way back in.
     await tx.delete(session).where(eq(session.userId, person.id));
+    await tx
+      .update(pushDevices)
+      .set({ disabledAt: new Date() })
+      .where(and(eq(pushDevices.userId, person.id), isNull(pushDevices.disabledAt)));
     await tx.delete(account).where(eq(account.userId, person.id));
     await tx.delete(twoFactor).where(eq(twoFactor.userId, person.id));
     await tx.delete(accountEmails).where(eq(accountEmails.userId, person.id));

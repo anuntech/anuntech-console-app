@@ -9,6 +9,7 @@ import {
   getSessionFromCtx,
 } from "better-auth/api";
 import { emailOTP, phoneNumber } from "better-auth/plugins";
+import { expo } from "@better-auth/expo";
 import {
   allowedEmail,
   appReviewCode,
@@ -27,6 +28,12 @@ export const auth = betterAuth({
   appName: "Anuntech Console",
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
+  // The native app (scheme anuntech://) sends its origin in expo-origin; the
+  // expo plugin turns it into Origin. Development builds also use exp://.
+  trustedOrigins: [
+    "anuntech://",
+    ...(process.env.NODE_ENV === "development" ? ["exp://"] : []),
+  ],
   database: drizzleAdapter(db, { provider: "pg", schema }),
   socialProviders: {
     google: {
@@ -99,6 +106,8 @@ export const auth = betterAuth({
           "/reset-password",
           "/request-password-reset",
           "/change-email",
+          // The app has no Google sign-in; this proxy redirects to any https URL.
+          "/expo-authorization-proxy",
         ].includes(path)
       )
         throw invalid();
@@ -246,6 +255,7 @@ export const auth = betterAuth({
       },
     }),
     consoleTwoStep(),
+    expo(),
     nextCookies(),
   ],
 });

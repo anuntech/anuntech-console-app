@@ -13,15 +13,32 @@ import { getConsoleStaffAccess } from "./console-members";
 import { ASSIST_COOKIE } from "./assisted-session";
 import { scopeIncludes, scopeOfCompany, type EngagementScope } from "./engagement-scope";
 import { loadGrants } from "./grants";
-export const getActor = cache(async () => {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user.emailVerified) redirect("/entrar");
+/**
+ * The person behind a request, or null without a verified session. `assisted`
+ * honors the team's assisted-access cookie; the app's API never does (the
+ * team uses the web to see a company as its client).
+ */
+export async function resolveActor(
+  requestHeaders: Headers,
+  options: { assisted: boolean },
+) {
+  const session = await auth.api.getSession({ headers: requestHeaders });
+  if (!session?.user.emailVerified) return null;
+  return actorForSession(session, options);
+}
+type Session = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
+/** The access of a verified session, for callers that already read it. */
+export async function actorForSession(
+  session: Session,
+  { assisted }: { assisted: boolean },
+) {
   const { admin, owner } = await getConsoleStaffAccess(session.user.email);
   const emails = await getAccountEmails(session.user.id, session.user.email);
   const grants = await loadGrants(emails);
-  const assistedCompanyId = admin
-    ? (await cookies()).get(ASSIST_COOKIE)?.value
-    : undefined;
+  const assistedCompanyId =
+    admin && assisted
+      ? (await cookies()).get(ASSIST_COOKIE)?.value
+      : undefined;
   const assisting = assistedCompanyId
     ? (
         await db
@@ -47,6 +64,11 @@ export const getActor = cache(async () => {
     assisting: null,
     realAdmin: admin,
   };
+}
+export const getActor = cache(async () => {
+  const actor = await resolveActor(await headers(), { assisted: true });
+  if (!actor) redirect("/entrar");
+  return actor;
 });
 export type Actor = Awaited<ReturnType<typeof getActor>>;
 export async function requireAdmin() {

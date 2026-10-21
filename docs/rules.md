@@ -15,11 +15,14 @@ Valem para qualquer pessoa ou agente que mexa no Console. As regras de produto r
 ## Segurança
 
 - Toda server action começa com `getActor()` e confere o acesso (`canAccess`, `actor.admin`, `canManageMembers`) antes de ler ou escrever. Esconder um botão não é autorização.
+- Na API do app (`/api/v1`), todo procedimento começa com `.use(guard(...))` (`lib/api/access.ts`), e o metateste `tests/api-access.test.mts` confere. A regra de negócio fica em `lib/<domínio>/`, chamada pela server action e pelo procedimento; nunca duplicada no procedimento.
 - IDs vindos do formulário são validados com Zod e conferidos contra o acesso da pessoa: um ID de outra empresa é recusado como se não existisse.
 - Registro fora do acesso responde `notFound()`, igual a um registro inexistente.
 - Segredos só em variáveis de ambiente do servidor; nunca com prefixo `NEXT_PUBLIC_`. Chave colada em conversa deve ser trocada no provedor.
 - Downloads privados: sessão obrigatória, `Content-Disposition: attachment`, `Cache-Control: private, no-store`.
 - Dados de produção não são alterados nem apagados à mão por agentes. A limpeza de registros de teste é feita pela interface, por quem é dono da conta.
+
+- **Paridade web e app:** depois que uma área chegar ao app, toda mudança nela atualiza as duas telas, ou registra em [task.md](task.md) o que ficou só na web.
 
 ## Dinheiro, datas e integrações
 

@@ -23,7 +23,8 @@ const ownerEmail = address("owner"),
   people = {},
   userIds = [];
 const dir = mkdtempSync(join(tmpdir(), "console-account-test-")),
-  capture = join(dir, "otp.jsonl");
+  capture = join(dir, "otp.jsonl"),
+  mail = join(dir, "mail.jsonl");
 const manifest = JSON.parse(
   readFileSync(".next/server/server-reference-manifest.json", "utf8"),
 );
@@ -232,6 +233,7 @@ try {
         BETTER_AUTH_URL: base,
         NODE_OPTIONS: `--require=${process.cwd()}/scripts/otp-mock.cjs`,
         CONSOLE_TEST_OTP_FILE: capture,
+        CONSOLE_TEST_MAIL_FILE: mail,
         RESEND_API_KEY: "test",
         EMAIL_FROM: "Console <test@example.invalid>",
       },
@@ -768,7 +770,7 @@ try {
     )) === 2,
     "The history stays and records the deletion",
   );
-  const sent = messages().slice(before);
+  const sent = readFileSync(mail, "utf8").trim().split("\n").map(JSON.parse);
   ok(
     sent.some((m) => m.to === leaver.email && /excluída/.test(m.subject || "")) &&
       sent.some((m) => m.to === ownerEmail && /sem Administrador/.test(m.subject || "")),

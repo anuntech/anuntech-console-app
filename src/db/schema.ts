@@ -1355,3 +1355,29 @@ export const journeySteps = pgTable(
   },
   (t) => [uniqueIndex("console_journey_steps_unique").on(t.journeyId, t.key)],
 );
+
+/**
+ * A phone where the native app is signed in, for push notifications. One row
+ * per Expo push token; signing out or deleting the account disables it, and
+ * Expo's DeviceNotRegistered disables it too. Never deleted, so a token that
+ * comes back reuses its row.
+ */
+export const pushDevices = pgTable(
+  "console_push_devices",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    platform: text("platform", { enum: ["ios", "android"] }).notNull(),
+    token: text("token").notNull(),
+    appVersion: text("app_version"),
+    createdAt: created(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("console_push_devices_token_unique").on(t.token),
+    index("console_push_devices_user_idx").on(t.userId),
+  ],
+);

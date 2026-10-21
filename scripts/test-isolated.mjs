@@ -70,6 +70,7 @@ try {
       "--members-only",
       "--account-only",
       "--notifications-only",
+      "--api-only",
     ].some((flag) => process.argv.includes(flag))
   ) {
     certDir = await mkdtemp(join(tmpdir(), "console-bank-test-"));
@@ -107,6 +108,7 @@ try {
     "--members-only": "scripts/members-smoke.mjs",
     "--account-only": "scripts/account-smoke.mjs",
     "--notifications-only": "scripts/notifications-smoke.mjs",
+    "--api-only": "scripts/api-smoke.mjs",
     "--billing-only": "scripts/smoke.mjs",
     "--regression-only": "scripts/smoke.mjs",
     "--assistant-only": "scripts/smoke.mjs",
@@ -122,6 +124,7 @@ try {
         "scripts/members-smoke.mjs",
         "scripts/account-smoke.mjs",
         "scripts/notifications-smoke.mjs",
+        "scripts/api-smoke.mjs",
         "scripts/smoke.mjs",
       ];
   for (const script of scripts) {

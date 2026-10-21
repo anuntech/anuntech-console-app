@@ -16,7 +16,7 @@ Antes de mudar algo, leia o que se aplica em `docs/`: [prd.md](docs/prd.md) (pro
 
 - Consultar `docs/prd.md` e `docs/memory.md` e manter as decisões de negócio coerentes com o código.
 - Cobranças são criadas manualmente. Não ativar recorrência, envio ou emissão automática sem solicitação.
-- Autenticação não concede acesso a empresas: validar autorização no servidor em toda operação.
+- Autenticação não concede acesso a empresas: validar autorização no servidor em toda operação. Na API do app (`src/lib/api/`), todo procedimento começa com `guard(...)`.
 - Não simular sucesso de pagamento ou emissão fiscal quando o provedor não foi integrado.
 - Preservar .env.local e nunca versionar segredos.
 - Testes de integração criam fixtures em banco de desenvolvimento; não executar contra produção com clientes reais.
