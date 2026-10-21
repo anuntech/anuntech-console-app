@@ -23,7 +23,7 @@ export default function AppLayout() {
         iconColor={{ default: palette.muted, selected: palette.primary }}
         labelStyle={{ selected: { color: palette.primary } }}
       >
-        <NativeTabs.Trigger name="index">
+        <NativeTabs.Trigger name="(inicio)">
           <NativeTabs.Trigger.Label>Início</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} md="home" />
         </NativeTabs.Trigger>

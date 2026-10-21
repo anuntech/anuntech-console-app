@@ -7,6 +7,7 @@ import { Text } from "@/components/text";
 import { Button } from "@/components/button";
 import { TicketCard } from "@/components/ticket-card";
 import { InvoiceCard } from "@/components/invoice-card";
+import { Shortcut } from "@/components/shortcut";
 import { useMe } from "@/lib/me";
 import { api, errorMessage } from "@/lib/api";
 import { space, usePalette } from "@/lib/theme";
@@ -52,6 +53,39 @@ export default function Home() {
           <Notice kind="info">
             Falta só liberar seu acesso. Peça ao Administrador da sua empresa ou à equipe da Anuntech.
           </Notice>
+        )}
+        {o && !pending && (
+          // The areas outside the tab bar; contracts and quotes only for whoever sees the money.
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.md }}>
+            <Shortcut
+              title="Projetos"
+              detail="Quadros e entregas"
+              icon={{ ios: "square.grid.2x2", android: "dashboard" }}
+              onPress={() => router.push("/projetos")}
+            />
+            {o.canFinance && (
+              <Shortcut
+                title="Contratos"
+                detail="Texto e assinaturas"
+                icon={{ ios: "doc.text", android: "description" }}
+                onPress={() => router.push("/contratos")}
+              />
+            )}
+            {o.canFinance && (
+              <Shortcut
+                title="Orçamentos"
+                detail="Propostas e respostas"
+                icon={{ ios: "list.bullet.rectangle", android: "request_quote" }}
+                onPress={() => router.push("/orcamentos")}
+              />
+            )}
+            <Shortcut
+              title="Bookmarks"
+              detail="Links e arquivos"
+              icon={{ ios: "bookmark", android: "bookmark" }}
+              onPress={() => router.push("/bookmarks")}
+            />
+          </View>
         )}
         {o && o.waiting.length > 0 && (
           <View style={{ gap: space.md }}>

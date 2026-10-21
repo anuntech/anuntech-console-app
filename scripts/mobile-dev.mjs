@@ -125,6 +125,35 @@ if (fresh) {
   });
   await invoice("Manutenção do site (mês passado)", 189000, month(-1), "issued");
   await invoice("Ajustes no formulário de contato", 45000, month(-2), "paid");
+  // The board, a contract and a quote waiting for Ana, and a folder of bookmarks.
+  for (const [title, status, priority] of [
+    ["Nova seção de depoimentos", "todo", "normal"],
+    ["Corrigir o formulário de contato", "in_progress", "high"],
+    ["Revisar a página inicial", "review", "normal"],
+    ["Publicar o site no domínio novo", "done", "normal"],
+  ])
+    await db.query(
+      "insert into console_tasks(id,engagement_id,company_id,title,status,priority,created_by) values($1,$2,$3,$4,$5,$6,$7)",
+      [randomUUID(), product, company, title, status, priority, team],
+    );
+  const contractBody =
+    "# 1. Objeto\n\nManutenção mensal do site institucional da Empresa Demonstração.\n\n# 2. Preço\n\nR$ 1.890,00 por mês, com vencimento todo dia 10.\n\n# 3. Vigência\n\nDoze meses a partir da assinatura.";
+  await db.query(
+    "insert into console_contracts(id,company_id,title,body,author_id,status,published_at,published_version,publication,document_hash) values($1,$2,'Contrato de manutenção do site',$3,$4,'sent',now(),1,$5,'demo-contract')",
+    [randomUUID(), company, contractBody, team, JSON.stringify({ title: "Contrato de manutenção do site", body: contractBody, companyName: "Empresa Demonstração", companyDocument: "00000000000191" })],
+  );
+  const quote = { summary: "Uma loja virtual ligada ao site.", stack: [], phases: [{ name: "Loja virtual", description: "Catálogo, carrinho e Pix.", hoursMin: 60, hoursMax: 80, tasks: [] }], hourlyRateCents: 15000, discountCents: 0, upfrontPercent: 50, notes: "" };
+  await db.query(
+    `insert into console_quotes(id,company_id,year,seq,title,content,author_id,status,published_version,valid_until,published_at,publication,document_hash)
+     values($1,$2,extract(year from now())::int,1,'Loja virtual',$3,$4,'sent',1,$5,now(),$6,'demo-quote')`,
+    [randomUUID(), company, JSON.stringify(quote), team, month(1), JSON.stringify({ ...quote, number: `${new Date().getFullYear()}-001`, title: "Loja virtual", companyName: "Empresa Demonstração", companyDocument: "00000000000191", validUntil: month(1) })],
+  );
+  const folder = randomUUID();
+  await db.query("insert into console_bookmark_folders(id,company_id,owner_id,name) values($1,$2,$3,'Acessos do site')", [folder, company, team]);
+  await db.query(
+    "insert into console_bookmarks(id,company_id,author_id,folder_id,title,url) values(gen_random_uuid(),$1,$2,$3,'Painel da hospedagem','https://example.com'),(gen_random_uuid(),$1,$2,null,'Guia da marca','https://example.org')",
+    [company, team, folder],
+  );
 }
 await db.end();
 
