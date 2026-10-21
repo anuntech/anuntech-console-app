@@ -31,6 +31,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 - [ ] Sobras do app de reuniões (16/10): `console_app_connections` (a conexão do Mac de teste, já revogada) e `console_bookmarks.meeting` ficaram em produção sem uso, e as notas de teste enviadas viraram bookmarks de arquivo `.md` comuns. Decidir: manter a tabela para os próximos apps conectados, ou apagar as duas pela rota de [rules.md](rules.md#migrações-em-produção). As notas de teste saem pela interface.
 
+- [ ] Conta do revisor das lojas (20/10): escolher um número de WhatsApp da Anuntech que não esteja em nenhuma conta e um código de 6 números; cadastrar `APP_REVIEW_PHONE` e `APP_REVIEW_CODE` na Vercel só em Production, perto do envio do app. Criar a empresa "Empresa Demonstração" com dados fictícios (chamados, uma fatura de teste nunca emitida no Inter, um contrato e um projeto) e convidar como Membro um e-mail da Anuntech que você lê; entrar com ele e vincular o WhatsApp em Minha conta digitando o código fixo. Sem duas etapas nessa conta. Se o revisor excluir a conta, repetir o convite e o vínculo.
 - [ ] Excluir conta (20/10): antes de publicar, passar pelo advogado-lgpd o que fica guardado depois da exclusão (e-mail nos acessos inativos e na auditoria, `email_deliveries`, assinaturas com nome e e-mail, avisos já enviados) e o texto do e-mail de confirmação. Para o app: conta Expo (`eas login`), Team ID e chave de API do App Store Connect, projeto no Firebase (push do Android) e conta de serviço do Play Console.
 
 ## Engenharia

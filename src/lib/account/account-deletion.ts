@@ -24,6 +24,7 @@ import {
 import { db } from "../db";
 import { lockEnvironmentAssignments } from "../access/environment-access";
 import {
+  appReviewCode,
   deliverEmailOtp,
   deliverWhatsappOtp,
   reserveOtp,
@@ -89,7 +90,8 @@ export async function startAccountDeletion(
   if (!(await reserveOtp(destination)))
     return { error: "Aguarde um minuto antes de solicitar outro código." };
   const id = randomUUID();
-  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const review = channel === "whatsapp" ? appReviewCode(destination) : null;
+  const code = review ?? String(randomInt(0, 1_000_000)).padStart(6, "0");
   const proof: Proof = {
     userId: person.id,
     sessionId: current.session.id,
@@ -115,7 +117,7 @@ export async function startAccountDeletion(
   });
   try {
     if (channel === "email") await deliverEmailOtp(destination, code);
-    else await deliverWhatsappOtp(destination, code);
+    else if (!review) await deliverWhatsappOtp(destination, code);
   } catch {
     await db.delete(verification).where(eq(verification.id, id));
     return {

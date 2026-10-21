@@ -11,6 +11,7 @@ import {
 import { emailOTP, phoneNumber } from "better-auth/plugins";
 import {
   allowedEmail,
+  appReviewCode,
   reserveOtp,
   deliverEmailOtp,
   deliverWhatsappOtp,
@@ -231,6 +232,16 @@ export const auth = betterAuth({
       requireVerification: true,
       phoneNumberValidator: (phone) => /^\+[1-9]\d{9,14}$/.test(phone),
       sendOTP: async ({ phoneNumber, code }) => {
+        const review = appReviewCode(phoneNumber);
+        if (review) {
+          // The plugin stored its random code ("code:attempts") just before
+          // calling this; the reviewer's fixed code takes its place.
+          await db
+            .update(schema.verification)
+            .set({ value: `${review}:0` })
+            .where(eq(schema.verification.identifier, phoneNumber));
+          return;
+        }
         await deliverWhatsappOtp(phoneNumber, code);
       },
     }),

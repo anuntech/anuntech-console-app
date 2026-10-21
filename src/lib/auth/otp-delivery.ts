@@ -93,6 +93,24 @@ export async function deliverInviteEmail(
   // Resend's id, so the delivery can be read back later (invite-tracking.ts).
   return String(result.id);
 }
+/**
+ * The App Store reviewer cannot receive a WhatsApp code, so one number set in
+ * APP_REVIEW_PHONE signs in with the fixed APP_REVIEW_CODE and never gets a
+ * message. Off unless both are set and well formed. Everything else (attempts,
+ * expiry, throttling, the account's own rules) works as for anyone.
+ */
+export function appReviewCode(phoneNumber: string) {
+  const number = process.env.APP_REVIEW_PHONE?.trim();
+  const code = process.env.APP_REVIEW_CODE?.trim();
+  if (
+    !number ||
+    !code ||
+    !/^\+[1-9]\d{9,14}$/.test(number) ||
+    !/^\d{6}$/.test(code)
+  )
+    return null;
+  return phoneNumber === number ? code : null;
+}
 export async function deliverWhatsappOtp(phoneNumber: string, code: string) {
   if (
     !process.env.FLW_OTP_TEMPLATE_ID ||

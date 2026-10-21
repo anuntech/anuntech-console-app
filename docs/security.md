@@ -156,6 +156,10 @@ H1, H2 e H3 foram corrigidos em 16/10/2026 no branch `fix/security-h1-h3` (workt
 - **Segredos:** nenhum `NEXT_PUBLIC_`, `server-only` em todo módulo com segredo, gitleaks sem achados reais (só hashes de tokens de rotas já removidas) e Semgrep só com falsos positivos (`http://localhost` em scripts de teste).
 - **Rota de ícones do catálogo:** confere origem, exige a equipe, confere a assinatura e recusa SVG.
 
+### Risco aceito: conta do revisor das lojas (20/10/2026)
+
+`APP_REVIEW_PHONE` entra com `APP_REVIEW_CODE` fixo (`appReviewCode` em `lib/auth/otp-delivery.ts`), porque o revisor da Apple e do Google não recebe código. O código fixo é uma senha permanente desse número: só ele, só depois de pedir um código (que passa pelo limite de envio), três erros esgotam, e a conta fica numa empresa de demonstração sem dados de cliente. Desligado sem as duas variáveis; cadastrar só em Production e trocar o código depois de cada revisão.
+
 ### Não verificado (precisa de acesso às contas)
 
 - **Vercel:** quais variáveis o Preview usa (banco, certificado do Inter, `CRON_SECRET` de produção?), o HSTS aplicado no domínio, a proteção dos previews e o Firewall.

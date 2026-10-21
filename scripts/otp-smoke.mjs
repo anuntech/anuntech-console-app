@@ -15,6 +15,10 @@ const db = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const base = "http://127.0.0.1:3102";
 const email = `otp-${randomUUID()}@example.invalid`;
 const phone = "+5511999990001";
+const reviewPhone = "+5511999990009",
+  reviewCode = "246810",
+  reviewEmail = `otp-review-${randomUUID()}@example.invalid`,
+  reviewCompany = randomUUID();
 const dir = mkdtempSync(join(tmpdir(), "console-otp-")),
   capture = join(dir, "messages.jsonl");
 let server,
@@ -89,6 +93,8 @@ try {
         FLW_SYNOVA: "test",
         FLW_SENDER_NUMBER: "5511000000000",
         FLW_OTP_TEMPLATE_ID: randomUUID(),
+        APP_REVIEW_PHONE: reviewPhone,
+        APP_REVIEW_CODE: reviewCode,
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -292,6 +298,54 @@ try {
       !unlinked.phone_number_verified,
     "Remoção autenticada desativa acesso pelo número",
   );
+  // App Store reviewer: a fixed code on one number, with the usual limits.
+  const reviewId = randomUUID();
+  await db.query(
+    "insert into console_companies(id,name,document,billing_email) values($1,'Empresa Demonstração QA',$2,$3)",
+    [reviewCompany, reviewCompany.replaceAll("-", "").slice(0, 14), reviewEmail],
+  );
+  await db.query(
+    "insert into console_user(id,name,email,email_verified,phone_number,phone_number_verified) values($1,'Revisão',$2,true,$3,true)",
+    [reviewId, reviewEmail, reviewPhone],
+  );
+  await db.query(
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'member')",
+    [randomUUID(), reviewCompany, reviewEmail],
+  );
+  await unlock(reviewPhone);
+  let before = messages().length;
+  r = await api("/phone-number/send-otp", { phoneNumber: reviewPhone });
+  ok(
+    r.status === 200 && messages().length === before,
+    "O número do revisor não recebe mensagem no WhatsApp",
+  );
+  for (let i = 0; i < 3; i++) {
+    r = await api("/phone-number/verify", {
+      phoneNumber: reviewPhone,
+      code: "000000",
+    });
+    assert.ok(r.status >= 400);
+  }
+  r = await api("/phone-number/verify", {
+    phoneNumber: reviewPhone,
+    code: reviewCode,
+  });
+  ok(r.status >= 400, "O código fixo também esgota em três erros");
+  await unlock(reviewPhone);
+  await api("/phone-number/send-otp", { phoneNumber: reviewPhone });
+  r = await api("/phone-number/verify", {
+    phoneNumber: reviewPhone,
+    code: reviewCode,
+  });
+  ok(
+    r.status === 200 && r.body.user?.id === reviewId,
+    "O revisor entra com o código fixo",
+  );
+  r = await api("/phone-number/verify", {
+    phoneNumber: reviewPhone,
+    code: reviewCode,
+  });
+  ok(r.status >= 400, "O código fixo só vale depois de um pedido de código");
   console.log(`Concluído: ${count} verificações OTP, sem mensagens reais.`);
 } catch (error) {
   console.error("FAIL", error.message);
@@ -303,6 +357,14 @@ try {
   }
   await db.query("delete from console_audit_events where actor_id in (select id from console_user where email=$1)", [email]);
   await db.query("delete from console_user where email=$1", [email]);
+  for (const table of ["console_session", "console_audit_events"])
+    await db.query(
+      `delete from ${table} where ${table === "console_session" ? "user_id" : "actor_id"} in (select id from console_user where email=$1)`,
+      [reviewEmail],
+    );
+  await db.query("delete from console_user where email=$1", [reviewEmail]);
+  await db.query("delete from console_memberships where company_id=$1", [reviewCompany]);
+  await db.query("delete from console_companies where id=$1", [reviewCompany]);
   await db.end();
   rmSync(dir, { recursive: true, force: true });
 }
