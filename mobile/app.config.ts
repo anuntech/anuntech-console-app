@@ -13,8 +13,8 @@ const linkPaths = ["/painel", "/chamados", "/financeiro"];
 
 const config: ExpoConfig = {
   name: env === "production" ? "Anuntech Console" : `Console (${env})`,
-  slug: "anuntech-console",
-  owner: process.env.EXPO_OWNER,
+  slug: "anuntech",
+  owner: process.env.EXPO_OWNER ?? "anuntech",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -86,7 +86,8 @@ const config: ExpoConfig = {
   extra: {
     consoleUrl,
     env,
-    ...(process.env.EAS_PROJECT_ID ? { eas: { projectId: process.env.EAS_PROJECT_ID } } : {}),
+    // The Expo project (expo.dev); push tokens and EAS builds belong to it.
+    eas: { projectId: process.env.EAS_PROJECT_ID ?? "365924c6-2340-4ad8-8dad-2eb9accb01e8" },
   },
 };
 
