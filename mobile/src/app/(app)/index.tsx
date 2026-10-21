@@ -10,6 +10,7 @@ import { InvoiceCard } from "@/components/invoice-card";
 import { useMe } from "@/lib/me";
 import { api, errorMessage } from "@/lib/api";
 import { space, usePalette } from "@/lib/theme";
+import { useTabBarSpace } from "@/lib/layout";
 
 /**
  * Visão geral: what waits for the person (tickets waiting for them, invoices
@@ -17,6 +18,7 @@ import { space, usePalette } from "@/lib/theme";
  */
 export default function Home() {
   const palette = usePalette();
+  const bottom = useTabBarSpace();
   const me = useMe();
   const overview = useQuery({ queryKey: ["overview"], queryFn: () => api.overview.get({}) });
   const firstName = me.data?.name.split(" ")[0];
@@ -27,7 +29,8 @@ export default function Home() {
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: palette.background }}>
       <ScrollView
-        contentContainerStyle={{ padding: space.lg, gap: space.block, paddingBottom: space.block * 2 }}
+        contentContainerStyle={{ padding: space.lg, gap: space.block, paddingBottom: bottom }}
+        scrollIndicatorInsets={{ bottom }}
         refreshControl={
           <RefreshControl
             refreshing={overview.isRefetching}

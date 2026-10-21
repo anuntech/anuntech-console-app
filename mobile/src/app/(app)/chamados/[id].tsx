@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
@@ -10,12 +10,16 @@ import { api, errorMessage } from "@/lib/api";
 import { fileSize, when } from "@/lib/format";
 import { openAttachment } from "@/lib/files";
 import { fonts, radius, space, usePalette } from "@/lib/theme";
+import { useKeyboardVisible, useTabBarSpace } from "@/lib/layout";
 
 /** One ticket: what it is about, the conversation and the reply box. */
 export default function Ticket() {
   const palette = usePalette();
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  // The box sits above the floating tab bar; with the keyboard up the bar is hidden.
+  const tabBar = useTabBarSpace();
+  const typing = useKeyboardVisible();
   const [body, setBody] = useState("");
   const ticket = useQuery({ queryKey: ["ticket", id], queryFn: () => api.tickets.get({ id }) });
   const reply = useMutation({
@@ -35,7 +39,6 @@ export default function Ticket() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={100}
     >
-      <Stack.Screen options={{ title: t?.subject ?? "Chamado" }} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
@@ -78,7 +81,9 @@ export default function Ticket() {
                   >
                     <Text variant="caption" tone="muted">
                       {entry.mine ? "Você" : entry.author}
-                      {entry.staff && !entry.mine ? " · Equipe Anuntech" : ""} · {when(entry.createdAt)}
+                      {/* The team's tag, unless the name already says it. */}
+                      {entry.staff && !entry.mine && !/anuntech/i.test(entry.author) ? " · Equipe Anuntech" : ""} ·{" "}
+                      {when(entry.createdAt)}
                     </Text>
                     <Text selectable>{entry.body}</Text>
                   </View>
@@ -129,7 +134,7 @@ export default function Ticket() {
               borderColor: palette.border,
               backgroundColor: palette.card,
               padding: space.md,
-              paddingBottom: space.block,
+              paddingBottom: typing ? space.md : tabBar,
               gap: space.sm,
             }}
           >
@@ -167,7 +172,7 @@ export default function Ticket() {
             />
           </View>
         ) : (
-          <View style={{ padding: space.lg }}>
+          <View style={{ padding: space.lg, paddingBottom: tabBar }}>
             <Notice kind="info">O chamado está encerrado. Abra um novo chamado para continuar o atendimento.</Notice>
           </View>
         ))}

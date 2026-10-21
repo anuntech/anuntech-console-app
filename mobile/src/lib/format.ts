@@ -24,3 +24,10 @@ export function civilDate(date: string) {
   const [y, m, d] = date.split("-");
   return `${d}/${m}/${y}`;
 }
+
+/** How a due date reads for an invoice in each situation. */
+export function dueLine(display: string, dueDate: string) {
+  if (display === "issued") return `Vence em ${civilDate(dueDate)}`;
+  if (display === "overdue") return `Venceu em ${civilDate(dueDate)}`;
+  return `Vencimento ${civilDate(dueDate)}`;
+}

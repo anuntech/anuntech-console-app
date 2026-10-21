@@ -8,6 +8,7 @@ import { api, errorMessage } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { forgetSession } from "@/lib/session";
 import { space } from "@/lib/theme";
+import { useTabBarSpace } from "@/lib/layout";
 
 const WORD = "EXCLUIR";
 
@@ -17,6 +18,7 @@ const WORD = "EXCLUIR";
  */
 export default function DeleteAccount() {
   const me = useMe();
+  const bottom = useTabBarSpace();
   const [challenge, setChallenge] = useState<{ challengeId: string; destination: string } | null>(null);
   const [code, setCode] = useState("");
   const [word, setWord] = useState("");
@@ -51,7 +53,7 @@ export default function DeleteAccount() {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ padding: space.lg, gap: space.form }}
+      contentContainerStyle={{ padding: space.lg, gap: space.form, paddingBottom: bottom }}
     >
       {!challenge ? (
         <>

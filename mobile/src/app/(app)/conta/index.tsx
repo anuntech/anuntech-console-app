@@ -16,12 +16,14 @@ import {
   setLockEnabled,
 } from "@/lib/lock";
 import { signOut } from "@/lib/session";
+import { useTabBarSpace } from "@/lib/layout";
 import { radius, space, usePalette } from "@/lib/theme";
 
 /** The account: profile, the Face ID lock, sign out and account deletion. */
 export default function Account() {
   const palette = usePalette();
   const me = useMe();
+  const bottom = useTabBarSpace();
   const [canLock, setCanLock] = useState(false);
   const [locked, setLocked] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -36,7 +38,8 @@ export default function Account() {
       style={{ flex: 1, backgroundColor: palette.background }}
     >
       <ScrollView
-        contentContainerStyle={{ padding: space.lg, gap: space.block }}
+        contentContainerStyle={{ padding: space.lg, gap: space.block, paddingBottom: bottom }}
+        scrollIndicatorInsets={{ bottom }}
       >
         <Text
           variant="title"
@@ -64,6 +67,7 @@ export default function Account() {
                   backgroundColor: palette.secondary,
                 }}
                 accessibilityLabel="Sua foto"
+              contentFit="cover"
               />
             ) : null}
             <View style={{ flex: 1, gap: 2 }}>

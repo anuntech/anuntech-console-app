@@ -1,7 +1,7 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { radius, space, usePalette } from "@/lib/theme";
-import { civilDate, money } from "@/lib/format";
+import { dueLine, money } from "@/lib/format";
 import { Text } from "./text";
 import { InvoiceBadge } from "./invoice-badge";
 
@@ -43,7 +43,7 @@ export function InvoiceCard({ invoice, showCompany }: { invoice: InvoiceRow; sho
         {invoice.description}
       </Text>
       <Text variant="caption" tone="muted">
-        {[showCompany ? invoice.company : null, `Vence em ${civilDate(invoice.dueDate)}`].filter(Boolean).join(" · ")}
+        {[showCompany ? invoice.company : null, dueLine(invoice.display, invoice.dueDate)].filter(Boolean).join(" · ")}
       </Text>
     </Pressable>
   );

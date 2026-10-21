@@ -10,12 +10,14 @@ import { TicketCard } from "@/components/ticket-card";
 import { Notice } from "@/components/surface";
 import { api, errorMessage } from "@/lib/api";
 import { space, usePalette } from "@/lib/theme";
+import { useTabBarSpace } from "@/lib/layout";
 
 type Filter = "active" | "all";
 
 /** The tickets the person sees (tickets.list), open ones first, 25 at a time. */
 export default function Tickets() {
   const palette = usePalette();
+  const bottom = useTabBarSpace();
   const [filter, setFilter] = useState<Filter>("active");
   const list = useInfiniteQuery({
     queryKey: ["tickets", filter],
@@ -30,7 +32,8 @@ export default function Tickets() {
       <FlatList
         data={rows}
         keyExtractor={(row) => row.id}
-        contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.block * 2 }}
+        contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: bottom }}
+        scrollIndicatorInsets={{ bottom }}
         refreshControl={<RefreshControl refreshing={list.isRefetching} onRefresh={() => void list.refetch()} />}
         onEndReached={() => list.hasNextPage && !list.isFetchingNextPage && void list.fetchNextPage()}
         onEndReachedThreshold={0.4}

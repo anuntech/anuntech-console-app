@@ -11,12 +11,14 @@ import { InvoiceBadge } from "@/components/invoice-badge";
 import { api, errorMessage } from "@/lib/api";
 import { CONSOLE_URL } from "@/lib/config";
 import { openAttachment } from "@/lib/files";
-import { civilDate, money } from "@/lib/format";
+import { dueLine, money } from "@/lib/format";
 import { space } from "@/lib/theme";
+import { useTabBarSpace } from "@/lib/layout";
 
 /** One invoice and what pays it: Pix copia e cola, the boleto and the payment page. */
 export default function Invoice() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const bottom = useTabBarSpace();
   const invoice = useQuery({ queryKey: ["invoice", id], queryFn: () => api.finance.get({ id }) });
   const [copied, setCopied] = useState<"pix" | "line" | null>(null);
   const copy = async (what: "pix" | "line", text: string) => {
@@ -26,7 +28,8 @@ export default function Invoice() {
   };
   const i = invoice.data;
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: space.lg, gap: space.lg }}>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: bottom }}
+      scrollIndicatorInsets={{ bottom }}>
       {invoice.isPending && <ActivityIndicator accessibilityLabel="Carregando" />}
       {invoice.error && <Notice kind="error">{errorMessage(invoice.error)}</Notice>}
       {i && (
@@ -40,7 +43,7 @@ export default function Invoice() {
               {i.description}
             </Text>
             <Text variant="caption" tone="muted">
-              {[i.company, i.engagement, `Vence em ${civilDate(i.dueDate)}`].filter(Boolean).join(" · ")}
+              {[i.company, i.engagement, dueLine(i.display, i.dueDate)].filter(Boolean).join(" · ")}
             </Text>
           </View>
           {i.pix ? (

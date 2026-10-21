@@ -108,6 +108,23 @@ if (fresh) {
     [team, "Claro. Qual é o número novo?"],
   ]);
   await db.query("update console_tickets set waiting_for='O número novo do rodapé', waiting_since=now() where status='waiting_customer'");
+  // Invoices: one open with Pix and boleto line (fictitious codes), one overdue, one paid.
+  const invoice = (description, cents, due, status, extra = {}) =>
+    db.query(
+      "insert into console_invoices(id,company_id,engagement_id,description,amount_cents,due_date,status,public_id,public_enabled,pix_copy_paste,boleto_line) values($1,$2,$3,$4,$5,$6,$7,$8,true,$9,$10)",
+      [randomUUID(), company, product, description, cents, due, status, randomUUID().replaceAll("-", "").padEnd(43, "x"), extra.pix ?? null, extra.line ?? null],
+    );
+  const month = (offset) => {
+    const d = new Date();
+    d.setUTCMonth(d.getUTCMonth() + offset, 10);
+    return d.toISOString().slice(0, 10);
+  };
+  await invoice("Manutenção do site (mês atual)", 189000, month(1), "issued", {
+    pix: "00020126580014BR.GOV.BCB.PIX0136DEMONSTRACAO-NAO-PAGUE5204000053039865406189.005802BR6009SAO PAULO62070503***6304ABCD",
+    line: "00190.00009 01234.567890 12345.678901 1 99990000189000",
+  });
+  await invoice("Manutenção do site (mês passado)", 189000, month(-1), "issued");
+  await invoice("Ajustes no formulário de contato", 45000, month(-2), "paid");
 }
 await db.end();
 
