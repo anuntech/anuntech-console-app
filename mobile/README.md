@@ -4,12 +4,10 @@ App Expo SDK 58 (React Native 0.88, Expo Router) do Console. Plano e decisões: 
 
 ## Rodar no simulador do iPhone
 
-O app fala com um Console local na porta 3100. Esse Console precisa de um banco local: o `DATABASE_URL` do `.env.local` é o de produção.
+Na raiz do repositório: `npm run mobile:dev` (`scripts/mobile-dev.mjs`). Ele liga o Postgres local do Docker (contêiner `console-smoke-pg17`, porta 5434), cria o banco `console_mobile_dev` com dados fictícios, sobe o Console em `localhost:3100` apontando para esse banco e abre o app no simulador. Nada usa o `.env.local` de produção: os códigos de entrada aparecem no terminal, e o `otp-mock.cjs` recusa qualquer chamada para fora do Mac.
 
-1. Postgres local: `npm run test:integration:local -- --otp-only` na raiz cria o contêiner `console-smoke-pg17` (porta 5434).
-2. Banco e dados de exemplo: crie um banco `console_mobile_dev` nesse Postgres e aplique o journal de `../drizzle` (como `scripts/test-isolated.mjs` faz).
-3. Console: na raiz, `npm run build` e depois `next start --port 3100` com `DATABASE_URL` apontando para o banco local, `BETTER_AUTH_URL=http://localhost:3100` e o simulador de códigos (`NODE_OPTIONS=--require=$PWD/scripts/otp-mock.cjs` e `CONSOLE_TEST_OTP_FILE=/tmp/otp.jsonl`). Os códigos aparecem nesse arquivo.
-4. App: `npm install` e `APP_ENV=development npx expo run:ios`.
+- Contas: `ana@demo.invalid` (Administradora, WhatsApp (11) 90000-0001) e `bruno@demo.invalid` (Membro) na "Empresa Demonstração"; `equipe@demo.invalid` é a equipe.
+- `-- --reset` recria os dados fictícios; `-- --build` refaz o build do Console depois de mudar o código do servidor; `SIMULATOR="iPhone 17"` troca o aparelho.
 
 `APP_ENV` escolhe o Console: `development` (localhost:3100), `preview` (`CONSOLE_URL`) ou `production` (console.anuntech.com). Fora de produção, o identificador ganha o sufixo do ambiente (`com.anuntech.console.development`), para conviver com o app da loja.
 

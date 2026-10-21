@@ -11,6 +11,7 @@
     "test": "tsx --test tests/*.test.ts && node --conditions=react-server --import tsx --test tests/profile-avatar.test.mts tests/gateway-models.test.mts && node --experimental-test-module-mocks --import tsx --test tests/api-access.test.mts",
     "test:integration": "node --env-file-if-exists=.env.local scripts/test-isolated.mjs",
     "test:integration:local": "node scripts/test-local.mjs",
+    "mobile:dev": "node scripts/mobile-dev.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },

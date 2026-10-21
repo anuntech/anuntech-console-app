@@ -1,0 +1,168 @@
+// Try the native app in the iPhone simulator against a Console on this Mac,
+// with its own database and fictitious people: never the production one in
+// .env.local. Codes are not sent anywhere; they show up in this terminal.
+//   npm run mobile:dev            (first run builds the Console and the app)
+//   npm run mobile:dev -- --reset (fresh demo data)
+//   npm run mobile:dev -- --build (rebuild the Console after code changes)
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, watchFile, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import pg from "pg";
+
+const args = process.argv.slice(2);
+const container = "console-smoke-pg17";
+const server = "postgres://postgres:ci-test-only@127.0.0.1:5434";
+const database = "console_mobile_dev";
+const dir = "/tmp/console-mobile-dev";
+const otpFile = `${dir}/otp.jsonl`;
+const children = [];
+const say = (text) => console.log(`\x1b[36m[console]\x1b[0m ${text}`);
+const fail = (text) => {
+  console.error(`\x1b[31m[console]\x1b[0m ${text}`);
+  stop(1);
+};
+function stop(code = 0) {
+  for (const child of children) child.kill("SIGTERM");
+  process.exit(code);
+}
+process.on("SIGINT", () => stop(0));
+
+// 1. Postgres 17 in Docker (OrbStack), the same container the integration tests use.
+const docker = (...a) => execFileSync("docker", a, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+let running;
+try {
+  running = docker("inspect", "-f", "{{.State.Running}}", container);
+} catch (error) {
+  if (error.code === "ENOENT") fail("Docker não encontrado. Abra o OrbStack.");
+  if (!/no such (object|container)/i.test(error.stderr || "")) fail("O Docker não respondeu. Abra ou reinicie o OrbStack.");
+}
+if (running === undefined) {
+  say(`Criando o Postgres local (${container}, porta 5434).`);
+  docker("run", "-d", "--name", container, "-e", "POSTGRES_PASSWORD=ci-test-only", "-p", "127.0.0.1:5434:5432", "postgres:17");
+} else if (running !== "true") docker("start", container);
+for (let attempt = 0; ; attempt++) {
+  const client = new pg.Client({ connectionString: `${server}/postgres` });
+  try {
+    await client.connect();
+    await client.end();
+    break;
+  } catch {
+    if (attempt > 60) fail("O Postgres local não respondeu na porta 5434.");
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
+// 2. The demo database: people, a company, a product and two tickets.
+const admin = new pg.Client({ connectionString: `${server}/postgres` });
+await admin.connect();
+const exists = (await admin.query("select 1 from pg_database where datname=$1", [database])).rowCount > 0;
+if (exists && args.includes("--reset")) {
+  await admin.query(`select pg_terminate_backend(pid) from pg_stat_activity where datname='${database}'`);
+  await admin.query(`drop database ${database}`);
+}
+const fresh = !exists || args.includes("--reset");
+if (fresh) await admin.query(`create database ${database}`);
+await admin.end();
+const db = new pg.Client({ connectionString: `${server}/${database}` });
+await db.connect();
+if (fresh) {
+  say("Criando o banco de demonstração.");
+  const journal = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8"));
+  for (const { tag } of journal.entries) await db.query(readFileSync(`drizzle/${tag}.sql`, "utf8"));
+  const company = randomUUID(), product = randomUUID();
+  const ana = randomUUID(), bruno = randomUUID(), team = randomUUID();
+  await db.query("insert into console_companies(id,name,document,billing_email) values($1,'Empresa Demonstração','00000000000191','financeiro@demo.invalid')", [company]);
+  await db.query("insert into console_engagements(id,company_id,name,kind) values($1,$2,'Site institucional','project')", [product, company]);
+  const person = (id, name, email, phone, image) =>
+    db.query(
+      "insert into console_user(id,name,email,email_verified,phone_number,phone_number_verified,image) values($1,$2,$3,true,$4,$5,$6)",
+      [id, name, email, phone, !!phone, image],
+    );
+  await person(ana, "Ana Demonstração", "ana@demo.invalid", "+5511900000001", "/brand/avatars/avatar-07.svg");
+  await person(bruno, "Bruno Demonstração", "bruno@demo.invalid", null, "/brand/avatars/avatar-12.svg");
+  await person(team, "Equipe Anuntech", "equipe@demo.invalid", null, "/brand/avatars/avatar-03.svg");
+  await db.query("insert into console_memberships(id,company_id,email,role) values($1,$2,'ana@demo.invalid','manager'),($3,$2,'bruno@demo.invalid','member')", [randomUUID(), company, randomUUID()]);
+  const ticket = async (subject, status, kind, lines) => {
+    const id = randomUUID();
+    await db.query(
+      "insert into console_tickets(id,company_id,engagement_id,subject,status,kind,author_id,created_at,updated_at) values($1,$2,$3,$4,$5,$6,$7,now()-interval '2 days',now()-interval '1 hour')",
+      [id, company, product, subject, status, kind, ana],
+    );
+    for (const [i, [author, body]] of lines.entries())
+      await db.query(
+        "insert into console_messages(id,ticket_id,author_id,body,created_at) values($1,$2,$3,$4,now()-interval '2 days'+($5 || ' hours')::interval)",
+        [randomUUID(), id, author, body, String(i * 3)],
+      );
+  };
+  await ticket("Formulário de contato não envia", "in_progress", "problem", [
+    [ana, "Desde ontem o formulário de contato do site mostra erro ao enviar."],
+    [team, "Olá, Ana. Já reproduzimos o erro e estamos corrigindo. Avisamos por aqui."],
+  ]);
+  await ticket("Trocar o telefone do rodapé", "waiting_customer", "change", [
+    [ana, "Precisamos trocar o telefone que aparece no rodapé do site."],
+    [team, "Claro. Qual é o número novo?"],
+  ]);
+  await db.query("update console_tickets set waiting_for='O número novo do rodapé', waiting_since=now() where status='waiting_customer'");
+}
+await db.end();
+
+// 3. The Console on port 3100, with code delivery and every outside call simulated.
+if (args.includes("--build") || !existsSync(".next/BUILD_ID")) {
+  say("Gerando o build do Console (alguns minutos na primeira vez).");
+  execFileSync("npm", ["run", "build"], { stdio: "inherit" });
+}
+mkdirSync(dir, { recursive: true });
+writeFileSync(otpFile, "");
+const consoleEnv = {
+  ...process.env,
+  DATABASE_URL: `${server}/${database}`,
+  BETTER_AUTH_URL: "http://localhost:3100",
+  CONSOLE_ADMIN_EMAIL: "equipe@demo.invalid",
+  // otp-mock.cjs records the codes and refuses every request outside this Mac.
+  NODE_OPTIONS: `--require=${process.cwd()}/scripts/otp-mock.cjs`,
+  CONSOLE_TEST_OTP_FILE: otpFile,
+  CONSOLE_TEST_MAIL_FILE: `${dir}/mail.jsonl`,
+  RESEND_API_KEY: "test",
+  EMAIL_FROM: "Console <test@example.invalid>",
+  FLW_SYNOVA: "test",
+  FLW_SENDER_NUMBER: "5511000000000",
+  FLW_OTP_TEMPLATE_ID: "test",
+};
+const web = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", "3100"], {
+  env: consoleEnv,
+  stdio: ["ignore", "ignore", "inherit"],
+});
+children.push(web);
+web.on("exit", (code) => code && fail("O Console parou. A porta 3100 pode estar em uso por outro processo."));
+for (let attempt = 0; ; attempt++) {
+  try {
+    await fetch("http://localhost:3100/entrar");
+    break;
+  } catch {
+    if (attempt > 100) fail("O Console não subiu na porta 3100.");
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+say("Console local em http://localhost:3100 (banco de demonstração).");
+
+// 4. Codes appear here instead of an e-mail or WhatsApp.
+let seen = 0;
+watchFile(otpFile, { interval: 500 }, () => {
+  const lines = readFileSync(otpFile, "utf8").trim().split("\n").filter(Boolean);
+  for (const line of lines.slice(seen)) {
+    const { to, code } = JSON.parse(line);
+    console.log(`\n\x1b[42m\x1b[30m CÓDIGO \x1b[0m ${to}: \x1b[1m${code}\x1b[0m\n`);
+  }
+  seen = lines.length;
+});
+say("Entre no app com ana@demo.invalid (Administradora) ou bruno@demo.invalid (Membro).");
+say("Ou pelo WhatsApp (11) 90000-0001, da Ana. O código aparece aqui.");
+
+// 5. The app: builds the first time, then opens the simulator with Metro.
+const app = spawn("npx", ["expo", "run:ios", "--device", process.env.SIMULATOR || "iPhone 17 Pro"], {
+  cwd: "mobile",
+  env: { ...process.env, APP_ENV: "development" },
+  stdio: "inherit",
+});
+children.push(app);
+app.on("exit", (code) => stop(code ?? 0));
