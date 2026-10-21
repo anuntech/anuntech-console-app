@@ -5,10 +5,8 @@ import { db } from "@/lib/db";
 import {
   auditEvents,
   automationEvents,
-  companies,
   contractChangeRequests,
   contractSignatures,
-  contractTemplates,
   contractVersions,
   contracts,
   engagements,
@@ -23,7 +21,8 @@ import { managerInvite } from "@/lib/access/invite-manager";
 import { presetForTemplate, termsPresets } from "@/lib/service-terms/presets";
 import { quoteNumberLabel } from "@/lib/quotes/quote-model";
 import type { ContractHandoff } from "@/components/contratos/contract-handoff-card";
-import { getActor, canAccess } from "@/lib/access/access";
+import { getActor } from "@/lib/access/access";
+import { findContract } from "@/lib/contracts/contract-access";
 import { saoPauloDate } from "@/lib/dates";
 import { hasPermission } from "@/lib/access/permissions";
 import { contractFields } from "@/lib/contracts/contract-fields";
@@ -40,21 +39,9 @@ export const metadata: Metadata = {
 export default async function Contract({ params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor();
   const { id } = await params;
-  const [row] = await db
-    .select({
-      contract: contracts,
-      company: companies,
-      engagement: engagements.name,
-      template: contractTemplates.name,
-    })
-    .from(contracts)
-    .innerJoin(companies, eq(companies.id, contracts.companyId))
-    .leftJoin(engagements, eq(engagements.id, contracts.engagementId))
-    .leftJoin(contractTemplates, eq(contractTemplates.id, contracts.templateId))
-    .where(eq(contracts.id, id));
-  if (!row || !canAccess(actor, row.contract.companyId, "finance")) notFound();
+  const row = await findContract(actor, id);
+  if (!row) notFound();
   const c = row.contract;
-  if (!actor.admin && (c.status === "draft" || c.status === "cancelled")) notFound();
   const visible = actor.admin ? undefined : inArray(contracts.status, CLIENT_CONTRACT_STATUSES);
   // Staff never see the requests a client is still writing; the client's side sees all of theirs.
   const requestsQuery = db

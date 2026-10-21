@@ -349,6 +349,82 @@ try {
   ok(r.status === 200 && !r.body.canFinance && r.body.toPay.length === 0, "A Membro's start screen has no money");
   await db.query("delete from console_invoices where id=any($1::text[])", [[ownIssued, ownOverdue, ownDraft, otherIssued]]);
 
+  // Projects, contracts, quotes and bookmarks: the web's rules, through the app's API.
+  const projectA = randomUUID(), projectB = randomUUID(), taskA = randomUUID();
+  for (const [id, company, name] of [[projectA, companies.a, `API project A ${marker}`], [projectB, companies.b, `API project B ${marker}`]])
+    await db.query("insert into console_engagements(id,company_id,name,kind) values($1,$2,$3,'project')", [id, company, name]);
+  await db.query(
+    "insert into console_tasks(id,engagement_id,company_id,title,status,created_by) values($1,$2,$3,'Revisar a home','review',$4)",
+    [taskA, projectA, companies.a, people.owner.id],
+  );
+  r = await rpc("projects.list", {}, member);
+  ok(
+    r.status === 200 && r.body.rows.some((p) => p.id === projectA && p.tasks.total === 1) && !r.body.rows.some((p) => p.id === projectB),
+    "Projects list the company's projects with their progress, never another company's",
+  );
+  r = await rpc("projects.get", { id: projectA }, member);
+  ok(
+    r.status === 200 && r.body.columns.find((c) => c.status === "review")?.tasks[0]?.title === "Revisar a home",
+    "A project opens as its board, column by column",
+  );
+  ok((await rpc("projects.get", { id: projectB }, member)).status === 404, "Another company's project answers 404");
+  const contractSent = randomUUID(), contractDraft = randomUUID();
+  await db.query(
+    "insert into console_contracts(id,company_id,title,body,author_id,status,published_at,published_version,publication,document_hash) values($1,$2,'Rascunho interno','x',$3,'sent',now(),1,$4,'h1')",
+    [contractSent, companies.a, people.owner.id, JSON.stringify({ title: "Contrato de manutenção", body: "Cláusula 1. O site.", companyName: "A", companyDocument: "0" })],
+  );
+  await db.query("insert into console_contracts(id,company_id,title,body,author_id) values($1,$2,'Rascunho','y',$3)", [contractDraft, companies.a, people.owner.id]);
+  r = await rpc("contracts.list", {}, member);
+  ok(
+    r.status === 200 && r.body.rows.some((c) => c.id === contractSent && c.title === "Rascunho interno") && !r.body.rows.some((c) => c.id === contractDraft),
+    "An Administrador lists the contracts that went out, never drafts",
+  );
+  r = await rpc("contracts.get", { id: contractSent }, member);
+  ok(
+    r.status === 200 && r.body.title === "Contrato de manutenção" && r.body.body === "Cláusula 1. O site." && r.body.pdfPath === `/api/contratos/${contractSent}/pdf`,
+    "A contract opens with the text that was sent and its PDF",
+  );
+  ok((await rpc("contracts.get", { id: contractDraft }, member)).status === 404, "A draft contract answers 404 to the client");
+  ok(
+    (await rpc("contracts.list", {}, outsiderEarly)).body?.rows?.length === 0 && (await rpc("contracts.get", { id: contractSent }, outsiderEarly)).status === 404,
+    "A Membro sees no contracts",
+  );
+  const quoteSent = randomUUID();
+  await db.query(
+    `insert into console_quotes(id,company_id,year,seq,title,content,author_id,status,published_version,valid_until,published_at,publication,document_hash)
+     values($1,$2,2097,$3,'Site novo',$4,$5,'sent',1,'2099-01-01',now(),$6,'q1')`,
+    [
+      quoteSent,
+      companies.a,
+      Math.floor(Math.random() * 1e6),
+      JSON.stringify({ summary: "", stack: [], phases: [], hourlyRateCents: 0, discountCents: 0, upfrontPercent: 50, notes: "" }),
+      people.owner.id,
+      JSON.stringify({ number: "2097-001", title: "Site novo", companyName: "A", companyDocument: "0", validUntil: "2099-01-01", summary: "", stack: [], phases: [{ name: "Fase 1", description: "", hoursMin: 10, hoursMax: 20, tasks: [] }], hourlyRateCents: 15000, discountCents: 0, upfrontPercent: 50, notes: "" }),
+    ],
+  );
+  r = await rpc("quotes.list", {}, member);
+  ok(r.status === 200 && r.body.rows.some((q) => q.id === quoteSent && q.statusLabel), "An Administrador lists the quotes that went out");
+  r = await rpc("quotes.get", { id: quoteSent }, member);
+  ok(r.status === 200 && r.body.number === "2097-001" && r.body.hoursMin === 10 && r.body.pdfPath === `/api/orcamentos/${quoteSent}/pdf`, "A quote opens with its figures and PDF");
+  ok((await rpc("quotes.get", { id: quoteSent }, outsiderEarly)).status === 404, "A Membro opens no quote");
+  const folderA = randomUUID(), linkA = randomUUID(), linkB = randomUUID();
+  await db.query("insert into console_bookmark_folders(id,company_id,owner_id,name) values($1,$2,$3,'Acessos')", [folderA, companies.a, people.owner.id]);
+  await db.query(
+    "insert into console_bookmarks(id,company_id,author_id,folder_id,title,url) values($1,$2,$3,$4,'Painel do site','https://example.invalid/a'),($5,$6,$3,null,'Outra empresa','https://example.invalid/b')",
+    [linkA, companies.a, people.owner.id, folderA, linkB, companies.b],
+  );
+  r = await rpc("bookmarks.list", {}, member);
+  ok(
+    r.status === 200 && r.body.folders.some((f) => f.id === folderA) && r.body.items.some((i) => i.id === linkA && i.kind === "link") && !r.body.items.some((i) => i.id === linkB),
+    "Bookmarks list the company's folders and links, never another company's",
+  );
+  await db.query("delete from console_bookmarks where id=any($1::text[])", [[linkA, linkB]]);
+  await db.query("delete from console_bookmark_folders where id=$1", [folderA]);
+  await db.query("delete from console_quotes where id=$1", [quoteSent]);
+  await db.query("delete from console_contracts where id=any($1::text[])", [[contractSent, contractDraft]]);
+  await db.query("delete from console_tasks where id=$1", [taskA]);
+  await db.query("delete from console_engagements where id=any($1::text[])", [[projectA, projectB]]);
+
   // The assistant, through the app's routes: same turn, history and cards as the web.
   const ask = (path, init = {}, cookie) =>
     fetch(`${base}/api/v1/assistente${path}`, {

@@ -36,6 +36,35 @@ const invoiceRow = z.object({
   /** Path of the public payment page (/pagar/<id>), when it can be paid or seen there. */
   payPath: z.string().nullable(),
 });
+const page = z.object({ page: z.number().int().min(1).max(10_000).default(1) });
+const paged = { page: z.number(), pageCount: z.number(), showCompany: z.boolean() };
+const projectRow = z.object({
+  id: z.string(),
+  name: z.string(),
+  statusLabel: z.string(),
+  company: z.string(),
+  tasks: z.object({ total: z.number(), done: z.number() }),
+  updatedAt: z.string(),
+});
+const projectTask = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  priorityLabel: z.string(),
+  dueDate: z.string().nullable(),
+  assignees: z.array(z.string()),
+  comments: z.number(),
+  files: z.number(),
+  reviewDue: z.string().nullable(),
+});
+const documentRow = z.object({
+  id: z.string(),
+  title: z.string(),
+  company: z.string(),
+  status: z.string(),
+  statusLabel: z.string(),
+  updatedAt: z.string(),
+});
 const ticketEntry = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("message"),
@@ -192,6 +221,79 @@ export const contract = {
         boletoLine: z.string().nullable(),
         /** Path of the boleto PDF on the public payment page, when there is one. */
         boletoPath: z.string().nullable(),
+      }),
+    ),
+  },
+  projects: {
+    /** The projects the person sees, with each board's progress. */
+    list: oc.input(page).output(z.object({ rows: z.array(projectRow), ...paged })),
+    /** One project's board, column by column. */
+    get: oc.input(z.object({ id: z.uuid() })).output(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string().nullable(),
+        company: z.string(),
+        statusLabel: z.string(),
+        columns: z.array(z.object({ status: z.string(), label: z.string(), tasks: z.array(projectTask) })),
+      }),
+    ),
+  },
+  contracts: {
+    /** Contracts of the person's finance companies (Administradores and the team). */
+    list: oc.input(page).output(z.object({ rows: z.array(documentRow.extend({ kindLabel: z.string() })), ...paged })),
+    /** The text that went out, who signed it and the PDF. */
+    get: oc.input(z.object({ id: z.uuid() })).output(
+      documentRow.extend({
+        kindLabel: z.string(),
+        engagement: z.string().nullable(),
+        body: z.string(),
+        startsAt: z.string().nullable(),
+        endsAt: z.string().nullable(),
+        signatures: z.array(z.object({ party: z.string(), name: z.string(), signedAt: z.string() })),
+        /** Path of the PDF on the Console; the app sends its session cookie. */
+        pdfPath: z.string(),
+      }),
+    ),
+  },
+  quotes: {
+    /** Quotes of the person's finance companies, with the figures that were sent. */
+    list: oc.input(page).output(
+      z.object({
+        rows: z.array(documentRow.extend({ number: z.string(), totalCents: z.number(), validUntil: z.string().nullable() })),
+        ...paged,
+      }),
+    ),
+    /** One quote: its phases, figures, the answer if there is one, and the PDF. */
+    get: oc.input(z.object({ id: z.uuid() })).output(
+      documentRow.extend({
+        number: z.string(),
+        validUntil: z.string().nullable(),
+        totalCents: z.number(),
+        hoursMin: z.number(),
+        hoursMax: z.number(),
+        decision: z.object({ party: z.string(), name: z.string(), note: z.string().nullable(), at: z.string() }).nullable(),
+        pdfPath: z.string(),
+      }),
+    ),
+  },
+  bookmarks: {
+    /** The person's folders and bookmarks (links, files and boards). */
+    list: oc.input(z.object({ folder: z.string().max(64).default("all"), search: z.string().max(160).default("") })).output(
+      z.object({
+        folders: z.array(z.object({ id: z.string(), name: z.string(), company: z.string().nullable(), count: z.number() })),
+        items: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            kind: z.enum(["link", "file", "board"]),
+            url: z.string().nullable(),
+            fileName: z.string().nullable(),
+            /** Path to download the file (or the board's picture) with the session. */
+            filePath: z.string().nullable(),
+            folderId: z.string().nullable(),
+          }),
+        ),
       }),
     ),
   },

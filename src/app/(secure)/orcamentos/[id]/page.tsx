@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { auditEvents, companies, journeys, quoteVersions, quotes } from "@/db/schema";
+import { auditEvents, journeys, quoteVersions } from "@/db/schema";
 import { BOARD_LIMIT, quoteBoardTasks } from "@/lib/quotes/quote-handoff";
 import { quoteLinks } from "@/lib/quotes/quote-links";
 import { managerInvite } from "@/lib/access/invite-manager";
-import { getActor, canAccess } from "@/lib/access/access";
+import { getActor } from "@/lib/access/access";
+import { findQuote } from "@/lib/quotes/quote-access";
 import { saoPauloDate } from "@/lib/dates";
 import { hasPermission } from "@/lib/access/permissions";
 import { quoteNumberLabel } from "@/lib/quotes/quote-model";
@@ -19,14 +20,9 @@ export const metadata: Metadata = {
 export default async function Quote({ params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor();
   const { id } = await params;
-  const [row] = await db
-    .select({ quote: quotes, company: companies })
-    .from(quotes)
-    .innerJoin(companies, eq(companies.id, quotes.companyId))
-    .where(eq(quotes.id, id));
-  if (!row || !canAccess(actor, row.quote.companyId, "finance")) notFound();
+  const row = await findQuote(actor, id);
+  if (!row) notFound();
   const q = row.quote;
-  if (!actor.admin && (q.status === "draft" || q.status === "cancelled")) notFound();
   const [versions, events] = await Promise.all([
     db
       .select({ version: quoteVersions.version, sentAt: quoteVersions.sentAt, hash: quoteVersions.documentHash })
