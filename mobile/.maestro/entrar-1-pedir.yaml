@@ -1,0 +1,14 @@
+# Pede o código de entrada por e-mail (EMAIL). O run.sh lê o código e segue.
+appId: com.anuntech.console.development
+---
+- launchApp
+- tapOn:
+    text: "Continue"
+    optional: true
+- tapOn:
+    id: "destination"
+- inputText: ${EMAIL}
+- tapOn: "Receber código"
+- extendedWaitUntil:
+    visible: "Código enviado para"
+    timeout: 20000

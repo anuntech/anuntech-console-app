@@ -1,0 +1,14 @@
+appId: com.anuntech.console.development
+---
+- tapOn:
+    id: "code"
+- inputText: ${CODE}
+- tapOn:
+    id: "confirmation"
+- inputText: "EXCLUIR"
+- hideKeyboard
+- tapOn:
+    id: "delete-account"
+- extendedWaitUntil:
+    visible: "Entre no Console"
+    timeout: 30000

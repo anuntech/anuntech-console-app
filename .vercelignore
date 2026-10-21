@@ -8,3 +8,6 @@ scripts
 
 # Certificados e chaves privados locais
 certificates/
+
+# App nativo (Expo), publicado pelo EAS
+mobile

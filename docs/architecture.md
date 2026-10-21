@@ -40,6 +40,7 @@ src/
     db.ts, dates.ts, format.ts, list-query.ts, action-state.ts, action-errors.ts, actions.ts, utils.ts ...
   db/schema.ts         todas as tabelas
   proxy.ts             proxy do Next (antes chamado middleware): /conta, /configuracoes e o domínio do antigo Workspace
+mobile/                app nativo (Expo SDK 58, Expo Router), com package.json, lint e CI próprios; fora do build da Vercel
 drizzle/               migrações versionadas e journal
 scripts/               suítes de integração e mocks de provedores (somente teste)
 tests/                 testes unitários (node:test + tsx)
@@ -149,6 +150,15 @@ src/app/api/v1/[...rpc]/route.ts   RPCHandler do oRPC
 - **Proteção:** a rota recusa `Sec-Fetch-Site` diferente de `same-origin` e `none`, então um site de fora não usa os cookies de quem está logado no navegador (o app não manda esse header). Respostas com `Cache-Control: private, no-store`. Erro que não é uma recusa esperada vai para o log sem valores (`logDatabaseFault`).
 - **Procedimentos hoje:** `me.get`, `account.requestDeletion`, `account.delete` (as mesmas regras de `lib/account/account-deletion.ts` que a web usa) e `devices.register`/`devices.unregister`.
 - **Links:** `/.well-known/apple-app-site-association` (com `APPLE_TEAM_ID`) e `/.well-known/assetlinks.json` (com `ANDROID_CERT_SHA256`) apontam `com.anuntech.console` para os caminhos de `APP_LINK_PATHS`: só as áreas que o app mostra. `/pagar` fica na web.
+
+### O app (`mobile/`)
+
+- Expo SDK 58, React Native 0.88, Expo Router com abas nativas (`expo-router/native-tabs`), React Compiler ligado. Development build, não Expo Go (o esquema `anuntech://` e o push precisam de build nativo).
+- `app.config.ts`: `APP_ENV` escolhe o Console (`development` = localhost:3100, `preview` = `CONSOLE_URL`, `production` = console.anuntech.com) e dá sufixo ao identificador fora de produção (`com.anuntech.console.development`). Universal links e app links só no build de produção.
+- `src/lib/auth.ts` (cliente do Better Auth com `expoClient`, cookies no SecureStore com o prefixo `anuntech-console`), `src/lib/api.ts` (cliente oRPC tipado por `@console/contract` e TanStack Query), `src/lib/push.ts` (permissão e registro do aparelho; precisa do `EAS_PROJECT_ID`), `src/lib/lock.tsx` (Face ID ao abrir e depois de 5 minutos fora, sem trocar a sessão), `src/lib/theme.ts` (tokens do `globals.css`, fonte Sofia).
+- Estilo com `StyleSheet` e os tokens, sem NativeWind (ver [memory.md](memory.md#decisões)).
+- Telas: entrada por e-mail ou WhatsApp e segunda etapa (`(auth)/`), Início (pessoa e empresas) e Conta (perfil, Face ID, sair, excluir conta) em `(app)/`. As áreas entram uma a uma (Fase 2 em [task.md](task.md)).
+- Testes: `npm run lint`, `npm run typecheck` (job `mobile` do CI) e os fluxos Maestro em `mobile/.maestro/`, rodados no simulador contra um Console local com banco local (`mobile/README.md`).
 
 ## Apps dentro do Console
 

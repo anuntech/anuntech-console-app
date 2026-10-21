@@ -1,0 +1,8 @@
+appId: com.anuntech.console.development
+---
+- tapOn:
+    id: "code"
+- inputText: ${CODE}
+- extendedWaitUntil:
+    visible: "Olá, .*"
+    timeout: 30000
