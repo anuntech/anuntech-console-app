@@ -23,6 +23,13 @@ export default function AppLayout() {
           <NativeTabs.Trigger.Label>Início</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} md="home" />
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="chamados">
+          <NativeTabs.Trigger.Label>Chamados</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: "bubble.left.and.bubble.right", selected: "bubble.left.and.bubble.right.fill" }}
+            md="forum"
+          />
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="conta">
           <NativeTabs.Trigger.Label>Conta</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon
