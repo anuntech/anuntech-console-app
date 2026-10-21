@@ -21,13 +21,14 @@ const config: ExpoConfig = {
   scheme: "anuntech",
   userInterfaceStyle: "automatic",
   ios: {
+    // ANUNTECH CORPORATE LTDA; not a secret (it is in every signed build and in the AASA file).
+    appleTeamId: "U3865A7R9L",
     bundleIdentifier:
       env === "production" ? "com.anuntech.console" : `com.anuntech.console.${env}`,
     supportsTablet: false,
-    associatedDomains:
-      env === "production"
-        ? ["applinks:console.anuntech.com", "webcredentials:console.anuntech.com"]
-        : [],
+    ...(env === "production"
+      ? { associatedDomains: ["applinks:console.anuntech.com", "webcredentials:console.anuntech.com"] }
+      : {}),
     infoPlist: { ITSAppUsesNonExemptEncryption: false },
   },
   android: {
@@ -68,7 +69,13 @@ const config: ExpoConfig = {
     ],
     [
       "expo-notifications",
-      { icon: "./assets/images/notification-icon.png", color: "#1a428a" },
+      {
+        icon: "./assets/images/notification-icon.png",
+        color: "#1a428a",
+        // Push needs an App ID with the capability (EAS creates it); a
+        // development build signed in Xcode with the team's wildcard profile cannot have it.
+        enableRemoteNotifications: env !== "development",
+      },
     ],
     [
       "expo-local-authentication",

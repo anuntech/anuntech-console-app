@@ -7,6 +7,7 @@ App Expo SDK 58 (React Native 0.88, Expo Router) do Console. Plano e decisões: 
 Na raiz do repositório: `npm run mobile:dev` (`scripts/mobile-dev.mjs`). Ele liga o Postgres local do Docker (contêiner `console-smoke-pg17`, porta 5434), cria o banco `console_mobile_dev` com dados fictícios, sobe o Console em `localhost:3100` apontando para esse banco e abre o app no simulador. Nada usa o `.env.local` de produção: os códigos de entrada aparecem no terminal, e o `otp-mock.cjs` recusa qualquer chamada para fora do Mac.
 
 - Contas: `ana@demo.invalid` (Administradora, WhatsApp (11) 90000-0001) e `bruno@demo.invalid` (Membro) na "Empresa Demonstração"; `equipe@demo.invalid` é a equipe.
+- No iPhone pelo cabo: `DEVICE="<nome do iPhone>" npm run mobile:dev`. O iPhone precisa do Modo de Desenvolvedor ligado e da mesma rede Wi-Fi do Mac (o app fala com o Console pelo nome `.local` do Mac). O build de desenvolvimento é assinado no Xcode com o time da Anuntech e não tem push nem links do app, que dependem do App ID criado pelo EAS.
 - `-- --reset` recria os dados fictícios; `-- --build` refaz o build do Console depois de mudar o código do servidor; `SIMULATOR="iPhone 17"` troca o aparelho.
 
 `APP_ENV` escolhe o Console: `development` (localhost:3100), `preview` (`CONSOLE_URL`) ou `production` (console.anuntech.com). Fora de produção, o identificador ganha o sufixo do ambiente (`com.anuntech.console.development`), para conviver com o app da loja.

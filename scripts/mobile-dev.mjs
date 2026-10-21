@@ -4,9 +4,12 @@
 //   npm run mobile:dev            (first run builds the Console and the app)
 //   npm run mobile:dev -- --reset (fresh demo data)
 //   npm run mobile:dev -- --build (rebuild the Console after code changes)
+//   DEVICE="iPhone de Kauan Ketner" npm run mobile:dev (an iPhone on the cable,
+//   Developer Mode on, same Wi-Fi as the Mac)
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, watchFile, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { hostname } from "node:os";
 import pg from "pg";
 
 const args = process.argv.slice(2);
@@ -158,10 +161,20 @@ watchFile(otpFile, { interval: 500 }, () => {
 say("Entre no app com ana@demo.invalid (Administradora) ou bruno@demo.invalid (Membro).");
 say("Ou pelo WhatsApp (11) 90000-0001, da Ana. O código aparece aqui.");
 
-// 5. The app: builds the first time, then opens the simulator with Metro.
-const app = spawn("npx", ["expo", "run:ios", "--device", process.env.SIMULATOR || "iPhone 17 Pro"], {
+// 5. The app: builds the first time, then opens on the simulator (or the iPhone) with Metro.
+// The phone reaches the Console by the Mac's .local name, which iOS allows on
+// the local network; the simulator could use localhost, but one URL serves both.
+let local = "localhost";
+try {
+  local = `${execFileSync("scutil", ["--get", "LocalHostName"], { encoding: "utf8" }).trim()}.local`;
+} catch {
+  local = hostname();
+}
+const target = process.env.DEVICE || process.env.SIMULATOR || "iPhone 17 Pro";
+say(`App em ${target}, falando com http://${local}:3100.`);
+const app = spawn("npx", ["expo", "run:ios", "--device", target], {
   cwd: "mobile",
-  env: { ...process.env, APP_ENV: "development" },
+  env: { ...process.env, APP_ENV: "development", CONSOLE_URL: `http://${local}:3100` },
   stdio: "inherit",
 });
 children.push(app);
