@@ -736,7 +736,7 @@ export const comecarContaArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Abra o menu da conta (a sua foto ou avatar, no fim do menu do Console) e clique em “Meu perfil”. No celular, toque em “Mais” e, em “Conta”, em “Meu perfil”. O item do menu se chama “Meu perfil”, e a página que abre se chama “Minha conta”, com os cards “Perfil” e “Contatos de acesso”.",
+            text: "Abra o menu da conta (a sua foto ou avatar, no fim do menu do Console) e clique em “Meu perfil”. No celular, toque em “Mais” e, em “Conta”, em “Meu perfil”. O item do menu se chama “Meu perfil”, e a página que abre se chama “Minha conta”, com os cards “Perfil”, “Contatos de acesso” e “Excluir conta” (veja [Excluir a sua conta](/ajuda/excluir-conta)).",
           },
           {
             kind: "p",
@@ -834,8 +834,8 @@ export const comecarContaArticles: HelpArticle[] = [
       },
     ],
     actions: [{ label: "Ir para Minha conta", href: "/conta" }],
-    related: ["email-e-whatsapp", "verificacao-em-duas-etapas", "notificacoes", "primeiro-acesso"],
-    updatedAt: "2026-10-14",
+    related: ["email-e-whatsapp", "verificacao-em-duas-etapas", "notificacoes", "primeiro-acesso", "excluir-conta"],
+    updatedAt: "2026-10-20",
   },
   {
     slug: "email-e-whatsapp",
@@ -996,6 +996,102 @@ export const comecarContaArticles: HelpArticle[] = [
     ],
     related: ["meu-perfil", "verificacao-em-duas-etapas", "entrar", "sair-e-sessoes"],
     updatedAt: "2026-10-14",
+  },
+  {
+    slug: "excluir-conta",
+    category: "conta",
+    title: "Excluir a sua conta",
+    summary: "Como excluir a sua conta do Console, o que é apagado e o que continua com a empresa.",
+    audience: "todos",
+    keywords: [
+      "excluir conta",
+      "apagar conta",
+      "deletar conta",
+      "encerrar conta",
+      "remover conta",
+      "cancelar cadastro",
+      "meus dados",
+      "lgpd",
+      "privacidade",
+      "conta excluída",
+    ],
+    sections: [
+      {
+        title: "Onde fica",
+        blocks: [
+          {
+            kind: "p",
+            text: "Em [Minha conta](/conta), no card “Excluir conta”. Cada pessoa exclui só a própria conta. Para tirar o acesso de outra pessoa da empresa, o Administrador usa [Pessoas](/ajuda/membro-ou-administrador).",
+          },
+        ],
+      },
+      {
+        title: "Excluir",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Em Minha conta, no card “Excluir conta”, clique em “Excluir minha conta”.",
+              "Leia o que é apagado e o que fica. Clique em “Código no e-mail” ou, se a conta tem WhatsApp vinculado, em “Código no WhatsApp”.",
+              "Digite o código de 6 números que chegou.",
+              "Em “Digite EXCLUIR para confirmar”, digite EXCLUIR.",
+              "Clique em “Excluir conta”. A conta é encerrada, você sai do Console e chega um e-mail de confirmação no seu endereço.",
+            ],
+          },
+          {
+            kind: "list",
+            items: [
+              "O código vale 5 minutos e aceita 3 tentativas. Pedir outro código cancela o anterior.",
+              "Um novo código só pode ser pedido 60 segundos depois, com no máximo 5 em 15 minutos.",
+              "O código só funciona no aparelho em que foi pedido.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Não dá para desfazer. Para voltar ao Console depois, alguém da sua empresa precisa convidar você de novo, e a conta nova começa vazia.",
+          },
+        ],
+      },
+      {
+        title: "O que é apagado e o que fica",
+        blocks: [
+          {
+            kind: "pairs",
+            items: [
+              { term: "Apagado", text: "Nome, e-mails, WhatsApp, foto, sessões, verificação em duas etapas, conversas com o assistente e as pastas de bookmarks que só você via." },
+              { term: "Fica com a empresa", text: "Chamados e mensagens, assinaturas de contrato, horas lançadas, faturas e o histórico de ações. Nesses registros, o autor passa a aparecer como “Conta excluída”." },
+              { term: "Acesso", text: "Você perde o acesso a todas as empresas no mesmo instante." },
+            ],
+          },
+          {
+            kind: "p",
+            text: "Os registros da empresa ficam porque fazem parte do histórico dela e, no caso de contratos e faturas, porque a lei exige guardá-los. A assinatura de um contrato guarda o nome e o e-mail de quem assinou na data da assinatura.",
+          },
+        ],
+      },
+    ],
+    faq: [
+      {
+        q: "O botão “Excluir minha conta” está desativado.",
+        a: "A conta do proprietário do Console não pode ser excluída. Antes, a administração precisa passar para outra pessoa.",
+      },
+      {
+        q: "Sou o único Administrador da empresa. Posso excluir a conta?",
+        a: "Pode. A equipe da Anuntech recebe um aviso para combinar com a empresa quem passa a ser o Administrador.",
+      },
+      {
+        q: "Preciso excluir a conta para sair de uma empresa?",
+        a: "Não. Para só deixar de ter acesso, peça ao Administrador da empresa que remova você em Pessoas. A conta e os seus dados continuam.",
+      },
+      {
+        q: "Os avisos de cobrança e de chamados param de chegar?",
+        a: "Os avisos da empresa vão para os contatos escolhidos em Notificações. Se o seu e-mail ou WhatsApp está lá, peça ao Administrador que tire.",
+      },
+    ],
+    actions: [{ label: "Ir para Minha conta", href: "/conta" }],
+    related: ["meu-perfil", "email-e-whatsapp", "notificacoes", "membro-ou-administrador"],
+    updatedAt: "2026-10-20",
   },
   {
     slug: "verificacao-em-duas-etapas",

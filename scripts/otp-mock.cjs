@@ -12,7 +12,9 @@ globalThis.fetch = async (input, options = {}) => {
       ? {
           channel: "email",
           to: body.to[0],
-          code: body.text.match(/\b\d{6}\b/)[0],
+          subject: body.subject,
+          // Notices without a code (an account deletion) are recorded too.
+          code: body.text.match(/\b\d{6}\b/)?.[0],
         }
       : { channel: "whatsapp", to: `+${body.to}`, code: body.code };
     fs.appendFileSync(

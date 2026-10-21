@@ -595,6 +595,204 @@ try {
     !!proof.response.value.error && !proof.id,
     "Email changes require a recent session",
   );
+  // Account deletion: a fresh code, the typed word, and the company keeps its records.
+  await makePerson("leaver");
+  await addSession("leaver", "leaver-second");
+  const leaver = people.leaver,
+    leaverAlias = address("leaver-alias"),
+    leaverPhone = `+5511${String(Date.now()).slice(-9)}`,
+    soloCompany = randomUUID();
+  await db.query(
+    "update console_user set phone_number=$2,phone_number_verified=true,image='/brand/avatars/avatar-02.svg' where id=$1",
+    [leaver.id, leaverPhone],
+  );
+  // Two-step on: the contacts trigger must not block the deletion.
+  await db.query("update console_user set two_factor_enabled=true where id=$1", [leaver.id]);
+  await db.query(
+    "insert into console_account_emails(id,user_id,email,verified_at) values(gen_random_uuid(),$1,$2,now())",
+    [leaver.id, leaverAlias],
+  );
+  await db.query(
+    "insert into console_companies(id,name,document,billing_email) values($1,$2,$3,$4)",
+    [soloCompany, `Solo QA ${marker}`, marker.replaceAll("-", "").slice(-14), address("solo")],
+  );
+  // One environment per account: the leaver manages only the solo company, through the alias.
+  await db.query("delete from console_memberships where email=$1", [leaver.email]);
+  await db.query(
+    "insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')",
+    [randomUUID(), soloCompany, leaverAlias],
+  );
+  const conversation = randomUUID(),
+    privateFolder = randomUUID(),
+    sharedFolder = randomUUID();
+  await db.query(
+    "insert into console_assistant_conversations(id,user_id,title) values($1,$2,'QA')",
+    [conversation, leaver.id],
+  );
+  await db.query(
+    "insert into console_assistant_messages(id,conversation_id,role,content) values(gen_random_uuid(),$1,'user','oi')",
+    [conversation],
+  );
+  for (const [folder, name] of [[privateFolder, "private"], [sharedFolder, "shared"]])
+    await db.query(
+      "insert into console_bookmark_folders(id,company_id,owner_id,name,visibility) values($1,$2,$3,$4,'people')",
+      [folder, soloCompany, leaver.id, `QA ${name} ${marker}`],
+    );
+  await db.query(
+    "insert into console_bookmark_folder_shares(folder_id,user_id) values($1,$2)",
+    [sharedFolder, people.owner.id],
+  );
+  await db.query(
+    "insert into console_bookmarks(id,company_id,author_id,folder_id,title,url) values(gen_random_uuid(),$1,$2,$3,'QA private','https://example.invalid'),(gen_random_uuid(),$1,$2,$4,'QA shared','https://example.invalid')",
+    [soloCompany, leaver.id, privateFolder, sharedFolder],
+  );
+  await db.query(
+    "insert into console_audit_events(id,actor_id,action,entity_id) values(gen_random_uuid(),$1,'qa.history',$1)",
+    [leaver.id],
+  );
+  const pendingDeletion = (challengeId) =>
+    db.query("select id from console_verification where identifier=$1", [
+      `account-deletion:${challengeId}`,
+    ]);
+  await limits();
+  const ownerDeletion = await action("requestAccountDeletion", "owner-new", {
+    channel: "email",
+  });
+  ok(
+    !!ownerDeletion.value.error && !ownerDeletion.value.challengeId,
+    "The Console owner cannot delete the account",
+  );
+  const anonymousDeletion = await action("requestAccountDeletion", null, {
+    channel: "email",
+  });
+  ok(
+    !!anonymousDeletion.value.error && !anonymousDeletion.value.challengeId,
+    "Account deletion requires a session",
+  );
+  await limits();
+  const noPhone = await action("requestAccountDeletion", "other", {
+    channel: "whatsapp",
+  });
+  ok(
+    !!noPhone.value.error && !noPhone.value.challengeId,
+    "A WhatsApp code needs a verified number",
+  );
+  await limits();
+  before = messages().length;
+  const byWhatsapp = await action("requestAccountDeletion", "leaver", {
+    channel: "whatsapp",
+  });
+  ok(
+    !!byWhatsapp.value.challengeId &&
+      byWhatsapp.value.destination.endsWith(leaverPhone.slice(-4)) &&
+      messages().slice(before).some((m) => m.to === leaverPhone && m.code),
+    "Deletion code goes to the verified WhatsApp",
+  );
+  await limits();
+  before = messages().length;
+  const deletion = await action("requestAccountDeletion", "leaver", {
+    channel: "email",
+  });
+  const deletionCode = messages()
+    .slice(before)
+    .find((m) => m.to === leaver.email)?.code;
+  ok(
+    !!deletion.value.challengeId &&
+      !!deletionCode &&
+      (await pendingDeletion(byWhatsapp.value.challengeId)).rowCount === 0,
+    "A new deletion code replaces the previous one",
+  );
+  const wrongCode = deletionCode === "000000" ? "111111" : "000000";
+  const attempt = (who, values) =>
+    action("confirmAccountDeletion", who, {
+      challengeId: deletion.value.challengeId,
+      code: deletionCode,
+      confirmation: "EXCLUIR",
+      ...values,
+    });
+  ok(
+    !!(await attempt("leaver", { confirmation: "apagar" })).value.error,
+    "Deletion requires the typed word",
+  );
+  ok(
+    !!(await attempt("leaver", { code: wrongCode })).value.error,
+    "Deletion refuses a wrong code",
+  );
+  ok(
+    !!(await attempt("leaver-second", {})).value.error &&
+      !!(await attempt("other", {})).value.error,
+    "A deletion code works only in the session that asked for it",
+  );
+  before = messages().length;
+  const deleted = await attempt("leaver", { confirmation: " excluir " });
+  ok(
+    deleted.value.success && deleted.value.href === "/entrar?conta=excluida",
+    "Person deletes the account with the code and the word",
+  );
+  const [gone] = (
+    await db.query("select * from console_user where id=$1", [leaver.id])
+  ).rows;
+  ok(
+    gone.name === "Conta excluída" &&
+      gone.email === `excluida+${leaver.id}@invalid` &&
+      !gone.email_verified &&
+      gone.phone_number === null &&
+      gone.image === null,
+    "Deleted account keeps no name, e-mail, phone or photo",
+  );
+  const total = async (query, values) =>
+    Number((await db.query(query, values)).rows[0].count);
+  ok(
+    (await total("select count(*) from console_session where user_id=$1", [leaver.id])) === 0 &&
+      (await total(
+        "select count(*) from console_account_emails where user_id=$1 and (verified_at is not null or email<>$2)",
+        [leaver.id, `excluida+${leaver.id}@invalid`],
+      )) === 0 &&
+      (await total(
+        "select count(*) from console_memberships where email=any($1::text[]) and active",
+        [[leaver.email, leaverAlias]],
+      )) === 0,
+    "Deletion ends every session, address and access",
+  );
+  ok(
+    (await total("select count(*) from console_assistant_conversations where user_id=$1", [leaver.id])) === 0 &&
+      (await total("select count(*) from console_assistant_messages where conversation_id=$1", [conversation])) === 0 &&
+      (await total("select count(*) from console_bookmark_folders where id=$1", [privateFolder])) === 0 &&
+      (await total("select count(*) from console_bookmarks where folder_id=$1", [sharedFolder])) === 1,
+    "Personal content goes; what was shared stays with the company",
+  );
+  ok(
+    (await total(
+      "select count(*) from console_audit_events where actor_id=$1 and action in ('qa.history','account.deleted')",
+      [leaver.id],
+    )) === 2,
+    "The history stays and records the deletion",
+  );
+  const sent = messages().slice(before);
+  ok(
+    sent.some((m) => m.to === leaver.email && /excluída/.test(m.subject || "")) &&
+      sent.some((m) => m.to === ownerEmail && /sem Administrador/.test(m.subject || "")),
+    "Deletion confirms by e-mail and warns the team about a company left without a manager",
+  );
+  ok(
+    (await request("/conta", "leaver")).status !== 200,
+    "The old session no longer opens the Console",
+  );
+  await limits();
+  before = messages().length;
+  await api("/email-otp/send-verification-otp", {
+    email: leaver.email,
+    type: "sign-in",
+  });
+  ok(
+    messages().length === before,
+    "A deleted account's address no longer receives sign-in codes",
+  );
+  await db.query("delete from console_bookmarks where folder_id=$1", [sharedFolder]);
+  await db.query("delete from console_bookmark_folder_shares where folder_id=$1", [sharedFolder]);
+  await db.query("delete from console_bookmark_folders where id=$1", [sharedFolder]);
+  await db.query("delete from console_memberships where company_id=$1", [soloCompany]);
+  await db.query("delete from console_companies where id=$1", [soloCompany]);
   const audits = (
     await db.query(
       "select action from console_audit_events where actor_id=any($1::text[])",

@@ -10,7 +10,12 @@ export const metadata = {
 export default async function SignIn({
   searchParams,
 }: {
-  searchParams: Promise<{ erro?: string; error?: string; volta?: string | string[] }>;
+  searchParams: Promise<{
+    erro?: string;
+    error?: string;
+    conta?: string;
+    volta?: string | string[];
+  }>;
 }) {
   const query = await searchParams;
   // Only a path to an app comes back here (/abrir/… or /apps/…); anything else is ignored.
@@ -27,6 +32,11 @@ export default async function SignIn({
             <AuthAlert kind="error" id="login-error">
               Não foi possível concluir o acesso. Confira se está usando o
               e-mail autorizado e tente novamente.
+            </AuthAlert>
+          )}
+          {query.conta === "excluida" && (
+            <AuthAlert kind="info">
+              Sua conta foi excluída. Enviamos a confirmação para o seu e-mail.
             </AuthAlert>
           )}
           <LoginForm returnTo={returnTo} />

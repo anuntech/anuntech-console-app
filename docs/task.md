@@ -31,6 +31,8 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 - [ ] Sobras do app de reuniões (16/10): `console_app_connections` (a conexão do Mac de teste, já revogada) e `console_bookmarks.meeting` ficaram em produção sem uso, e as notas de teste enviadas viraram bookmarks de arquivo `.md` comuns. Decidir: manter a tabela para os próximos apps conectados, ou apagar as duas pela rota de [rules.md](rules.md#migrações-em-produção). As notas de teste saem pela interface.
 
+- [ ] Excluir conta (20/10): antes de publicar, passar pelo advogado-lgpd o que fica guardado depois da exclusão (e-mail nos acessos inativos e na auditoria, `email_deliveries`, assinaturas com nome e e-mail, avisos já enviados) e o texto do e-mail de confirmação. Para o app: conta Expo (`eas login`), Team ID e chave de API do App Store Connect, projeto no Firebase (push do Android) e conta de serviço do Play Console.
+
 ## Engenharia
 
 - [ ] Assistente no AI SDK (19/10): a partir de 21/10/2026 (7 dias do `ai` 7.0.140), subir o AI SDK (e o `@ai-sdk/gateway` junto, na versão que ele fixa) e passar `toolCallConcurrency: 1` ao `streamText`, mantendo a fila do executor e o `inModelOrder`. O servidor não confere o caminho do cartão de tela (`path`) na confirmação, só o painel.
@@ -53,6 +55,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 20/10/2026: excluir a conta em Minha conta (código novo por e-mail ou WhatsApp e a palavra EXCLUIR), anonimizando a conta e mantendo os registros das empresas; artigo "Excluir a sua conta" na Ajuda e 17 verificações novas em `scripts/account-smoke.mjs` (dono recusado, sem sessão, código de outra sessão, palavra e código errados, duas etapas ligadas, o que some e o que fica, alerta de empresa sem Administrador).
 - [x] 20/10/2026: migração 0044 em produção pela rota temporária (tabela de suspensões com 15 colunas, `suspension_kind` no catálogo, os três índices) e a suspensão publicada no deploy seguinte, sem a rota.
 - [x] 20/10/2026: suspensão de produtos e serviços, primeira fase: agendar com aviso por e-mail, confirmar no dia, passos de bloqueio por tipo (sistema, máquina virtual, e-mail, outro), baixa automática depois do pagamento, reativação pela equipe, faixa e aviso para o cliente, Atrasos, resumo e painel. Migração 0044, testes unitários das regras e `scripts/suspension-smoke.mjs` na regressão (31 verificações, inclusive as recusas a cliente e a pessoa de fora).
 - [x] 19/10/2026: toda a IA no AI Gateway da Vercel (assistente, Jev, ditado, Sugerir resposta, Sugerir fases, jornadas, ícones e a lista de modelos), pelo AI SDK, com OIDC na Vercel e `zeroDataRetention` e `disallowPromptTraining` em toda chamada com dado de cliente; o navegador converte o ditado em WAV para o MAI-Transcribe-2. Simulador do Gateway no lugar do do OpenRouter (recusa qualquer chamada fora do Gateway), teste de contrato com o SDK de verdade para os cinco tipos de chamada, e a regressão confere a privacidade das 177 chamadas de IA da rodada.

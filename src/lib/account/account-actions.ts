@@ -12,6 +12,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { and, eq, gt, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
@@ -29,6 +30,7 @@ import {
 } from "./account-session";
 import { deliverEmailOtp, reserveOtp } from "../auth/otp-delivery";
 import type { ActionState } from "../action-state";
+import { deleteAccount, startAccountDeletion } from "./account-deletion";
 
 type EmailProof = {
   userId: string;
@@ -382,4 +384,62 @@ export async function removeAccountEmail(
   } catch (error) {
     return { error: errorMessage(error) };
   }
+}
+
+export type AccountDeletionState = ActionState & {
+  challengeId?: string;
+  destination?: string;
+};
+
+export async function requestAccountDeletion(
+  _: AccountDeletionState,
+  form: FormData,
+): Promise<AccountDeletionState> {
+  const current = await getAccountSession();
+  if (!current) return { error: "Entre novamente para excluir sua conta." };
+  const channel = z.enum(["email", "whatsapp"]).safeParse(form.get("channel"));
+  if (!channel.success) return { error: "Escolha onde receber o código." };
+  try {
+    return await startAccountDeletion(current, channel.data);
+  } catch {
+    return { error: errorMessage(null) };
+  }
+}
+
+export async function confirmAccountDeletion(
+  _: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const current = await getAccountSession();
+  if (!current) return { error: "Entre novamente para excluir sua conta." };
+  const input = z
+    .object({
+      challengeId: z.uuid(),
+      code: z.string().regex(/^\d{6}$/),
+      confirmation: z.string().max(40),
+    })
+    .safeParse({
+      challengeId: form.get("challengeId"),
+      code: form.get("code"),
+      confirmation: form.get("confirmation") ?? "",
+    });
+  if (!input.success)
+    return { error: "Informe o código de 6 números que você recebeu." };
+  try {
+    const result = await deleteAccount(current, input.data);
+    if ("error" in result) return result;
+  } catch {
+    return { error: errorMessage(null) };
+  }
+  // The sessions are gone; the browser's cookies go too, so the next page is the sign-in.
+  const jar = await cookies();
+  for (const { name } of jar.getAll())
+    if (name.includes("anuntech-console."))
+      jar.set(name, "", {
+        path: "/",
+        maxAge: 0,
+        httpOnly: true,
+        secure: name.startsWith("__Secure-"),
+      });
+  return { success: "Conta excluída.", href: "/entrar?conta=excluida" };
 }

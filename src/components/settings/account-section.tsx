@@ -5,6 +5,8 @@ import { SectionTitle } from "@/components/console/page-header";
 import { AuthAlert } from "@/components/auth/feedback";
 import { AvatarPicker } from "./avatar-picker";
 import { EmailRow, NameForm, WhatsappRow } from "./account-forms";
+import { AccountDeletion } from "./account-deletion";
+import { getAccountEmails } from "@/lib/account/account-identity";
 
 export async function AccountSection() {
   const actor = await getActor();
@@ -12,6 +14,9 @@ export async function AccountSection() {
   const phone = actor.user.phoneNumberVerified
     ? actor.user.phoneNumber || null
     : null;
+  const owner = (
+    await getAccountEmails(actor.user.id, actor.user.email)
+  ).includes(process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase() || "");
   return (
     <>
       <Card>
@@ -48,6 +53,17 @@ export async function AccountSection() {
             <EmailRow email={actor.user.email} locked={locked} />
             <WhatsappRow phone={phone} locked={locked} />
           </ul>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <SectionTitle
+            title="Excluir conta"
+            description="Apaga seus dados pessoais. Os registros das empresas ficam com o autor “Conta excluída”."
+          />
+        </CardHeader>
+        <CardContent>
+          <AccountDeletion owner={owner} hasWhatsapp={!!phone} />
         </CardContent>
       </Card>
     </>
