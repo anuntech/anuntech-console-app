@@ -1,16 +1,15 @@
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from "react-native";
+import { ActivityIndicator, FlatList, RefreshControl, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
 import { Chip } from "@/components/chip";
-import { StatusBadge } from "@/components/badge";
+import { TicketCard } from "@/components/ticket-card";
 import { Notice } from "@/components/surface";
 import { api, errorMessage } from "@/lib/api";
-import { when } from "@/lib/format";
-import { radius, space, usePalette } from "@/lib/theme";
+import { space, usePalette } from "@/lib/theme";
 
 type Filter = "active" | "all";
 
@@ -62,44 +61,7 @@ export default function Tickets() {
           ) : undefined
         }
         ListFooterComponent={list.isFetchingNextPage ? <ActivityIndicator /> : undefined}
-        renderItem={({ item }) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${item.subject}, ${item.statusLabel}`}
-            onPress={() => router.push({ pathname: "/chamados/[id]", params: { id: item.id } })}
-            style={({ pressed }) => ({
-              backgroundColor: palette.card,
-              borderRadius: radius.xl,
-              borderWidth: 1,
-              borderColor: palette.border,
-              padding: space.lg,
-              gap: space.sm,
-              opacity: pressed ? 0.8 : 1,
-            })}
-          >
-            <View style={{ flexDirection: "row", gap: space.sm, alignItems: "center", flexWrap: "wrap" }}>
-              <StatusBadge status={item.status} label={item.statusLabel} />
-              {item.kindLabel ? (
-                <Text variant="caption" tone="muted">
-                  {item.kindLabel}
-                </Text>
-              ) : null}
-            </View>
-            <Text variant="label" numberOfLines={2} style={{ fontSize: 16, lineHeight: 22 }}>
-              {item.subject}
-            </Text>
-            <Text variant="caption" tone="muted" numberOfLines={1}>
-              {[first?.showCompany ? item.company : null, item.engagement, when(item.updatedAt)]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
-            {item.due ? (
-              <Text variant="caption" tone={item.due.late ? "destructive" : "muted"}>
-                {item.due.label}
-              </Text>
-            ) : null}
-          </Pressable>
-        )}
+        renderItem={({ item }) => <TicketCard ticket={item} showCompany={first?.showCompany} />}
       />
     </SafeAreaView>
   );

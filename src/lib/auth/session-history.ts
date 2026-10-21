@@ -3,13 +3,23 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { auditEvents, session } from "@/db/schema";
 
-export function sessionAudit(entry: { id: string; userId: string; createdAt: Date; expiresAt: Date; userAgent?: string | null }) {
+/**
+ * The record of a sign-in: when, from which browser and from which IP. It is
+ * the access log the Marco Civil (art. 15) asks to keep for six months, so it
+ * lives in the audit and survives sign-out and account deletion. The screens
+ * only read the browser and the expiry, never the IP.
+ */
+export function sessionAudit(entry: { id: string; userId: string; createdAt: Date; expiresAt: Date; userAgent?: string | null; ipAddress?: string | null }) {
   return {
     id: `session-start:${entry.id}`,
     actorId: entry.userId,
     action: "account.session.started",
     entityId: entry.id,
-    details: { userAgent: entry.userAgent?.slice(0, 512) || null, expiresAt: entry.expiresAt.toISOString() },
+    details: {
+      userAgent: entry.userAgent?.slice(0, 512) || null,
+      ip: entry.ipAddress?.slice(0, 64) || null,
+      expiresAt: entry.expiresAt.toISOString(),
+    },
     createdAt: entry.createdAt,
   };
 }

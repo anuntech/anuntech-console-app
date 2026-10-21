@@ -3,10 +3,14 @@ import { NativeTabs } from "expo-router/native-tabs";
 import { registerForPush } from "@/lib/push";
 import { AppLock } from "@/lib/lock";
 import { usePalette } from "@/lib/theme";
+import { useMe } from "@/lib/me";
 
 /** Signed in: the tabs, behind the Face ID lock when the person turned it on. */
 export default function AppLayout() {
   const palette = usePalette();
+  const me = useMe();
+  // Financeiro is for the team and the companies' Administradores; a Membro never sees money.
+  const finance = !!me.data && (me.data.staff || me.data.companies.some((c) => c.role === "manager"));
   useEffect(() => {
     void registerForPush();
   }, []);
@@ -28,6 +32,13 @@ export default function AppLayout() {
           <NativeTabs.Trigger.Icon
             sf={{ default: "bubble.left.and.bubble.right", selected: "bubble.left.and.bubble.right.fill" }}
             md="forum"
+          />
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="financeiro" hidden={!finance}>
+          <NativeTabs.Trigger.Label>Financeiro</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf={{ default: "creditcard", selected: "creditcard.fill" }}
+            md="payments"
           />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger name="conta">

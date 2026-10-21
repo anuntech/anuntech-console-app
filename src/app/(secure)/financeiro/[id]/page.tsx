@@ -5,12 +5,12 @@ import { db } from "@/lib/db";
 import {
   auditEvents,
   billingNotices,
-  companies,
   engagements,
   invoices,
   subscriptions,
 } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access/access";
+import { getActor } from "@/lib/access/access";
+import { findInvoice } from "@/lib/billing/invoice-access";
 import { addressLabel } from "@/lib/companies/company-billing";
 import { saoPauloDate } from "@/lib/dates";
 import { canDeleteInvoice, closedAtBank, recurrenceAllowsDelete } from "@/lib/deletion-rules";
@@ -36,22 +36,8 @@ export default async function Invoice({
 }) {
   const actor = await getActor();
   const { id } = await params;
-  const [row] = await db
-    .select({
-      invoice: invoices,
-      company: companies,
-      engagement: engagements.name,
-    })
-    .from(invoices)
-    .innerJoin(companies, eq(companies.id, invoices.companyId))
-    .leftJoin(engagements, eq(engagements.id, invoices.engagementId))
-    .where(eq(invoices.id, id));
-  if (
-    !row ||
-    !canAccess(actor, row.invoice.companyId, "finance") ||
-    (!actor.admin && !["issued", "paid"].includes(row.invoice.status))
-  )
-    notFound();
+  const row = await findInvoice(actor, id);
+  if (!row) notFound();
   const i = row.invoice;
   const [sub] = i.subscriptionId
     ? await db

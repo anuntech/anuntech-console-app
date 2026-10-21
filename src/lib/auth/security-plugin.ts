@@ -355,6 +355,12 @@ export function consoleTwoStep() {
                       1000,
                 ),
                 userAgent: ctx.headers?.get("user-agent") || null,
+                // As Better Auth reads it for its own sessions: Vercel sends the
+                // client's address alone in x-forwarded-for; a chain is not trusted.
+                ipAddress: (() => {
+                  const hops = (ctx.headers?.get("x-forwarded-for") ?? "").split(",").map((ip) => ip.trim()).filter(Boolean);
+                  return hops.length === 1 ? hops[0].slice(0, 64) : null;
+                })(),
               })
               .returning();
             await tx.insert(auditEvents).values(sessionAudit(created)).onConflictDoNothing();

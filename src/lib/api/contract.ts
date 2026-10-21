@@ -23,6 +23,19 @@ const ticketRow = z.object({
   updatedAt: z.string(),
   due: z.object({ label: z.string(), late: z.boolean() }).nullable(),
 });
+const invoiceDisplay = z.enum(["issued", "overdue", "paid", "scheduled", "draft", "expired", "cancelled"]);
+const money = z.object({ count: z.number(), cents: z.number() });
+const invoiceRow = z.object({
+  id: z.string(),
+  description: z.string(),
+  company: z.string(),
+  amountCents: z.number(),
+  display: invoiceDisplay,
+  statusLabel: z.string(),
+  dueDate: z.string(),
+  /** Path of the public payment page (/pagar/<id>), when it can be paid or seen there. */
+  payPath: z.string().nullable(),
+});
 const ticketEntry = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("message"),
@@ -152,6 +165,46 @@ export const contract = {
         }),
       )
       .output(z.object({ id: z.string() })),
+  },
+  finance: {
+    /** Invoices of the person's finance companies (Administradores and the team; a Membro sees none). */
+    list: oc
+      .input(
+        z.object({
+          status: z.enum(["all", "issued", "overdue", "paid"]).default("all"),
+          page: z.number().int().min(1).max(10_000).default(1),
+        }),
+      )
+      .output(
+        z.object({
+          rows: z.array(invoiceRow),
+          totals: z.object({ all: money, issued: money, overdue: money, paid: money }),
+          page: z.number(),
+          pageCount: z.number(),
+          showCompany: z.boolean(),
+        }),
+      ),
+    /** One invoice with what pays it: Pix copia e cola, the boleto line and its PDF. */
+    get: oc.input(z.object({ id: z.uuid() })).output(
+      invoiceRow.extend({
+        engagement: z.string().nullable(),
+        pix: z.string().nullable(),
+        boletoLine: z.string().nullable(),
+        /** Path of the boleto PDF on the public payment page, when there is one. */
+        boletoPath: z.string().nullable(),
+      }),
+    ),
+  },
+  overview: {
+    /** The start screen: what waits for the person and what is due. */
+    get: oc.input(empty).output(
+      z.object({
+        waiting: z.array(ticketRow),
+        recent: z.array(ticketRow),
+        toPay: z.array(invoiceRow),
+        canFinance: z.boolean(),
+      }),
+    ),
   },
   devices: {
     /** This phone receives push notifications for the signed-in person. */

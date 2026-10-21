@@ -100,11 +100,11 @@ async function makePerson(name, email, company, role = "manager") {
   userIds.push(id);
   people[name] = { id, email };
 }
-async function emailSignIn(email) {
+async function emailSignIn(email, headers = app) {
   await limits();
   await auth("/email-otp/send-verification-otp", { email, type: "sign-in" });
   const code = messages().filter((m) => m.to === email).at(-1)?.code;
-  return auth("/sign-in/email-otp", { email, otp: code });
+  return auth("/sign-in/email-otp", { email, otp: code }, undefined, headers);
 }
 const token = (n) => `ExponentPushToken[api${n}${marker.slice(0, 12)}]`;
 const device = async (value) =>
@@ -176,12 +176,19 @@ try {
   ok(proxy.status === 400, "The Expo authorization proxy cannot redirect anywhere");
 
   // Sign-in as the app does it.
-  let r = await emailSignIn(people.member.email);
+  let r = await emailSignIn(people.member.email, { ...app, "x-forwarded-for": "203.0.113.7" });
   ok(
     r.status === 200 && r.cookie.includes("session_token="),
     "The app signs in by e-mail code with its scheme and no Origin",
   );
   const member = r.cookie;
+  const access = (
+    await db.query(
+      "select details from console_audit_events where actor_id=$1 and action='account.session.started' order by created_at desc limit 1",
+      [people.member.id],
+    )
+  ).rows[0]?.details;
+  ok(access?.ip === "203.0.113.7", "The sign-in record keeps the IP the Marco Civil asks for");
   r = await rpc("me.get", undefined, member);
   ok(
     r.status === 200 &&
@@ -290,6 +297,53 @@ try {
   await db.query("delete from console_ticket_notices where ticket_id=$1", [ticketId]).catch(() => undefined);
   await db.query("delete from console_messages where ticket_id=$1", [ticketId]);
   await db.query("delete from console_tickets where id=$1", [ticketId]);
+
+  // Finance and overview: the web's rules, through the app's API.
+  const publicId = "p".repeat(31) + marker.replaceAll("-", "").slice(0, 12);
+  const invoice = (company, status, values = {}) => {
+    const id = randomUUID();
+    return db
+      .query(
+        "insert into console_invoices(id,company_id,description,amount_cents,due_date,status,public_id,public_enabled,pix_copy_paste,boleto_line) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+        [id, company, `API ${status} ${marker}`, 12345, values.due ?? "2099-01-10", status, values.publicId ?? null, !!values.publicId, values.pix ?? null, values.line ?? null],
+      )
+      .then(() => id);
+  };
+  const ownIssued = await invoice(companies.a, "issued", { publicId, pix: "00020126PIXCOPIAECOLA", line: "23790.00000 00000.000000 00000.000000 0 00000000000000" });
+  const ownOverdue = await invoice(companies.a, "issued", { due: "2020-01-10" });
+  const ownDraft = await invoice(companies.a, "draft");
+  const otherIssued = await invoice(companies.b, "issued");
+  r = await rpc("finance.list", {}, member);
+  ok(
+    r.status === 200 &&
+      r.body.rows.some((row) => row.id === ownIssued && row.statusLabel === "Em aberto" && row.payPath === `/pagar/${publicId}`) &&
+      r.body.rows.some((row) => row.id === ownOverdue && row.display === "overdue") &&
+      !r.body.rows.some((row) => row.id === ownDraft || row.id === otherIssued),
+    "An Administrador lists the company's invoices, never drafts or another company's",
+  );
+  r = await rpc("finance.list", {}, outsiderEarly);
+  ok(r.status === 200 && r.body.rows.length === 0, "A Membro sees no invoices");
+  ok((await rpc("finance.get", { id: ownDraft }, member)).status === 404, "A draft answers 404 to the client");
+  ok((await rpc("finance.get", { id: otherIssued }, member)).status === 404, "Another company's invoice answers 404");
+  ok((await rpc("finance.get", { id: ownIssued }, outsiderEarly)).status === 404, "A Membro opens no invoice");
+  r = await rpc("finance.get", { id: ownIssued }, member);
+  ok(
+    r.status === 200 &&
+      r.body.pix === "00020126PIXCOPIAECOLA" &&
+      r.body.boletoPath === `/pagar/${publicId}/boleto` &&
+      r.body.amountCents === 12345,
+    "The invoice brings Pix copia e cola and the boleto",
+  );
+  r = await rpc("finance.list", { status: "all" }, staff);
+  ok(r.status === 200 && r.body.rows.some((row) => row.id === otherIssued), "The team lists every company's invoices");
+  r = await rpc("overview.get", {}, member);
+  ok(
+    r.status === 200 && r.body.canFinance && r.body.toPay[0]?.id === ownOverdue && r.body.toPay.some((row) => row.id === ownIssued),
+    "The start screen shows what is due, overdue first",
+  );
+  r = await rpc("overview.get", {}, outsiderEarly);
+  ok(r.status === 200 && !r.body.canFinance && r.body.toPay.length === 0, "A Membro's start screen has no money");
+  await db.query("delete from console_invoices where id=any($1::text[])", [[ownIssued, ownOverdue, ownDraft, otherIssued]]);
 
   // Push devices.
   const outsider = outsiderEarly;

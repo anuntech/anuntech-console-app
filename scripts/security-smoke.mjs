@@ -330,7 +330,8 @@ try {
   );
   ok(await startedCount() === historyBeforeChallenge + 1, "Completed second factor records exactly one session");
   const historyPayload = (await db.query("select details from console_audit_events where actor_id=$1 and action='account.session.started' order by created_at desc limit 1", [uid])).rows[0].details;
-  ok(Object.keys(historyPayload).sort().join() === "expiresAt,userAgent", "Session history contains display data without tokens or codes");
+  // The IP is the Marco Civil's access log (lib/auth/session-history.ts); no token or code ever.
+  ok(Object.keys(historyPayload).sort().join() === "expiresAt,ip,userAgent", "Session history contains display data and the access IP, without tokens or codes");
   const completeCookie = r.cookie;
   r = await api("/two-factor/verify-otp", { code: message.code }, pendingEmail);
   ok(r.status >= 400, "Código e desafio concluídos não podem ser reutilizados");

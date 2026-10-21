@@ -20,6 +20,23 @@ const ticketCompany = async ({ id }: { id: string }) =>
   (await db.select({ companyId: ticketTable.companyId }).from(ticketTable).where(eq(ticketTable.id, id)))[0]?.companyId;
 const refuse = (message: string) => new ORPCError("BAD_REQUEST", { message });
 
+/** A list row as the app gets it (tickets.list and overview.get). */
+export function ticketRow(actor: Actor, row: Awaited<ReturnType<typeof listTickets>>["rows"][number]) {
+  return {
+    id: row.id,
+    subject: row.subject,
+    status: row.status,
+    statusLabel: statusLabel(actor, row.status),
+    kindLabel: row.kind ? ticketKindShort[row.kind] : null,
+    company: row.company,
+    engagement: row.engagement,
+    author: row.author,
+    assignee: row.assignee,
+    updatedAt: row.updatedAt,
+    due: row.due,
+  };
+}
+
 export const tickets = {
   list: api.tickets.list
     // Each row is filtered by ticketWhere inside listTickets; a person without support sees none.
@@ -34,19 +51,7 @@ export const tickets = {
         pageSize: 25,
       });
       return {
-        rows: list.rows.map((row) => ({
-          id: row.id,
-          subject: row.subject,
-          status: row.status,
-          statusLabel: statusLabel(actor, row.status),
-          kindLabel: row.kind ? ticketKindShort[row.kind] : null,
-          company: row.company,
-          engagement: row.engagement,
-          author: row.author,
-          assignee: row.assignee,
-          updatedAt: row.updatedAt,
-          due: row.due,
-        })),
+        rows: list.rows.map((row) => ticketRow(actor, row)),
         total: list.total,
         page: list.query.page,
         pageCount: list.pageCount,
