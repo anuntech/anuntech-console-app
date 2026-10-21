@@ -31,7 +31,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 - [ ] Sobras do app de reuniões (16/10): `console_app_connections` (a conexão do Mac de teste, já revogada) e `console_bookmarks.meeting` ficaram em produção sem uso, e as notas de teste enviadas viraram bookmarks de arquivo `.md` comuns. Decidir: manter a tabela para os próximos apps conectados, ou apagar as duas pela rota de [rules.md](rules.md#migrações-em-produção). As notas de teste saem pela interface.
 
-- [ ] App nativo, Fase 0 (20/10, na branch `codex/mobile-app`, não publicada): levar a migração 0045 (`console_push_devices`) para produção pelo procedimento de [rules.md](rules.md#migrações-em-produção) antes de publicar o código, porque a exclusão de conta já desativa os aparelhos. Cadastrar `APPLE_TEAM_ID` e `ANDROID_CERT_SHA256` na Vercel quando os builds existirem.
+- [ ] App nativo (21/10): cadastrar `ANDROID_CERT_SHA256` na Vercel quando o build do Android existir.
 - [ ] Conta do revisor das lojas (20/10): escolher um número de WhatsApp da Anuntech que não esteja em nenhuma conta e um código de 6 números; cadastrar `APP_REVIEW_PHONE` e `APP_REVIEW_CODE` na Vercel só em Production, perto do envio do app. Criar a empresa "Empresa Demonstração" com dados fictícios (chamados, uma fatura de teste nunca emitida no Inter, um contrato e um projeto) e convidar como Membro um e-mail da Anuntech que você lê; entrar com ele e vincular o WhatsApp em Minha conta digitando o código fixo. Sem duas etapas nessa conta. Se o revisor excluir a conta, repetir o convite e o vínculo.
 - [ ] Excluir conta (20/10): antes de publicar, passar pelo advogado-lgpd o que fica guardado depois da exclusão (e-mail nos acessos inativos e na auditoria, `email_deliveries`, assinaturas com nome e e-mail, avisos já enviados) e o texto do e-mail de confirmação. Para o app: conta Expo (`eas login`), Team ID e chave de API do App Store Connect, projeto no Firebase (push do Android) e conta de serviço do Play Console.
 
@@ -61,6 +61,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Feito
 
+- [x] 21/10/2026: migração 0045 (`console_push_devices`, 8 colunas e 3 índices) em produção pela rota temporária, e o lado do servidor do app publicado no deploy seguinte, sem a rota: excluir minha conta, a conta do revisor (desligada), a API `/api/v1` e os arquivos dos links do app.
 - [x] 21/10/2026: Financeiro e Visão geral no app (faturas com totais, Pix copia e cola, linha digitável, boleto e página de pagamento; Início com o que aguarda a pessoa e o que pagar), com `listInvoices` e `findInvoice` usados pela web e pela API; o IP de acesso no registro de sessão. Regressão completa verde (46 verificações na suíte da API).
 - [x] 20/10/2026: chamados no app: lista, conversa, resposta em texto, abrir chamado e anexos para ver; a lista, a conversa, a resposta e a abertura passaram a ser funções em `lib/tickets/` usadas pela web e pela API (regressão completa verde, 36 verificações na suíte da API).
 - [x] 20/10/2026: app nativo, Fase 1, em `mobile/` (Expo SDK 58): entrada por e-mail e WhatsApp com a segunda etapa, Início, Conta (Face ID, sair, excluir conta), registro do push, ícone e splash da marca, perfis do EAS, fluxos Maestro e o job `mobile` do CI.
