@@ -82,6 +82,10 @@ const config: ExpoConfig = {
       { faceIDPermission: "O Console usa o Face ID para destravar o app." },
     ],
   ],
+  // Over-the-air updates (EAS Update) for JavaScript only; a new native
+  // permission or module always ships as a store build (runtimeVersion follows the app version).
+  updates: { url: "https://u.expo.dev/365924c6-2340-4ad8-8dad-2eb9accb01e8" },
+  runtimeVersion: { policy: "appVersion" },
   experiments: { typedRoutes: true, reactCompiler: true },
   extra: {
     consoleUrl,
