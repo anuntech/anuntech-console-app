@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import { Image, KeyboardAvoidingView, Platform, Pressable, View, type TextInput } from "react-native";
 import type { ComponentRef } from "react";
 import { router } from "expo-router";
@@ -10,6 +11,19 @@ import { authClient, normalizePhone } from "@/lib/auth";
 import { radius, space, usePalette } from "@/lib/theme";
 
 type Mode = "email" | "whatsapp";
+
+/**
+ * Where the sign-in stopped, kept outside the screen: the person leaves for
+ * WhatsApp or the e-mail to read the code and comes back to the same step.
+ */
+const draft: { mode: Mode; destination: string; sent: boolean; sentAt: number } = {
+  mode: "email",
+  destination: "",
+  sent: false,
+  sentAt: 0,
+};
+/** A code lives 5 minutes; after that the step starts over. */
+const draftSent = () => draft.sent && Date.now() - draft.sentAt < 5 * 60_000;
 
 /** One minute between code requests, as on the web. */
 function useCooldown() {
@@ -29,9 +43,12 @@ function useCooldown() {
 export default function SignIn() {
   const palette = usePalette();
   const destinationRef = useRef<ComponentRef<typeof TextInput>>(null);
-  const [mode, setMode] = useState<Mode>("email");
-  const [destination, setDestination] = useState("");
-  const [sent, setSent] = useState(false);
+  const [mode, setMode] = useState<Mode>(draft.mode);
+  const [destination, setDestination] = useState(draft.destination);
+  const [sent, setSent] = useState(draftSent);
+  useEffect(() => {
+    Object.assign(draft, { mode, destination, sent });
+  }, [mode, destination, sent]);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +78,8 @@ export default function SignIn() {
       setMessage(
         `Se o acesso estiver autorizado, o código chega ${mode === "email" ? "no seu e-mail" : "no seu WhatsApp"} e vale por 5 minutos.`,
       );
+      // Every new code restarts its 5 minutes, a resend included.
+      draft.sentAt = Date.now();
       setSent(true);
       setCode("");
       startCooldown();
@@ -89,7 +108,8 @@ export default function SignIn() {
         router.push("/segunda-etapa");
         return;
       }
-      // The session guard in _layout opens the tabs.
+      // Signed in: the next sign-in starts from the beginning. The guard in _layout opens the tabs.
+      Object.assign(draft, { destination: "", sent: false, sentAt: 0 });
     } catch {
       setError("Não foi possível conectar. Confira a internet e tente novamente.");
     } finally {
@@ -218,6 +238,23 @@ export default function SignIn() {
                 if (next.length === 6) void verify(next);
               }}
               invalid={!!error}
+            />
+          )}
+          {sent && code.length < 6 && (
+            <Button
+              title="Colar código"
+              variant="outline"
+              disabled={busy}
+              onPress={async () => {
+                // WhatsApp's "Copiar código" leaves the six numbers on the clipboard.
+                const pasted = (await Clipboard.getStringAsync()).replace(/\D/g, "").slice(0, 6);
+                if (pasted.length !== 6) {
+                  setError("Copie o código de 6 números no WhatsApp ou no e-mail e toque em Colar código.");
+                  return;
+                }
+                setCode(pasted);
+                void verify(pasted);
+              }}
             />
           )}
           {error ? <Notice kind="error">{error}</Notice> : null}

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -22,7 +22,12 @@ export default function RootLayout() {
     [fonts.bold]: require("@/assets/fonts/sofia-bold.otf"),
   });
   const { data: session, isPending } = authClient.useSession();
-  const ready = loaded && !isPending;
+  // Only the first check holds the splash. Later ones (the app coming back
+  // from WhatsApp to type the code) must not unmount the screens, or the
+  // sign-in loses the step it was on.
+  const [booted, setBooted] = useState(false);
+  if (loaded && !isPending && !booted) setBooted(true);
+  const ready = booted;
   useEffect(() => {
     if (ready) void SplashScreen.hideAsync();
   }, [ready]);
