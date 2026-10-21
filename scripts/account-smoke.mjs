@@ -236,6 +236,10 @@ try {
         CONSOLE_TEST_MAIL_FILE: mail,
         RESEND_API_KEY: "test",
         EMAIL_FROM: "Console <test@example.invalid>",
+        // The deletion code can go by WhatsApp; otp-mock.cjs answers for the FLW.
+        FLW_SYNOVA: "test",
+        FLW_SENDER_NUMBER: "5511000000000",
+        FLW_OTP_TEMPLATE_ID: randomUUID(),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
