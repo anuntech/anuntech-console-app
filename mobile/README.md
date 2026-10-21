@@ -8,6 +8,7 @@ Na raiz do repositório: `npm run mobile:dev` (`scripts/mobile-dev.mjs`). Ele li
 
 - Contas: `ana@demo.invalid` (Administradora, WhatsApp (11) 90000-0001) e `bruno@demo.invalid` (Membro) na "Empresa Demonstração"; `equipe@demo.invalid` é a equipe.
 - No iPhone pelo cabo: `DEVICE="<nome do iPhone>" npm run mobile:dev`. O iPhone precisa do Modo de Desenvolvedor ligado e da mesma rede Wi-Fi do Mac (o app fala com o Console pelo nome `.local` do Mac). O build de desenvolvimento é assinado no Xcode com o time da Anuntech e não tem push nem links do app, que dependem do App ID criado pelo EAS.
+- Com o app já instalado: `npm run mobile:dev -- --serve` sobe só o Console e o Metro, sem build nem cabo.
 - `-- --reset` recria os dados fictícios; `-- --build` refaz o build do Console depois de mudar o código do servidor; `SIMULATOR="iPhone 17"` troca o aparelho.
 
 `APP_ENV` escolhe o Console: `development` (localhost:3100), `preview` (`CONSOLE_URL`) ou `production` (console.anuntech.com). Fora de produção, o identificador ganha o sufixo do ambiente (`com.anuntech.console.development`), para conviver com o app da loja.

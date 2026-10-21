@@ -6,6 +6,8 @@
 //   npm run mobile:dev -- --build (rebuild the Console after code changes)
 //   DEVICE="iPhone de Kauan Ketner" npm run mobile:dev (an iPhone on the cable,
 //   Developer Mode on, same Wi-Fi as the Mac)
+//   npm run mobile:dev -- --serve (app already installed: only the Console and
+//   Metro, no build, no cable; the phone just needs the same Wi-Fi)
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, watchFile, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -171,8 +173,10 @@ try {
   local = hostname();
 }
 const target = process.env.DEVICE || process.env.SIMULATOR || "iPhone 17 Pro";
-say(`App em ${target}, falando com http://${local}:3100.`);
-const app = spawn("npx", ["expo", "run:ios", "--device", target], {
+say(`${args.includes("--serve") ? "App já instalado" : `App em ${target}`}, falando com http://${local}:3100.`);
+const serve = args.includes("--serve");
+if (serve) say("Abra o app \"Console (development)\" no iPhone ou no simulador.");
+const app = spawn("npx", serve ? ["expo", "start", "--dev-client", "--lan"] : ["expo", "run:ios", "--device", target], {
   cwd: "mobile",
   env: { ...process.env, APP_ENV: "development", CONSOLE_URL: `http://${local}:3100` },
   stdio: "inherit",
