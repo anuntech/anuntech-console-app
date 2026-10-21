@@ -1,27 +1,15 @@
-import { z } from "zod";
 import { getActor } from "@/lib/access/access";
-import { conversationMessages, deleteConversation } from "@/lib/assistant/assistant-history";
+import { assistantConversation, removeAssistantConversation } from "@/lib/assistant/assistant-http";
 import { sameOrigin } from "@/lib/http/same-origin";
 export const runtime = "nodejs";
 
-const id = z.string().uuid();
-
 /** One conversation with its messages; only the person who had it can read it. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const actor = await getActor();
-  const parsed = id.safeParse((await params).id);
-  if (!parsed.success) return new Response(null, { status: 404 });
-  const conversation = await conversationMessages(actor.user.id, parsed.data);
-  if (!conversation) return new Response(null, { status: 404 });
-  return Response.json(conversation, { headers: { "Cache-Control": "no-store" } });
+  return assistantConversation(await getActor(), (await params).id);
 }
 
 /** Deleting is a change: only the Console itself may ask. */
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!sameOrigin(request)) return new Response(null, { status: 403 });
-  const actor = await getActor();
-  const parsed = id.safeParse((await params).id);
-  if (!parsed.success) return new Response(null, { status: 404 });
-  const removed = await deleteConversation(actor.user.id, parsed.data);
-  return new Response(null, { status: removed ? 204 : 404 });
+  return removeAssistantConversation(await getActor(), (await params).id);
 }

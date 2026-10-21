@@ -137,7 +137,11 @@ try {
         ...process.env,
         CONSOLE_ADMIN_EMAIL: owner,
         BETTER_AUTH_URL: base,
-        NODE_OPTIONS: `--require=${process.cwd()}/scripts/otp-mock.cjs`,
+        // The AI Gateway mock goes last so it wraps otp-mock's fetch (which refuses anything outside this Mac).
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/otp-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
+        AI_GATEWAY_API_KEY: "test",
+        CONSOLE_TEST_ASSISTANT_FILE: join(dir, "ai.jsonl"),
+        CONSOLE_TEST_MODELS_FILE: `${process.cwd()}/scripts/fixtures/gateway-models.json`,
         CONSOLE_TEST_OTP_FILE: capture,
         RESEND_API_KEY: "test",
         EMAIL_FROM: "Console <test@example.invalid>",
@@ -344,6 +348,53 @@ try {
   r = await rpc("overview.get", {}, outsiderEarly);
   ok(r.status === 200 && !r.body.canFinance && r.body.toPay.length === 0, "A Membro's start screen has no money");
   await db.query("delete from console_invoices where id=any($1::text[])", [[ownIssued, ownOverdue, ownDraft, otherIssued]]);
+
+  // The assistant, through the app's routes: same turn, history and cards as the web.
+  const ask = (path, init = {}, cookie) =>
+    fetch(`${base}/api/v1/assistente${path}`, {
+      ...init,
+      headers: { ...(cookie ? { Cookie: cookie } : {}), ...(init.headers || {}) },
+    });
+  const say = (cookie, message, headers = { "Content-Type": "application/json" }) =>
+    ask("", { method: "POST", headers, body: JSON.stringify({ message }) }, cookie);
+  ok((await say(undefined, "Olá")).status === 401, "The app's assistant needs a session");
+  ok(
+    (await say(member, "Olá", { "Content-Type": "application/json", "Sec-Fetch-Site": "cross-site" })).status === 403,
+    "A browser on another site never reaches the assistant",
+  );
+  ok((await say(member, "Olá", { "Content-Type": "text/plain" })).status === 403, "The assistant takes only JSON");
+  const turnResponse = await say(member, "Quais chamados estão abertos?");
+  const turnText = await turnResponse.text();
+  const finish = turnText
+    .split("\n")
+    .filter((line) => line.startsWith("data: {"))
+    .map((line) => JSON.parse(line.slice(6)))
+    .find((event) => event.type === "finish");
+  ok(
+    turnResponse.status === 200 &&
+      (turnResponse.headers.get("content-type") || "").includes("text/event-stream") &&
+      turnText.includes('"type":"text-delta"') &&
+      !!finish?.messageMetadata?.conversationId,
+    "The app gets the assistant's answer as it is written, with the conversation's id",
+  );
+  const conversation = finish?.messageMetadata?.conversationId;
+  r = await ask("/conversas", {}, member);
+  ok(
+    r.status === 200 && (await r.json()).conversations.some((c) => c.id === conversation),
+    "The app lists the person's conversations",
+  );
+  ok((await ask(`/conversas/${conversation}`, {}, outsiderEarly)).status === 404, "Nobody reads someone else's conversation");
+  r = await ask(
+    `/propostas/${randomUUID()}`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nonce: "n".repeat(24), decisao: "descartar" }) },
+    member,
+  );
+  ok(r.status === 409, "A card that is not pending cannot be decided");
+  ok(
+    (await fetch(`${base}/api/assistente`, { method: "POST", headers: { Cookie: member, "Content-Type": "application/json" }, body: JSON.stringify({ message: "Olá" }) })).status === 403,
+    "The web's assistant route still takes only the Console's own pages",
+  );
+  ok((await ask(`/conversas/${conversation}`, { method: "DELETE" }, member)).status === 204, "The person deletes a conversation from the app");
 
   // Push devices.
   const outsider = outsiderEarly;
