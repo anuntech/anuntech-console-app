@@ -93,6 +93,8 @@ import {
 import { useEngagementStatus } from "./engagement-status";
 import { ProjectSheet } from "./project-form";
 import { ProjectAbout } from "./project-about";
+import { ProjectActivity } from "./project-activity";
+import type { ActivityEvent } from "@/lib/projects/activity-model";
 import { TaskReviewDialog } from "./task-review-dialog";
 import { DeleteEngagementDialog } from "./delete-engagement-dialog";
 import { TaskSheet, type BoardPerson, type BoardTask, type TaskEditor } from "./task-sheet";
@@ -114,6 +116,8 @@ export type ProjectBoardData = {
   viewer: { id: string; admin: boolean; approver?: boolean };
   today: string;
   now: string;
+  /** "Atividade": the board's history, newest first (lib/projects/project-activity.ts). */
+  activity?: ActivityEvent[];
 };
 
 type Columns = Record<TaskStatus, string[]>;
@@ -443,7 +447,7 @@ function Column({
 const BOARD_MIN_HEIGHT = 360;
 
 export function ProjectBoard({ data }: { data: ProjectBoardData }) {
-  const { project, tasks, people, viewer, today, now } = data;
+  const { project, tasks, people, viewer, today, now, activity = [] } = data;
   const boardRef = useRef<HTMLDivElement>(null);
   // The board fills the screen down to the dock, so the page never grows with
   // the tasks: each column scrolls on its own.
@@ -695,6 +699,15 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
               Salvando…
             </span>
           )}
+          <ProjectActivity
+            name={project.name}
+            events={activity}
+            today={today}
+            onOpenTask={(taskId) => {
+              const task = byId.get(taskId);
+              if (task) setEditor({ mode: "edit", task });
+            }}
+          />
           <ProjectAbout name={project.name} description={project.description} />
           <Button onClick={() => setEditor({ mode: "create", status: "todo" })}>
             <PlusIcon />

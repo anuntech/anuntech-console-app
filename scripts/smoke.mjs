@@ -659,6 +659,10 @@ try {
     await submitForm(`/projetos/${projectId}`, "finance", "finance", { action: "reviewTask" }, { id: task.id, decision: "approve" });
     task = (await database.query("select * from console_tasks where id=$1", [task.id])).rows[0];
     ok(task.status === "done" && task.approved_by === people.finance.id && !!task.approved_at, "Administrador aprova a entrega, com quem e quando");
+    // "Atividade": the board's history reaches whoever sees the project, the client included.
+    const boardPage = (await request(`/projetos/${projectId}`, "support")).text;
+    ok(boardPage.includes("Atividade do projeto") && /task\.approved/.test(boardPage) && /task\.created/.test(boardPage) && boardPage.includes("QA finance"), "A atividade do projeto mostra quem criou e quem aprovou a entrega");
+    ok(!boardPage.includes("company_archived") && !/"engagementId"/.test(boardPage), "A atividade não leva ao navegador detalhes além dos usados na frase");
 
     const bookmarkTitle = `Bookmark ${marker}`;
     await submitForm("/bookmarks", "support", "support", { action: "saveBookmark" }, { companyId: ids.a, engagementId: "", title: bookmarkTitle, url: "https://example.com/project" });

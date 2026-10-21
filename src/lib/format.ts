@@ -175,6 +175,8 @@ export const auditLabels: Record<string, string> = {
   "task.created": "Tarefa criada",
   "task.updated": "Tarefa atualizada",
   "task.moved": "Tarefa movida no quadro",
+  "task.approved": "Entrega aprovada pelo cliente",
+  "task.review_failed": "Problema apontado na entrega",
   "task.deleted": "Tarefa excluída",
   "task.commented": "Comentário em tarefa",
   "task.comment_edited": "Comentário de tarefa editado",
