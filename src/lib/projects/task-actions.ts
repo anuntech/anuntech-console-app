@@ -149,7 +149,7 @@ export async function createTask(
     const result = await db.transaction(async (tx): Promise<ActionState> => {
       let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
       try {
-        uploaded = await takeTicketUploads(tx, actor.user.id, form);
+        uploaded = await takeTicketUploads(tx, actor.user.id, form.getAll("uploadId").map(String));
       } catch (error) {
         return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
       }
@@ -241,7 +241,7 @@ export async function updateTask(
     const result = await db.transaction(async (tx): Promise<ActionState> => {
       let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
       try {
-        uploaded = await takeTicketUploads(tx, actor.user.id, form);
+        uploaded = await takeTicketUploads(tx, actor.user.id, form.getAll("uploadId").map(String));
       } catch (error) {
         return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
       }
@@ -589,7 +589,7 @@ export async function addTaskComment(
     const result = await db.transaction(async (tx): Promise<ActionState> => {
       let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
       try {
-        uploaded = await takeTicketUploads(tx, actor.user.id, form);
+        uploaded = await takeTicketUploads(tx, actor.user.id, form.getAll("uploadId").map(String));
       } catch (error) {
         return { error: message(error, "Não foi possível ler os anexos. Selecione os arquivos de novo.") };
       }

@@ -1,29 +1,24 @@
 "use server";
-import { prepareTicketFiles, takeTicketUploads } from "./tickets/ticket-files";
-import { DOCUMENT_ATTACHMENTS } from "./tickets/attachment-rules";
+import { prepareTicketFiles } from "./tickets/ticket-files";
+import { replyToTicket } from "./tickets/ticket-reply";
+import { openTicket, ticketInput } from "./tickets/ticket-create";
 import { z } from "zod";
 import { and, eq, inArray, ne, or, sql, isNull } from "drizzle-orm";
 import { chargeSourceEvent, chargeSourceKinds, preparedChargeEvents } from "./billing/charge-sources";
 import { releasePreparedCharges } from "./billing/prepared-release";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
-import { jevEnabled } from "./assistant/jev";
-import { triageTicket } from "./tickets/ticket-triage";
-import { automationOn } from "./automations/automations";
 import { db } from "./db";
 import { resolveBankDueDate } from "./billing/billing-notice-rules";
 import { saoPauloDate } from "./dates";
-import { getActor, canAccess, canSeeEngagement, canSeeTicket } from "./access/access";
+import { getActor, canAccess } from "./access/access";
 import {
   companies,
   engagements,
   engagementSuspensions,
   tickets,
-  messages,
   invoices,
   subscriptions,
   auditEvents,
-  attachments,
   automationEvents,
   quotes,
   contracts,
@@ -32,7 +27,6 @@ import {
 } from "@/db/schema";
 import { expiredDebtCondition } from "./billing/billing-watch";
 import { lockEnvironmentAssignments } from "./access/environment-access";
-import { usualAssignee } from "./tickets/ticket-watch";
 import { overageCharge } from "./service-terms/hours-delivery";
 import { normalizeEmail, moneyToCents } from "./access/permissions";
 import { parseChargeTerms, parseTermsScope } from "./billing/billing-terms";
@@ -44,16 +38,13 @@ import {
   scheduleTicketNotices,
 } from "./tickets/ticket-notifications";
 import { dueLabel, priorityLabels, ticketLabels } from "./format";
-import { suggestPriority, ticketChannels, ticketImpacts, ticketKinds } from "./tickets/ticket-intake";
-import { governingTerms, loadCalendar, snapshotOf } from "./service-terms/terms";
+import { loadCalendar } from "./service-terms/terms";
 import { pauseToAdd, ticketDues, visibleToClient } from "./service-terms/ticket-clock";
 import { addBusinessMinutes } from "./service-terms/business-calendar";
 import { BUSINESS_DAY_MINUTES } from "./service-terms/terms-model";
-import { sendOpsMail } from "./notifications/ops-alerts";
 import { teamMemberName } from "./account/account-identity";
 import { companyIdentity } from "./companies/company-input";
 import { companyBillingInput } from "./companies/company-billing";
-import { logDatabaseFault } from "./action-errors";
 const id = z.string().uuid();
 function isWebUrl(value: string) {
   try {
@@ -267,124 +258,17 @@ export async function createTicket(
 ): Promise<ActionState> {
   const actor = await getActor();
   try {
-    const input = z
-      .object({
-        companyId: id,
-        engagementId: z.union([id, z.literal("")]).default(""),
-        subject: str(160),
-        body: str(10000),
-        // Only the team sets it by hand; otherwise the Console suggests it from the impact.
-        priority: z.enum(["critical", "high", "normal"]).optional(),
-        kind: z.enum(ticketKinds).optional(),
-        impact: z.enum(ticketImpacts).optional(),
-        channel: z.enum(ticketChannels).default("console"),
-      })
-      .parse(Object.fromEntries(form));
+    const input = ticketInput.parse(Object.fromEntries(form));
     if (!canAccess(actor, input.companyId, "support")) return blocked;
-    const impact = input.kind === "problem" ? (input.impact ?? "other") : null;
     let files: Awaited<ReturnType<typeof prepareTicketFiles>>;
     try { files = await prepareTicketFiles(form.getAll("files")); }
     catch (error) { return { error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo." }; }
-    const now = new Date();
-    const ticket = await db.transaction(async (tx) => {
-      const uploaded = await takeTicketUploads(tx, actor.user.id, form);
-      if (files.length + uploaded.length > DOCUMENT_ATTACHMENTS.max || files.reduce((n, f) => n + f.size, 0) + uploaded.reduce((n, f) => n + f.size, 0) > DOCUMENT_ATTACHMENTS.maxBytes) throw new Error("Limite de anexos excedido.");
-      if (input.engagementId) {
-        const [eng] = await tx
-          .select()
-          .from(engagements)
-          .where(
-            and(
-              eq(engagements.id, input.engagementId),
-              eq(engagements.companyId, input.companyId),
-            ),
-          );
-        // A forged id never opens a request about a product the person does not see.
-        if (!eng || !canSeeEngagement(actor, eng, "support")) throw Error();
-      }
-      // The conditions in force now stay with the ticket, so a later change never moves a deadline already given.
-      const terms = snapshotOf(await governingTerms(input.companyId, input.engagementId || null, tx));
-      // The priority is Anuntech's call (support contract 5.1): the team may set it, the Console only suggests.
-      const priority = (actor.admin && input.priority) || suggestPriority(input.kind, impact, terms?.policy.levels);
-      const dues = ticketDues({ createdAt: now, priority, kind: input.kind, impact, terms }, await loadCalendar(tx));
-      // Every ticket starts with an owner: the team member who opens it, or whoever took this client's last one.
-      const assignedTo = actor.admin ? normalizeEmail(actor.user.email) : await usualAssignee(input.companyId, input.engagementId || null, tx);
-      const [row] = await tx
-        .insert(tickets)
-        .values({
-          companyId: input.companyId,
-          engagementId: input.engagementId || null,
-          subject: input.subject,
-          priority,
-          kind: input.kind ?? null,
-          impact,
-          channel: actor.admin ? input.channel : "console",
-          terms,
-          responseDueAt: dues.responseDueAt,
-          resolutionDueAt: dues.resolutionDueAt,
-          authorId: actor.user.id,
-          assignedTo,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning();
-      await tx.insert(messages).values({
-        ticketId: row.id,
-        authorId: actor.user.id,
-        body: input.body,
-      });
-      if (files.length || uploaded.length) await tx.insert(attachments).values([...files, ...uploaded].map(file => ({ ...file, ticketId: row.id, authorId: actor.user.id })));
-      const [event] = await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          companyId: row.companyId,
-          action: "ticket.created",
-          entityId: row.id,
-        })
-        .returning({ id: auditEvents.id });
-      await enqueueTicketNotice(
-        tx,
-        event.id,
-        row,
-        actor.user.name,
-        "Chamado aberto",
-        { email: actor.user.email },
-        row.responseDueAt && visibleToClient(terms, now)
-          ? `A primeira resposta vem até ${dueLabel(row.responseDueAt, now)}.`
-          : null,
-      );
-      return row;
-    });
-    // Something stopped with no way around it: the whole team hears now, not at the next read of the list.
-    if (ticket.impact === "down")
-      await sendOpsMail(
-        `Parou tudo: ${ticket.subject}`,
-        `Um chamado chegou com o impacto "Parou tudo e não dá para contornar".\n\nChamado: ${ticket.subject}\nPrioridade sugerida: ${priorityLabels[ticket.priority]}\nAbrir no Console: ${process.env.BETTER_AUTH_URL || "https://console.anuntech.com"}/chamados/${ticket.id}\n\nConsole da Anuntech`,
-      ).catch(() => undefined);
+    const ticket = await openTicket(actor, input, { files, uploadIds: form.getAll("uploadId").map(String) });
     refresh();
-    scheduleTicketNotices();
-    // Jev reads the text after the answer goes out; the team may get a suggested priority.
-    if (jevEnabled()) after(async () => { if (await automationOn("ticketTriage")) await triageTicket(ticket.id); });
     return { success: "Chamado aberto.", href: `/chamados/${ticket.id}` };
   } catch (e) {
     return failure(e);
   }
-}
-/**
- * The ticket leaves "waiting for the client": the wait joins the pause where
- * the conditions pause the clock (SUP 6.4), and the deadlines move by it.
- */
-async function resumeClock(
-  ticket: typeof tickets.$inferSelect,
-  now: Date,
-  tx: Pick<typeof db, "select">,
-) {
-  const cleared = { waitingFor: null, waitingSince: null };
-  if (!ticket.terms || !ticket.waitingSince) return cleared;
-  const cal = await loadCalendar(tx);
-  const pausedMinutes = ticket.pausedMinutes + pauseToAdd(ticket.terms, ticket.waitingSince, now, cal);
-  return { ...cleared, pausedMinutes, ...ticketDues({ ...ticket, pausedMinutes }, cal) };
 }
 export async function replyTicket(
   _: ActionState,
@@ -413,95 +297,12 @@ export async function replyTicket(
         error: error instanceof Error ? error.message : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
       };
     }
-    const result = await db.transaction(async (tx) => {
-      const [ticket] = await tx
-        .select()
-        .from(tickets)
-        .where(eq(tickets.id, input.ticketId))
-        .for("update");
-      if (!ticket || !canSeeTicket(actor, ticket))
-        return blocked;
-      if (ticket.status === "closed")
-        return {
-          error:
-            "O chamado está encerrado. Abra um novo chamado para continuar o atendimento.",
-        };
-      let uploaded: Awaited<ReturnType<typeof takeTicketUploads>>;
-      try {
-        uploaded = await takeTicketUploads(tx, actor.user.id, form);
-      } catch (error) {
-        return {
-          error:
-            error instanceof Error && !logDatabaseFault("ticket uploads", error)
-              ? error.message
-              : "Não foi possível ler os anexos. Selecione os arquivos de novo.",
-        };
-      }
-      const files = [...direct, ...uploaded];
-      if (!input.body && !files.length)
-        return { error: "Escreva uma resposta ou anexe um arquivo." };
-      if (
-        files.length > DOCUMENT_ATTACHMENTS.max ||
-        files.reduce((n, f) => n + f.size, 0) > DOCUMENT_ATTACHMENTS.maxBytes
-      )
-        return { error: "Selecione até 5 anexos, com no máximo 20 MB no total." };
-      if (files.length) {
-        const [total] = await tx
-          .select({ n: sql<number>`count(*)::int` })
-          .from(attachments)
-          .where(eq(attachments.ticketId, ticket.id));
-        if (total.n + files.length > 20)
-          return { error: "Limite de 20 anexos por chamado atingido." };
-      }
-      if (input.body)
-        await tx.insert(messages).values({
-          ticketId: ticket.id,
-          body: input.body,
-          authorId: actor.user.id,
-        });
-      if (files.length)
-        await tx.insert(attachments).values(
-          files.map((file) => ({
-            ...file,
-            ticketId: ticket.id,
-            authorId: actor.user.id,
-          })),
-        );
-      const now = new Date();
-      // A client's answer takes a waiting ticket back to the team, and reopens a resolved one.
-      const back = !actor.admin && (ticket.status === "waiting_customer" || ticket.status === "resolved");
-      const clock = back ? await resumeClock(ticket, now, tx) : {};
-      await tx
-        .update(tickets)
-        .set({
-          updatedAt: now,
-          ...(back ? { status: "open" as const, ...clock } : {}),
-          // The team's first written answer is the first response the contract counts.
-          ...(actor.admin && input.body && !ticket.firstResponseAt ? { firstResponseAt: now } : {}),
-        })
-        .where(eq(tickets.id, ticket.id));
-      const [event] = await tx
-        .insert(auditEvents)
-        .values({
-          actorId: actor.user.id,
-          companyId: ticket.companyId,
-          action: input.body ? "ticket.replied" : "ticket.attachment_added",
-          entityId: ticket.id,
-        })
-        .returning({ id: auditEvents.id });
-      await enqueueTicketNotice(
-        tx,
-        event.id,
-        ticket,
-        actor.user.name,
-        input.body ? "Nova resposta no chamado" : "Novo anexo no chamado",
-        actor.admin ? await ticketOpener(tx, ticket, actor.user.email) : null,
-      );
-      return { success: input.body ? "Resposta enviada." : "Anexo enviado." };
+    const result = await replyToTicket(actor, {
+      ...input,
+      files: direct,
+      uploadIds: form.getAll("uploadId").map(String),
     });
-    revalidatePath(`/chamados/${input.ticketId}`);
-    refresh();
-    if ("success" in result) scheduleTicketNotices();
+    if ("success" in result) refresh();
     return result;
   } catch (e) {
     return failure(e);

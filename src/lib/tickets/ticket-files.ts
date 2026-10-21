@@ -73,9 +73,9 @@ export async function prepareTicketFiles(values: FormDataEntryValue[]) {
 export async function takeTicketUploads(
   tx: Tx,
   authorId: string,
-  form: FormData,
+  /** The `uploadId` values a form or the app sent. */
+  ids: string[],
 ) {
-  const ids = form.getAll("uploadId").map(String);
   if (!ids.length) return [];
   if (ids.length > MAX_TICKET_FILES || new Set(ids).size !== ids.length)
     throw new Error("Não foi possível ler os anexos. Selecione os arquivos de novo.");

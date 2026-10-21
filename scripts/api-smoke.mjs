@@ -227,9 +227,72 @@ try {
     "The API ignores the assisted-access cookie",
   );
 
-  // Push devices.
+  // Tickets: the same rules as /chamados, through the app's API.
   r = await emailSignIn(people.outsider.email);
-  const outsider = r.cookie;
+  const outsiderEarly = r.cookie;
+  r = await rpc("tickets.choices", {}, member);
+  ok(
+    r.status === 200 &&
+      r.body.companies.length === 1 &&
+      r.body.companies[0].id === companies.a &&
+      r.body.kinds.some((k) => k.value === "problem" && k.label),
+    "Ticket choices list only the person's companies, with the kinds' labels",
+  );
+  ok(
+    (await rpc("tickets.create", { companyId: companies.b, kind: "question", subject: "x", body: "y" }, member)).status === 404,
+    "Nobody opens a ticket for another company",
+  );
+  r = await rpc(
+    "tickets.create",
+    { companyId: companies.a, kind: "problem", impact: "workaround", subject: `App ticket ${marker}`, body: "Aberto pelo app." },
+    member,
+  );
+  const ticketId = r.body?.id;
+  const [opened] = (await db.query("select * from console_tickets where id=$1", [ticketId ?? randomUUID()])).rows;
+  ok(
+    r.status === 200 && opened?.company_id === companies.a && opened.channel === "console" && opened.author_id === people.member.id,
+    "A client opens a ticket from the app",
+  );
+  r = await rpc("tickets.list", { status: "all" }, member);
+  const listed = r.body?.rows?.find((row) => row.id === ticketId);
+  ok(
+    r.status === 200 && listed?.statusLabel === "Aguardando atendimento" && listed.assignee === null,
+    "The app's list shows the ticket without the team's assignee",
+  );
+  r = await rpc("tickets.list", { status: "all" }, outsiderEarly);
+  ok(r.status === 200 && !r.body.rows.some((row) => row.id === ticketId), "Another company's ticket stays out of the list");
+  ok((await rpc("tickets.get", { id: ticketId }, outsiderEarly)).status === 404, "Another company's ticket answers 404");
+  ok((await rpc("tickets.get", { id: randomUUID() }, member)).status === 404, "An unknown ticket answers 404");
+  r = await rpc("tickets.get", { id: ticketId }, member);
+  ok(
+    r.status === 200 &&
+      r.body.entries.length === 1 &&
+      r.body.entries[0].kind === "message" &&
+      r.body.entries[0].mine &&
+      r.body.canReply,
+    "The ticket opens with its first message, marked as the person's",
+  );
+  ok(
+    (await rpc("tickets.reply", { id: ticketId, body: "Intruso" }, outsiderEarly)).status === 404,
+    "Nobody replies on another company's ticket",
+  );
+  r = await rpc("tickets.reply", { id: ticketId, body: "Mais detalhes pelo app." }, member);
+  ok(
+    r.status === 200 &&
+      Number((await db.query("select count(*) from console_messages where ticket_id=$1", [ticketId])).rows[0].count) === 2,
+    "A reply from the app joins the conversation",
+  );
+  r = await rpc("tickets.get", { id: ticketId }, staff);
+  ok(r.status === 200 && r.body.entries.length === 2, "The team opens any ticket");
+  await db.query("update console_tickets set status='closed' where id=$1", [ticketId]);
+  r = await rpc("tickets.reply", { id: ticketId, body: "Depois de encerrado" }, member);
+  ok(r.status === 400 && /encerrado/.test(r.body?.message ?? ""), "A closed ticket refuses replies with the reason");
+  await db.query("delete from console_ticket_notices where ticket_id=$1", [ticketId]).catch(() => undefined);
+  await db.query("delete from console_messages where ticket_id=$1", [ticketId]);
+  await db.query("delete from console_tickets where id=$1", [ticketId]);
+
+  // Push devices.
+  const outsider = outsiderEarly;
   ok(
     (await rpc("devices.register", { token: "not-a-token", platform: "ios" }, member)).status === 400,
     "Device registration validates the push token",
