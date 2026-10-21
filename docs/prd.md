@@ -44,6 +44,10 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Cliente: faturas a pagar (com link de pagamento), pendências, projetos com progresso, produtos e serviços, últimos chamados e bookmarks.
 - Valores escondidos (desde 20/10/2026): na Visão geral, os valores em dinheiro começam borrados, para a equipe e para quem vê o financeiro da empresa. O botão do olho no topo mostra ou esconde, e a escolha fica num cookie do navegador (lido no servidor, então a página já chega como a pessoa deixou). O Membro, que não vê valores, não tem o botão.
 
+### Atividade do projeto
+
+- No quadro de cada projeto, o botão "Atividade" (desde 21/10/2026) lista as 200 ações mais recentes do projeto e das tarefas dele, por dia: quem fez (a equipe com "(Anuntech)"), o quê e a hora. Tarefa criada, movida (de qual coluna para qual), aprovada ou devolvida na Revisão, comentário criado, editado ou excluído, anexo removido, tarefa editada ou excluída, e mudanças do próprio projeto. Filtros: Tudo, Movimentos, Revisões, Comentários e Edições. O nome da tarefa abre o cartão; uma excluída aparece como tal. Vem do registro de auditoria, e só os campos que a frase usa chegam ao navegador. Quem vê o projeto vê a atividade dele, o cliente incluído.
+
 ### Empresas
 
 - Cadastro com CPF ou CNPJ, razão social, e-mail financeiro, telefone e endereço de cobrança. CNPJ e CEP preenchem o resto sozinhos (CNPJ.ws e ViaCEP); tudo continua editável.

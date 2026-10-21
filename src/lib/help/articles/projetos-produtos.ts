@@ -166,6 +166,23 @@ export const projetosProdutosArticles: HelpArticle[] = [
         ],
       },
       {
+        title: "Atividade do projeto",
+        blocks: [
+          {
+            kind: "p",
+            text: "O botão com o ícone de relógio, ao lado de \"Sobre este projeto\", abre a \"Atividade\": tudo o que aconteceu no quadro, do mais recente para o mais antigo, separado por dia. Cada linha diz quem fez (a equipe aparece com \"(Anuntech)\"), o quê e a hora: tarefa criada, movida de uma coluna para outra, entrega aprovada ou devolvida com um problema, comentário, anexo removido, tarefa editada ou excluída.",
+          },
+          {
+            kind: "list",
+            items: [
+              "Os botões \"Movimentos\", \"Revisões\", \"Comentários\" e \"Edições\" mostram só esse tipo de atividade; \"Tudo\" volta à lista completa.",
+              "Clique no nome da tarefa para abri-la. Uma tarefa excluída aparece com \"(excluída)\" e não abre.",
+              "A lista mostra as 200 atividades mais recentes. Quem vê o projeto vê a atividade dele.",
+            ],
+          },
+        ],
+      },
+      {
         title: "Quando usar um chamado",
         blocks: [
           {
@@ -177,6 +194,10 @@ export const projetosProdutosArticles: HelpArticle[] = [
       },
     ],
     faq: [
+      {
+        q: "Uma tarefa mudou de coluna e não sei quem mexeu. Onde vejo?",
+        a: "Na \"Atividade\" do projeto, pelo botão com o ícone de relógio no topo do quadro. Ela mostra quem moveu, aprovou ou devolveu cada tarefa, e quando. Use \"Movimentos\" ou \"Revisões\" para filtrar.",
+      },
       {
         q: "Não encontro um projeto que sei que a empresa tem. Por quê?",
         a: "Confira primeiro o filtro: a lista abre em \"Ativos\". Escolha \"Pausados\", \"Concluídos\" ou \"Todas as situações\". Se você é Membro, um Administrador pode ter escolhido \"Só o que eu escolher\" para você em Membros; nesse caso, você vê só os projetos marcados, e um projeto novo só aparece quando ele marcar. Fale com um Administrador da sua empresa.",
@@ -204,7 +225,7 @@ export const projetosProdutosArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para Projetos", href: "/projetos" }],
     related: ["pedir-uma-tarefa", "aprovar-entregas", "comentarios-e-anexos", "o-que-cada-membro-ve"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-21",
   },
   {
     slug: "pedir-uma-tarefa",

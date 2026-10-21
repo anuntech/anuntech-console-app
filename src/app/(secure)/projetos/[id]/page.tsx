@@ -10,6 +10,7 @@ import { engagementLinks } from "@/lib/record-links";
 import { ProjectBoard } from "@/components/projetos/project-board";
 import { governingTerms, loadCalendar, snapshotOf } from "@/lib/service-terms/terms";
 import { visibleToClient } from "@/lib/service-terms/ticket-clock";
+import { projectActivity } from "@/lib/projects/project-activity";
 import { addBusinessMinutes } from "@/lib/service-terms/business-calendar";
 import { BUSINESS_DAY_MINUTES } from "@/lib/service-terms/terms-model";
 export const metadata: Metadata = {
@@ -31,11 +32,12 @@ export default async function Project({
     .where(eq(engagements.id, id));
   if (!row || !canSeeEngagement(actor, row.project)) notFound();
   if (row.project.kind !== "project") redirect("/produtos");
-  const [tasks, people, links] = await Promise.all([
+  const [tasks, people, links, activity] = await Promise.all([
     boardTasks(id),
     projectPeople(row.project.companyId, id),
     // Staff see "Excluir" only when nothing billed or signed points at it.
     actor.admin ? engagementLinks([id]) : null,
+    projectActivity(id, row.project.companyId),
   ]);
   const now = new Date();
   // A delivery in Revisão has a test window only where the contract sets one (SUP 5.3, Serviço 4.2).
@@ -82,6 +84,7 @@ export default async function Project({
         },
         today: saoPauloDate(now),
         now: now.toISOString(),
+        activity,
       }}
     />
   );
