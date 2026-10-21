@@ -72,9 +72,9 @@ const config: ExpoConfig = {
       {
         icon: "./assets/images/notification-icon.png",
         color: "#1a428a",
-        // Push needs an App ID with the capability (EAS creates it); a
-        // development build signed in Xcode with the team's wildcard profile cannot have it.
-        enableRemoteNotifications: env !== "development",
+        // Push needs an App ID with the capability, which EAS creates; a build
+        // signed in Xcode with the team's wildcard profile cannot have it.
+        enableRemoteNotifications: env === "production" || !!process.env.EAS_BUILD,
       },
     ],
     [

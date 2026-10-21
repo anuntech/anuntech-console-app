@@ -13,6 +13,10 @@ Na raiz do repositório: `npm run mobile:dev` (`scripts/mobile-dev.mjs`). Ele li
 
 `APP_ENV` escolhe o Console: `development` (localhost:3100), `preview` (`CONSOLE_URL`) ou `production` (console.anuntech.com). Fora de produção, o identificador ganha o sufixo do ambiente (`com.anuntech.console.development`), para conviver com o app da loja.
 
+## No iPhone com o Console de produção (sem EAS)
+
+`APP_ENV=preview CONSOLE_URL=https://console.anuntech.com npx expo prebuild -p ios --clean` e depois `APP_ENV=preview CONSOLE_URL=https://console.anuntech.com npx expo run:ios --configuration Release --device "<nome do iPhone>" --no-bundler`. Instala "Console (preview)" (`com.anuntech.console.preview`) com o código embutido: funciona longe do Mac, com a conta de verdade. Assinado no Xcode com o time da Anuntech, sem push nem links do app. Para voltar ao desenvolvimento, rode o `prebuild` de novo com `APP_ENV=development`.
+
 ## Testes
 
 - `npm run lint` e `npm run typecheck`.
