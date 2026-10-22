@@ -161,16 +161,19 @@ export default function Profile() {
               <View accessible accessibilityLabel={photo ? "Sua foto de perfil" : "Sua imagem de perfil"}>
                 <Avatar avatar={me.data.avatar} name={me.data.name} email={me.data.email} size={112} />
               </View>
-              <Button
-                title={pending === "upload" ? "Enviando foto…" : pending === "remove" ? "Removendo foto…" : "Alterar foto"}
-                icon="camera.fill"
-                variant="secondary"
-                size="small"
-                testID="change-photo"
-                busy={pending === "upload" || pending === "remove"}
-                disabled={!!pending}
-                onPress={changePhoto}
-              />
+              {/* A small button aligns itself to the start: the wrapper centers it under the photo. */}
+              <View>
+                <Button
+                  title={pending === "upload" ? "Enviando foto…" : pending === "remove" ? "Removendo foto…" : "Alterar foto"}
+                  icon="camera.fill"
+                  variant="secondary"
+                  size="small"
+                  testID="change-photo"
+                  busy={pending === "upload" || pending === "remove"}
+                  disabled={!!pending}
+                  onPress={changePhoto}
+                />
+              </View>
               {Platform.OS === "android" && photo ? (
                 <Button
                   title="Remover foto"

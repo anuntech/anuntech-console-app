@@ -26,10 +26,13 @@ export function IconTile({
   glyph?: string;
   size?: number;
 }) {
+  const palette = usePalette();
+  // The ink tile is near-black: in dark mode a hairline keeps it from melting into the row.
+  const edge = palette.dark && color === "ink" ? { borderWidth: 1, borderColor: palette.border } : {};
   return (
     <View
       accessible={false}
-      style={{ width: size, height: size, ...rounded(size / 4), backgroundColor: tile[color], alignItems: "center", justifyContent: "center" }}
+      style={{ width: size, height: size, ...rounded(size / 4), backgroundColor: tile[color], alignItems: "center", justifyContent: "center", ...edge }}
     >
       <SymbolView name={icon} size={Math.round(size * 0.53)} tintColor={glyph} accessible={false} />
     </View>

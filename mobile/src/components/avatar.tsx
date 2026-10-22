@@ -43,8 +43,9 @@ export function Avatar({ avatar, name, email, size = 40 }: { avatar: AvatarInfo 
       <View accessible={false} style={[frame, { backgroundColor: avatar.color ?? palette.accent }]}>
         <Image
           source={{ uri: `${CONSOLE_URL}${avatar.path}` }}
-          style={{ width: size, height: size, transform: [{ scale: 1.75 }, { translateY: size * 0.2 }] }}
-          contentFit="contain"
+          // The web's crop: 1.75× from 50% / 30%, so the face fills the circle.
+          style={{ width: size, height: size, transformOrigin: "50% 30%", transform: [{ scale: 1.75 }] }}
+          contentFit="cover"
         />
       </View>
     );
