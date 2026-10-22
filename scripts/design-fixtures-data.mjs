@@ -1299,8 +1299,6 @@ export async function seedData({ db, uid }) {
         proximosPassos: ["Reunião de início", "Acessos ao domínio"],
       }),
       steps: [
-        ["reuniao-briefing", "done", { scheduled: -11, note: "Conversa por vídeo de 40 minutos." }],
-        ["qualificacao", "done", {}],
         ["nda", "skipped", {}],
         ["kickoff", "todo", { scheduled: 4 }],
         ["prompt-projeto", "doing", {}],
@@ -1325,7 +1323,6 @@ export async function seedData({ db, uid }) {
         decisor: "Renata Moura, administradora",
       }),
       steps: [
-        ["reuniao-briefing", "done", { scheduled: -88 }],
         ["kickoff", "done", { scheduled: -58 }],
         ["prompt-projeto", "done", {}],
         ["repositorio", "done", { url: "https://github.com/anuntech/portal-vida-plena" }],
@@ -1356,14 +1353,14 @@ export async function seedData({ db, uid }) {
         funcionalidades: ["Cardápio com fotos", "Pedido pela mesa", "Impressão na cozinha"],
         decisor: "João Batista, sócio",
       }),
-      steps: [["reuniao-briefing", "done", { scheduled: -13 }]],
+      steps: [],
     },
     lead: {
       title: "Site da Academia Movimento",
       lead: { name: "Academia Movimento", contact: "Fernanda Lopes", email: "fernanda@academiamovimento.invalid", phone: "48999112233" },
       status: "active",
       created: -3,
-      steps: [["reuniao-briefing", "todo", { scheduled: 2 }]],
+      steps: [],
     },
     rotasul: {
       title: "Rastreamento de entregas da Rota Sul",
@@ -1372,7 +1369,7 @@ export async function seedData({ db, uid }) {
       status: "lost",
       created: -55,
       finished: -35,
-      steps: [["reuniao-briefing", "done", { scheduled: -53 }]],
+      steps: [],
     },
   };
   const JN = {};

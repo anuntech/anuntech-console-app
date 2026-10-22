@@ -382,7 +382,8 @@ export async function draftDesignDirection(journeyId: string, input: { referenci
 
 /* ---------- meeting agendas ---------- */
 
-const MEETING_STEP: Record<JourneyMeeting, string> = { briefing: "reuniao-briefing", inicio: "kickoff", apresentacao: "apresentacao", entrega: "entrega" };
+// The briefing meeting has no step of its own any more: its notes go straight into "Briefing da reunião".
+const MEETING_STEP: Record<JourneyMeeting, string> = { briefing: "briefing", inicio: "kickoff", apresentacao: "apresentacao", entrega: "entrega" };
 
 const MEETING_FOCUS: Record<JourneyMeeting, string> = {
   briefing:

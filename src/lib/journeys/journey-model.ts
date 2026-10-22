@@ -87,16 +87,6 @@ export const JOURNEY_TEMPLATE: JourneyStepDef[] = [
     source: "auto",
   }),
   step({
-    key: "reuniao-briefing",
-    stage: "descoberta",
-    title: "Reunião de briefing",
-    help: "A primeira conversa sobre o projeto. Marque a data e, depois, anote o que foi combinado.",
-    required: true,
-    source: "manual",
-    fields: ["date", "note"],
-    ai: { kind: "pauta", meeting: "briefing" },
-  }),
-  step({
     key: "briefing",
     stage: "descoberta",
     title: "Briefing da reunião",
@@ -104,15 +94,6 @@ export const JOURNEY_TEMPLATE: JourneyStepDef[] = [
     required: true,
     source: "auto",
     ai: { kind: "briefing" },
-  }),
-  step({
-    key: "qualificacao",
-    stage: "descoberta",
-    title: "Quem decide, verba e prazo",
-    help: "Quem aprova o projeto, quanto o cliente pensa em investir e se há uma data importante. Fica no briefing.",
-    required: false,
-    source: "hybrid",
-    after: ["briefing"],
   }),
   step({
     key: "cadastro-cobranca",
@@ -775,10 +756,6 @@ export function autoStatus(key: string, f: JourneyFacts, briefing: JourneyBriefi
         : briefingStarted(briefing)
           ? { status: "doing", detail: "Falta o objetivo ou as funcionalidades" }
           : null;
-    case "qualificacao":
-      return briefing?.decisor.trim() && (briefing.orcamentoCliente.trim() || briefing.prazoDesejado.trim())
-        ? { status: "done", detail: `Decide: ${briefing.decisor}` }
-        : null;
     case "tarefas":
       if (!q) return null;
       return q.tasks > 0
