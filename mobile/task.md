@@ -106,17 +106,17 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 6 — Início, produtos, banco de horas e apps
 
-- [ ] **H1** "Precisa de atenção": orçamentos para responder, contratos para assinar, estimativas para aprovar, entregas para revisar, produto suspenso.
-- [ ] **H2** Projetos (até 4, com progresso), Produtos e serviços (até 5) e Bookmarks (até 5) no Início.
-- [ ] **H3** "Nada a pagar" com a próxima cobrança.
-- [ ] **H4** Esconder e mostrar valores (olho), guardado no aparelho.
-- [ ] **S1** **Produtos e serviços**: lista (filtro de situação, busca), situação, preço e vencimento (Administrador).
-- [ ] **S2** Detalhe do serviço (o que fazemos, o que precisamos de você, resultados, prazos), cobrança (Administrador) e "Abrir chamado" já com o serviço.
-- [ ] **S3** Aviso de produto suspenso com "Pagar agora" e "Falar com a equipe".
-- [ ] **S4** Abrir o app de um produto (CMS e outros) com o passe do Console, no navegador do app; telas de bloqueio com o motivo.
-- [ ] **S5** Banco de horas: uso do mês, lançamentos recentes, horas extras aprovadas, relatório mensal.
-- [ ] **S6** Aprovar horas além do banco (Administrador).
-- [ ] **S7** Contestar o relatório mensal (Administrador).
+- [x] **H1** "Precisa de atenção": orçamentos para responder, contratos para assinar, estimativas para aprovar, entregas para revisar, produto suspenso.
+- [x] **H2** Projetos (até 4, com progresso), Produtos e serviços (até 5) e Bookmarks (até 5) no Início.
+- [x] **H3** "Nada a pagar" com a próxima cobrança.
+- [x] **H4** Esconder e mostrar valores (olho), guardado no aparelho.
+- [x] **S1** **Produtos e serviços**: lista (filtro de situação, busca), situação, preço e vencimento (Administrador).
+- [x] **S2** Detalhe do serviço (o que fazemos, o que precisamos de você, resultados, prazos), cobrança (Administrador) e "Abrir chamado" já com o serviço.
+- [x] **S3** Aviso de produto suspenso com "Pagar agora" e "Falar com a equipe".
+- [x] **S4** Abrir o app de um produto (CMS e outros) com o passe do Console, no navegador do app; telas de bloqueio com o motivo.
+- [x] **S5** Banco de horas: uso do mês, lançamentos recentes, horas extras aprovadas, relatório mensal.
+- [x] **S6** Aprovar horas além do banco (Administrador).
+- [x] **S7** Contestar o relatório mensal (Administrador).
 - ⚪ Contratar direto pelo catálogo: não existe na web (o catálogo é da equipe). Hoje contratar é pedir orçamento → aceitar → assinar, que o app passa a fazer inteiro (Q2, K3). Abrir o catálogo ao cliente é decisão de produto à parte.
 
 ## Frente 7 — Ajuda, Como trabalhamos e primeiros passos

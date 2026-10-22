@@ -2,8 +2,8 @@ import { Stack } from "expo-router";
 import { useStackOptions } from "@/lib/stack";
 
 /**
- * Início and the areas its shortcuts open (Projetos, Contratos, Orçamentos,
- * Bookmarks). Lists get the large title; a detail screen draws its own name.
+ * Início and the areas its shortcuts open (Projetos, Produtos e serviços,
+ * Contratos, Orçamentos, Bookmarks). Lists get the large title; a detail screen draws its own name.
  */
 export default function HomeLayout() {
   const options = useStackOptions();
@@ -16,6 +16,9 @@ export default function HomeLayout() {
       <Stack.Screen name="contratos/[id]" options={{ title: "" }} />
       <Stack.Screen name="orcamentos/index" options={{ title: "Orçamentos", headerLargeTitle: true }} />
       <Stack.Screen name="orcamentos/[id]" options={{ title: "" }} />
+      <Stack.Screen name="produtos/index" options={{ title: "Produtos e serviços", headerLargeTitle: true }} />
+      <Stack.Screen name="produtos/[id]" options={{ title: "" }} />
+      <Stack.Screen name="produtos/app/[id]" options={{ title: "" }} />
       <Stack.Screen name="bookmarks" options={{ title: "Bookmarks", headerLargeTitle: true }} />
     </Stack>
   );
