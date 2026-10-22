@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { FormSheet, useRouteSheet } from "@/components/console/form-sheet";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
-import { CompanyFields, type CompanyFormValues } from "./company-form";
+import { CompanyFields, type CompanyFormValues, type FinanceExtras } from "./company-form";
 import { createCompany, updateCompany } from "@/lib/actions";
 
+const NO_EXTRAS: FinanceExtras = { emails: [], phones: [] };
 const CREATE_DESCRIPTION = "Informe os dados do cliente. O CNPJ preenche o restante.";
 /** Create or edit a company in a side sheet; the task never leaves the list. */
 export function CompanySheet({
@@ -18,12 +19,15 @@ export function CompanySheet({
   company,
   companyId,
   lookupEnabled = true,
+  financeExtras = NO_EXTRAS,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   company?: CompanyFormValues | null;
   companyId?: string;
   lookupEnabled?: boolean;
+  /** The other e-mails and phones that receive billing notices, beyond the main ones. */
+  financeExtras?: FinanceExtras;
 }) {
   const editing = !!companyId;
   return (
@@ -39,7 +43,7 @@ export function CompanySheet({
       pendingLabel={editing ? "Salvando…" : "Cadastrando…"}
     >
       {editing && <input type="hidden" name="id" value={companyId} />}
-      <CompanyFields company={company} lookupEnabled={lookupEnabled} />
+      <CompanyFields company={company} lookupEnabled={lookupEnabled} financeExtras={financeExtras} />
     </FormSheet>
   );
 }
@@ -59,7 +63,7 @@ export function NewCompanySheet({ journeyId = "" }: { journeyId?: string }) {
       pendingLabel="Cadastrando…"
     >
       {journeyId && <input type="hidden" name="journeyId" value={journeyId} />}
-      <CompanyFields />
+      <CompanyFields financeExtras={NO_EXTRAS} />
     </FormSheet>
   );
 }
@@ -72,7 +76,7 @@ export function NewCompanyForm({ journeyId = "" }: { journeyId?: string }) {
         <CardContent className="flex flex-col gap-5">
           <FormError />
           {journeyId && <input type="hidden" name="journeyId" value={journeyId} />}
-          <CompanyFields />
+          <CompanyFields financeExtras={NO_EXTRAS} />
         </CardContent>
         <CardFooter className="justify-end gap-2 border-t">
           <Button type="button" variant="outline" asChild>

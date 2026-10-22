@@ -46,6 +46,8 @@ import { BUSINESS_DAY_MINUTES } from "./service-terms/terms-model";
 import { teamMemberName } from "./account/account-identity";
 import { companyIdentity } from "./companies/company-input";
 import { companyBillingInput } from "./companies/company-billing";
+import { lockCompanyNotifications } from "./notifications/notification-preferences";
+import { readFinanceContacts, saveFinanceContacts } from "./companies/finance-contacts";
 const id = z.string().uuid();
 function isWebUrl(value: string) {
   try {
@@ -97,6 +99,7 @@ export async function createCompany(
   if (!actor.admin) return blocked;
   try {
     const input = companyIdentity.parse(Object.fromEntries(form));
+    const contacts = readFinanceContacts(form, input);
     // Started from a project journey ("Cadastrar empresa"): the new company is linked to it, and the team goes back there.
     const journeyId = z.union([z.string().uuid(), z.literal("")]).catch("").parse(form.get("journeyId") ?? "");
     const { company, journey } = await db.transaction(async (tx) => {
@@ -110,6 +113,7 @@ export async function createCompany(
         action: "company.created",
         entityId: row.id,
       });
+      if (contacts) await saveFinanceContacts(tx, { actorId: actor.user.id, companyId: row.id, contacts });
       const [linked] = journeyId
         ? await tx
             .update(journeys)
@@ -815,7 +819,10 @@ export async function updateCompany(
     const input = companyIdentity
       .extend({ id })
       .parse(Object.fromEntries(form));
+    const contacts = readFinanceContacts(form, input);
     await db.transaction(async (tx) => {
+      // Same order as a client saving Notificações: the notices lock first, then the company row.
+      if (contacts) await lockCompanyNotifications(tx, input.id, true);
       const [previous] = await tx
         .select({ document: companies.document })
         .from(companies)
@@ -834,6 +841,7 @@ export async function updateCompany(
         .where(eq(companies.id, input.id))
         .returning();
       if (!row) throw Error();
+      if (contacts) await saveFinanceContacts(tx, { actorId: actor.user.id, companyId: row.id, contacts });
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: row.id,
