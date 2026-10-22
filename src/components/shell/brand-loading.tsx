@@ -6,7 +6,7 @@ import styles from "./brand-loading.module.css";
  *
  * Só entra nos dois momentos combinados: ao confirmar o acesso (tela cheia)
  * e nas rotas pesadas do Console (dentro da página). Nos dois, o mesmo
- * desenho: o símbolo da marca como máscara em CSS, na cor do tema,
+ * desenho: o símbolo da marca como máscara em CSS, no violeta da marca,
  * respirando devagar sobre o fundo do tema. Nunca na navegação comum, que
  * continua com o esqueleto. Quem pede movimento reduzido vê o símbolo parado.
  */
@@ -18,7 +18,7 @@ export function takeShownAt() {
   return value;
 }
 
-/** O símbolo da marca, na cor do tema, respirando. */
+/** O símbolo da marca, em violeta, respirando. */
 export function BrandMark() {
   return <span className={styles.mark} aria-hidden="true" />;
 }

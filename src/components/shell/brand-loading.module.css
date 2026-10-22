@@ -1,10 +1,10 @@
-/* O símbolo da marca como máscara: a cor vem do tema (--foreground) e ele
+/* O símbolo da marca como máscara, no violeta da marca (--brand), e ele
  * respira devagar. Sem vídeo, sem fundo próprio, qualquer tema. */
 .mark {
   display: block;
   width: 48px;
   height: 48px;
-  background: var(--foreground);
+  background: var(--brand);
   -webkit-mask: url("/brand/logo/symbol-preto.svg") center / contain no-repeat;
   mask: url("/brand/logo/symbol-preto.svg") center / contain no-repeat;
   animation: breathe 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;

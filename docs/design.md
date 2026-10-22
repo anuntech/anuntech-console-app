@@ -1,6 +1,6 @@
 # Design do Console
 
-A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "do bruto ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface em preto, branco e cinzas, e o violeta da marca em link, foco e peças de marca.
+A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "do bruto ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface com base preta, branca e cinza e o violeta da marca no botão principal, na seleção, em link, foco e na vinheta de carregamento.
 
 ## Como trabalhamos
 
@@ -35,8 +35,9 @@ Os tokens não são escritos aqui: `src/app/brand/` (`tokens.css`, `tailwind.css
 | --- | --- | --- | --- |
 | `--background` / `--card` | `#ffffff` / `#ffffff` | `#0d0d0d` / `#171717` | Fundo plano e superfícies |
 | `--foreground` | `#0d0d0d` | `#ececec` | Texto principal |
-| `--primary` | `#0d0d0d` | `#ffffff` | Ação principal (botão pílula preto; no escuro, branco) |
-| `--secondary` / `--accent` | `#f3f3f3` | `#212121` / `#262626` | Fundos neutros, item selecionado, hover |
+| `--primary` | `#6e56ff` | `#6e56ff` | Ação principal: botão pílula violeta com texto branco |
+| `--secondary` | `#f3f3f3` | `#212121` | Fundos neutros e hover |
+| `--accent` | `#f3f0ff` | `#1c1640` | Item selecionado (dock, menus, listas), com texto `--accent-foreground` violeta |
 | `--muted-foreground` | `#6b6b6b` | `#a3a3a3` | Texto de apoio |
 | `--border` | `#e5e5e5` | `#2b2b2b` | Divisores e bordas de superfície |
 | `--field-border` | `#d4d4d4` | `#383838` | Borda dos campos (`border-input`) |
@@ -110,7 +111,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 - **Vazio:** explica quando algo vai aparecer ou oferece a ação; não repete o título.
 - **Erro e 404:** `StatusPage`. Dentro do app, embutido na área de conteúdo (o dock continua); fora, tela inteira com a marca. Registro de outra empresa responde igual a registro inexistente.
 - **Carregando:** `loading.tsx` por seção com o esqueleto da própria lista.
-- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia no fundo do tema ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do Console, centralizada na área visível acima do dock. Nos dois, o símbolo da marca como máscara em CSS, na cor do tema, respirando devagar. O `layout.tsx` das rotas pesadas (`BrandLoadingHold`) segura a vinheta por no mínimo 1,2 s quando ela chegou a aparecer. No tema escuro, o símbolo claro; com movimento reduzido, parado. Nunca na navegação comum.
+- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia no fundo do tema ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do Console, centralizada na área visível acima do dock. Nos dois, o símbolo da marca como máscara em CSS, em violeta, respirando devagar. O `layout.tsx` das rotas pesadas (`BrandLoadingHold`) segura a vinheta por no mínimo 1,2 s quando ela chegou a aparecer. No tema escuro, o símbolo claro; com movimento reduzido, parado. Nunca na navegação comum.
 
 ## Escrita
 
