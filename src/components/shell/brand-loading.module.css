@@ -1,23 +1,14 @@
-/* O símbolo da marca como máscara, no violeta da marca (--brand), e ele
- * respira devagar. Sem vídeo, sem fundo próprio, qualquer tema. */
+/* O símbolo da marca (BrandMark), no violeta da marca. */
 .mark {
-  display: block;
   width: 48px;
   height: 48px;
-  background: var(--brand);
-  -webkit-mask: url("/brand/logo/symbol-preto.svg") center / contain no-repeat;
-  mask: url("/brand/logo/symbol-preto.svg") center / contain no-repeat;
-  animation: breathe 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+  color: var(--brand);
 }
-@keyframes breathe {
-  from {
-    opacity: 0.35;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+/* No acesso confirmado: o símbolo e o nome se montando. */
+.intro {
+  width: min(62vw, 300px);
+  height: auto;
+  color: var(--brand);
 }
 
 /* Tela cheia: o fundo da plataforma (branco; no tema escuro, o fundo escuro,
@@ -55,8 +46,4 @@
   opacity: 0;
   pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .mark {
-    animation: none;
-  }
-}
+
