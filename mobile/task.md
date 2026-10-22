@@ -20,25 +20,25 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 1 — Anexos e chamados
 
-- [ ] **U1** Rota de envio de arquivos do app `POST /api/v1/anexos` (sessão do app, como `/api/v1/conta/foto`), gravando em `ticketUploads` e devolvendo `uploadId`; checagem `support` para chamado e `overview` para tarefa. A rota da web exige a origem do site.
-- [ ] **U2** Escolher arquivo no app: câmera, fotos e documentos (PDF), com os limites da web (5 por envio, 20 MB, PDF/PNG/JPEG/WebP).
-- [ ] **T1** Lista: busca por assunto (o servidor já aceita `search`).
-- [ ] **T2** Lista: todos os filtros de situação (Em aberto, Aguardando atendimento, Em atendimento, Aguardando você, Resolvidos, Encerrados, Todas).
-- [ ] **T3** "Aguardando você" do Início abre a lista já filtrada.
-- [ ] **T4** Marca de prioridade Alta/Crítica na linha e no detalhe (`priority` no contrato).
-- [ ] **T5** Detalhe: impacto, "Aberto por" (nome e e-mail), aberto em, última atividade.
-- [ ] **T6** Detalhe: prazos (primeira resposta, meta de solução, prazo pausado) quando as condições da empresa estão publicadas.
-- [ ] **T7** Detalhe: estimativa de melhoria (ver; Membro lê "um Administrador aprova").
-- [ ] **T8** Aprovar ou recusar a estimativa de melhoria (Administrador; `decideEstimate` extraído para `lib/`).
-- [ ] **T9** Responder com anexos e enviar só anexo, sem texto.
-- [ ] **T10** Chamado encerrado: "Abrir novo chamado" já com a empresa.
-- [ ] **T11** Abrir chamado com anexos.
-- [ ] **T12** Abrir chamado: aviso de privacidade ("não escreva senhas nem dados reais").
-- [ ] **T13** Abrir chamado: "O que esperar" (data da primeira resposta e linha de fora do horário) e a orientação de ajuste, calculados no servidor (`tickets.preview`).
-- [ ] **T14** Abrir chamado: sugestões da Ajuda enquanto digita ("Talvez isto responda").
-- [ ] **T15** Abrir chamado: produto escondido para "App ou projeto novo"; único produto já marcado.
-- [ ] **T16** Abrir chamado por link com empresa, tipo e produto preenchidos (usado por "Pedir orçamento", serviço, chamado encerrado e "Não encontrou?").
-- [ ] **T17** Segunda etapa de entrada: "Reenviar código".
+- [x] **U1** Rota de envio de arquivos do app `POST /api/v1/anexos` (sessão do app, como `/api/v1/conta/foto`), gravando em `ticketUploads` e devolvendo `uploadId`; checagem `support` para chamado e `overview` para tarefa. A rota da web exige a origem do site.
+- [x] **U2** Escolher arquivo no app: câmera, fotos e documentos (PDF), com os limites da web (5 por envio, 20 MB, PDF/PNG/JPEG/WebP).
+- [x] **T1** Lista: busca por assunto (o servidor já aceita `search`).
+- [x] **T2** Lista: todos os filtros de situação (Em aberto, Aguardando atendimento, Em atendimento, Aguardando você, Resolvidos, Encerrados, Todas).
+- [x] **T3** "Aguardando você" do Início abre a lista já filtrada. A lista aceita `/chamados?status=waiting_customer`; o link no Início fica com a frente do Início.
+- [x] **T4** Marca de prioridade Alta/Crítica na linha e no detalhe (`priority` no contrato).
+- [x] **T5** Detalhe: impacto, "Aberto por" (nome e e-mail), aberto em, última atividade.
+- [x] **T6** Detalhe: prazos (primeira resposta, meta de solução, prazo pausado) quando as condições da empresa estão publicadas.
+- [x] **T7** Detalhe: estimativa de melhoria (ver; Membro lê "um Administrador aprova").
+- [x] **T8** Aprovar ou recusar a estimativa de melhoria (Administrador; `decideEstimate` extraído para `lib/`).
+- [x] **T9** Responder com anexos e enviar só anexo, sem texto.
+- [x] **T10** Chamado encerrado: "Abrir novo chamado" já com a empresa.
+- [x] **T11** Abrir chamado com anexos.
+- [x] **T12** Abrir chamado: aviso de privacidade ("não escreva senhas nem dados reais").
+- [x] **T13** Abrir chamado: "O que esperar" (data da primeira resposta e linha de fora do horário) e a orientação de ajuste, calculados no servidor (`tickets.preview`).
+- [x] **T14** Abrir chamado: sugestões da Ajuda enquanto digita ("Talvez isto responda").
+- [x] **T15** Abrir chamado: produto escondido para "App ou projeto novo"; único produto já marcado.
+- [x] **T16** Abrir chamado por link com empresa, tipo e produto preenchidos (usado por "Pedir orçamento", serviço, chamado encerrado e "Não encontrou?").
+- [x] **T17** Segunda etapa de entrada: "Reenviar código".
 - ⚪ Ctrl/Cmd+Enter (sem teclado físico). Mudar situação, prioridade, responsável, reabrir, encerrar ou excluir: só a equipe, também na web.
 
 ## Frente 2 — Financeiro (Administrador)
