@@ -76,7 +76,7 @@ export default function Invoice() {
     <Section key="pay">
       <ListRow
         title="Abrir a página de pagamento"
-        leading={<IconTile icon="safari.fill" color="blue" />}
+        leading={<IconTile icon="safari.fill" color="violet" />}
         trailing="external"
         onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}${i.payPath}`)}
       />

@@ -16,7 +16,7 @@ export type Variant =
 
 type Size = { fontSize: number; lineHeight: number; font: keyof typeof fonts; tracking?: number; max: number; tabular?: boolean };
 
-/** The type scale, all Sofia: big things bold, rows semibold, reading regular. */
+/** The type scale, all Geist: big things semibold (600), rows medium (500), reading regular. */
 const sizes: Record<Variant, Size> = {
   display: { fontSize: 40, lineHeight: 46, font: "bold", tracking: -1, max: 1.5, tabular: true },
   largeTitle: { fontSize: 34, lineHeight: 41, font: "bold", tracking: -0.6, max: 1.5 },
@@ -33,7 +33,7 @@ const sizes: Record<Variant, Size> = {
 
 export type Tone = "foreground" | "muted" | "primary" | "destructive" | "inverse" | "success" | "warning";
 
-/** Sofia in the Console's sizes; text scales with the system setting, up to a cap per size. */
+/** Geist in the Console's sizes; text scales with the system setting, up to a cap per size. */
 export function Text({
   variant = "body",
   tone = "foreground",

@@ -129,7 +129,7 @@ export default function Account() {
       <Section footer="Nome, foto, e-mail e WhatsApp ficam em Minha conta, no navegador.">
         <ListRow
           title="Editar perfil"
-          leading={<IconTile icon="person.text.rectangle.fill" color="blue" />}
+          leading={<IconTile icon="person.text.rectangle.fill" color="violet" />}
           trailing="external"
           onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/conta`)}
         />

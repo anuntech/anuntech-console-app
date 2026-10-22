@@ -17,7 +17,7 @@ export function toneColors(palette: Palette, tone: ToneName) {
 /** A place or an action, Settings style: a white glyph on a colored rounded square. */
 export function IconTile({
   icon,
-  color = "blue",
+  color = "violet",
   glyph = "#ffffff",
   size = 32,
 }: {

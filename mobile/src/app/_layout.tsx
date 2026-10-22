@@ -18,9 +18,9 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const scheme = useColorScheme();
   const [loaded] = useFonts({
-    [fonts.regular]: require("@/assets/fonts/sofia-regular.otf"),
-    [fonts.semibold]: require("@/assets/fonts/sofia-semibold.otf"),
-    [fonts.bold]: require("@/assets/fonts/sofia-bold.otf"),
+    [fonts.regular]: require("@/assets/fonts/Geist-Regular.ttf"),
+    [fonts.semibold]: require("@/assets/fonts/Geist-Medium.ttf"),
+    [fonts.bold]: require("@/assets/fonts/Geist-SemiBold.ttf"),
   });
   const { data: session, isPending } = authClient.useSession();
   // Only the first check holds the splash. Later ones (the app coming back

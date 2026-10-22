@@ -23,7 +23,7 @@ export function Screen({ children }: { children: ReactNode }) {
 }
 
 /**
- * A white card without a border. `raised` floats it (navy shadow) for what
+ * A white card without a border. `raised` floats it (soft shadow) for what
  * asks for attention; `tone` edges it amber or green.
  */
 export function Card({ style, raised, tone, ...props }: ViewProps & { raised?: boolean; tone?: "warning" | "success" }) {
