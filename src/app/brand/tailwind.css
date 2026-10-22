@@ -1,0 +1,103 @@
+/* GERADO por anuntech/brand (scripts/build.mjs). Não edite à mão: mude tokens/tokens.json e rode npm run build.
+ * Importe depois de tokens.css. Mapeia as variáveis da marca para os nomes do
+ * Tailwind v4 e do shadcn (bg-primary, text-muted-foreground, rounded-pill…). */
+@theme inline {
+  --font-sans: var(--anu-font-sans);
+  --font-mono: var(--anu-font-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-field-background: var(--field-background);
+  --color-field-border: var(--field-border);
+  --color-field-hover: var(--field-hover);
+  --color-ring: var(--ring);
+  --color-link: var(--link);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-destructive: var(--destructive);
+  --color-destructive-bg: var(--destructive-bg);
+  --color-destructive-border: var(--destructive-border);
+  --color-chart-received: var(--chart-received);
+  --color-chart-open: var(--chart-open);
+  /* No shadcn, border-input é a borda dos campos; --input (mais forte) fica para caixas de seleção. */
+  --color-input: var(--field-border);
+  --color-control: var(--input);
+  --color-overlay: var(--overlay);
+  --color-field: var(--field-background);
+  --color-success-soft: var(--success-bg);
+  --color-success-edge: var(--success-border);
+  --color-warning-soft: var(--warning-bg);
+  --color-warning-edge: var(--warning-border);
+  --color-destructive-soft: var(--destructive-bg);
+  --color-destructive-edge: var(--destructive-border);
+  --color-destructive-foreground: var(--primary-foreground);
+
+  --radius-xs: var(--anu-radius-xs);
+  --radius-sm: var(--anu-radius-sm);
+  --radius-md: var(--anu-radius-md);
+  --radius-lg: var(--anu-radius-lg);
+  --radius-xl: var(--anu-radius-xl);
+  --radius-2xl: var(--anu-radius-2xl);
+  --radius-pill: var(--anu-radius-pill);
+
+  --shadow-card: var(--anu-shadow-card);
+  --shadow-halo: var(--anu-shadow-halo);
+  --shadow-float: var(--anu-shadow-float);
+
+  --ease-brand: var(--anu-motion-ease);
+}
+@theme {
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--letter-spacing: 0;
+  --text-caption--font-weight: 400;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.125rem;
+  --text-label--letter-spacing: 0;
+  --text-label--font-weight: 500;
+  --text-body-sm: 0.875rem;
+  --text-body-sm--line-height: 1.25rem;
+  --text-body-sm--letter-spacing: 0;
+  --text-body-sm--font-weight: 400;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-body--letter-spacing: -0.01em;
+  --text-body--font-weight: 400;
+  --text-title-sm: 1.125rem;
+  --text-title-sm--line-height: 1.625rem;
+  --text-title-sm--letter-spacing: -0.01em;
+  --text-title-sm--font-weight: 500;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.015em;
+  --text-title--font-weight: 500;
+  --text-title-lg: 1.75rem;
+  --text-title-lg--line-height: 2.125rem;
+  --text-title-lg--letter-spacing: -0.02em;
+  --text-title-lg--font-weight: 500;
+  --text-display-sm: 2.25rem;
+  --text-display-sm--line-height: 2.625rem;
+  --text-display-sm--letter-spacing: -0.025em;
+  --text-display-sm--font-weight: 500;
+  --text-display: 3rem;
+  --text-display--line-height: 3.5rem;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 500;
+}

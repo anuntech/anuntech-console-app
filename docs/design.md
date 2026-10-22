@@ -1,6 +1,6 @@
 # Design do Console
 
-A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade da marca vem do repositório `anuntech/design-system` (voz em `project/voz.md`, composição em `composicao.md`); aqui está como ela se aplica ao produto.
+A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026 a marca é monocromática, com a sobriedade da OpenAI como referência: preto, branco e cinzas, cor só com função.
 
 ## Como trabalhamos
 
@@ -20,37 +20,34 @@ A base visual, os componentes e os padrões de tela do Console. Toda tela nova o
 
 ## Marca e tokens
 
+Os tokens não são escritos aqui: `src/app/brand/` (`tokens.css`, `tailwind.css`, `fonts.css`) e `public/brand/fonts` e `public/brand/logo` vêm do repositório da marca por `npm run sync -- console` lá. Para mudar uma cor, mude a marca. `globals.css` guarda só apelidos que o CSS antigo ainda lê (`--settings-sidebar`, `--yellow`, `--radius`, `--shadow-popover`).
+
 ### Tipografia
 
-- **Sofia** (400, 600, 700), servida de `public/brand`. Fallback: fontes do sistema.
-- Texto base 14 px (`0.875rem`), entrelinha 1,55. Tamanhos em `rem` para respeitar o tamanho de texto do sistema.
-- Título de página: `text-2xl font-semibold tracking-[-0.02em]`. Títulos grandes pedem tracking negativo; texto pequeno fica em 0.
+- **Geist** (variável) em tudo e **Geist Mono** em código e identificadores, servidas de `public/brand/fonts` (licença OFL ao lado). Fallback: fontes do sistema.
+- Texto base 14 px. Escala da marca como utilitários: `text-caption` 12, `text-label` 13, `text-body-sm` 14, `text-body` 16, `text-title-sm` 18, `text-title` 22, `text-title-lg` 28, `text-display-sm` 36, `text-display` 48 (cada um já traz entrelinha, peso e espaçamento).
+- Título de página: `text-title-lg` (28 px, peso 500, tracking negativo). Títulos em peso 500, nunca 700.
 - Números que se comparam (valores, datas em tabela) usam `tabular-nums`.
 
 ### Cores
 
 | Token | Claro | Escuro | Uso |
 | --- | --- | --- | --- |
-| `--background` | `#fafafa` | `#101722` | Fundo da aplicação (cinza quase branco, neutro) |
-| `--foreground` | `#0d1d41` | `#e7edf7` | Texto principal (azul-marinho do logotipo) |
-| `--card` | `#ffffff` | `#182231` | Superfícies |
-| `--primary` | `#1a428a` | `#9ebfff` | Ação principal, links, foco de marca |
-| `--secondary` | `#eef2f8` | `#222f42` | Fundos neutros (`muted` aponta aqui) |
-| `--muted-foreground` | `#5d6c81` | `#acb9cc` | Texto de apoio |
-| `--accent` | `#edf2fc` | `#243b5e` | Item selecionado, realce suave |
-| `--border` | `#e0e6ef` | `#364458` | Divisores e bordas de superfície |
-| `--field-background` / `--field-border` | `#f0f3f8` / `#d5dce7` | `#202c3d` / `#41516a` | Campos (`bg-field`, `border-input`) |
-| `--ring` | `#557ac0` | `#a6c4ff` | Foco |
-| `--yellow` | `#e1e666` | | Amarelo do logotipo, só em destaque |
+| `--background` / `--card` | `#ffffff` / `#ffffff` | `#0d0d0d` / `#171717` | Fundo plano e superfícies |
+| `--foreground` | `#0d0d0d` | `#ececec` | Texto principal |
+| `--primary` | `#0d0d0d` | `#ffffff` | Ação principal (botão pílula preto; no escuro, branco) |
+| `--secondary` / `--accent` | `#f3f3f3` | `#212121` / `#262626` | Fundos neutros, item selecionado, hover |
+| `--muted-foreground` | `#6b6b6b` | `#a3a3a3` | Texto de apoio |
+| `--border` | `#e5e5e5` | `#2b2b2b` | Divisores e bordas de superfície |
+| `--field-border` | `#d4d4d4` | `#383838` | Borda dos campos (`border-input`) |
+| `--ring` / `--link` | `#1d63d8` | `#5a9bff` / `#6aa5ff` | Foco e link: o único azul |
 
-Estados, sempre com texto além da cor: `success`, `warning` e `destructive`, cada um com `-soft` (fundo) e `-edge` (borda). Ex.: `bg-warning-soft border-warning-edge text-warning`.
-
-O azul-marinho e o amarelo são as tintas do logotipo, as mesmas do `anuntech/design-system`. Sombras usam o azul-marinho com transparência. O tema escuro tem valores próprios e não segue essas duas tintas.
+Estados, sempre com texto além da cor: `success`, `warning` e `destructive`, cada um com `-soft` (fundo) e `-edge` (borda). Ex.: `bg-warning-soft border-warning-edge text-warning`. Situações que esperam a equipe são neutras (ponto preto, ou azul quando alguém está trabalhando). Ícones de indicador só ganham cor quando pedem atenção. `npm run check` na marca confere todos os pares pela fórmula WCAG.
 
 ### Forma e profundidade
 
-- Raios: `sm` 6, `md` 8, `lg` 12, `xl` 18, `2xl` 22 px. Cards usam `rounded-xl`.
-- Sombras: `shadow-card` (superfícies) e `shadow-float` (popovers, dock, painéis flutuantes).
+- Raios: `xs` 4, `sm` 6, `md` 8, `lg` 12, `xl` 16, `2xl` 24 px e `pill`. Botões, abas, etiquetas e o dock em pílula; campos `rounded-lg`; cards `rounded-xl`; diálogos `rounded-2xl`.
+- Sem sombra em superfície: profundidade por borda de 1 px. `shadow-float` só no que flutua (menus, popovers, diálogos, dock); `shadow-halo` no campo do assistente.
 - Espaço entre blocos de uma página: 24 px (`gap-6`); dentro de formulários: 20 px (`gap-5`).
 
 ### Gráficos
@@ -112,7 +109,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 - **Vazio:** explica quando algo vai aparecer ou oferece a ação; não repete o título.
 - **Erro e 404:** `StatusPage`. Dentro do app, embutido na área de conteúdo (o dock continua); fora, tela inteira com a marca. Registro de outra empresa responde igual a registro inexistente.
 - **Carregando:** `loading.tsx` por seção com o esqueleto da própria lista.
-- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia em cinza claro (#f3f4f6) ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do Console, centralizada na área visível acima do dock. Nos dois, o logotipo real como máscara em CSS, na cor do tema, com a faixa amarela percorrendo o símbolo. O `layout.tsx` das rotas pesadas (`BrandLoadingHold`) segura a vinheta por no mínimo 1,2 s quando ela chegou a aparecer. No tema escuro, o fundo do tema e o logotipo claro; com movimento reduzido, logotipo parado. Nunca na navegação comum.
+- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia no fundo do tema ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do Console, centralizada na área visível acima do dock. Nos dois, o símbolo da marca como máscara em CSS, na cor do tema, respirando devagar. O `layout.tsx` das rotas pesadas (`BrandLoadingHold`) segura a vinheta por no mínimo 1,2 s quando ela chegou a aparecer. No tema escuro, o símbolo claro; com movimento reduzido, parado. Nunca na navegação comum.
 
 ## Escrita
 
@@ -143,5 +140,6 @@ Referência WCAG 2.2 AA e padrões da WAI-ARIA APG.
 ## Referências
 
 - shadcn.io (blocos e componentes, via MCP `shadcnio`) e ui.shadcn.com.
-- `anuntech/design-system`: voz, composição, logotipo e ilustrações. Os avatares vêm de lá; a origem de cada arquivo está em `docs/avatar-sources.json`.
+- `anuntech-brand`: tokens, fontes, logotipo e o guia da marca. Avatares: a origem de cada arquivo está em `docs/avatar-sources.json`.
+- Telas com dados fictícios para revisar o visual: `node --env-file-if-exists=.env.local scripts/design-fixtures.mjs` cria o banco local `console_design` (só no Postgres desta máquina) e a sessão em `.design-session`; `scripts/app-shots.mjs` da marca fotografa em claro, escuro e celular.
 - `/dev/preview` em desenvolvimento mostra os componentes com dados fictícios.

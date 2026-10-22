@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { BrandLockup } from "@/components/shell/brand";
 import type { ReactNode } from "react";
 import {
   ArrowDownToLineIcon,
@@ -128,14 +129,7 @@ export function PaymentView({
     <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8 sm:py-10">
       <PaymentStatusAnnouncer status={i.status} closure={i.closure ?? null} ready={ready} />
       <header className="mb-8 flex items-center justify-between gap-4">
-        <Image
-          src="/brand/logo-anuntech.png"
-          alt="Anuntech"
-          width={1200}
-          height={372}
-          priority
-          className="h-9 w-auto dark:brightness-0 dark:invert"
-        />
+        <BrandLockup className="h-7" />
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 py-1 text-xs whitespace-nowrap text-muted-foreground">
           <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
           <span className="hidden sm:inline">Página oficial da Anuntech</span>

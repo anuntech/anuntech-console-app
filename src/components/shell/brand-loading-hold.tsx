@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { BrandLockup, takeShownAt } from "./brand-loading";
+import { BrandMark, takeShownAt } from "./brand-loading";
 import styles from "./brand-loading.module.css";
 
 /** Tempo mínimo da vinheta de página quando ela chegou a aparecer. */
@@ -39,7 +39,7 @@ export function BrandLoadingHold({ children }: { children: React.ReactNode }) {
           aria-hidden="true"
         >
           <div className={styles.holdCenter}>
-            <BrandLockup />
+            <BrandMark />
           </div>
         </div>
       )}

@@ -220,7 +220,7 @@ export default function BoardCanvas({
             <WelcomeScreen.Center.Logo>
               {/* The Console's own mark; a plain image because this runs inside Excalidraw's tree. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/brand/symbol.png" alt="Anuntech" width={56} height={56} />
+              <img src="/brand/logo/symbol-preto.svg" alt="Anuntech" width={48} height={48} className="dark:invert" />
             </WelcomeScreen.Center.Logo>
             <WelcomeScreen.Center.Heading>
               {editable ? "Sua lousa está em branco." : "Ainda não há nada nesta lousa."}

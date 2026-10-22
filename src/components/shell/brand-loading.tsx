@@ -6,10 +6,9 @@ import styles from "./brand-loading.module.css";
  *
  * Só entra nos dois momentos combinados: ao confirmar o acesso (tela cheia)
  * e nas rotas pesadas do Console (dentro da página). Nos dois, o mesmo
- * desenho: o logotipo real como máscara em CSS, na cor do tema, com a faixa
- * amarela percorrendo o símbolo, sobre um cinza bem claro (ou o fundo do
- * tema escuro). Nunca na navegação comum, que continua com o esqueleto.
- * Quem pede movimento reduzido vê o logotipo parado.
+ * desenho: o símbolo da marca como máscara em CSS, na cor do tema,
+ * respirando devagar sobre o fundo do tema. Nunca na navegação comum, que
+ * continua com o esqueleto. Quem pede movimento reduzido vê o símbolo parado.
  */
 /** Quando a vinheta de página apareceu pela última vez (`BrandLoadingHold` lê). */
 let shownAt = 0;
@@ -19,14 +18,9 @@ export function takeShownAt() {
   return value;
 }
 
-/** Logotipo real, cor do tema, faixa amarela percorrendo o símbolo. */
-export function BrandLockup() {
-  return (
-    <div className={styles.lockup} aria-hidden="true">
-      <span className={styles.base} />
-      <span className={styles.sweep} />
-    </div>
-  );
+/** O símbolo da marca, na cor do tema, respirando. */
+export function BrandMark() {
+  return <span className={styles.mark} aria-hidden="true" />;
 }
 
 export function BrandLoading({
@@ -49,7 +43,7 @@ export function BrandLoading({
         className={`fixed inset-0 z-[60] grid place-items-center ${styles.splash}`}
       >
         <span className="sr-only">{label}</span>
-        <BrandLockup />
+        <BrandMark />
       </div>
     );
   return (
@@ -59,7 +53,7 @@ export function BrandLoading({
       className={`animate-in fade-in fill-mode-both delay-150 duration-300 ${styles.page}`}
     >
       <span className="sr-only">{label}</span>
-      <BrandLockup />
+      <BrandMark />
     </div>
   );
 }

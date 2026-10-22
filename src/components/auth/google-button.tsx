@@ -43,6 +43,7 @@ export function GoogleButton({ returnTo }: { returnTo?: string | null } = {}) {
       <Button
         type="button"
         variant="outline"
+        size="lg"
         className="w-full"
         disabled={pending}
         aria-describedby={error ? feedbackId : undefined}
