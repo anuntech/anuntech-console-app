@@ -97,11 +97,11 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 5 — Bookmarks
 
-- [ ] **B1** Chip "Sem pasta", paginação além de 100, tamanho e data dos arquivos, quem vê cada pasta.
-- [ ] **B2** Novo link (empresa, pasta, título, endereço) e novo arquivo (enviar do celular).
-- [ ] **B3** Editar, mover para outra pasta e excluir (quem salvou ou o dono da pasta).
-- [ ] **B4** Nova pasta, renomear, compartilhar (empresa toda ou pessoas escolhidas) e excluir (o dono).
-- [ ] **B5** Lousa: ver em tela cheia com zoom.
+- [x] **B1** Chip "Sem pasta", paginação além de 100, tamanho e data dos arquivos, quem vê cada pasta.
+- 🟡 **B2** Novo link (empresa, pasta, título, endereço), nova lousa e novo arquivo (enviar do celular). Falta: arquivo que não é foto (PDF e outros) espera o `expo-document-picker`; hoje o app envia fotos da galeria ou da câmera (`pickPhoto` em `src/lib/bookmarks.ts`), e a rota `/api/v1/bookmarks/arquivo` já aceita qualquer tipo.
+- [x] **B3** Editar, mover para outra pasta e excluir (quem salvou ou o dono da pasta).
+- [x] **B4** Nova pasta, renomear, compartilhar (empresa toda ou pessoas escolhidas) e excluir (o dono).
+- [x] **B5** Lousa: ver em tela cheia com zoom.
 - ⚪ Desenhar na lousa (editor Excalidraw para tela grande e mouse): no celular só ver; "Abrir no Console" para editar.
 
 ## Frente 6 — Início, produtos, banco de horas e apps
