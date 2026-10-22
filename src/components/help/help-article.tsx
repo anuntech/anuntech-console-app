@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowRightIcon, ChevronRightIcon, PlayIcon, UsersIcon } from "lucide-react";
+import { ChevronRightIcon, PlayIcon, UsersIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/console/page-header";
@@ -10,13 +10,14 @@ import type { Tutorial } from "@/lib/help/tutorials";
 import { HelpFaqList, HelpSections, sectionAnchor } from "./help-content";
 import { AdminOnly, NotFoundHelp, type HelpViewer } from "./help-hub";
 import { CategoryTile } from "./help-icons";
+import { TocList } from "./toc";
 import { TutorialPlayer } from "./tutorial-player";
 
 function SideLinks({ title, articles }: { title: string; articles: HelpArticle[] }) {
   if (!articles.length) return null;
   return (
     <nav aria-label={title} className="flex flex-col gap-1">
-      <p className="m-0 px-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">{title}</p>
+      <p className="m-0 px-2.5 text-caption font-medium text-muted-foreground">{title}</p>
       <ul className="m-0 flex list-none flex-col p-0">
         {articles.map((a) => (
           <li key={a.slug}>
@@ -102,25 +103,14 @@ export function HelpArticleView({
                 <Button key={action.href} variant="outline" className="justify-between" asChild>
                   <Link href={action.href}>
                     {action.label}
-                    <ArrowRightIcon />
+                    <ChevronRightIcon className="text-muted-foreground" />
                   </Link>
                 </Button>
               ))}
             </Card>
           )}
           {contents.length > 2 && (
-            <nav aria-label="Neste artigo" className="hidden flex-col gap-1 lg:flex">
-              <p className="m-0 px-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">Neste artigo</p>
-              <ul className="m-0 flex list-none flex-col p-0">
-                {contents.map((item) => (
-                  <li key={item.id}>
-                    <a href={`#${item.id}`} className="block rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-                      {item.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
+            <TocList items={contents} label="Neste artigo" heading="Neste artigo" className="hidden px-2.5 lg:flex" />
           )}
           <SideLinks title="Relacionados" articles={related} />
           <SideLinks title={`Mais em ${category.title}`} articles={siblings.filter((s) => !related.some((r) => r.slug === s.slug))} />

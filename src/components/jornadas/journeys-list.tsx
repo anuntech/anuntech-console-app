@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode } from "react";
-import { PlusIcon, RouteIcon, UserRoundIcon } from "lucide-react";
+import { PlusIcon, UserRoundIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,23 +14,15 @@ import { PersonAvatar } from "@/components/console/person-avatar";
 import { dateTimeLabel, relativeLabel } from "@/lib/format";
 import type { ListLayout } from "@/lib/list-layout";
 import { JOURNEY_STALLED_DAYS, journeyFilterLabels as filterLabels, journeyFilters, type JourneyFilter } from "@/lib/journeys/journey-model";
+import { CompanyTile } from "@/components/empresas/company-tile";
 import { JourneyProgress, JourneyStatusBadge } from "./journey-detail";
 import type { JourneyListRow } from "./journey-types";
 
 
-const initials = (name: string) =>
-  name
-    .replace(/^Contato:\s*/, "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]!.toUpperCase())
-    .join("") || "?";
-
 function Stalled({ row }: { row: JourneyListRow }) {
   if (!row.stalled) return null;
   return (
-    <span className="inline-flex items-center rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning" title={`Sem mudança há mais de ${JOURNEY_STALLED_DAYS} dias`}>
+    <span className="inline-flex items-center rounded-full bg-warning-soft px-2 py-0.5 text-caption font-medium text-warning" title={`Sem mudança há mais de ${JOURNEY_STALLED_DAYS} dias`}>
       Parada
     </span>
   );
@@ -67,6 +59,7 @@ export function JourneysList({
   return (
     <ListCard
       fill
+      empty={rows.length === 0}
       label="Lista de jornadas"
       actions={actions}
       layout={<ViewToggle view={layout} onChange={chooseLayout} />}
@@ -94,7 +87,8 @@ export function JourneysList({
             <GridCard
               key={row.id}
               href={`/jornadas/${row.id}`}
-              leading={<CardTile>{row.lead ? <UserRoundIcon /> : initials(row.who)}</CardTile>}
+              // The client's own tile, as in Empresas; a lead has no company yet.
+              leading={row.lead ? <CardTile><UserRoundIcon /></CardTile> : <CompanyTile name={row.who} />}
               title={row.title}
               subtitle={row.who}
               footer={
@@ -107,8 +101,11 @@ export function JourneysList({
                 </>
               }
             >
-              <p className="m-0 text-muted-foreground">
-                <span className="font-medium text-foreground">{row.stage}</span> · {row.done} de {row.total} passos
+              <p className="m-0 flex flex-wrap justify-between gap-x-3 text-muted-foreground">
+                <span className="font-medium text-foreground">{row.stage}</span>
+                <span className="tabular-nums">
+                  {row.done} de {row.total} passos
+                </span>
               </p>
               <JourneyProgress done={row.done} total={row.total} />
               {row.next && (
@@ -164,7 +161,7 @@ export function JourneysList({
         </Table>
       ) : (
         <EmptyState
-          icon={<RouteIcon />}
+          art={filtered ? "busca" : "projetos"}
           title={filtered ? "Nenhuma jornada encontrada" : "Nenhuma jornada em andamento"}
           description={
             filtered
@@ -182,7 +179,7 @@ export function JourneysList({
               <Button asChild>
                 <Link href="/jornadas/nova">
                   <PlusIcon />
-                  Começar jornada
+                  Nova jornada
                 </Link>
               </Button>
             )

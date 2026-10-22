@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SearchXIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/console/back-button";
 import { StatusPage } from "@/components/console/status-page";
@@ -18,7 +17,7 @@ export default function NotFound() {
   return (
     <StatusPage
       layout="inline"
-      icon={<SearchXIcon />}
+      art="busca"
       eyebrow="Erro 404"
       title="Não encontramos esta página"
       description="O endereço pode estar errado, o registro pode ter sido excluído ou o seu acesso não inclui a empresa dele. Se você acha que deveria ver, fale com quem administra a sua empresa no Console."

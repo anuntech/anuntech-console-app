@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { useEffect, useTransition } from "react";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
+import { PixelProgress } from "@/components/console/pixel-progress";
 import { markFirstStep } from "@/lib/guide/milestone-actions";
 import type { FirstSteps } from "@/lib/guide/first-steps";
 
@@ -12,13 +13,17 @@ export function FirstStepsCard({ data }: { data: FirstSteps }) {
   const [pending, start] = useTransition();
   const done = data.steps.filter((s) => s.done).length;
   return (
-    <section aria-label="Primeiros passos" className="mb-6 rounded-xl border bg-card shadow-card">
-      <div className="flex items-center gap-3 border-b px-4 py-3">
-        <h2 className="m-0 text-[15px] leading-6 font-semibold text-foreground">Primeiros passos</h2>
+    <section aria-label="Primeiros passos" className="mb-6 rounded-xl border bg-card">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-3">
+        <h2 className="m-0 text-body font-medium text-foreground">Primeiros passos</h2>
         {!data.forced && (
           <>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground tabular-nums">
-              {done} de {data.steps.length}
+            {/* One square per step, like the pixel half of the logo; the count says the same in words. */}
+            <span className="flex items-center gap-2">
+              <PixelProgress done={done} total={data.steps.length} label="Primeiros passos" />
+              <span className="text-xs text-muted-foreground tabular-nums" aria-hidden="true">
+                {done} de {data.steps.length}
+              </span>
             </span>
             <Button
               type="button"
@@ -44,7 +49,7 @@ export function FirstStepsCard({ data }: { data: FirstSteps }) {
                 aria-hidden="true"
                 className={cn(
                   "flex size-5 shrink-0 items-center justify-center rounded-full border [&_svg]:size-3",
-                  step.done ? "border-success bg-success text-white" : "border-muted-foreground/40",
+                  step.done ? "border-success bg-success text-background" : "border-muted-foreground/40",
                 )}
               >
                 {step.done && <CheckIcon />}

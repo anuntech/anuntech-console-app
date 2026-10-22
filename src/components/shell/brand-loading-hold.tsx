@@ -31,7 +31,8 @@ export function BrandLoadingHold({ children }: { children: React.ReactNode }) {
     };
   }, []);
   return (
-    <div className="relative">
+    // data-brand-hold pauses the page's arrivals (shadcn.css) until the vignette fades.
+    <div className="relative" data-brand-hold={phase === "hold" ? "" : undefined}>
       {children}
       {phase !== "idle" && (
         <div

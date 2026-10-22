@@ -144,8 +144,9 @@ export async function SettingsShell({
         description={description}
         actions={actions}
       />
-      <div className="grid gap-6 lg:grid-cols-[208px_minmax(0,1fr)] lg:items-start">
-        <aside className="lg:sticky lg:top-6">
+      {/* grid-cols-1: the chip row scrolls inside its column instead of widening it on phones. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[208px_minmax(0,1fr)] lg:items-start">
+        <aside className="min-w-0 lg:sticky lg:top-6">
           <SettingsNav groups={groups} />
         </aside>
         <div

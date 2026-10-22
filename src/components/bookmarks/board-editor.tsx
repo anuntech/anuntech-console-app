@@ -2,7 +2,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CheckIcon, CloudOffIcon, EyeIcon, LoaderCircleIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/console/page-header";
 import { useFillViewport } from "@/components/console/fill-viewport";
 import { dateTimeLabel, relativeLabel } from "@/lib/format";
@@ -75,7 +75,8 @@ export function BoardEditor({ data }: { data: BoardEditorData }) {
       <div
         ref={frame}
         data-fill-viewport=""
-        className="board-frame overflow-hidden rounded-xl border bg-card shadow-card"
+        // Fades in after the header, never rises: useFillViewport measures this frame.
+        className="board-frame reveal-fade overflow-hidden rounded-xl border bg-card shadow-card [--i:1]"
         style={
           fullscreen
             ? undefined

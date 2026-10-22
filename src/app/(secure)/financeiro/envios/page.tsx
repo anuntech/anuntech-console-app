@@ -5,11 +5,10 @@ import {
   Clock3Icon,
   MailIcon,
   MessageCircleIcon,
-  SendIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { desc, eq } from "drizzle-orm";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { db } from "@/lib/db";
 import { billingNotices, companies, invoices } from "@/db/schema";
 import { requireAdmin } from "@/lib/access/access";
@@ -38,37 +37,34 @@ export const metadata: Metadata = {
 const ACTIVE = ["waiting", "pending", "sending", "accepted"];
 const REVIEW = ["failed", "uncertain", "expired"];
 
+/** A delivery count. Only "to review" takes colour, and only when it has something. */
 function Stat({
   label,
   value,
   icon,
-  tone = "default",
+  attention = false,
 }: {
   label: string;
   value: number;
   icon: React.ReactNode;
-  tone?: "default" | "success" | "warning";
+  attention?: boolean;
 }) {
+  const alert = attention && value > 0;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-card">
-      <span>
-        <span className="block text-xs font-medium text-muted-foreground">
-          {label}
-        </span>
-        <span className="mt-0.5 block text-xl font-semibold tracking-[-0.02em] tabular-nums text-foreground">
-          {value}
+    <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card px-4 pt-3.5 pb-4 shadow-card">
+      <span className="flex items-center justify-between gap-3">
+        <span className="truncate text-label text-muted-foreground">{label}</span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "flex size-7 shrink-0 items-center justify-center rounded-lg [&_svg]:size-3.5",
+            alert ? "bg-warning-soft text-warning" : "bg-secondary text-muted-foreground",
+          )}
+        >
+          {icon}
         </span>
       </span>
-      <span
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4",
-          tone === "success" && "bg-success-soft text-success",
-          tone === "warning" && "bg-warning-soft text-warning",
-          tone === "default" && "bg-accent text-primary",
-        )}
-      >
-        {icon}
-      </span>
+      <span className={cn("text-title-lg tabular-nums", alert ? "text-warning" : "text-foreground")}>{value}</span>
     </div>
   );
 }
@@ -96,23 +92,19 @@ export default async function BillingDeliveries() {
         count={rows.length}
         className="mb-4"
       />
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Stat
-          label="Entregues"
-          value={by(["delivered"])}
-          icon={<CircleCheckIcon />}
-          tone="success"
-        />
+      <div className="stagger mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 max-sm:[&>:last-child]:col-span-2">
+        <Stat label="Entregues" value={by(["delivered"])} icon={<CircleCheckIcon />} />
         <Stat label="Em andamento" value={by(ACTIVE)} icon={<Clock3Icon />} />
         <Stat
           label="Precisam de revisão"
           value={by(REVIEW)}
           icon={<TriangleAlertIcon />}
-          tone="warning"
+          attention
         />
       </div>
       <ListCard
         fill
+        empty={!rows.length}
         label="Histórico de envios"
         footer={
           <p className="border-t px-4 py-3 text-xs text-muted-foreground">
@@ -179,7 +171,7 @@ export default async function BillingDeliveries() {
           </Table>
         ) : (
           <EmptyState
-            icon={<SendIcon />}
+            art="faturas"
             title="Nenhum aviso enviado"
             description="As mensagens aparecem aqui depois que uma cobrança é publicada."
           />

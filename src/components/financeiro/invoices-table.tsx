@@ -15,7 +15,7 @@ import {
   Repeat2Icon,
   Trash2Icon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -307,6 +307,7 @@ export function InvoicesTable({
     <>
       <ListCard
         fill
+        empty={!rows.length}
         actions={actions}
         label="Lista de faturas"
         toolbar={
@@ -317,6 +318,8 @@ export function InvoicesTable({
               placeholder={
                 showCompany ? "Buscar por descrição ou empresa" : "Buscar por descrição"
               }
+              // On a phone the search shares its line with the icon buttons.
+              className="max-sm:w-auto max-sm:min-w-40 max-sm:flex-1"
             />
             {companyFilter && (
               <FilterChip
@@ -325,13 +328,16 @@ export function InvoicesTable({
                 removeHref={href({ company: "", page: 1 })}
               />
             )}
+            {/* The two selects: one row of two on a phone (below the search and the
+                buttons), inline from sm. */}
+            <div className="flex flex-wrap items-center gap-2 max-sm:order-last max-sm:grid max-sm:w-full max-sm:grid-cols-2">
             <Select
               value={query.period}
               onValueChange={(period) =>
                 go({ period: period as InvoicePeriod, from: "", to: "", page: 1 })
               }
             >
-              <SelectTrigger aria-label="Filtrar por período" className="w-[176px]">
+              <SelectTrigger aria-label="Filtrar por período" className="w-[176px] max-sm:w-full">
                 <SelectValue>{invoicePeriodLabels[query.period]}</SelectValue>
               </SelectTrigger>
               <SelectContent align="end">
@@ -349,14 +355,14 @@ export function InvoicesTable({
                   value={query.from}
                   onChange={(from) => go({ from, page: 1 })}
                   placeholder="De"
-                  className="w-36 [&>button]:bg-card"
+                  className="w-36 max-sm:w-full [&>button]:bg-card"
                 />
                 <DateField
                   name="ate"
                   value={query.to}
                   onChange={(to) => go({ to, page: 1 })}
                   placeholder="Até"
-                  className="w-36 [&>button]:bg-card"
+                  className="w-36 max-sm:w-full [&>button]:bg-card"
                 />
               </>
             )}
@@ -366,7 +372,7 @@ export function InvoicesTable({
                 go({ status: status as InvoiceStatusFilter, page: 1 })
               }
             >
-              <SelectTrigger aria-label="Filtrar por situação" className="w-[188px]">
+              <SelectTrigger aria-label="Filtrar por situação" className="w-[188px] max-sm:w-full">
                 <SelectValue>{invoiceFilterLabels[query.status]}</SelectValue>
               </SelectTrigger>
               <SelectContent align="end">
@@ -377,6 +383,7 @@ export function InvoicesTable({
                 ))}
               </SelectContent>
             </Select>
+            </div>
           </>
         }
         footer={
@@ -419,15 +426,26 @@ export function InvoicesTable({
                       className="max-w-[24rem]"
                       title={invoice.description}
                       subtitle={
-                        <span className="flex min-w-0 items-center gap-1">
-                          {invoice.recurring && (
-                            <Repeat2Icon className="size-3 shrink-0" aria-hidden="true" />
-                          )}
-                          <span className="truncate">
-                            {companyInSubtitle && `${invoice.company} · `}
-                            {billingTypeLabel(invoice.recurring, invoice.interval)}
+                        <>
+                          {/* Phones have no Valor and Vencimento columns: the figure and the date come here. */}
+                          <span className="flex min-w-0 items-center gap-x-3 md:hidden">
+                            <span className="font-medium text-foreground tabular-nums">
+                              {currency(invoice.amountCents)}
+                            </span>
+                            <span className={cn("truncate tabular-nums", late > 0 && "text-destructive")}>
+                              {dateLabel(invoice.dueDate)}
+                            </span>
                           </span>
-                        </span>
+                          <span className="hidden min-w-0 items-center gap-1 md:flex">
+                            {invoice.recurring && (
+                              <Repeat2Icon className="size-3 shrink-0" aria-hidden="true" />
+                            )}
+                            <span className="truncate">
+                              {companyInSubtitle && `${invoice.company} · `}
+                              {billingTypeLabel(invoice.recurring, invoice.interval)}
+                            </span>
+                          </span>
+                        </>
                       }
                     />
                     {companyColumn && (
@@ -462,7 +480,7 @@ export function InvoicesTable({
           </Table>
         ) : (
           <EmptyState
-            icon={<ReceiptTextIcon />}
+            art={filtered ? "busca" : "faturas"}
             title={filtered ? "Nenhuma fatura encontrada" : "Nenhuma fatura ainda"}
             description={
               filtered

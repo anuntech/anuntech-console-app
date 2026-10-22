@@ -12,7 +12,7 @@ import {
   MinusCircleIcon,
   Trash2Icon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -150,15 +150,15 @@ export function JourneyStep({
             <span className={cn("text-sm font-medium", step.status === "skipped" ? "text-muted-foreground line-through decoration-muted-foreground/40" : "text-foreground")}>
               {def.title}
             </span>
-            {!def.required && !step.extra && <span className="text-[11px] text-muted-foreground">opcional</span>}
-            {step.extra && <span className="rounded-full bg-secondary px-1.5 py-px text-[11px] text-secondary-foreground">acrescentado</span>}
+            {!def.required && !step.extra && <span className="text-caption text-muted-foreground">opcional</span>}
+            {step.extra && <span className="rounded-full bg-secondary px-1.5 py-px text-caption text-secondary-foreground">acrescentado</span>}
           </div>
           {(step.detail || assignee) && (
             <p className="m-0 mt-0.5 text-xs break-words text-muted-foreground">
               {step.detail}
               {step.detail && assignee ? " · " : ""}
               {assignee ? `Com ${assignee.name || assignee.email}` : ""}
-              {step.by === "data" && step.status !== "waiting" ? <span className="ml-1.5 text-[11px] text-muted-foreground">· pelo Console</span> : null}
+              {step.by === "data" && step.status !== "waiting" ? <span className="ml-1.5 text-caption text-muted-foreground">· pelo Console</span> : null}
             </p>
           )}
           {step.warning && (

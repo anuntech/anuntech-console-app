@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { CheckIcon, MessageSquarePlusIcon, PencilIcon, Trash2Icon, XIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -140,8 +140,8 @@ function RequestForm({
       <input type="hidden" name="contractId" value={contractId} />
       <input type="hidden" name="blockIndex" value={blockIndex} />
       <input type="hidden" name="requestId" value={request?.id ?? ""} />
-      <p className="m-0 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        Pedido de alteração · {blockLabel(block)}
+      <p className="m-0 text-caption font-medium text-muted-foreground">
+        Pedido de alteração: {blockLabel(block)}
       </p>
       <FormError />
       <div>
@@ -501,8 +501,9 @@ export function ReviewHistory({
           .sort(([a], [b]) => b - a)
           .map(([version, items]) => (
             <section key={version} className="flex flex-col gap-2">
-              <h3 className="m-0 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Versão {version} · {items.length === 1 ? "1 pedido" : `${items.length} pedidos`}
+              <h3 className="m-0 flex gap-x-3 text-caption font-medium text-muted-foreground">
+                <span>Versão {version}</span>
+                <span className="font-normal">{items.length === 1 ? "1 pedido" : `${items.length} pedidos`}</span>
               </h3>
               {items
                 .sort((a, b) => a.blockIndex - b.blockIndex)

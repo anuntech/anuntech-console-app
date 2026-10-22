@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { type CSSProperties, useEffect, useId, useRef, useSyncExternalStore } from "react";
 import { MARK_ANUN, MARK_CELLS, MARK_HALF, MARK_NAME_WIDTH, MARK_TECH } from "./brand-mark-shape";
 

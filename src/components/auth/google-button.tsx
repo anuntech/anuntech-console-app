@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState } from "react";
 import { Loader2Icon } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/auth-client";
 import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
@@ -34,12 +35,12 @@ function GoogleMark() {
  * the callback; when the second step interrupts it, the security plugin reads
  * it back from the OAuth state and passes it on to /verificar-acesso.
  */
-export function GoogleButton({ returnTo }: { returnTo?: string | null } = {}) {
+export function GoogleButton({ returnTo, className }: { returnTo?: string | null; className?: string } = {}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const feedbackId = useId();
   return (
-    <div className="flex flex-col gap-3">
+    <div className={cn("flex flex-col gap-3", className)}>
       <Button
         type="button"
         variant="outline"

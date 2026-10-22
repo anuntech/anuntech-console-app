@@ -3,7 +3,7 @@ import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LayoutGridIcon, Loader2Icon, RefreshCwIcon, SparklesIcon, Trash2Icon, UploadIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

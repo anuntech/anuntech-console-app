@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Money } from "@/components/console/money";
+import { AnimatedValue } from "@/components/console/motion";
 
 export type BillingMonth = {
   /** "2026-09" */
@@ -26,9 +27,15 @@ function niceMax(value: number) {
 }
 
 /**
- * Billing by due month: what was received (blue) stacked under what is still
- * to receive (orange), one bar per month. Hover or focus a month for the
- * values; the same numbers are in a table for screen readers.
+ * Billing by due month: what was received stacked under what is still to
+ * receive, one bar per month. Hover a month for the values; the same numbers
+ * are in a table for screen readers.
+ *
+ * Motion, once: when the painel opens, each bar rises out of the baseline
+ * (clipped, so it reads as growing), 30ms after the month before; under the
+ * brand vignette it waits and plays as the vignette fades. The axis, labels
+ * and legend never move. Pointing at another month swaps the headline figure
+ * with a short slide, so the change is legible; reduced motion drops both.
  */
 export function BillingChart({ months }: { months: BillingMonth[] }) {
   const [active, setActive] = useState<number | null>(null);
@@ -40,9 +47,11 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div aria-live="polite">
-          <p className="text-xs text-muted-foreground">{current.longLabel}</p>
-          <p className="mt-0.5 text-2xl font-semibold tracking-[-0.02em] text-foreground tabular-nums">
-            <Money cents={current.receivedCents + current.openCents} />
+          <p className="text-caption text-muted-foreground">{current.longLabel}</p>
+          <p className="mt-0.5 text-title text-foreground tabular-nums">
+            <AnimatedValue value={current.month}>
+              <Money cents={current.receivedCents + current.openCents} />
+            </AnimatedValue>
           </p>
           <p className="text-xs text-muted-foreground tabular-nums">
             <Money cents={current.receivedCents} /> recebido · <Money cents={current.openCents} /> a receber
@@ -50,11 +59,11 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
         </div>
         <ul className="flex items-center gap-4 text-xs text-muted-foreground" aria-label="Legenda">
           <li className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-[var(--chart-received)]" />
+            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-chart-received" />
             Recebido
           </li>
           <li className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-[var(--chart-open)]" />A receber
+            <span aria-hidden="true" className="size-2.5 rounded-[3px] bg-chart-open" />A receber
           </li>
         </ul>
       </div>
@@ -93,17 +102,24 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
                 >
                   {/* hover band: a wider hit area than the bar itself */}
                   <span className={cn("absolute inset-x-[-6px] inset-y-0 rounded-md transition-colors", shown === i && active !== null ? "bg-accent/60" : "")} />
-                  <span className="relative mx-auto flex h-full w-full max-w-10 flex-col justify-end gap-[2px]">
-                    {m.openCents > 0 && (
-                      <span className="block rounded-t-[4px] bg-[var(--chart-open)]" style={{ height: `${Math.max(openPct, 1.5)}%`, minHeight: 3 }} />
-                    )}
-                    {m.receivedCents > 0 && (
-                      <span
-                        className={cn("block bg-[var(--chart-received)]", m.openCents > 0 ? "" : "rounded-t-[4px]")}
-                        style={{ height: `${Math.max(receivedPct, 1.5)}%`, minHeight: 3 }}
-                      />
-                    )}
-                    {total === 0 && <span className="block h-[2px] rounded-full bg-border" />}
+                  {/* the clip is the baseline the bar grows out of */}
+                  <span className="relative mx-auto flex h-full w-full max-w-10 flex-col justify-end overflow-hidden">
+                    <span
+                      className="reveal flex h-full flex-col justify-end gap-[2px] [--rise:100%]"
+                      // Base duration and a capped stagger: the whole chart is in by 375ms, on the home screen.
+                      style={{ animationDelay: `${Math.min(i, 7) * 25}ms` }}
+                    >
+                      {m.openCents > 0 && (
+                        <span className="block rounded-t-[4px] bg-chart-open" style={{ height: `${Math.max(openPct, 1.5)}%`, minHeight: 3 }} />
+                      )}
+                      {m.receivedCents > 0 && (
+                        <span
+                          className={cn("block bg-chart-received", m.openCents > 0 ? "" : "rounded-t-[4px]")}
+                          style={{ height: `${Math.max(receivedPct, 1.5)}%`, minHeight: 3 }}
+                        />
+                      )}
+                      {total === 0 && <span className="block h-[2px] rounded-full bg-border" />}
+                    </span>
                   </span>
                 </button>
               );
@@ -121,30 +137,33 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
         </div>
       </div>
 
-      {/* keyboard and screen readers: the same data as a table */}
-      <table className="sr-only">
-        <caption>Faturamento por mês de vencimento</caption>
-        <thead>
-          <tr>
-            <th scope="col">Mês</th>
-            <th scope="col">Recebido</th>
-            <th scope="col">A receber</th>
-          </tr>
-        </thead>
-        <tbody>
-          {months.map((m) => (
-            <tr key={m.month}>
-              <th scope="row">{m.longLabel}</th>
-              <td>
-                <Money cents={m.receivedCents} />
-              </td>
-              <td>
-                <Money cents={m.openCents} />
-              </td>
+      {/* keyboard and screen readers: the same data as a table. The wrapper is
+          what hides it: a table ignores the 1px width and would widen the page. */}
+      <div className="sr-only">
+        <table>
+          <caption>Faturamento por mês de vencimento</caption>
+          <thead>
+            <tr>
+              <th scope="col">Mês</th>
+              <th scope="col">Recebido</th>
+              <th scope="col">A receber</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {months.map((m) => (
+              <tr key={m.month}>
+                <th scope="row">{m.longLabel}</th>
+                <td>
+                  <Money cents={m.receivedCents} />
+                </td>
+                <td>
+                  <Money cents={m.openCents} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

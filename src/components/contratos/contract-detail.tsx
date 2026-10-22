@@ -17,7 +17,7 @@ import {
   Undo2Icon,
   XCircleIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -274,12 +274,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
             ) : (
               <span>{c.company}</span>
             )}
-            {c.engagement && (
-              <>
-                <span aria-hidden="true" className="hidden sm:inline">·</span>
-                <span>{c.engagement}</span>
-              </>
-            )}
+            {c.engagement && <span>{c.engagement}</span>}
           </span>
         }
         actions={
@@ -365,7 +360,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className="reveal-fade flex min-w-0 flex-col gap-6">
           {/* On a phone the round goes before the text, not after all of it. */}
           {roundCard && <div className="lg:hidden">{roundCard}</div>}
           {viewer.admin && c.status === "in_review" && (
@@ -478,11 +473,12 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           />
         </div>
 
-        <aside className="flex min-w-0 flex-col gap-6">
+        {/* Signatures lead the column; the rest are supporting cards (quiet). */}
+        <aside className="reveal-fade flex min-w-0 flex-col gap-6">
           {roundCard && <div className="hidden lg:block">{roundCard}</div>}
           {viewer.admin && data.handoff && <ContractHandoffCard contractId={c.id} handoff={data.handoff} />}
           {viewer.party === "client" && c.status === "signed" && !amendment && (
-            <Card className="gap-4 py-5">
+            <Card variant="quiet" className="gap-4 py-5">
               <CardHeader>
                 <SectionTitle title="Próximos passos" description="O que acontece com o contrato assinado." />
               </CardHeader>
@@ -561,7 +557,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           </Card>
 
           {c.status !== "draft" && c.status !== "cancelled" && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle
                   title="Vigência"
@@ -614,7 +610,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           )}
 
           {!amendment && (amendments.length > 0 || canAmend) && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle
                   title="Aditivos"
@@ -665,7 +661,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           )}
 
           {parent && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle title="Contrato original" />
               </CardHeader>
@@ -679,7 +675,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           )}
 
           {c.documentHash && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle title="Documento" />
               </CardHeader>
@@ -701,7 +697,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           )}
 
           {versions.some((v) => !v.current) && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle
                   title="Versões"
@@ -742,7 +738,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           )}
 
           {events.length > 0 && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle title="Histórico" />
               </CardHeader>

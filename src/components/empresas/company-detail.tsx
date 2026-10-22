@@ -66,7 +66,8 @@ import {
 import { RoleSelect } from "@/components/settings/member-actions";
 import { EngagementScopeField, scopeSummary, type MemberScope, type ScopeEngagement } from "@/components/settings/member-access-fields";
 import { CompanySheet } from "./company-sheet";
-import { companyInitials, StatusDot } from "./companies-table";
+import { StatusDot } from "./companies-table";
+import { CompanyTile } from "./company-tile";
 import { DeleteCompanyDialog } from "./delete-company-dialog";
 import type { CompanyFormValues } from "./company-form";
 import { formatDocument, formatPhone } from "@/lib/companies/company-input";
@@ -161,7 +162,7 @@ function RelationRow({
           <span className="block text-xs text-muted-foreground">{hint}</span>
         )}
       </span>
-      <span className="text-sm font-semibold tabular-nums text-foreground">
+      <span className="text-sm font-medium tabular-nums text-foreground">
         {value}
       </span>
       <ChevronRightIcon className="size-4 text-muted-foreground/60 group-hover:text-primary" />
@@ -411,22 +412,20 @@ export function CompanyDetail({
           { label: company.name },
         ]}
         leading={
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent text-sm font-semibold text-primary">
-            {companyInitials(company.name)}
-          </span>
+<CompanyTile name={company.name} size="lg" />
         }
         title={company.name}
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {/* Spaced, not dotted: a dot left at the end of a wrapped line dangles. */}
             <span className="tabular-nums">
               {formatDocument(company.document)}
             </span>
-            <span aria-hidden="true">·</span>
             <StatusDot archived={company.archived} />
-            <span aria-hidden="true">·</span>
             <span>Cliente desde {dateLabel(company.createdAt)}</span>
           </span>
         }
+        actionsInline
         actions={
           <>
             <DropdownMenu modal={false}>
@@ -510,7 +509,7 @@ export function CompanyDetail({
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
         <div className="flex min-w-0 flex-col gap-6">
           <Card>
             <CardHeader>
@@ -708,7 +707,7 @@ export function CompanyDetail({
 
         <aside className="flex min-w-0 flex-col gap-6">
           {termsCard}
-          <Card>
+          <Card variant="quiet">
             <CardHeader>
               <SectionTitle
                 title="Relacionamento"

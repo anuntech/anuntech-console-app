@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { HistoryIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PersonAvatar } from "@/components/console/person-avatar";
@@ -83,7 +83,7 @@ export function ProjectActivity({
             ) : (
               days.map((day) => (
                 <section key={day.label} className="mb-5 last:mb-0">
-                  <h3 className="m-0 mb-2 text-xs font-semibold text-muted-foreground first-letter:uppercase">{day.label}</h3>
+                  <h3 className="m-0 mb-2 text-caption font-medium text-muted-foreground first-letter:uppercase">{day.label}</h3>
                   <ol className="m-0 grid list-none gap-3 p-0">
                     {day.rows.map(({ event, text }) => (
                       <li key={event.id} className="flex items-start gap-2.5 text-sm">

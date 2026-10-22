@@ -5,7 +5,6 @@ import { and, count, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   AlertTriangleIcon,
-  ArrowRightIcon,
   ArrowUpRightIcon,
   Building2Icon,
   CalendarClockIcon,
@@ -42,6 +41,7 @@ import { addDays, EXPIRY_WARNING_DAYS } from "@/lib/contracts/contract-table";
 import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { BrandArt } from "@/components/ui/brand-art";
 import { EmptyState, PageHeader, SectionTitle } from "@/components/console/page-header";
 import { TicketStatusBadge } from "@/components/chamados/ticket-badges";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
@@ -98,12 +98,12 @@ function RecentRow({ href, title, detail, status }: { href: string; title: React
   );
 }
 
-function SeeAll({ href, label }: { href: string; label: string }) {
+/** The accessible name starts with the visible "Ver todos" (WCAG 2.5.3) and adds the area. */
+function SeeAll({ href, area }: { href: string; area: string }) {
   return (
-    <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
-      <Link href={href} aria-label={label}>
+    <Button variant="ghost" size="sm" className="-my-1 text-muted-foreground" asChild>
+      <Link href={href} aria-label={`Ver todos: ${area}`}>
         Ver todos
-        <ArrowRightIcon />
       </Link>
     </Button>
   );
@@ -629,9 +629,12 @@ export default async function Dashboard() {
         actions={
           <>
             <MoneyToggle hidden={valuesHidden} />
-            <Button variant="outline" asChild>
+            {/* On a phone the secondary action keeps only an icon of its own (the name stays
+                for screen readers), so it is not a second "+" beside "Abrir chamado". */}
+            <Button variant="outline" className="max-sm:w-9 max-sm:gap-0 max-sm:px-0 max-sm:text-[0px]" asChild>
               <Link href="/empresas/nova">
-                <PlusIcon />
+                <PlusIcon className="max-sm:hidden" />
+                <Building2Icon className="sm:hidden" />
                 Cadastrar empresa
               </Link>
             </Button>
@@ -645,14 +648,13 @@ export default async function Dashboard() {
         }
       />
 
+      {/* First run only (no client yet): the one place on the painel with brand art, beside no data. */}
       {companyCount.n === 0 && (
         <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-5 shadow-card">
           <div className="flex min-w-0 items-center gap-4">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-5">
-              <Building2Icon />
-            </span>
+            <BrandArt name="blocos" className="w-12 shrink-0 sm:w-16" />
             <div className="min-w-0">
-              <h2 className="text-[15px] leading-6 font-semibold text-foreground">Vamos cadastrar o primeiro cliente?</h2>
+              <h2 className="text-body font-medium text-foreground">Vamos cadastrar o primeiro cliente?</h2>
               <p className="mt-0.5 text-sm text-muted-foreground">Depois, libere o acesso das pessoas e vincule produtos ou projetos.</p>
             </div>
           </div>
@@ -665,8 +667,8 @@ export default async function Dashboard() {
         </section>
       )}
 
-      {/* indicators */}
-      <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* indicators: the tiles arrive one after another, once, as the page opens */}
+      <div className="stagger mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiTile
           label={`Recebido em ${thisMonth.longLabel.split(" ")[0]}`}
           value={<Money cents={thisMonth.receivedCents} />}
@@ -707,7 +709,7 @@ export default async function Dashboard() {
           <CardHeader>
             <SectionTitle
               title="Faturamento"
-              action={<SeeAll href="/financeiro" label="Ver o financeiro" />}
+              action={<SeeAll href="/financeiro" area="financeiro" />}
             />
           </CardHeader>
           <CardContent>
@@ -717,7 +719,17 @@ export default async function Dashboard() {
         <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
             <SectionTitle
-              title="Precisa de atenção"
+              title={
+                <span className="flex items-center gap-2">
+                  Precisa de atenção
+                  {attention.length > 0 && (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground tabular-nums">
+                      {attention.length}
+                      <span className="sr-only"> {attention.length === 1 ? "assunto" : "assuntos"}</span>
+                    </span>
+                  )}
+                </span>
+              }
             />
           </CardHeader>
           <CardContent className="px-0">
@@ -730,7 +742,7 @@ export default async function Dashboard() {
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
-            <SectionTitle title="Últimos chamados" action={<SeeAll href="/chamados" label="Ver todos os chamados" />} />
+            <SectionTitle title="Últimos chamados" action={<SeeAll href="/chamados" area="chamados" />} />
           </CardHeader>
           <CardContent className="px-0">
             {recentTickets.length ? (
@@ -746,7 +758,7 @@ export default async function Dashboard() {
         </Card>
         <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
-            <SectionTitle title="Últimas faturas" action={<SeeAll href="/financeiro" label="Ver todas as faturas" />} />
+            <SectionTitle title="Últimas faturas" action={<SeeAll href="/financeiro" area="faturas" />} />
           </CardHeader>
           <CardContent className="px-0">
             {recentInvoices.length ? (

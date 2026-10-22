@@ -1,10 +1,10 @@
 "use client";
 import { useId, useState, type KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
 import { TokenChip } from "@/components/console/token-chip";
-import { labelTone } from "./project-badges";
+import { labelDot } from "./project-badges";
 
 const MAX = 8;
 
@@ -80,7 +80,7 @@ export function LabelField({
                 {/* The label's colour, as on the board cards. */}
                 <span
                   aria-hidden="true"
-                  className={cn("size-2 shrink-0 rounded-full", labelTone(label), "bg-current")}
+                  className={cn("size-2 shrink-0 rounded-full", labelDot(label))}
                 />
                 <span className="truncate">{label}</span>
               </TokenChip>

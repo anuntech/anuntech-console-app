@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2Icon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -185,7 +185,8 @@ export function useRouteSheet() {
     onOpenChange: (next: boolean) => {
       if (next) return;
       setOpen(false);
-      setTimeout(() => router.back(), 300);
+      // Just past the sheet's 200ms exit, so it finishes sliding before the route changes.
+      setTimeout(() => router.back(), 220);
     },
   };
 }

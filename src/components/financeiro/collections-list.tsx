@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CopyButton } from "@/components/console/copy-button";
+import { EmptyState, SectionTitle } from "@/components/console/page-header";
 import { DateField } from "@/components/console/date-field";
 import { FormField } from "@/components/console/form-field";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
@@ -84,34 +85,40 @@ export function CollectionsList({
         </p>
       )}
       {!open.length && !waiting.length && (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">Nenhum cliente com boleto vencido.</CardContent>
+        <Card className="reveal-fade py-0 [--i:1]">
+          <EmptyState
+            art="faturas"
+            title="Nenhum cliente com boleto vencido"
+            description="Quem passar do vencimento sem pagar aparece aqui, com o que foi combinado e um texto para cobrar."
+          />
         </Card>
       )}
       {open.length > 0 && cards(open)}
       {waiting.length > 0 && (
         <section className="flex flex-col gap-3">
-          <h2 className="m-0 text-sm font-semibold text-foreground">Aguardando a data combinada</h2>
+          <SectionTitle title="Aguardando a data combinada" />
           {cards(waiting)}
         </section>
       )}
       {marked.length > 0 && (
         <section className="flex flex-col gap-3">
-          <div>
-            <h2 className="m-0 text-sm font-semibold text-foreground">Marcadas como recebidas no Inter</h2>
-            <p className="m-0 text-xs text-muted-foreground">Alguém deu baixa fora do boleto. Confirme o recebimento na fatura; se o dinheiro não entrou, cancele e cobre de novo.</p>
-          </div>
+          <SectionTitle
+            title="Marcadas como recebidas no Inter"
+            description="Alguém deu baixa fora do boleto. Confirme o recebimento na fatura; se o dinheiro não entrou, cancele e cobre de novo."
+          />
           <Card className="py-2">
             <CardContent className="px-0">
               <ul className="m-0 grid list-none p-0">
                 {marked.map((invoice) => (
                   <li key={invoice.id}>
-                    <Link href={`/financeiro/${invoice.id}`} className="flex flex-wrap items-center justify-between gap-2 px-6 py-2.5 text-sm hover:bg-accent">
-                      <span className="min-w-0 text-foreground">
-                        {invoice.company} · {invoice.description}
+                    <Link href={`/financeiro/${invoice.id}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-6 py-2.5 text-sm transition-colors hover:bg-accent">
+                      <span className="min-w-0">
+                        <span className="block text-foreground">{invoice.description}</span>
+                        <span className="block text-xs text-muted-foreground">{invoice.company}</span>
                       </span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {currency(invoice.amountCents)} · venceu em {dateLabel(invoice.dueDate)}
+                      <span className="flex gap-x-3 text-muted-foreground tabular-nums">
+                        <span className="font-medium text-foreground">{currency(invoice.amountCents)}</span>
+                        <span>venceu em {dateLabel(invoice.dueDate)}</span>
                       </span>
                     </Link>
                   </li>
@@ -139,17 +146,20 @@ function CaseCards({
   onSuspend: (product: CollectionProduct) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    // One card per client, arriving in turn on the first load.
+    <div className="stagger flex flex-col gap-4">
       {cases.map((item) => (
         <Card key={item.companyId}>
           <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <Link href={`/empresas/${item.companyId}`} className="text-base font-semibold text-foreground hover:text-primary">
+              <Link href={`/empresas/${item.companyId}`} className="text-body font-medium text-foreground transition-colors hover:text-primary">
                 {item.company}
               </Link>
-              <p className="m-0 text-sm text-muted-foreground">
-                {currency(item.totalCents)} · {item.oldestDays === 1 ? "1 dia" : `${item.oldestDays} dias`} de atraso
-                {item.archived ? " · cliente arquivado" : item.oldestDays > 25 ? " · lembretes automáticos encerrados" : ""}
+              {/* Separate items, not "a · b": a wrapped line never starts with a dot. */}
+              <p className="m-0 mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
+                <span className="text-title-sm text-foreground tabular-nums">{currency(item.totalCents)}</span>
+                <span className="text-destructive">{item.oldestDays === 1 ? "1 dia" : `${item.oldestDays} dias`} de atraso</span>
+                {item.archived ? <span>Cliente arquivado</span> : item.oldestDays > 25 ? <span>Lembretes automáticos encerrados</span> : null}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -165,12 +175,13 @@ function CaseCards({
           <CardContent className="grid grid-cols-[minmax(0,1fr)] gap-3 text-sm">
             <ul className="m-0 grid list-none gap-1 p-0">
               {item.invoices.map((invoice) => (
-                <li key={invoice.id} className="flex flex-wrap justify-between gap-2">
-                  <Link href={`/financeiro/${invoice.id}`} className="min-w-0 truncate text-foreground hover:text-primary">
+                <li key={invoice.id} className="flex flex-wrap justify-between gap-x-4 gap-y-0.5">
+                  <Link href={`/financeiro/${invoice.id}`} className="min-w-0 truncate text-foreground transition-colors hover:text-primary">
                     {invoice.description}
                   </Link>
-                  <span className="text-muted-foreground tabular-nums">
-                    {currency(invoice.amountCents)} · venceu em {dateLabel(invoice.dueDate)}
+                  <span className="flex gap-x-3 text-muted-foreground tabular-nums">
+                    <span className="text-foreground">{currency(invoice.amountCents)}</span>
+                    <span>venceu em {dateLabel(invoice.dueDate)}</span>
                   </span>
                 </li>
               ))}

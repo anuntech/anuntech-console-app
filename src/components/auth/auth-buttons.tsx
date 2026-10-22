@@ -3,7 +3,8 @@ import { Notification } from "../shell/notifications";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 import { authClient } from "@/lib/auth/auth-client";
-import { LogOut } from "lucide-react";
+import { Loader2Icon, LogOutIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 export function SignOutButton() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -11,9 +12,11 @@ export function SignOutButton() {
   const feedbackId = useId();
   return (
     <>
-      <button
-        className="signout"
+      <Button
         type="button"
+        variant="outline"
+        size="lg"
+        className="w-full"
         aria-disabled={pending}
         aria-describedby={error ? feedbackId : undefined}
         onClick={async () => {
@@ -31,9 +34,9 @@ export function SignOutButton() {
           }
         }}
       >
-        <LogOut size={16} aria-hidden="true" />
+        {pending ? <Loader2Icon className="animate-spin" aria-hidden="true" /> : <LogOutIcon aria-hidden="true" />}
         {pending ? "Saindo…" : "Sair"}
-      </button>
+      </Button>
       {error && (
         <Notification
           id={feedbackId}

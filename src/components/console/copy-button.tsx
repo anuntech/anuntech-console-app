@@ -34,7 +34,11 @@ export function CopyButton({
         }
       }}
     >
-      {copied ? <CheckIcon className="text-success" /> : <CopyIcon />}
+      {/* Both icons share one cell and crossfade, so quick re-copies retarget instead of popping. */}
+      <span className="grid shrink-0 *:col-start-1 *:row-start-1 *:transition-[opacity,transform,filter] *:duration-(--anu-motion-base) motion-reduce:*:transition-none">
+        <CopyIcon className={copied ? "scale-50 opacity-0 blur-[2px]" : undefined} />
+        <CheckIcon className={copied ? "text-success" : "scale-50 opacity-0 blur-[2px]"} />
+      </span>
       {children}
     </Button>
   );

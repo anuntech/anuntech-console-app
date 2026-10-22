@@ -163,7 +163,7 @@ export async function AssistantSection() {
             ] as const
           ).map(([title, tools]) => (
             <div key={title}>
-              <p className="m-0 mb-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+              <p className="m-0 mb-2 text-caption font-medium text-muted-foreground">
                 {title} · {tools.length}
               </p>
               <ul className="m-0 flex list-none flex-col gap-2 p-0">

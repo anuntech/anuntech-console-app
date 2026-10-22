@@ -1,4 +1,4 @@
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 
 /* The logo files come from anuntech/brand (public/brand/logo). Both tones are
    rendered and CSS shows the one that matches the theme, so nothing flashes. */

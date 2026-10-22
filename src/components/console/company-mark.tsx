@@ -1,4 +1,4 @@
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 
 /** Two initials, the way the companies table names a client without a logo. */
 export function companyInitials(name: string) {

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { splitLinks, type HelpBlock, type HelpFaq, type HelpSection } from "@/lib/help/help-model";
 
@@ -76,7 +76,7 @@ export function HelpBlockView({ block, links }: { block: HelpBlock; links?: Link
           <li
             key={item}
             className={cn(
-              "relative pl-9 [counter-increment:step] before:absolute before:top-0 before:left-0 before:flex before:size-6 before:items-center before:justify-center before:rounded-full before:bg-accent before:text-xs before:font-semibold before:text-primary before:content-[counter(step)]",
+              "relative pl-9 [counter-increment:step] before:absolute before:top-0 before:left-0 before:flex before:size-6 before:items-center before:justify-center before:rounded-full before:bg-accent before:text-xs before:font-medium before:text-primary before:tabular-nums before:content-[counter(step)]",
               text,
             )}
           >
@@ -114,7 +114,7 @@ export function HelpSections({ sections, links, compact = false }: { sections: H
     <div className={cn("flex flex-col", compact ? "gap-6" : "gap-9")}>
       {sections.map((section) => (
         <section key={section.title} id={sectionAnchor(section.title)} className="flex scroll-mt-6 flex-col gap-3.5">
-          <h2 className={cn("m-0 font-semibold tracking-[-0.01em] text-foreground", compact ? "text-[15px]" : "text-lg")}>{section.title}</h2>
+          <h2 className={cn("m-0 text-foreground", compact ? "text-body font-medium" : "text-title-sm")}>{section.title}</h2>
           {section.blocks.map((block, i) => (
             <HelpBlockView key={i} block={block} links={links} />
           ))}
@@ -128,7 +128,7 @@ export function HelpFaqList({ faq, links, title = "Perguntas frequentes" }: { fa
   if (!faq.length) return null;
   return (
     <section id="perguntas-frequentes" className="scroll-mt-6">
-      {title && <h2 className="m-0 mb-1 text-lg font-semibold tracking-[-0.01em] text-foreground">{title}</h2>}
+      {title && <h2 className="m-0 mb-1 text-title-sm text-foreground">{title}</h2>}
       <Accordion type="multiple">
         {faq.map((item) => (
           <AccordionItem key={item.q} value={item.q}>

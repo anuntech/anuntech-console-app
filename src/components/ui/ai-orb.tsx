@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { type ComponentProps, useEffect, useState } from "react";
 import { AI_ORB_LABELS, type AiOrbState } from "./ai-orb-states";
 import { BrandMark, type BrandMarkMode } from "./brand-mark";

@@ -44,6 +44,12 @@
   --color-sidebar-accent-foreground: var(--accent-foreground);
   --color-sidebar-border: var(--border);
   --color-sidebar-ring: var(--ring);
+
+  /* Every `transition-*` utility runs on the brand curve and the fast step
+     unless it names its own (`duration-*`, `ease-*`). */
+  --default-transition-duration: var(--anu-motion-fast);
+  --default-transition-timing-function: var(--anu-motion-ease);
+  --ease-brand-out: var(--anu-motion-ease-out);
 }
 
 @layer base {
@@ -81,5 +87,279 @@
     top: 0;
     z-index: 1;
     box-shadow: inset 0 -1px 0 var(--border);
+  }
+}
+
+/* ---------- Motion (docs/design.md#movimento) ----------
+ * One curve (--anu-motion-ease) and three steps: fast 120, base 200, slow 320.
+ * Only transform and opacity move. Each entrance below cancels itself under
+ * reduced motion (the global reset in globals.css shortens durations but
+ * keeps delays, so a staggered item would still pop in late). */
+@keyframes console-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--rise, 6px));
+  }
+}
+@keyframes console-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes console-swap {
+  from {
+    opacity: 0;
+    transform: translateY(0.3em);
+  }
+}
+@keyframes console-art {
+  from {
+    opacity: 0;
+    transform: translateY(var(--art-rise, 8px));
+  }
+}
+
+/* Arrival: a short rise and fade. `--i` staggers siblings by 40ms (max 8 steps). */
+@utility reveal {
+  animation: console-rise var(--anu-motion-base) var(--anu-motion-ease) both;
+  animation-delay: calc(min(var(--i, 0), 8) * 40ms);
+}
+/* Fade only: for anything whose position is measured (ListCard `fill`, the
+   board), because getBoundingClientRect includes transforms. */
+@utility reveal-fade {
+  animation: console-fade var(--anu-motion-base) var(--anu-motion-ease) both;
+  animation-delay: calc(min(var(--i, 0), 8) * 40ms);
+}
+/* The children of a block that mounts once arrive one after another (25ms apart,
+   max 175ms). Never on table rows or anything that remounts on filter. */
+@utility stagger {
+  & > * {
+    animation: console-rise var(--anu-motion-base) var(--anu-motion-ease) both;
+  }
+  & > :nth-child(2) { animation-delay: 25ms; }
+  & > :nth-child(3) { animation-delay: 50ms; }
+  & > :nth-child(4) { animation-delay: 75ms; }
+  & > :nth-child(5) { animation-delay: 100ms; }
+  & > :nth-child(6) { animation-delay: 125ms; }
+  & > :nth-child(7) { animation-delay: 150ms; }
+  & > :nth-child(n + 8) { animation-delay: 175ms; }
+}
+/* Press feedback for a whole card or tile that opens something. A press on a
+   button inside it (the "…" menu) does not squeeze the card. */
+@utility press {
+  transition-property: transform, color, background-color, border-color, box-shadow;
+  transition-duration: var(--anu-motion-fast);
+  transition-timing-function: var(--anu-motion-ease);
+  &:active:not(:has([data-slot="button"]:active, [data-slot="dropdown-menu-trigger"]:active)) {
+    transform: scale(0.985);
+  }
+}
+
+/* ---------- Texture and light (brand moments only, never behind data) ---------- */
+/* The pixel field: the logo's pixel grid as a faint texture, dissolving toward
+   the smooth side. Move the solid corner with --pixel-from (a radial position). */
+@utility pixel-field {
+  background-image: conic-gradient(
+    at var(--pixel-size, 10px) var(--pixel-size, 10px),
+    transparent 75%,
+    color-mix(in oklab, var(--foreground) var(--pixel-strength, 4.5%), transparent) 0
+  );
+  background-size: var(--pixel-step, 12px) var(--pixel-step, 12px);
+  background-position: 1px 1px;
+  mask-image: radial-gradient(farthest-side at var(--pixel-from, 100% 0%), black, transparent);
+}
+/* A soft violet light, behind an illustration. Stronger on dark surfaces. */
+@utility brand-glow {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklab, var(--brand) var(--glow-strength, 12%), transparent),
+    transparent
+  );
+  &:where([data-theme="dark"] *) {
+    --glow-strength: 22%;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where([data-theme="system"] *) {
+      --glow-strength: 22%;
+    }
+  }
+}
+
+@layer components {
+  /* CardGrid staggers its cards once, on first mount; it drops data-fresh after. */
+  [data-fresh] > * {
+    animation: console-rise var(--anu-motion-base) var(--anu-motion-ease) both;
+  }
+  [data-fresh] > :nth-child(2) { animation-delay: 25ms; }
+  [data-fresh] > :nth-child(3) { animation-delay: 50ms; }
+  [data-fresh] > :nth-child(4) { animation-delay: 75ms; }
+  [data-fresh] > :nth-child(5) { animation-delay: 100ms; }
+  [data-fresh] > :nth-child(6) { animation-delay: 125ms; }
+  [data-fresh] > :nth-child(7) { animation-delay: 150ms; }
+  [data-fresh] > :nth-child(n + 8) { animation-delay: 175ms; }
+
+  /* A value that just changed (AnimatedValue): the new figure slides in. */
+  [data-value-changed] {
+    display: inline-block;
+    animation: console-swap var(--anu-motion-base) var(--anu-motion-ease) both;
+  }
+
+  /* ---------- Brand illustrations (components/ui/brand-art.tsx) ---------- */
+  .brand-art {
+    --art-fill: var(--brand);
+    /* Lines drawn over the violet take the surface colour, like cut-outs. */
+    --art-ink: var(--card);
+    --art-soft: var(--anu-violet-200);
+    --art-ground: color-mix(in oklab, var(--anu-black) 7%, transparent);
+    --art-sphere-dark: var(--anu-violet-900);
+    --art-sphere-mid: var(--anu-violet-500);
+    --art-sphere-light: var(--anu-violet-200);
+    --art-paper: var(--anu-white);
+    --art-line: var(--anu-gray-200);
+    --art-panel: var(--anu-gray-100);
+    --art-pill: var(--anu-gray-200);
+    --art-pill-strong: var(--anu-gray-300);
+    --art-cell-head: var(--anu-gray-400);
+    --art-cell-on: var(--anu-gray-300);
+    --art-cell-off: var(--anu-gray-150);
+    --art-violet-soft: var(--anu-violet-100);
+    --art-violet-bar: var(--anu-violet-200);
+    --art-cube-top: var(--anu-gray-150);
+    --art-cube-left: var(--anu-gray-300);
+    --art-cube-right: var(--anu-gray-500);
+    overflow: visible;
+  }
+  /* Dark: the grays step down, the violet stays. */
+  .brand-art:where([data-theme="dark"] *) {
+    --art-ground: color-mix(in oklab, var(--anu-black) 55%, transparent);
+    --art-paper: var(--anu-gray-900);
+    --art-line: var(--anu-gray-800);
+    --art-panel: var(--anu-gray-870);
+    --art-pill: var(--anu-gray-800);
+    --art-pill-strong: var(--anu-gray-750);
+    --art-cell-head: var(--anu-gray-600);
+    --art-cell-on: var(--anu-gray-750);
+    --art-cell-off: var(--anu-gray-850);
+    --art-violet-soft: var(--anu-violet-950);
+    --art-violet-bar: color-mix(in oklab, var(--brand) 45%, var(--anu-gray-870));
+    --art-cube-top: var(--anu-gray-700);
+    --art-cube-left: var(--anu-gray-750);
+    --art-cube-right: var(--anu-gray-850);
+  }
+  @media (prefers-color-scheme: dark) {
+    .brand-art:where([data-theme="system"] *) {
+      --art-ground: color-mix(in oklab, var(--anu-black) 55%, transparent);
+      --art-paper: var(--anu-gray-900);
+      --art-line: var(--anu-gray-800);
+      --art-panel: var(--anu-gray-870);
+      --art-pill: var(--anu-gray-800);
+      --art-pill-strong: var(--anu-gray-750);
+      --art-cell-head: var(--anu-gray-600);
+      --art-cell-on: var(--anu-gray-750);
+      --art-cell-off: var(--anu-gray-850);
+      --art-violet-soft: var(--anu-violet-950);
+      --art-violet-bar: color-mix(in oklab, var(--brand) 45%, var(--anu-gray-870));
+      --art-cube-top: var(--anu-gray-700);
+      --art-cube-left: var(--anu-gray-750);
+      --art-cube-right: var(--anu-gray-850);
+    }
+  }
+  .brand-art .art-fill { fill: var(--art-fill); }
+  .brand-art .art-on-fill { fill: var(--primary-foreground); }
+  .brand-art .art-ink { fill: none; stroke: var(--art-ink); }
+  .brand-art .art-soft { fill: var(--art-soft); }
+  .brand-art .art-ground { fill: var(--art-ground); }
+  .brand-art .art-paper { fill: var(--art-paper); stroke: var(--art-line); }
+  .brand-art .art-panel { fill: var(--art-panel); }
+  .brand-art .art-pill { fill: var(--art-pill); }
+  .brand-art .art-pill-strong { fill: var(--art-pill-strong); }
+  .brand-art .art-violet-soft { fill: var(--art-violet-soft); }
+  .brand-art .art-violet-bar { fill: var(--art-violet-bar); }
+  .brand-art .art-cell-head { fill: var(--art-cell-head); }
+  .brand-art .art-cell-on { fill: var(--art-cell-on); }
+  .brand-art .art-cell-off { fill: var(--art-cell-off); }
+  .brand-art .art-cube-top { fill: var(--art-cube-top); }
+  .brand-art .art-cube-left { fill: var(--art-cube-left); }
+  .brand-art .art-cube-right { fill: var(--art-cube-right); }
+  .brand-art .art-vcube-top { fill: var(--anu-violet-200); }
+  .brand-art .art-vcube-left { fill: var(--anu-violet-500); }
+  .brand-art .art-vcube-right { fill: var(--anu-violet-700); }
+  /* The sphere's pixels follow its light: nine steps from the shadow to the highlight. */
+  .brand-art .art-s0 { fill: var(--art-sphere-dark); }
+  .brand-art .art-s1 { fill: color-mix(in srgb, var(--art-sphere-mid) 25%, var(--art-sphere-dark)); }
+  .brand-art .art-s2 { fill: color-mix(in srgb, var(--art-sphere-mid) 50%, var(--art-sphere-dark)); }
+  .brand-art .art-s3 { fill: color-mix(in srgb, var(--art-sphere-mid) 75%, var(--art-sphere-dark)); }
+  .brand-art .art-s4 { fill: var(--art-sphere-mid); }
+  .brand-art .art-s5 { fill: color-mix(in srgb, var(--art-sphere-light) 25%, var(--art-sphere-mid)); }
+  .brand-art .art-s6 { fill: color-mix(in srgb, var(--art-sphere-light) 50%, var(--art-sphere-mid)); }
+  .brand-art .art-s7 { fill: color-mix(in srgb, var(--art-sphere-light) 75%, var(--art-sphere-mid)); }
+  .brand-art .art-s8 { fill: var(--art-sphere-light); }
+
+  /* Arrival: the smooth half fades in, the pixel columns settle left to right
+     (delays inline, ≤ 240ms), once. Scenes travel further in their own units. */
+  .brand-art[data-art="esfera"],
+  .brand-art[data-art="planilha"],
+  .brand-art[data-art="blocos"] {
+    --art-rise: 18px;
+  }
+  .brand-art[data-anim="build"] :is(.art-ground, .art-smooth) {
+    animation: console-fade var(--anu-motion-slow) var(--anu-motion-ease) both;
+  }
+  .brand-art[data-anim="build"] .art-col {
+    animation: console-art var(--anu-motion-base) var(--anu-motion-ease) both;
+  }
+  .brand-art[data-anim="fade"] {
+    animation: console-fade var(--anu-motion-base) var(--anu-motion-ease) both;
+  }
+
+  /* Heavy routes: arrivals wait under the brand vignette and play as it fades.
+     !important here and below: the entrances are utilities (a later layer),
+     and an important declaration in an earlier layer outranks them. */
+  [data-brand-hold] :is(.reveal, .reveal-fade, .stagger > *, [data-fresh] > *, .brand-art, .brand-art *) {
+    animation-play-state: paused !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal,
+    .reveal-fade,
+    .stagger > *,
+    [data-fresh] > *,
+    [data-value-changed],
+    .brand-art,
+    .brand-art * {
+      animation: none !important;
+    }
+    .press:active {
+      transform: none !important;
+    }
+  }
+
+  /* A link that waits on the server (prefetch off): a hairline grows under it
+     after 120ms, so fast answers show nothing (LinkPending). */
+  [data-slot="link-pending"] {
+    position: absolute;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--primary);
+    transform: scaleX(0);
+    transform-origin: left;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform var(--anu-motion-fast) var(--anu-motion-ease),
+      opacity var(--anu-motion-fast) var(--anu-motion-ease);
+  }
+  [data-slot="link-pending"][data-pending] {
+    transform: scaleX(0.8);
+    opacity: 1;
+    transition:
+      transform 1200ms var(--anu-motion-ease-out) 120ms,
+      opacity var(--anu-motion-fast) var(--anu-motion-ease) 120ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-slot="link-pending"][data-pending] {
+      transform: scaleX(1);
+      transition: opacity var(--anu-motion-fast) linear 120ms;
+    }
   }
 }
