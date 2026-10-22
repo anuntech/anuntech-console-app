@@ -17,6 +17,7 @@ import { useMe } from "@/lib/me";
 import { errorMessage } from "@/lib/api";
 import { CONSOLE_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
+import { TEAM_WHATSAPP, talkToTeam } from "@/lib/help-routes";
 import { confirmIdentity, lockAvailable, lockEnabled, setLockEnabled } from "@/lib/lock";
 import { registerForPush } from "@/lib/push";
 import { signOut } from "@/lib/session";
@@ -274,11 +275,29 @@ export default function Account() {
       )}
       <Section>
         <ListRow
-          title="Ajuda e suporte"
+          testID="row-help"
+          title="Ajuda"
+          subtitle="Artigos, vídeos e perguntas frequentes"
           leading={<IconTile icon="questionmark.circle.fill" color="teal" />}
-          trailing="external"
-          onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/suporte`)}
+          onPress={() => router.push("/ajuda")}
         />
+        <ListRow
+          testID="row-how-we-work"
+          title="Como trabalhamos"
+          subtitle="Chamados, prazos, projetos e contratação"
+          leading={<IconTile icon="book.fill" color="violet" />}
+          onPress={() => router.push("/como-trabalhamos")}
+        />
+        <ListRow
+          title="Conversar com a equipe"
+          subtitle={`WhatsApp ${TEAM_WHATSAPP.label}, em dias úteis`}
+          leading={<IconTile icon="message.fill" color="green" />}
+          trailing="external"
+          accessibilityHint="Abre o WhatsApp"
+          onPress={talkToTeam}
+        />
+      </Section>
+      <Section>
         <ListRow
           title="Política de privacidade"
           leading={<IconTile icon="hand.raised.fill" color="gray" />}

@@ -121,13 +121,13 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 7 — Ajuda, Como trabalhamos e primeiros passos
 
-- [ ] **A1** **Ajuda**: busca, vídeos, assuntos, perguntas frequentes.
-- [ ] **A2** Ler artigo (seções, passos, notas, perguntas, links internos que abrem a tela do app), aviso ao Membro em artigo de Administrador, relacionados.
-- [ ] **A3** Vídeos tutoriais com capítulos e transcrição.
-- [ ] **A4** "Não encontrou?": perguntar ao assistente, abrir chamado (Dúvida), falar com a equipe (WhatsApp).
-- [ ] **A5** **Como trabalhamos**: o guia, os prazos e o que o contrato pede de cada empresa; marcar como lido.
-- [ ] **A6** Primeiros passos no Início (Administrador e Membro têm passos diferentes) e "Ocultar".
-- [ ] **A7** Links de ajuda nas telas ("Como pagar", "Como assinar e pedir alteração", "Como funciona o aceite", "Como contamos o tempo").
+- [x] **A1** **Ajuda**: busca, vídeos, assuntos, perguntas frequentes. (`help.home`, `help.search`; tela `/ajuda` sobre as abas, aberta pela Conta)
+- [x] **A2** Ler artigo (seções, passos, notas, perguntas, links internos que abrem a tela do app), aviso ao Membro em artigo de Administrador, relacionados. (`help.get`; `/ajuda/[slug]`, aberta de qualquer aba por `openHelp`)
+- 🟡 **A3** Vídeos tutoriais com capítulos e transcrição. Falta o player dentro do app: sem `expo-video`, o vídeo abre no navegador do app (cada capítulo e cada linha da transcrição abrem no segundo certo); capítulos e transcrição aparecem como texto.
+- [x] **A4** "Não encontrou?": perguntar ao assistente, abrir chamado (Dúvida), falar com a equipe (WhatsApp). (O assistente abre sem a pergunta preenchida: a tela não aceita esse parâmetro.)
+- [x] **A5** **Como trabalhamos**: o guia, os prazos e o que o contrato pede de cada empresa; marcar como lido. (`guide.get`, `guide.markRead`; `/como-trabalhamos`, pela Conta e pela Ajuda)
+- [x] **A6** Primeiros passos no Início (Administrador e Membro têm passos diferentes) e "Ocultar". (`guide.firstSteps`, `guide.markStep`; `components/first-steps-card.tsx` pronto, o integrador põe no Início)
+- 🟡 **A7** Links de ajuda nas telas ("Como pagar", "Como assinar e pedir alteração", "Como funciona o aceite", "Como contamos o tempo"). As rotas existem (`/ajuda/[slug]`, `/como-trabalhamos`); os links entram pelas outras frentes com `openHelp(slug)`.
 
 ## Frente 8 — Conta, notificações e assistente
 

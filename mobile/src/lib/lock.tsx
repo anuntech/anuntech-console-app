@@ -8,7 +8,7 @@ import { space, usePalette } from "./theme";
 
 const KEY = "console.lock";
 /** After this long in the background the app asks for Face ID again. */
-const GRACE_MS = 5 * 60_000;
+export const GRACE_MS = 5 * 60_000;
 
 export async function lockAvailable() {
   return (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
