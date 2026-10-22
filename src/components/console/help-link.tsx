@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LifeBuoyIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 
 /**
  * A short way to the help article about what is on screen ("Como pagar"),

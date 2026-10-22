@@ -358,20 +358,6 @@ hr {
   font-weight: 600;
   font-size: 0.875rem;
 }
-.signout {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  background: none;
-  border: 0;
-  padding: 8px 0;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-  width: fit-content;
-}
-.signout:hover {
-  color: var(--destructive);
-}
 html:has(.console-shell) {
   scroll-padding-bottom: calc(88px + env(safe-area-inset-bottom));
 }
@@ -1289,12 +1275,6 @@ tr:last-child td {
     border: 2px dashed CanvasText;
   }
 }
-@media (pointer: coarse) {
-  .signout {
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
 
 button[aria-disabled="true"] {
   opacity: 0.6;
@@ -1338,15 +1318,17 @@ html[data-dock="right"] { --assistant-right: 88px; }
 select option { background: var(--background); color: var(--foreground); }
 }
 
-/* A field the assistant just filled: a soft ring that fades. */
+/* A field the assistant just filled: a violet ring that closes in on it and fades.
+   The outline only repaints (no layout, unlike the box-shadow it replaced) and
+   works on inputs, which cannot hold a ::after ring. */
 @keyframes assistant-fill {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); }
-  100% { box-shadow: 0 0 0 12px transparent; }
+  from { outline-color: color-mix(in srgb, var(--primary) 60%, transparent); outline-offset: 6px; }
+  to { outline-color: transparent; outline-offset: 1px; }
 }
-.assistant-filled { animation: assistant-fill 1.6s ease-out; border-radius: 8px; }
+.assistant-filled { outline: 2px solid transparent; animation: assistant-fill 600ms var(--anu-motion-ease) both; border-radius: 8px; }
 @media (prefers-reduced-motion: reduce) { .assistant-filled { animation: none; outline: 2px solid var(--primary); outline-offset: 1px; } }
 
 /* The overview's eye (MoneyToggle): values blurred in place, so nothing shifts when they show. */
-[data-money] { transition: filter 150ms ease; }
+[data-money] { transition: filter var(--anu-motion-base) var(--anu-motion-ease); }
 [data-money-hidden] [data-money] { filter: blur(0.45em); user-select: none; }
 @media (prefers-reduced-motion: reduce) { [data-money] { transition: none; } }

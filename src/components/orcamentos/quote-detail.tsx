@@ -17,7 +17,7 @@ import {
   XCircleIcon,
   RouteIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -179,7 +179,6 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <QuoteStatusBadge status={q.status} validUntil={q.validUntil} today={today} />
             <span className="tabular-nums">nº {q.number}</span>
-            <span aria-hidden="true" className="hidden sm:inline">·</span>
             {viewer.admin ? (
               <Link href={`/empresas/${q.companyId}`} className="text-foreground hover:text-primary">
                 {q.company}
@@ -187,7 +186,6 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
             ) : (
               <span>{q.company}</span>
             )}
-            <span aria-hidden="true" className="hidden sm:inline">·</span>
             <span className="tabular-nums">{currency(totals.totalCents)}</span>
           </span>
         }
@@ -285,8 +283,8 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-          <Card className="min-w-0">
-            <CardContent className="px-6 py-8 sm:px-10 sm:py-10">
+          <Card className="reveal-fade min-w-0">
+            <CardContent className="px-5 py-8 sm:px-10 sm:py-10">
               <QuoteDocument
                 data={{
                   ...q.content,
@@ -301,7 +299,8 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
             </CardContent>
           </Card>
 
-          <aside className="flex min-w-0 flex-col gap-6">
+          {/* The answer leads the column; the rest are supporting cards (quiet). */}
+          <aside className="reveal-fade flex min-w-0 flex-col gap-6">
             <Card>
               <CardHeader>
                 <SectionTitle
@@ -389,7 +388,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
             </Card>
 
             {!viewer.admin && q.status === "accepted" && (
-              <Card>
+              <Card variant="quiet">
                 <CardHeader>
                   <SectionTitle title="Próximos passos" description="O que acontece depois do aceite." />
                 </CardHeader>
@@ -408,7 +407,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                       .filter((step) => !!step)
                       .map((step, i) => (
                       <li key={step.title} className="flex gap-3 text-sm">
-                        <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-primary tabular-nums">
+                        <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-medium text-primary tabular-nums">
                           {i + 1}
                         </span>
                         <span className="min-w-0">
@@ -433,7 +432,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
               />
             )}
 
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle title="Validade" description={q.validUntil ? undefined : "Sem prazo definido."} />
               </CardHeader>
@@ -454,7 +453,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
             </Card>
 
             {q.documentHash && (
-              <Card>
+              <Card variant="quiet">
                 <CardHeader>
                   <SectionTitle title="Documento" />
                 </CardHeader>
@@ -475,7 +474,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
             )}
 
             {versions.some((v) => !v.current) && (
-              <Card>
+              <Card variant="quiet">
                 <CardHeader>
                   <SectionTitle title="Versões" description="Cada envio congela uma proposta. As anteriores ficam para consulta, sem efeito." />
                 </CardHeader>
@@ -507,7 +506,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
             )}
 
             {events.length > 0 && (
-              <Card>
+              <Card variant="quiet">
                 <CardHeader>
                   <SectionTitle title="Histórico" />
                 </CardHeader>

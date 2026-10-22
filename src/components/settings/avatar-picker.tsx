@@ -3,7 +3,7 @@ import Image from "next/image";
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CameraIcon, Loader2Icon, SmileIcon, Trash2Icon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -109,7 +109,7 @@ export function AvatarPicker({
     <div className="flex items-center gap-5">
       <span
         aria-hidden="true"
-        className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-xl font-semibold text-primary"
+        className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent text-xl font-medium text-primary"
       >
         {source && isCatalogAvatar(current) ? (
           <IllustratedAvatar image={source} size={80} />

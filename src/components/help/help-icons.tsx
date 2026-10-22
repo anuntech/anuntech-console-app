@@ -14,7 +14,7 @@ import {
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import type { HelpCategoryId } from "@/lib/help/help-model";
 
 /** The same glyphs as the dock where an area has one. */

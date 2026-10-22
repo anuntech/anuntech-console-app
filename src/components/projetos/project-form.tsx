@@ -147,7 +147,8 @@ export function NewProjectForm({
   companyId?: string;
 }) {
   return (
-    <Card className="max-w-2xl">
+    // Follows the page header in, a beat later.
+    <Card className="reveal-fade max-w-2xl">
       <ServerForm action={createEngagement} className="contents">
         <CardContent className="flex flex-col gap-5">
           <FormError />

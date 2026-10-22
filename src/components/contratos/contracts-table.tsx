@@ -12,7 +12,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -231,6 +231,7 @@ export function ContractsTable({
   return (
     <ListCard
       fill
+      empty={!rows.length}
       actions={actions}
       label="Lista de contratos"
       layout={<ViewToggle view={layout} onChange={chooseLayout} />}
@@ -399,7 +400,7 @@ export function ContractsTable({
         </Table>
       ) : (
         <EmptyState
-          icon={<FileSignatureIcon />}
+          art={filtered ? "busca" : "faturas"}
           title={filtered ? "Nenhum contrato encontrado" : "Nenhum contrato ainda"}
           description={
             filtered

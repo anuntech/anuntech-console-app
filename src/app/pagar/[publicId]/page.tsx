@@ -27,7 +27,8 @@ export default async function Payment({
         })
       : null;
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-svh bg-background">
+    // A faint neutral page under white cards in light; the dark theme keeps its own background.
+    <main id="main-content" tabIndex={-1} className="min-h-svh bg-secondary/40 dark:bg-background">
       <PaymentView
         invoice={{
           description: i.description,

@@ -1,19 +1,15 @@
 "use client";
 import Image from "next/image";
 import { useState, type CSSProperties } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { companyInitials } from "./company-mark";
 
-// Soft tints for items without an icon; the same name keeps the same color.
+// Tints for items without an icon, from the tokens (the same violet and neutrals
+// as project labels); the same name keeps the same tint.
 const tints = [
-  "bg-[#DCE8FF] text-[#1a3585]",
-  "bg-[#F9DDDF] text-[#9b1c31]",
-  "bg-[#D9EDE1] text-[#145c3a]",
-  "bg-[#F8E8C5] text-[#7a4a06]",
-  "bg-[#E8DFF6] text-[#4b2a8a]",
-  "bg-[#D4EDF0] text-[#0f5961]",
-  "bg-[#F6DFCE] text-[#8a3a12]",
-  "bg-[#E1E3F8] text-[#2f3a8f]",
+  "bg-accent text-accent-foreground",
+  "bg-secondary text-secondary-foreground",
+  "bg-card text-foreground ring-1 ring-border ring-inset",
 ];
 function tintFor(name: string) {
   let hash = 0;

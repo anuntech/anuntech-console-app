@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
-import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react";
+import { RotateCcwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPage } from "@/components/console/status-page";
 import { SupportButton } from "@/components/shell/support-trigger";
@@ -38,7 +38,7 @@ export function ErrorView({
   return (
     <StatusPage
       layout={layout}
-      icon={<TriangleAlertIcon />}
+      art="chamados"
       eyebrow="Erro inesperado"
       title="Esta página não carregou"
       description="Algo falhou do nosso lado ao montar esta tela. Tente de novo em instantes. Se continuar, fale com a equipe da Anuntech e informe o código abaixo."

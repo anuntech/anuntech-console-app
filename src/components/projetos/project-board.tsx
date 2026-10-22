@@ -57,7 +57,7 @@ import {
   UserRoundIcon,
   XIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultiSelect } from "@/components/console/multi-select";
@@ -88,7 +88,7 @@ import {
   LabelChip,
   PriorityDot,
   TaskPriorityMark,
-  labelTone,
+  labelDot,
 } from "./project-badges";
 import { useEngagementStatus } from "./engagement-status";
 import { ProjectSheet } from "./project-form";
@@ -207,7 +207,7 @@ function TaskCard({
     <div
       className={cn(
         "group relative rounded-lg border bg-card shadow-card transition-[border-color,box-shadow] hover:border-primary/40",
-        dragging && "rotate-[1.5deg] border-primary/40 shadow-lg",
+        dragging && "rotate-[1.5deg] border-primary/40 shadow-float",
       )}
     >
       <button
@@ -398,7 +398,7 @@ function Column({
         <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", columnDots[status])} />
         <h2
           id={`column-${status}`}
-          className="m-0 truncate text-sm leading-5 font-semibold text-foreground"
+          className="m-0 truncate text-sm leading-5 font-medium text-foreground"
         >
           {label}
         </h2>
@@ -624,7 +624,9 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      {/* Arrival: the header rises, the filters follow a beat later, the columns
+          settle left to right (once; filtering only re-renders them). */}
+      <div className="reveal mb-4 flex flex-wrap items-center gap-2 [--i:1]">
         <div className="relative w-full max-w-xs">
           <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -670,7 +672,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
               icon: (
                 <span
                   aria-hidden="true"
-                  className={cn("size-2.5 shrink-0 rounded-full", labelTone(label).split(" ")[0])}
+                  className={cn("size-2.5 shrink-0 rounded-full", labelDot(label))}
                 />
               ),
             }))}
@@ -799,7 +801,8 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
           ref={boardRef}
           data-fill-viewport=""
           aria-busy={saving || undefined}
-          className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2"
+          // `stagger` moves the columns, never this box: useFillViewport measures it.
+          className="stagger -mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2"
           style={{
             height: boardFit?.height ?? `max(${BOARD_MIN_HEIGHT}px, calc(100dvh - 340px))`,
             marginBottom: boardFit?.clearance || undefined,
@@ -823,7 +826,7 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
         <DragOverlay
           dropAnimation={{
             duration: 220,
-            easing: "cubic-bezier(0.2, 0, 0, 1)",
+            easing: "cubic-bezier(0.2, 0, 0, 1)", // WAAPI cannot read CSS variables; keep in sync with --anu-motion-ease
             sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.4" } } }),
           }}
         >

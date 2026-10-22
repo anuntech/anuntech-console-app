@@ -14,7 +14,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -36,7 +36,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/console/server-form";
-import { CardGrid, CardTile, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
+import { CardGrid, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { EmptyState } from "@/components/console/page-header";
 import type { ListLayout } from "@/lib/list-layout";
 import {
@@ -60,6 +60,7 @@ import type { CompanyAddress } from "@/lib/companies/company-billing";
 import { canDeleteCompany, type CompanyLinks } from "@/lib/deletion-rules";
 import { CompanySheet } from "./company-sheet";
 import { DeleteCompanyDialog } from "./delete-company-dialog";
+import { CompanyTile } from "./company-tile";
 
 export type CompanyRow = {
   id: string;
@@ -77,6 +78,12 @@ export type CompanyRow = {
 };
 
 export { companyInitials };
+
+/** Who signs in for the company. On a card there is no column name to say what the count is about. */
+function PeopleLabel({ people, inCard = false }: { people: number; inCard?: boolean }) {
+  if (!people) return inCard ? "Ninguém com acesso" : "Ninguém ainda";
+  return `${people} ${people === 1 ? "pessoa" : "pessoas"}${inCard ? " com acesso" : ""}`;
+}
 
 export function StatusDot({ archived }: { archived: boolean }) {
   return (
@@ -223,6 +230,7 @@ export function CompaniesTable({
     <>
       <ListCard
         fill
+        empty={total === 0}
         actions={actions}
         label="Lista de empresas"
         layout={<ViewToggle view={layout} onChange={chooseLayout} />}
@@ -269,18 +277,13 @@ export function CompaniesTable({
               <GridCard
                 key={company.id}
                 href={`/empresas/${company.id}`}
-                leading={<CardTile>{companyInitials(company.name)}</CardTile>}
+                leading={<CompanyTile name={company.name} />}
                 title={company.name}
                 subtitle={<span className="tabular-nums">{formatDocument(company.document)}</span>}
                 actions={<CompanyActions company={company} onEdit={setEditing} />}
                 footer={
                   <>
                     <StatusDot archived={company.archived} />
-                    <span className="truncate tabular-nums">
-                      {company.people
-                        ? `${company.people} ${company.people === 1 ? "pessoa" : "pessoas"}`
-                        : "Ninguém ainda"}
-                    </span>
                     {company.openTickets > 0 && (
                       <span className="ml-auto shrink-0 rounded-md bg-warning-soft px-2 py-0.5 font-medium text-warning tabular-nums">
                         {company.openTickets} {company.openTickets === 1 ? "chamado aberto" : "chamados abertos"}
@@ -291,8 +294,12 @@ export function CompaniesTable({
               >
                 <div className="min-w-0">
                   <span className="block truncate text-foreground">{company.billingEmail}</span>
-                  <span className="block text-muted-foreground tabular-nums">
-                    {company.phone ? formatPhone(company.phone) : "Sem telefone"}
+                  {/* The dot opens the next item, so a wrapped line never ends on one. */}
+                  <span className="flex flex-wrap gap-x-1.5 text-muted-foreground tabular-nums [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
+                    <span>{company.phone ? formatPhone(company.phone) : "Sem telefone"}</span>
+                    <span>
+                      <PeopleLabel people={company.people} inCard />
+                    </span>
                   </span>
                 </div>
               </GridCard>
@@ -317,11 +324,7 @@ export function CompaniesTable({
                 <LinkRow key={company.id} href={`/empresas/${company.id}`}>
                   <PrimaryCell
                     href={`/empresas/${company.id}`}
-                    leading={
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-xs font-semibold text-primary">
-                        {companyInitials(company.name)}
-                      </span>
-                    }
+                    leading={<CompanyTile name={company.name} size="sm" />}
                     title={company.name}
                     subtitle={
                       <span className="tabular-nums">
@@ -341,9 +344,7 @@ export function CompaniesTable({
                     </span>
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground tabular-nums md:table-cell">
-                    {company.people
-                      ? `${company.people} ${company.people === 1 ? "pessoa" : "pessoas"}`
-                      : "Ninguém ainda"}
+                    <PeopleLabel people={company.people} />
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {company.openTickets ? (
@@ -362,7 +363,7 @@ export function CompaniesTable({
           </Table>
         ) : (
           <EmptyState
-            icon={<Building2Icon />}
+            art={filtered ? "busca" : "projetos"}
             title={filtered ? "Nenhuma empresa encontrada" : "Nenhum cliente ainda"}
             description={
               filtered

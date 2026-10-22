@@ -730,6 +730,11 @@ try {
       ["/empresas", "console-companies-view"],
     ]) {
       r = await request(path, "admin");
+      // An empty list has nothing to switch, so it shows no Lista · Grade toggle.
+      if (!/aria-label="Grade"/.test(r.text)) {
+        ok(!/aria-label="Lista"/.test(r.text), `${path} vazia não mostra Lista · Grade`);
+        continue;
+      }
       ok(pressed(r.text, "Grade") && !pressed(r.text, "Lista"), `${path} abre em grade por padrão`);
       r = await request(path, "admin", { headers: { Cookie: `${people.admin.cookie}; ${cookie}=list` } });
       ok(pressed(r.text, "Lista") && !pressed(r.text, "Grade"), `${path} lembra a lista escolhida`);

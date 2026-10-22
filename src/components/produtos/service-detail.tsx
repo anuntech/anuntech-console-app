@@ -8,7 +8,7 @@ import {
   ReceiptTextIcon,
   Trash2Icon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { PageHeader, SectionTitle } from "@/components/console/page-header";
+import { EmptyState, PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
 import { ProductIcon } from "@/components/console/product-icon";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
@@ -84,12 +84,7 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
             ) : (
               <span>{service.company}</span>
             )}
-            {service.description && (
-              <>
-                <span aria-hidden="true" className="hidden sm:inline">·</span>
-                <span>{service.description}</span>
-              </>
-            )}
+            {service.description && <span>{service.description}</span>}
           </span>
         }
         actions={
@@ -144,18 +139,22 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
               </Card>
             ))
           ) : (
-            <Card>
-              <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                {viewer.admin
-                  ? "Este serviço ainda não tem os detalhes preenchidos no catálogo."
-                  : "Os detalhes deste serviço serão publicados em breve."}
-              </CardContent>
+            <Card className="py-0">
+              <EmptyState
+                art="projetos"
+                size="compact"
+                title={
+                  viewer.admin
+                    ? "Este serviço ainda não tem os detalhes preenchidos no catálogo."
+                    : "Os detalhes deste serviço serão publicados em breve."
+                }
+              />
             </Card>
           )}
         </div>
         {billing && (
           <aside className="flex min-w-0 flex-col gap-6">
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle title="Cobrança" />
               </CardHeader>

@@ -21,6 +21,16 @@ export function isNewClient(company: { archived: boolean; createdAt: Date }, now
 /** `href` is where it gets fixed; without one, it happens outside the team's screens. */
 export type OnboardingStep = { key: string; label: string; href?: string };
 
+/**
+ * The setup as slots, one per step of `onboardingMissing`, for progress (the Implantação card).
+ * Two step keys are stages of one slot: `manager-login` (the Administrador invited, not signed in yet)
+ * fills `manager`, and `contract` covers both drafted and waiting on the signature.
+ */
+export const ONBOARDING_SLOTS = ["billing", "manager", "billing-contacts", "engagement", "contract", "terms", "charge"] as const;
+
+/** The slot a missing step holds. */
+export const onboardingSlot = (key: string) => (key === "manager-login" ? "manager" : key);
+
 /** What the data says about a company's setup; the Implantação card and the project journey read it. */
 export async function companySetupFacts(companyId: string) {
   const [[company], managers, prefs, [item], [contract], [terms], [billed]] = await Promise.all([

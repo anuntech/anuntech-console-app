@@ -52,21 +52,22 @@ import { formatPhone } from "@/lib/companies/company-input";
 export function NameForm({ name }: { name: string }) {
   const [value, setValue] = useState(name);
   return (
-    <ServerForm action={updateAccountName} className="flex flex-col gap-5">
+    <ServerForm action={updateAccountName} className="flex flex-col gap-3">
       <FormError />
-      <FormField label="Nome" htmlFor="account-name">
-        <Input
-          id="account-name"
-          name="name"
-          autoComplete="name"
-          required
-          minLength={2}
-          maxLength={100}
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-        />
-      </FormField>
-      <div className="flex justify-end">
+      {/* The button sits on the field's row, so it reads as saving this field. */}
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-end">
+        <FormField label="Nome" htmlFor="account-name" className="w-full sm:flex-1">
+          <Input
+            id="account-name"
+            name="name"
+            autoComplete="name"
+            required
+            minLength={2}
+            maxLength={100}
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+          />
+        </FormField>
         <SubmitButton pendingLabel="Salvando…" disabled={value.trim() === name.trim()}>
           Salvar
         </SubmitButton>

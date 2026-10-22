@@ -113,7 +113,7 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
         <BrandLoading fullscreen label="Verificação concluída. Abrindo o Console." />
       )}
       {challenge && (
-        <p className="text-sm text-muted-foreground">
+        <p className="reveal-fade text-sm text-muted-foreground">
           Enviamos um código para o{" "}
           {challenge.channel === "email" ? "e-mail" : "WhatsApp"}{" "}
           <span className="font-medium text-foreground">{challenge.destination}</span>
@@ -122,14 +122,14 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
       )}
       {!expired && (
         <form
-          className="flex flex-col gap-4"
+          className="reveal flex flex-col gap-4 [--i:1]"
           onSubmit={(event) => {
             event.preventDefault();
             void act(sent ? "verify" : "send");
           }}
         >
           {sent && (
-            <div>
+            <div className="reveal">
               <Label htmlFor={`${id}-code`} className="mb-2">
                 Código da segunda etapa
               </Label>
@@ -155,6 +155,7 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
           {message && <AuthAlert kind="info">{message}</AuthAlert>}
           <Button
             type="submit"
+            size="lg"
             className="w-full"
             disabled={busy || !challenge || (sent && code.length !== 6)}
           >
@@ -188,14 +189,14 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
         </form>
       )}
       {expired && (
-        <>
+        <div className="reveal flex flex-col gap-5">
           <AuthAlert kind="error" id={errorId}>
             {error}
           </AuthAlert>
-          <Button className="w-full" asChild>
+          <Button size="lg" className="w-full" asChild>
             <Link href={withReturnPath("/entrar", returnTo)}>Entrar novamente</Link>
           </Button>
-        </>
+        </div>
       )}
       <p className="sr-only" role="status">
         {busy

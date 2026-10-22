@@ -1,6 +1,6 @@
 "use client";
 import { useId, useState } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProductIcon } from "@/components/console/product-icon";

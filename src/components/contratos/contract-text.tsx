@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { contractBlocks, diffBlocks, type BlockChange, type ContractBlock } from "@/lib/contracts/contract-text";
 
 /** What a reader may add to one block of the text, by its position: a button beside it, cards under it. */

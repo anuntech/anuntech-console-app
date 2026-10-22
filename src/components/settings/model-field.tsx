@@ -2,7 +2,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useFillable } from "@/components/console/fillable";
 import { CheckIcon, ChevronDownIcon, CpuIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import {
   Command,
   CommandEmpty,

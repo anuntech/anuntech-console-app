@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { PlayIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import type { Tutorial } from "@/lib/help/tutorials";
 
 export function durationLabel(seconds: number) {
@@ -55,10 +55,10 @@ export function TutorialPlayer({ tutorial, className }: { tutorial: Tutorial; cl
             onClick={() => play()}
             className="group absolute inset-0 flex flex-col items-start justify-end gap-3 bg-[radial-gradient(120%_90%_at_70%_20%,var(--accent),var(--card))] p-5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:p-8"
           >
-            <span className="text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">Tutorial em vídeo</span>
-            <span className="max-w-xl text-xl leading-tight font-semibold tracking-[-0.02em] text-foreground sm:text-3xl">{tutorial.title}</span>
+            <span className="text-caption font-medium text-muted-foreground">Tutorial em vídeo</span>
+            <span className="max-w-xl text-title text-balance text-foreground sm:text-display-sm">{tutorial.title}</span>
             <span className="flex items-center gap-3">
-              <span className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-float transition-transform duration-150 group-hover:scale-105 group-active:scale-95 motion-reduce:transition-none">
+              <span className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-float transition-transform group-active:scale-95 motion-reduce:transition-none">
                 <PlayIcon aria-hidden="true" className="ml-0.5 size-5 fill-current" />
               </span>
               <span className="text-sm text-muted-foreground">

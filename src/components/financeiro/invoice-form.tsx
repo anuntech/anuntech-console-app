@@ -2,7 +2,7 @@
 import Link from "next/link";
 import type { ChargeSourceKind } from "@/lib/billing/charge-sources";
 import { useState } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { DateField } from "@/components/console/date-field";
@@ -215,7 +215,7 @@ export function NewInvoiceForm({
   prefill?: InvoicePrefill | null;
 }) {
   return (
-    <Card className="max-w-2xl">
+    <Card className="reveal-fade max-w-2xl">
       <ServerForm action={createInvoice} className="contents">
         <CardContent className="flex flex-col gap-5">
           <FormError />

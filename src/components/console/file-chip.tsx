@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { DownloadIcon, FileTextIcon, ImageIcon, XIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { DownloadLink } from "@/components/console/download-link";
 import { fileSizeLabel } from "@/lib/format";

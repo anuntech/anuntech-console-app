@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowDownRightIcon, ArrowUpRightIcon, CheckCircle2Icon, ChevronRightIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 
 /**
  * The Painel's building blocks, in the same card language as the lists:
@@ -9,15 +9,20 @@ import { cn } from "cn";
  */
 
 type Tone = "default" | "critical" | "warning" | "good";
-/* Colour only when something asks for attention; a good number stays neutral. */
+/* Colour only when something asks for attention; a good number stays neutral,
+   so the figure leads and a red or amber tile stands out on its own. */
 const toneIcon: Record<Tone, string> = {
-  default: "bg-secondary text-foreground",
+  default: "bg-secondary text-muted-foreground",
   critical: "bg-destructive-soft text-destructive",
   warning: "bg-warning-soft text-warning",
-  good: "bg-secondary text-foreground",
+  good: "bg-secondary text-muted-foreground",
 };
 
-/** One headline number with its context line; the whole tile opens the list behind it. */
+/**
+ * One headline number with its context line; the whole tile opens the list
+ * behind it and gives under the finger (`press`). The number never counts up:
+ * it is read as it is.
+ */
 export function KpiTile({
   label,
   value,
@@ -39,10 +44,10 @@ export function KpiTile({
   const body = (
     <>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg sm:size-8 [&_svg]:size-4", toneIcon[tone])}>{icon}</span>
+        <p className="text-caption font-medium text-muted-foreground">{label}</p>
+        <span aria-hidden="true" className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg sm:size-8 [&_svg]:size-4", toneIcon[tone])}>{icon}</span>
       </div>
-      <p className="mt-2 truncate text-xl leading-none font-medium tracking-[-0.025em] text-foreground tabular-nums sm:text-[1.625rem]">{value}</p>
+      <p className="mt-2 truncate text-title-sm text-foreground tabular-nums sm:mt-3 sm:text-title-lg">{value}</p>
       <div className="mt-2 flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         {delta && Number.isFinite(delta.percent) && (
           <span
@@ -62,7 +67,7 @@ export function KpiTile({
   );
   const frame = "block min-w-0 rounded-xl border bg-card p-3.5 shadow-card sm:p-4";
   return href ? (
-    <Link href={href} className={cn(frame, "transition-colors hover:border-primary/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none")}>
+    <Link href={href} className={cn(frame, "press hover:border-primary/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none")}>
       {body}
     </Link>
   ) : (
@@ -80,7 +85,11 @@ export type AttentionItem = {
   tone?: Tone;
 };
 
-/** What needs someone today, most urgent first; empty means all caught up. */
+/**
+ * What needs someone today, most urgent first; empty means all caught up.
+ * The rows arrive one after another when the page opens (`stagger`); the list
+ * mounts once per visit and never re-sorts on screen, so nothing replays.
+ */
 export function AttentionList({ items }: { items: AttentionItem[] }) {
   if (!items.length)
     return (
@@ -93,7 +102,7 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
       </div>
     );
   return (
-    <ul className="divide-y border-t">
+    <ul className="stagger divide-y border-t">
       {items.map((item) => (
         <li key={item.key}>
           <Link href={item.href} className="group flex items-center gap-3 px-6 py-3 transition-colors hover:bg-muted/50">
@@ -115,7 +124,7 @@ export type ActivityEntry = { id: string; what: string; who: string; where: stri
 
 /** The latest things that happened in the Console, as a quiet timeline. */
 export function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
-  if (!entries.length) return <p className="px-6 py-10 text-center text-sm text-muted-foreground">Nenhuma atividade ainda.</p>;
+  if (!entries.length) return <p className="px-6 py-6 text-center text-sm text-muted-foreground">Nenhuma atividade ainda.</p>;
   return (
     <ol className="relative px-6 pb-2">
       {entries.map((entry, i) => (

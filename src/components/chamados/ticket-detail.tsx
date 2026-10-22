@@ -11,7 +11,6 @@ import {
   HourglassIcon,
   LockIcon,
   MoreHorizontalIcon,
-  PaperclipIcon,
   RotateCcwIcon,
   SendIcon,
   Trash2Icon,
@@ -31,9 +30,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
+import { AnimatedValue } from "@/components/console/motion";
 import { Fact } from "@/components/console/fact";
 import { FormField } from "@/components/console/form-field";
-import { PersonAvatar } from "@/components/console/person-avatar";
 import {
   FormError,
   ServerForm,
@@ -60,7 +59,7 @@ import {
 } from "@/lib/tickets/ticket-intake";
 import type { TicketPriority, TicketStatus } from "@/lib/tickets/ticket-table";
 import { AttachmentField } from "@/components/console/attachment-field";
-import { FileChip, FileRow } from "@/components/console/file-chip";
+import { FileRow } from "@/components/console/file-chip";
 import { canDeleteTicket } from "@/lib/deletion-rules";
 import {
   CloseTicketDialog,
@@ -72,6 +71,7 @@ import { useTicketUploads } from "./ticket-uploads";
 import { EstimateCard, TicketHoursCard, type TicketHoursData } from "./ticket-hours";
 import { TicketFollowCard, type TicketFollowUp } from "./ticket-follow-card";
 import { TicketTriageNotice } from "./ticket-triage-notice";
+import { TicketThread } from "./ticket-thread";
 import type { TicketTriage } from "@/lib/tickets/ticket-triage";
 
 export type TicketFile = {
@@ -242,7 +242,7 @@ function Composer({ ticketId, draft, suggest }: { ticketId: string; draft?: stri
         }
         router.replace(pathname, { scroll: false });
       }}
-      className="flex flex-col gap-3 border-t pt-5"
+      className="flex flex-col gap-2"
       onSubmit={(event) => {
         const form = event.currentTarget;
         const body = (
@@ -260,31 +260,34 @@ function Composer({ ticketId, draft, suggest }: { ticketId: string; draft?: stri
       <Label htmlFor="reply-body" className="sr-only">
         Sua resposta
       </Label>
-      <Textarea
-        ref={field}
-        id="reply-body"
-        name="body"
-        rows={4}
-        maxLength={10000}
-        placeholder="Escreva sua resposta…"
-        defaultValue={draft}
-        className="min-h-24"
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter")
-            event.currentTarget.form?.requestSubmit();
-        }}
-      />
-      <FormError />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <AttachmentField variant="compact" className="flex-1" />
-        <div className="ml-auto flex items-center gap-2">
-          {suggest && <SuggestReply ticketId={ticketId} field={field} />}
-          <SubmitButton pendingLabel="Enviando…">
-            <SendIcon />
-            Enviar resposta
-          </SubmitButton>
+      {/* One surface: the box and its tools share the border and the focus ring. */}
+      <div className="rounded-xl border border-input bg-field transition-[border-color,box-shadow] hover:border-field-hover has-[textarea:focus-visible]:border-ring has-[textarea:focus-visible]:ring-[3px] has-[textarea:focus-visible]:ring-ring/20 has-[[data-dragging]]:border-ring">
+        <Textarea
+          ref={field}
+          id="reply-body"
+          name="body"
+          rows={3}
+          maxLength={10000}
+          placeholder="Escreva sua resposta…"
+          defaultValue={draft}
+          className="max-h-80 min-h-20 resize-none rounded-none border-0 bg-transparent px-4 pt-3 shadow-none focus-visible:ring-0 dark:bg-transparent"
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter")
+              event.currentTarget.form?.requestSubmit();
+          }}
+        />
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-2 px-3 pt-1 pb-3">
+          <AttachmentField variant="compact" className="min-w-0 flex-1 basis-48" />
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            {suggest && <SuggestReply ticketId={ticketId} field={field} />}
+            <SubmitButton pendingLabel="Enviando…">
+              <SendIcon />
+              Enviar resposta
+            </SubmitButton>
+          </div>
         </div>
       </div>
+      <FormError />
     </ServerForm>
   );
 }
@@ -331,7 +334,7 @@ function Count({ children }: { children: ReactNode }) {
 /** What the team needs from the client to go on, in their words. */
 function WaitingNotice({ waitingFor, paused, admin }: { waitingFor?: string | null; paused: boolean; admin: boolean }) {
   return (
-    <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning-soft/60 px-4 py-3 text-sm">
+    <div className="flex gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm">
       <HourglassIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
       <div className="min-w-0 space-y-1">
         <p className="m-0 font-medium text-foreground">
@@ -384,7 +387,7 @@ function ClockCard({ clock, status, admin, now }: { clock: TicketClock; status: 
   const done = status === "resolved" || status === "closed";
   const late = (iso: string | null) => admin && !!iso && new Date(iso) < new Date(now);
   return (
-    <Card>
+    <Card variant="quiet">
       <CardHeader>
         <SectionTitle title="Prazos" description={clock.label} />
       </CardHeader>
@@ -457,7 +460,6 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
             {(ticket.priority === "high" || ticket.priority === "critical") && (
               <TicketPriorityMark priority={ticket.priority} />
             )}
-            <span aria-hidden="true" className="hidden sm:inline">·</span>
             {admin ? (
               <Link
                 href={`/empresas/${ticket.companyId}`}
@@ -469,13 +471,11 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
               <span>{ticket.company}</span>
             )}
             {ticket.engagement && (
-              <>
-                <span aria-hidden="true" className="hidden sm:inline">·</span>
-                <span>{ticket.engagement}</span>
-              </>
+              <span>{ticket.engagement}</span>
             )}
           </span>
         }
+        actionsInline
         actions={
           admin && (
             <DropdownMenu modal={false}>
@@ -547,78 +547,33 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
       />
 
       {admin && data.triage && (
-        <div className="mb-6">
+        <div className="reveal-fade mb-6">
           <TicketTriageNotice ticketId={ticket.id} triage={data.triage} />
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Card className="min-w-0">
+      {/* items-start: the conversation ends at the composer instead of stretching to the side column. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <Card className="reveal-fade min-w-0">
           <CardHeader>
             <SectionTitle
               title={
                 <span className="flex items-center gap-2">
                   Conversa
-                  <Count>{messages}</Count>
+                  <Count>
+                    <AnimatedValue value={messages} />
+                  </Count>
                 </span>
               }
               description="Mensagens e arquivos trocados neste chamado."
             />
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
+            <TicketThread entries={entries} now={now} admin={admin} closed={ticket.status === "closed"} />
+            {/* The latest word in the conversation: what the team still needs, right above the reply. */}
             {ticket.status === "waiting_customer" && (
               <WaitingNotice waitingFor={ticket.waitingFor} paused={!!data.clock?.pausedSince} admin={admin} />
             )}
-            <ol className="flex flex-col gap-6">
-              {entries.map((entry) =>
-                entry.kind === "message" ? (
-                  <li key={entry.id} className="flex gap-3">
-                    <PersonAvatar
-                      person={{ id: entry.authorId, name: entry.author, image: entry.authorImage }}
-                      size={32}
-                      tone={entry.staff ? "staff" : "default"}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                        <span className="text-sm font-semibold text-foreground">
-                          {entry.author}
-                        </span>
-                        {entry.staff && (
-                          <span className="rounded-full bg-accent px-1.5 py-px text-[11px] font-medium text-primary">
-                            Equipe
-                          </span>
-                        )}
-                        <When at={entry.createdAt} now={now} />
-                      </div>
-                      <p className="mt-1 text-sm leading-6 break-words whitespace-pre-wrap text-foreground">
-                        {entry.body}
-                      </p>
-                    </div>
-                  </li>
-                ) : (
-                  <li key={entry.file.id} className="flex gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground"
-                    >
-                      <PaperclipIcon className="size-3.5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                        <span className="text-sm text-muted-foreground">
-                          <span className="font-medium text-foreground">
-                            {entry.file.author}
-                          </span>{" "}
-                          anexou um arquivo
-                        </span>
-                        <When at={entry.file.createdAt} now={now} />
-                      </div>
-                      <FileChip file={entry.file} href={`/api/anexos/${entry.file.id}`} className="mt-1.5" />
-                    </div>
-                  </li>
-                ),
-              )}
-            </ol>
             {ticket.status === "closed" ? (
               <ClosedNotice
                 ticket={ticket}
@@ -631,8 +586,8 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
           </CardContent>
         </Card>
 
-        <aside className="flex min-w-0 flex-col gap-6">
-          <Card>
+        <aside className="reveal-fade flex min-w-0 flex-col gap-6">
+          <Card variant="quiet">
             <CardHeader>
               <SectionTitle
                 title="Detalhes"
@@ -753,7 +708,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
           {data.hours && (admin ? <TicketHoursCard ticketId={ticket.id} data={data.hours} /> : <EstimateCard ticketId={ticket.id} data={data.hours} />)}
           {admin && data.followUp && <TicketFollowCard ticketId={ticket.id} followUp={data.followUp} />}
 
-          <Card>
+          <Card variant="quiet">
             <CardHeader>
               <SectionTitle
                 title={

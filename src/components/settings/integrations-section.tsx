@@ -9,7 +9,7 @@ import {
   ReceiptTextIcon,
   SparklesIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { requireAdmin } from "@/lib/access/access";
 import { checkIntegration } from "@/lib/integrations/integration-actions";
 import { gatewayCredential } from "@/lib/ai/gateway-env";

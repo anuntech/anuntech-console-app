@@ -24,13 +24,13 @@ export function ProjectAbout({ name, description }: { name: string; description:
           </SheetHeader>
           <div className="flex flex-col gap-5 overflow-y-auto p-4">
             <section>
-              <h3 className="m-0 mb-1.5 text-sm font-semibold text-foreground">Objetivo</h3>
+              <h3 className="m-0 mb-1.5 text-sm font-medium text-foreground">Objetivo</h3>
               <p className="m-0 text-sm leading-6 whitespace-pre-wrap text-foreground">
                 {description?.trim() || "A equipe ainda não escreveu o objetivo deste projeto."}
               </p>
             </section>
             <section>
-              <h3 className="m-0 mb-1.5 text-sm font-semibold text-foreground">Como usar o quadro</h3>
+              <h3 className="m-0 mb-1.5 text-sm font-medium text-foreground">Como usar o quadro</h3>
               <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-sm leading-6 text-foreground marker:text-muted-foreground">
                 {rules.map((rule) => (
                   <li key={rule}>{rule}</li>

@@ -1,6 +1,6 @@
 "use client";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import { useAppearance } from "@/components/shell/appearance-provider";

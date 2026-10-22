@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 
 /** Announces bank-side changes that arrive through the automatic refresh. */
 export function PaymentStatusAnnouncer({
@@ -63,4 +63,19 @@ export function PaymentRefresh() {
     };
   }, [pending, router, start]);
   return null;
+}
+
+/**
+ * Marks a situation that changed while the page was open (`data-live`), so
+ * the payment confirmation can arrive with its one moment of motion. A page
+ * opened already paid stays still. Wraps the payment section's content, so
+ * it keeps the first situation across the automatic refreshes.
+ */
+export function PaymentArrival({ status, children }: { status: string; children: ReactNode }) {
+  const [initial] = useState(status);
+  return (
+    <div data-live={status !== initial ? "" : undefined} className="group/arrival">
+      {children}
+    </div>
+  );
 }

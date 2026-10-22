@@ -1,7 +1,8 @@
 import { BrandLockup } from "@/components/shell/brand";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
+import { BrandArt, type SpotArtName } from "@/components/ui/brand-art";
 
 /**
  * The one shape of every error and "not found" screen: what happened, what
@@ -15,6 +16,7 @@ export function StatusPage({
   layout = "page",
   eyebrow,
   numeral,
+  art,
   icon,
   title,
   description,
@@ -27,6 +29,9 @@ export function StatusPage({
   eyebrow?: string;
   /** A large status number ("404"); only where people know what it means. */
   numeral?: string;
+  /** The brand illustration: `busca` for "not found", `chamados` for errors. Not with a numeral. */
+  art?: SpotArtName;
+  /** A small icon tile, where there is no illustration. */
   icon?: ReactNode;
   title: string;
   description: ReactNode;
@@ -44,21 +49,25 @@ export function StatusPage({
         >
           {numeral}
         </p>
+      ) : art ? (
+        // The pixel field and the light stay behind the art only.
+        <div className="relative isolate">
+          <span aria-hidden="true" className="pixel-field pointer-events-none absolute -inset-x-20 -inset-y-10 -z-10 [--pixel-from:50%_50%]" />
+          <BrandArt name={art} glow className="w-44 sm:w-52" />
+        </div>
       ) : (
         icon && (
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-accent text-primary [&_svg]:size-6">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-muted-foreground [&_svg]:size-6">
             {icon}
           </div>
         )
       )}
       {eyebrow && (
-        <p className={cn("text-[11px] font-semibold tracking-[0.14em] text-primary uppercase", numeral ? "mt-4" : "mt-6")}>
-          {eyebrow}
-        </p>
+        <p className={cn("text-caption font-medium text-muted-foreground", numeral ? "mt-4" : "mt-6")}>{eyebrow}</p>
       )}
       <h1
         className={cn(
-          "text-2xl font-semibold tracking-[-0.02em] text-balance text-foreground",
+          "text-title text-balance text-foreground",
           eyebrow ? "mt-2" : numeral ? "mt-4" : "mt-6",
         )}
       >
@@ -76,7 +85,8 @@ export function StatusPage({
   );
 
   if (layout === "inline")
-    return <section className="flex min-h-[60vh] items-center justify-center px-2 py-12">{body}</section>;
+    // overflow-x-clip: the pixel field behind the art reaches past narrow screens.
+    return <section className="flex min-h-[60vh] items-center justify-center overflow-x-clip px-2 py-12">{body}</section>;
 
   return (
     <div className="flex min-h-svh flex-col bg-background">
@@ -85,7 +95,7 @@ export function StatusPage({
           <BrandLockup className="h-6" />
         </Link>
       </header>
-      <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center px-6 py-16 outline-none">
+      <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center overflow-x-clip px-6 py-16 outline-none">
         {body}
       </main>
     </div>

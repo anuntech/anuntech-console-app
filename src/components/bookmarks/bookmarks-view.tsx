@@ -19,7 +19,7 @@ import {
   Trash2Icon,
   UsersIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -87,12 +87,12 @@ export type BookmarksViewData = {
   viewer: { id: string; admin: boolean };
 };
 
+/* Brand and neutrals only: green, amber and red mean a state elsewhere in the
+   Console, and a link's letter is not one. */
 const tones = [
-  "bg-accent text-primary",
-  "bg-success-soft text-success",
-  "bg-warning-soft text-warning",
-  "bg-destructive-soft text-destructive",
+  "bg-accent text-accent-foreground",
   "bg-secondary text-foreground",
+  "border bg-card text-foreground",
 ];
 function hostOf(url: string) {
   try {
@@ -535,9 +535,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 count={counts.root}
               />
             </ul>
-            <p className="mt-5 mb-1.5 px-2.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Pastas
-            </p>
+            <p className="mt-5 mb-1.5 px-2.5 text-caption font-medium text-muted-foreground">Pastas</p>
             <ul className="flex flex-col gap-0.5">
               {folders.map((folder) => (
                 <NavItem
@@ -567,6 +565,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
 
         <ListCard
           fill
+          empty={items.length === 0}
           label="Lista de bookmarks"
           className="min-w-0"
           actions={
@@ -612,7 +611,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             view === "grid" ? grid : table
           ) : (
             <EmptyState
-              icon={<BookmarkIcon />}
+              art={query.search ? "busca" : "projetos"}
               title={query.search ? "Nenhum bookmark encontrado" : "Nenhum bookmark aqui"}
               description={
                 query.search

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { Loader2Icon, MicIcon, SquareIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { clockLabel, joinTranscript, PRIVACY_LINE } from "@/lib/voice/voice-rules";
 import { caretOf, mayFocus, rangeFor, setNativeValue, type Caret } from "./insert-text";

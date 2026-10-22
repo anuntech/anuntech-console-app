@@ -14,7 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { Loader2Icon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { toast } from "@/components/shell/notifications";
 import { Button } from "@/components/ui/button";
 import {

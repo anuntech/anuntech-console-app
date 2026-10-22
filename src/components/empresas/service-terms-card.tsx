@@ -78,7 +78,7 @@ export function ServiceTermsCard({
         ? `Valendo para a equipe; o cliente vê a partir de ${dateLabel(new Date(item.publishAt))}`
         : "Valendo e visível para o cliente";
   return (
-    <Card className="gap-4 py-5">
+    <Card variant="quiet" className="gap-4 py-5">
       <CardHeader>
         <SectionTitle
           title="Condições de atendimento"
@@ -94,12 +94,15 @@ export function ServiceTermsCard({
       <CardContent className="flex flex-col gap-3">
         {items.length ? (
           items.map((item) => (
-            <div key={item.id} className="rounded-lg border p-3">
+            <div key={item.id} className="rounded-lg border bg-card p-3">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="m-0 text-sm font-medium text-foreground">{item.label}</p>
-                  <p className="m-0 text-xs text-muted-foreground">
-                    {scope(item)} · {basisLabels[item.basis]} · versão {item.version}
+                  {/* The dot opens the next item, so a wrapped line never ends on one. */}
+                  <p className="m-0 flex flex-wrap gap-x-1.5 text-xs text-muted-foreground [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
+                    <span>{scope(item)}</span>
+                    <span>{basisLabels[item.basis]}</span>
+                    <span>versão {item.version}</span>
                   </p>
                 </div>
                 <Button type="button" variant="ghost" size="icon-sm" aria-label={`Editar ${item.label}`} onClick={() => setEditing(item)}>

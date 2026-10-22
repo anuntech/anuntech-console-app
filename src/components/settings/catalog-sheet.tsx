@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { PackageIcon, WrenchIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {

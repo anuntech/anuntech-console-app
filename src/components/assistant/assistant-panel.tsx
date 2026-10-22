@@ -15,7 +15,7 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -144,7 +144,7 @@ function Working({ startedAt, tokens, activity }: { startedAt: number; tokens: n
     return () => clearInterval(tick);
   }, []);
   return (
-    <li className="flex items-center gap-3 text-xs text-muted-foreground">
+    <li className="reveal-fade flex items-center gap-3 text-xs text-muted-foreground">
       <AiOrb state={activity} size="md" decorative />
       <span className="tabular-nums" aria-hidden="true">
         {spentLabel(now - startedAt, tokens)}
@@ -169,16 +169,19 @@ const getServerWide = () => false;
 /** One card: what will happen, with the data, and the buttons that decide it. */
 function ProposalCard({
   proposal,
+  fresh,
   onConfirm,
   onDismiss,
 }: {
   proposal: ProposalState;
+  /** Arrived while the panel was open: it rises in once. */
+  fresh: boolean;
   onConfirm: () => void;
   onDismiss: () => void;
 }) {
   const open = proposal.status === "pending" || proposal.status === "busy";
   return (
-    <div className="mt-2 rounded-xl border bg-card px-4 py-3 text-sm">
+    <div className={cn("mt-2 rounded-xl border bg-card px-4 py-3 text-sm", fresh && "reveal")}>
       <p className="m-0 font-medium text-foreground">{proposal.title}</p>
       {proposal.tainted && open && (
         <p className="m-0 mt-1 flex items-start gap-1.5 text-xs text-warning">
@@ -337,6 +340,12 @@ export function AssistantPanel({
     onFinish: ({ message, isAbort, isError, finishReason }) => finish(message, isAbort, isError, finishReason),
   });
   const busy = status === "submitted" || status === "streaming";
+  // Turns already there when the panel opened (or a conversation loaded) stay still; only the ones that
+  // arrive while it is open rise in. Closing the panel unmounts the thread, so without this every
+  // reopening would replay the whole conversation.
+  const [still, setStill] = useState(() => ({ open, ids: new Set(messages.map((m) => m.id)) }));
+  if (still.open !== open) setStill({ open, ids: new Set(messages.map((m) => m.id)) });
+  const fresh = (id: string) => !still.ids.has(id);
 
   const turns: Turn[] = messages.map((message) => ({
     id: message.id,
@@ -420,6 +429,7 @@ export function AssistantPanel({
   /** Another conversation on screen: the cards and timings of the one before go with it. */
   const showMessages = (next: AssistantMessage[]) => {
     setMessages(next);
+    setStill((current) => ({ ...current, ids: new Set(next.map((m) => m.id)) }));
     setCards({});
     setSpent({});
     stick.current = true;
@@ -532,7 +542,8 @@ export function AssistantPanel({
   useEffect(() => {
     if (!open) return;
     const node = scroller.current;
-    if (node && stick.current) node.scrollTop = node.scrollHeight;
+    // An empty thread starts at the greeting; a phone may need to scroll to the suggestions.
+    if (node && stick.current && messages.length) node.scrollTop = node.scrollHeight;
   }, [messages, working, open, side, view]);
   const followScroll = () => {
     const node = scroller.current;
@@ -711,8 +722,8 @@ export function AssistantPanel({
         className={cn(
           "flex translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden p-0",
           side
-            ? "top-3 right-(--assistant-right) bottom-3 left-auto h-auto w-[400px] max-w-none rounded-2xl shadow-xl data-[state=closed]:zoom-out-100 data-[state=closed]:slide-out-to-right-8 data-[state=open]:zoom-in-100 data-[state=open]:slide-in-from-right-8"
-            : "top-auto bottom-0 left-0 h-[min(720px,88svh)] w-full max-w-none rounded-t-2xl rounded-b-none sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:h-[min(720px,calc(100svh-128px))] sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl",
+            ? "top-3 right-(--assistant-right) bottom-3 left-auto h-auto w-[400px] max-w-none rounded-2xl shadow-float data-[state=closed]:zoom-out-100 data-[state=closed]:slide-out-to-right-8 data-[state=open]:zoom-in-100 data-[state=open]:slide-in-from-right-8"
+            : "top-auto bottom-0 left-0 h-[min(720px,88svh)] w-full max-w-none rounded-t-2xl rounded-b-none sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:h-[min(720px,calc(100svh-128px))] sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=closed]:slide-out-to-bottom max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=open]:duration-(--anu-motion-slow) max-sm:data-[state=closed]:duration-(--anu-motion-base)",
         )}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onInteractOutside={(event) => {
@@ -784,7 +795,7 @@ export function AssistantPanel({
 
         {view === "history" ? (
           <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-5">
-            <p className="m-0 mb-3 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            <p className="m-0 mb-3 text-caption font-medium text-muted-foreground">
               Suas conversas
             </p>
             {loadingHistory && !history ? (
@@ -798,7 +809,7 @@ export function AssistantPanel({
                       disabled={busy || removing !== null}
                       onClick={() => openConversation(c.id)}
                       className={cn(
-                        "flex min-w-0 flex-1 flex-col rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent",
+                        "flex min-w-0 flex-1 flex-col rounded-lg px-2 py-2 text-left transition-colors hover:bg-secondary",
                         c.id === conversationId && "bg-accent/60",
                       )}
                     >
@@ -850,25 +861,26 @@ export function AssistantPanel({
             className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-5"
           >
             {turns.length === 0 ? (
-              <div className="flex h-full flex-col justify-end gap-5">
-                <div>
-                  <AiOrb state={activity} size="lg" decorative className="mb-3" />
-                  <p className="m-0 text-lg font-semibold text-foreground">
+              // min-h-full, not h-full: content taller than a phone's panel must stay reachable by scrolling.
+              <div className="flex min-h-full flex-col justify-end gap-5">
+                <div className="reveal">
+                  <AiOrb state={activity} size="lg" decorative className="mb-4" />
+                  <p className="m-0 text-title text-foreground">
                     {firstName ? `Olá, ${firstName}.` : "Olá."} Como posso
                     ajudar?
                   </p>
-                  <p className="m-0 mt-1 text-sm text-muted-foreground">
+                  <p className="m-0 mt-1.5 max-w-[52ch] text-sm text-pretty text-muted-foreground">
                     Peça em português, como falaria com alguém da equipe. Eu uso
                     o seu acesso e nunca vejo o que você não veria.
                   </p>
                 </div>
-                <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+                <ul className="stagger m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
                   {suggestionsFor(admin, finance, support).map((suggestion) => (
                     <li key={suggestion}>
                       <button
                         type="button"
                         onClick={() => send(suggestion)}
-                        className="w-full rounded-xl border bg-card px-4 py-3 text-left text-sm text-foreground transition-colors hover:bg-accent"
+                        className="press h-full w-full rounded-xl border bg-card px-4 py-3 text-left text-sm text-foreground hover:border-field-hover hover:bg-secondary"
                       >
                         {suggestion}
                       </button>
@@ -877,7 +889,7 @@ export function AssistantPanel({
                 </ul>
                 {shortcuts.length > chips.length && (
                   <div>
-                    <p className="m-0 mb-2 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    <p className="m-0 mb-2 text-caption font-medium text-muted-foreground">
                       Mais atalhos
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -903,16 +915,16 @@ export function AssistantPanel({
                 {turns.map((turn) =>
                   // An answer only shows once something of it arrived: chips, text or a card.
                   turn.role === "assistant" && !turn.content && !turn.steps?.length && !turn.proposals?.length ? null : turn.role === "user" ? (
-                    <li key={turn.id} className="flex justify-end">
+                    <li key={turn.id} className={cn("flex justify-end", fresh(turn.id) && "reveal [--rise:10px]")}>
                       <p className="m-0 max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-sm leading-6 whitespace-pre-wrap text-primary-foreground">
                         {turn.content}
                       </p>
                     </li>
                   ) : (
-                    <li key={turn.id} className="flex gap-3">
+                    <li key={turn.id} className={cn("flex gap-3", fresh(turn.id) && "reveal-fade")}>
                       {/* The orb shows only while it works; a failure keeps its warning. */}
                       {turn.failed && (
-                        <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                        <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full bg-destructive-soft text-destructive">
                           <TriangleAlertIcon className="size-3.5" />
                         </span>
                       )}
@@ -922,7 +934,10 @@ export function AssistantPanel({
                             {turn.steps.map((step, i) => (
                               <li
                                 key={i}
-                                className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-caption text-muted-foreground",
+                                  fresh(turn.id) && "reveal-fade",
+                                )}
                               >
                                 <CheckIcon className="size-3 text-success" />
                                 {step}
@@ -944,12 +959,13 @@ export function AssistantPanel({
                           <ProposalCard
                             key={proposal.id}
                             proposal={proposal}
+                            fresh={fresh(turn.id)}
                             onConfirm={() => decide(proposal, "confirmar")}
                             onDismiss={() => decide(proposal, "descartar")}
                           />
                         ))}
                         {turn.spent && (
-                          <p className="m-0 mt-1.5 text-[11px] text-muted-foreground tabular-nums">
+                          <p className="m-0 mt-1.5 text-caption text-muted-foreground tabular-nums">
                             {spentLabel(turn.spent.ms, turn.spent.tokens)}
                           </p>
                         )}

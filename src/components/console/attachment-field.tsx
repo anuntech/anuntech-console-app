@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 import { PaperclipIcon, UploadCloudIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { FileChip, FileChips } from "@/components/console/file-chip";
 import {

@@ -12,7 +12,7 @@ import { linkTarget } from "@/lib/assistant/link-rules";
 export function MessageMarkdown({ text, onNavigate }: { text: string; onNavigate?: () => void }) {
   const blocks = text.replace(/\r\n?/g, "\n").split(/\n{2,}/);
   return (
-    <div className="flex flex-col gap-2.5 text-sm leading-6 text-foreground [&_a]:font-medium [&_a]:text-primary [&_a]:underline-offset-2 hover:[&_a]:underline">
+    <div className="flex flex-col gap-2.5 text-sm leading-6 text-foreground [&_a]:font-medium [&_a]:text-link [&_a]:underline-offset-2 hover:[&_a]:underline">
       {blocks.map((block, index) => renderBlock(block.trim(), index, onNavigate))}
     </div>
   );
@@ -39,7 +39,7 @@ function renderBlock(block: string, key: number, onNavigate?: () => void) {
     );
   if (/^#{1,3}\s+/.test(lines[0]))
     return (
-      <p key={key} className="m-0 font-semibold">
+      <p key={key} className="m-0 font-medium">
         {inline(lines[0].replace(/^#{1,3}\s+/, ""), onNavigate)}
         {lines.length > 1 && <span className="block font-normal">{joinLines(lines.slice(1), onNavigate)}</span>}
       </p>

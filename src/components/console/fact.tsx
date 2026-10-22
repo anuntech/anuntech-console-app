@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 
 /** One label/value pair inside a <dl>; the grammar every detail card shares. */
 export function Fact({

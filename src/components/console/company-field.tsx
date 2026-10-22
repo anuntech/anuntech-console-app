@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 import { Building2Icon, CheckIcon, ChevronDownIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import {
   Command,
   CommandEmpty,

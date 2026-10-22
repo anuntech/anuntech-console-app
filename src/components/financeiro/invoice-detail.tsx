@@ -6,6 +6,7 @@ import {
   Building2Icon,
   CircleCheckIcon,
   CircleSlashIcon,
+  Clock3Icon,
   ExternalLinkIcon,
   FileDownIcon,
   Link2Icon,
@@ -20,7 +21,7 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -418,9 +419,6 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <InvoiceStatusBadge status={invoice.display} />
-            <span aria-hidden="true" className="hidden sm:inline">
-              ·
-            </span>
             {admin ? (
               <Link
                 href={`/empresas/${company.id}`}
@@ -431,12 +429,10 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             ) : (
               <span>{company.name}</span>
             )}
-            <span aria-hidden="true" className="hidden sm:inline">
-              ·
-            </span>
             <span>{typeLabel}</span>
           </span>
         }
+        actionsInline
         actions={
           admin && (
             <DropdownMenu modal={false}>
@@ -511,8 +507,9 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
 
       {admin && sync !== "off" && <BankSync id={invoice.id} mode={sync} />}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-6">
+      {/* items-start: the main card ends with its content, not at the sidebar's height. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="reveal-fade flex min-w-0 flex-col gap-6">
           <Card>
             <CardHeader>
               <SectionTitle
@@ -538,47 +535,47 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
               />
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap items-end justify-between gap-4 border-b pb-5">
-                <div>
+              {/* From sm, a two-column grid whose rows both blocks share (subgrid): the
+                  labels sit on one baseline and the figures on another, whatever their sizes. */}
+              <div className="flex flex-col gap-4 border-b pb-5 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:grid-rows-[auto_auto_auto] sm:gap-x-8 sm:gap-y-0">
+                <div className="min-w-0 sm:row-span-3 sm:grid sm:grid-rows-subgrid sm:items-baseline">
                   <p className="text-xs font-medium text-muted-foreground">Valor</p>
-                  <p className="mt-1 text-3xl font-semibold tracking-[-0.02em] tabular-nums text-foreground">
+                  <p className="mt-1 text-title-lg break-words text-foreground tabular-nums sm:text-display-sm">
                     {currency(invoice.amountCents)}
                   </p>
                 </div>
-                <div className="sm:text-right">
+                <div className="sm:row-span-3 sm:grid sm:grid-rows-subgrid sm:items-baseline sm:text-right">
                   <p className="text-xs font-medium text-muted-foreground">
                     Vencimento
                   </p>
-                  <p
-                    className={cn(
-                      "mt-1 text-lg font-semibold tabular-nums",
-                      late ? "text-destructive" : "text-foreground",
-                    )}
-                  >
+                  <p className={cn("mt-1 text-title tabular-nums", late ? "text-destructive" : "text-foreground")}>
                     {dateLabel(invoice.dueDate)}
                   </p>
-                  {invoice.bankDueDate && invoice.bankDueDate !== invoice.dueDate && (
-                    <p className="text-xs text-muted-foreground">
-                      Boleto e Pix válidos até {dateLabel(invoice.bankDueDate)}
-                    </p>
-                  )}
-                  {late > 0 && (
-                    <p className="text-xs text-destructive">
-                      {late === 1 ? "1 dia de atraso" : `${late} dias de atraso`}
-                    </p>
-                  )}
-                  {!admin && invoice.status === "issued" && (
-                    <HelpLink slug="pagar-uma-fatura" className="mt-1">
-                      Como pagar
-                    </HelpLink>
-                  )}
-                  {scheduled && scheduledIssueDate && (
-                    <p className={cn("text-xs", scheduledIssueDate <= today ? "text-warning" : "text-muted-foreground")}>
-                      {scheduledIssueDate <= today
-                        ? "Emissão automática em instantes"
-                        : `Emissão automática em ${dateLabel(scheduledIssueDate)}`}
-                    </p>
-                  )}
+                  {/* The notes below the date share the grid's third row, as one item. */}
+                  <div>
+                    {invoice.bankDueDate && invoice.bankDueDate !== invoice.dueDate && (
+                      <p className="text-xs text-muted-foreground">
+                        Boleto e Pix válidos até {dateLabel(invoice.bankDueDate)}
+                      </p>
+                    )}
+                    {late > 0 && (
+                      <p className="text-xs text-destructive">
+                        {late === 1 ? "1 dia de atraso" : `${late} dias de atraso`}
+                      </p>
+                    )}
+                    {!admin && invoice.status === "issued" && (
+                      <HelpLink slug="pagar-uma-fatura" className="mt-1">
+                        Como pagar
+                      </HelpLink>
+                    )}
+                    {scheduled && scheduledIssueDate && (
+                      <p className={cn("text-xs", scheduledIssueDate <= today ? "text-warning" : "text-muted-foreground")}>
+                        {scheduledIssueDate <= today
+                          ? "Emissão automática em instantes"
+                          : `Emissão automática em ${dateLabel(scheduledIssueDate)}`}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
               <dl className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2">
@@ -642,9 +639,17 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 {admin && (
                   <Fact label="Endereço de cobrança" className="sm:col-span-2">
                     {company.address || (
-                      <span className="text-warning">
-                        Não cadastrado. Sem ele, o Inter não emite a cobrança.
-                      </span>
+                      <>
+                        <span className="text-warning">
+                          Não cadastrado. Sem ele, o Inter não emite a cobrança.
+                        </span>{" "}
+                        <Link
+                          href={`/empresas/${company.id}?editar=1`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          Corrigir o cadastro
+                        </Link>
+                      </>
                     )}
                   </Fact>
                 )}
@@ -888,6 +893,11 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     Esta cobrança foi cancelada no banco e não pode mais ser paga.
                   </Notice>
                 )}
+                {issued && !processing && !invoice.pixCopyPaste && !invoice.boletoLine && (
+                  <Notice icon={<Clock3Icon />}>
+                    O Inter ainda não enviou o boleto e o Pix desta cobrança.
+                  </Notice>
+                )}
                 {processing && (
                   <Notice icon={<Loader2Icon className="animate-spin" />}>
                     Boleto e Pix aparecem aqui assim que o Inter concluir a
@@ -1030,9 +1040,10 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           )}
         </div>
 
-        <aside className="flex min-w-0 flex-col gap-6">
+        {/* Supporting cards recede (quiet), so the charge leads. */}
+        <aside className="reveal-fade flex min-w-0 flex-col gap-6">
           {admin && settled && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle
                   title="Link de pagamento"
@@ -1081,7 +1092,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           )}
 
           {admin && sub && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle
                   title="Recorrência"
@@ -1140,7 +1151,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             </Card>
           )}
 
-          <Card>
+          <Card variant="quiet">
             <CardHeader>
               <SectionTitle title="Nota fiscal" description="Documento fiscal desta cobrança." />
             </CardHeader>
@@ -1195,7 +1206,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           </Card>
 
           {admin && (
-            <Card>
+            <Card variant="quiet">
               <CardHeader>
                 <SectionTitle
                   title="Histórico"
@@ -1209,7 +1220,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       <li key={event.id} className="relative text-sm">
                         <span
                           aria-hidden="true"
-                          className="absolute top-1.5 -left-[25px] size-2.5 rounded-full border-2 border-card bg-primary/70"
+                          className="absolute top-[7px] -left-[24px] size-2 rounded-full bg-primary/70"
                         />
                         <span className="block text-foreground">
                           {auditLabels[event.action] || "Registro atualizado"}
