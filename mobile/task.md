@@ -63,22 +63,22 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 3 — Contratos e orçamentos (Administrador)
 
-- [ ] **K1** Contratos: filtro de situação (Aguardando assinatura, Em revisão, Assinados) e busca.
-- [ ] **K2** Linha: "Falta a sua assinatura" / "Falta a da Anuntech", vigência ("Vence em N dias"), "Aditivo de <contrato>".
-- [ ] **K3** **Pedir alteração por cláusula**: escrever (comentário e texto proposto), editar, descartar e enviar a rodada à Anuntech.
-- [ ] **K4** Pedidos em revisão e histórico de revisões com a resposta da Anuntech (Aceito/Recusado, aplicado).
-- [ ] **K5** Aviso ao assinar com pedidos não enviados.
-- [ ] **K6** Mudanças desde a versão anterior (marcadas no texto).
-- [ ] **K7** Versões anteriores com o PDF de cada uma.
-- [ ] **K8** Aditivos do contrato e link para o contrato original.
-- [ ] **K9** Vigência com estado (começa, vence, vencido) e o texto do aditivo.
-- [ ] **K10** "Enviado em", modelo e próximos passos depois de assinado.
-- [ ] **Q1** Orçamentos: filtro de situação (Aguardando resposta, Aceitos, Recusados, Expirados) e busca.
-- [ ] **Q2** **Pedir orçamento** na lista (abre chamado "App ou projeto novo" já escolhido).
-- [ ] **Q3** Detalhe: tecnologias, valor da hora, desconto negociado, semanas por fase, tarefas com descrição.
-- [ ] **Q4** Detalhe: "faltam N dias", "Enviado em", e-mail de quem respondeu.
-- [ ] **Q5** Versões anteriores com PDF.
-- [ ] **Q6** Próximos passos depois de aceito (contrato, entrada, acessos).
+- [x] **K1** Contratos: filtro de situação (Aguardando assinatura, Em revisão, Assinados) e busca.
+- [x] **K2** Linha: "Falta a sua assinatura" / "Falta a da Anuntech", vigência ("Vence em N dias"), "Aditivo de <contrato>".
+- [x] **K3** **Pedir alteração por cláusula**: escrever (comentário e texto proposto), editar, descartar e enviar a rodada à Anuntech.
+- [x] **K4** Pedidos em revisão e histórico de revisões com a resposta da Anuntech (Aceito/Recusado, aplicado).
+- [x] **K5** Aviso ao assinar com pedidos não enviados.
+- [x] **K6** Mudanças desde a versão anterior (marcadas no texto).
+- [x] **K7** Versões anteriores com o PDF de cada uma.
+- [x] **K8** Aditivos do contrato e link para o contrato original.
+- [x] **K9** Vigência com estado (começa, vence, vencido) e o texto do aditivo.
+- 🟡 **K10** "Enviado em", modelo e próximos passos depois de assinado. Falta o passo "Como trabalhamos", que espera a tela da frente 7 (A5).
+- [x] **Q1** Orçamentos: filtro de situação (Aguardando resposta, Aceitos, Recusados, Expirados) e busca.
+- [x] **Q2** **Pedir orçamento** na lista (abre chamado "App ou projeto novo" já escolhido).
+- [x] **Q3** Detalhe: tecnologias, valor da hora, desconto negociado, semanas por fase, tarefas com descrição.
+- [x] **Q4** Detalhe: "faltam N dias", "Enviado em", e-mail de quem respondeu.
+- [x] **Q5** Versões anteriores com PDF.
+- [x] **Q6** Próximos passos depois de aceito (contrato, entrada, acessos).
 
 ## Frente 4 — Projetos
 
