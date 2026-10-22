@@ -1,6 +1,6 @@
 # Design do Console
 
-A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "do bruto ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface com base preta, branca e cinza e o violeta da marca no botão principal, na seleção, em link, foco e na vinheta de carregamento.
+A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "da planilha ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface com base preta, branca e cinza e o violeta da marca no botão principal, na seleção, em link, foco e na vinheta de carregamento.
 
 ## Como trabalhamos
 
