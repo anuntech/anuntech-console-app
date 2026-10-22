@@ -10,6 +10,7 @@ import { join } from "node:path";
 import pg from "pg";
 import { settingsChecks } from "./api-smoke-settings.mjs";
 import { pushChecks } from "./api-smoke-push.mjs";
+import { contractsChecks } from "./api-smoke-contracts.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -1070,6 +1071,8 @@ try {
   await settingsChecks({ db, rpc, ok, marker, emailSignIn, staff, mailFile: join(dir, "mail.jsonl") });
   // Notificações no celular (scripts/api-smoke-push.mjs).
   await pushChecks({ db, rpc, ok, marker, emailSignIn, staff, base, pushFile: join(dir, "push.jsonl"), cronSecret: "test-cron-secret" });
+  // Contratos e orçamentos (scripts/api-smoke-contracts.mjs).
+  await contractsChecks({ db, rpc, ok, marker, emailSignIn, staff, base, mailFile: join(dir, "mail.jsonl") });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);
