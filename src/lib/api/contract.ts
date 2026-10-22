@@ -68,21 +68,40 @@ const paged = { page: z.number(), pageCount: z.number(), showCompany: z.boolean(
 const projectRow = z.object({
   id: z.string(),
   name: z.string(),
+  /** active, paused, completed (or suspended); the web marks only what is not active. */
+  status: z.string(),
   statusLabel: z.string(),
   company: z.string(),
   tasks: z.object({ total: z.number(), done: z.number() }),
   updatedAt: z.string(),
 });
+const taskStatus = z.enum(["backlog", "todo", "in_progress", "review", "done"]);
+const taskPriority = z.enum(["low", "normal", "high", "urgent"]);
 const projectTask = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().nullable(),
+  status: taskStatus,
+  priority: taskPriority,
   priorityLabel: z.string(),
   dueDate: z.string().nullable(),
+  /** The deadline passed (São Paulo's today) and the task is not done; dueToday: it is today. */
+  overdue: z.boolean(),
+  dueToday: z.boolean(),
+  labels: z.array(z.string()),
+  estimateMinutes: z.number().nullable(),
+  /** "2h", "1h30", "45min". */
+  estimateLabel: z.string().nullable(),
+  /** Names, in the order they were assigned; ids in the same order. */
   assignees: z.array(z.string()),
+  assigneeIds: z.array(z.string()),
   comments: z.number(),
   files: z.number(),
   reviewDue: z.string().nullable(),
+  /** Created by the client and not yet taken into the work by the team ("Pedido do cliente"). */
+  requested: z.boolean(),
+  creator: z.string().nullable(),
+  updatedAt: z.string(),
 });
 const documentRow = z.object({
   id: z.string(),
@@ -153,6 +172,29 @@ const avatar = z.object({
   color: z.string().nullable(),
 });
 const message = z.object({ message: z.string() });
+/** Someone on a task, a comment or the activity: name and picture. */
+const taskPerson = z.object({ id: z.string(), name: z.string(), avatar });
+const taskFile = z.object({
+  id: z.string(),
+  name: z.string(),
+  size: z.number(),
+  mime: z.string(),
+  /** Path on the Console (/api/anexos/<id>); the app sends its session cookie. */
+  href: z.string(),
+});
+const taskFields = {
+  title: z.string().max(200),
+  description: z.string().max(5000).default(""),
+  priority: taskPriority.default("normal"),
+  /** YYYY-MM-DD or empty for no deadline. */
+  dueDate: z.union([z.iso.date(), z.literal("")]).default(""),
+  /** Hours as typed ("1,5"), empty for none. */
+  estimate: z.string().max(10).default(""),
+  labels: z.array(z.string().max(100)).max(20).default([]),
+  assigneeIds: z.array(z.string().max(128)).max(20).default([]),
+  /** Files sent before to POST /api/v1/anexos?para=tarefa. */
+  uploadIds: z.array(z.uuid()).max(20).default([]),
+};
 const sixDigits = z.string().regex(/^\d{6}$/);
 const companyAddress = z.object({
   cep: z.string().max(9),
@@ -424,21 +466,131 @@ export const contract = {
     ),
   },
   projects: {
-    /** The projects the person sees, with each board's progress. */
-    list: oc.input(page).output(z.object({ rows: z.array(projectRow), ...paged })),
-    /** One project's board, column by column. */
+    /** The projects the person sees, with each board's progress: by situation, name and company. */
+    list: oc
+      .input(
+        page.extend({
+          status: z.enum(["active", "paused", "completed", "all"]).default("active"),
+          search: z.string().max(160).default(""),
+          company: z.union([z.uuid(), z.literal("")]).default(""),
+        }),
+      )
+      .output(
+        z.object({
+          rows: z.array(projectRow),
+          ...paged,
+          /** The companies to narrow the list to, when the person reaches more than one (empty for the team). */
+          companies: z.array(z.object({ id: z.string(), name: z.string() })),
+        }),
+      ),
+    /** One project's board, column by column, with who can be given a task. */
     get: oc.input(z.object({ id: z.uuid() })).output(
       z.object({
         id: z.string(),
         name: z.string(),
         description: z.string().nullable(),
         company: z.string(),
+        status: z.string(),
         statusLabel: z.string(),
-        columns: z.array(z.object({ status: z.string(), label: z.string(), tasks: z.array(projectTask) })),
+        columns: z.array(z.object({ status: taskStatus, label: z.string(), tasks: z.array(projectTask) })),
         /** The viewer approves deliveries in Revisão (a client company's Administrador). */
         canReview: z.boolean(),
+        /** Who is looking: their id (for "Você") and whether they are the team. */
+        viewer: z.object({ id: z.string(), staff: z.boolean() }),
+        /** Who a task can be given to: the members who see the project, and the team. */
+        people: z.array(taskPerson),
+        /** Anyone who sees the board adds to it; a client's task enters the Backlog as a request. */
+        canCreate: z.boolean(),
+        priorities: z.array(option),
+        /** "Como usar o quadro", as the web's "Sobre este projeto" lists it. */
+        guide: z.array(z.string()),
       }),
     ),
+    /** One task: every field, its files, its comments and what the viewer may do with it. */
+    task: oc.input(z.object({ id: z.uuid() })).output(
+      z.object({
+        id: z.string(),
+        project: z.object({ id: z.string(), name: z.string() }),
+        title: z.string(),
+        description: z.string().nullable(),
+        status: taskStatus,
+        statusLabel: z.string(),
+        priority: taskPriority,
+        priorityLabel: z.string(),
+        dueDate: z.string().nullable(),
+        overdue: z.boolean(),
+        dueToday: z.boolean(),
+        labels: z.array(z.string()),
+        estimateMinutes: z.number().nullable(),
+        estimateLabel: z.string().nullable(),
+        /** The estimate as the form shows it ("1,5"), empty without one. */
+        estimateHours: z.string(),
+        requested: z.boolean(),
+        creator: z.string().nullable(),
+        updatedAt: z.string(),
+        reviewDue: z.string().nullable(),
+        approvedAt: z.string().nullable(),
+        assignees: z.array(taskPerson),
+        files: z.array(taskFile.extend({ canRemove: z.boolean() })),
+        comments: z.array(
+          z.object({
+            id: z.string(),
+            body: z.string(),
+            createdAt: z.string(),
+            editedAt: z.string().nullable(),
+            author: taskPerson,
+            mine: z.boolean(),
+            /** Only the author edits; the author or the team deletes. */
+            canEdit: z.boolean(),
+            canDelete: z.boolean(),
+            files: z.array(taskFile),
+          }),
+        ),
+        canDelete: z.boolean(),
+        canReview: z.boolean(),
+        /** The columns the viewer may move it to (its own included), with the client's rules. */
+        statuses: z.array(z.object({ value: taskStatus, label: z.string() })),
+      }),
+    ),
+    /** The project's history: who created, moved, approved, commented or edited what, newest first. */
+    activity: oc.input(z.object({ id: z.uuid() })).output(
+      z.object({
+        events: z.array(
+          z.object({
+            id: z.string(),
+            /** What happened, after the person's name ("moveu de A fazer para Revisão"). */
+            text: z.string(),
+            kind: z.enum(["moves", "reviews", "comments", "edits"]),
+            at: z.string(),
+            who: taskPerson.extend({ staff: z.boolean() }),
+            task: z.object({ id: z.string(), title: z.string(), exists: z.boolean() }).nullable(),
+          }),
+        ),
+        filters: z.array(z.object({ key: z.string(), label: z.string() })),
+      }),
+    ),
+    /** A new task (for the client, a request in the Backlog). `status` counts only for the team. */
+    createTask: oc
+      .input(z.object({ engagementId: z.uuid(), status: taskStatus.optional(), ...taskFields }))
+      .output(z.object({ id: z.string(), message: z.string() })),
+    /** Saves every field of a task, its column, new files and the saved ones to remove. */
+    updateTask: oc
+      .input(z.object({ id: z.uuid(), status: taskStatus, ...taskFields, removeFileIds: z.array(z.uuid()).max(20).default([]) }))
+      .output(message),
+    /** Moves a task to another column (to its end), with the client's rules. */
+    moveTask: oc.input(z.object({ id: z.uuid(), status: taskStatus })).output(message),
+    /** Deletes a task (whoever created it, or the team). */
+    deleteTask: oc.input(z.object({ id: z.uuid() })).output(message),
+    /** Removes a saved file (whoever added it, the task's creator, or the team). */
+    removeTaskFile: oc.input(z.object({ id: z.uuid() })).output(message),
+    /** A comment: text, files or both. */
+    comment: oc
+      .input(z.object({ taskId: z.uuid(), body: z.string().max(5000).default(""), uploadIds: z.array(z.uuid()).max(20).default([]) }))
+      .output(message),
+    /** Changes the words of one's own comment. */
+    editComment: oc.input(z.object({ id: z.uuid(), body: z.string().max(5000) })).output(message),
+    /** Deletes one's own comment, with its files. */
+    deleteComment: oc.input(z.object({ id: z.uuid() })).output(message),
     /** Approves a delivery in Revisão, or sends it back with what did not work. */
     reviewTask: oc
       .input(z.object({ id: z.uuid(), decision: z.enum(["approve", "problem"]), note: z.string().max(5000).default("") }))

@@ -1,16 +1,9 @@
 import "server-only";
 import { eq } from "drizzle-orm";
-import { contractChangeRequests, contracts as contractTable, engagements, quotes as quoteTable, tasks as taskTable } from "@/db/schema";
+import { contractChangeRequests, contracts as contractTable, engagements, quotes as quoteTable } from "@/db/schema";
 import { db } from "../../db";
-import { answersForClient, canSeeEngagement } from "../../access/access";
 import { decisionEvidence, partyFor } from "../../access/client-decision";
 import { saoPauloDate } from "../../dates";
-import { engagementLabels } from "../../format";
-import { projectListQuery } from "../../projects/project-table";
-import { listProjects } from "../../projects/project-list";
-import { findEngagement, projectTasks } from "../../projects/project-view";
-import { TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../../projects/task-model";
-import { reviewTaskAs } from "../../projects/task-review";
 import { contractKindLabels, contractQuery, contractStatusLabels, contractTerm, contractTermLabel } from "../../contracts/contract-table";
 import { listContracts } from "../../contracts/contract-list";
 import { findContract } from "../../contracts/contract-access";
@@ -49,79 +42,6 @@ const companyOf =
   (table: typeof engagements | typeof contractTable | typeof quoteTable) =>
   async ({ id }: { id: string }) =>
     (await db.select({ companyId: table.companyId }).from(table).where(eq(table.id, id)))[0]?.companyId;
-/** The project a task sits on; its company is what the guard checks. */
-const taskProject = async ({ id }: { id: string }) =>
-  (
-    await db
-      .select({ id: engagements.id, companyId: engagements.companyId })
-      .from(taskTable)
-      .innerJoin(engagements, eq(engagements.id, taskTable.engagementId))
-      .where(eq(taskTable.id, id))
-  )[0];
-
-export const projects = {
-  list: api.projects.list
-    // listProjects keeps each person to their companies and, for a Membro, the projects chosen for them.
-    .use(guard({ self: true }))
-    .handler(async ({ input, context }) => {
-      const list = await listProjects(context.actor, projectListQuery(pageParams(input.page)));
-      return {
-        rows: list.rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          statusLabel: label(engagementLabels, row.status),
-          company: row.company,
-          tasks: row.tasks,
-          updatedAt: row.updatedAt,
-        })),
-        page: list.paging.page,
-        pageCount: list.pageCount,
-        showCompany: list.showCompany,
-      };
-    }),
-  get: api.projects.get
-    .use(guard({ area: "overview", company: companyOf(engagements) }))
-    .handler(async ({ input, context }) => {
-      const row = await findEngagement(context.actor, input.id);
-      if (!row || row.project.kind !== "project") throw missing();
-      const tasks = await projectTasks(context.actor, row.project);
-      return {
-        id: row.project.id,
-        name: row.project.name,
-        description: row.project.description,
-        company: row.company,
-        statusLabel: label(engagementLabels, row.project.status),
-        columns: TASK_STATUSES.map((status) => ({
-          status,
-          label: taskStatusLabels[status],
-          tasks: tasks
-            .filter((task) => task.status === status)
-            .map((task) => ({
-              id: task.id,
-              title: task.title,
-              description: task.description,
-              priorityLabel: label(taskPriorityLabels, task.priority),
-              dueDate: task.dueDate,
-              assignees: task.assignees.map((person) => person.name),
-              comments: task.comments.length,
-              files: task.files.length,
-              reviewDue: task.reviewDue,
-            })),
-        })),
-        // Approving a delivery is the client's decision: its Administradores, never the team.
-        canReview: answersForClient(context.actor, row.project.companyId),
-      };
-    }),
-  reviewTask: api.projects.reviewTask
-    .use(guard({ area: "overview", company: async (input: { id: string }) => (await taskProject(input))?.companyId }))
-    .handler(async ({ input, context }) => {
-      // A Membro with a selection reaches only the projects chosen for them, as on the web's board.
-      const project = await taskProject(input);
-      if (!project || !canSeeEngagement(context.actor, project)) throw missing();
-      return answer(await reviewTaskAs(context.actor, input));
-    }),
-};
-
 /** A signed contract against its dates, as the web's badges say it; quiet before it is signed. */
 const termOf = (status: string, dates: { startsAt: string | null; endsAt: string | null }, today: string) => {
   if (status !== "signed") return null;
