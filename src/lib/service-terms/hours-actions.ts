@@ -1,15 +1,14 @@
 "use server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { auditEvents, tickets, timeEntries } from "@/db/schema";
-import { answersForClient, ASSISTED_DECISION, getActor } from "../access/access";
+import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { dateLabel } from "../format";
-import { sendOpsMail } from "../notifications/ops-alerts";
 import { enqueueTicketNotice, scheduleTicketNotices } from "../tickets/ticket-notifications";
 import { bankMonth, bankTerms, hoursLabel, monthOf } from "./hours-bank";
 import { deliverBankAlert, deliverHoursReport } from "./hours-delivery";
@@ -45,7 +44,6 @@ const failure = (e: unknown): ActionState => ({
         ? e.message
         : "Não foi possível salvar.",
 });
-const consoleUrl = () => process.env.BETTER_AUTH_URL?.replace(/\/$/, "") || "https://console.anuntech.com";
 
 function refresh(companyId: string, ticketId?: string | null) {
   revalidatePath(`/empresas/${companyId}`);

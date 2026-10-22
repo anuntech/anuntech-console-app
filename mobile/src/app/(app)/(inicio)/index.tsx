@@ -6,6 +6,7 @@ import { SymbolView, type SFSymbol } from "expo-symbols";
 import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { useQuery } from "@tanstack/react-query";
+import { FirstStepsCard } from "@/components/first-steps-card";
 import { Card, Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
@@ -343,7 +344,8 @@ export default function Home() {
           Falta só liberar seu acesso. Peça ao Administrador da sua empresa ou à equipe da Anuntech.
         </Notice>
       ) : null}
-      {/* Primeiros passos (frente 7): the integrator places <FirstStepsCard /> here, above everything that waits for the person. */}
+      {/* Primeiros passos: above everything that waits for the person; draws nothing once done or hidden. */}
+      <FirstStepsCard />
       {waiting.length > 0 || toPay.length > 0 ? (
         <Block index={0}>
           <AttentionCard waiting={waiting} toPay={toPay} hideMoney={hideMoney} />
