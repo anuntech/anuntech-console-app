@@ -1,6 +1,7 @@
 import "server-only";
 import { interChargeTerms } from "./billing-terms";
 import { enqueueBillingNotice } from "./billing-notice-queue";
+import { enqueuePush, schedulePushNotices } from "../notifications/push-queue";
 import { randomBytes } from "node:crypto";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -23,6 +24,8 @@ export async function publishInvoice(
   scheduled = false,
 ) {
   let lockedId: string | undefined;
+  // The push follows the client notices: only with sendNotifications, at the same time.
+  let pushNotBefore: Date | undefined;
   try {
     uuid.parse(id);
     payerAddress.shape.numDiasAgenda.parse(numDiasAgenda);
@@ -92,6 +95,7 @@ export async function publishInvoice(
         throw new Error("Emissão automática exige recorrência.");
       // A recurring period issued early (the previous one was paid) is still announced on its usual day.
       const notBefore = scheduled && leadDays !== null ? saoPauloTime(issueDate(i.dueDate, leadDays), BILLING_SEND_HOUR) : undefined;
+      pushNotBefore = notBefore;
       if (sendNotifications)
         for (const channel of ["email", "whatsapp"] as const)
           await enqueueBillingNotice(
@@ -180,7 +184,24 @@ export async function publishInvoice(
           entityId: id,
           details: { providerId: result.codigoSolicitacao },
         });
+      // Queued only once the bank accepted it; the client's Administradores hear of it with the notices.
+      // In a savepoint: a push that cannot be queued never undoes the record of what the bank accepted.
+      if (i && sendNotifications)
+        await tx
+          .transaction((savepoint) =>
+            enqueuePush(savepoint, {
+              event: "invoice.issued",
+              eventKey: `invoice.issued:${id}:${result.codigoSolicitacao}`,
+              companyId: i.companyId,
+              entityId: id,
+              actorId,
+              morning: true,
+              notBefore: pushNotBefore,
+            }),
+          )
+          .catch(() => console.warn("[billing publish] push not queued", id));
     });
+    if (sendNotifications) schedulePushNotices();
 
     return {
       success:

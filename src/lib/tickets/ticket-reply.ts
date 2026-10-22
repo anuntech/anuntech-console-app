@@ -8,6 +8,7 @@ import { logDatabaseFault } from "../action-errors";
 import { DOCUMENT_ATTACHMENTS } from "./attachment-rules";
 import { takeTicketUploads, type prepareTicketFiles } from "./ticket-files";
 import { enqueueTicketNotice, scheduleTicketNotices, ticketOpener } from "./ticket-notifications";
+import { enqueuePush, schedulePushNotices } from "../notifications/push-queue";
 import { loadCalendar } from "../service-terms/terms";
 import { pauseToAdd, ticketDues } from "../service-terms/ticket-clock";
 
@@ -123,11 +124,25 @@ export async function replyToTicket(
       input.body ? "Nova resposta no chamado" : "Novo anexo no chamado",
       actor.admin ? await ticketOpener(tx, ticket, actor.user.email) : null,
     );
+    // The team's answer reaches the client's phones; a client's own reply pushes nobody.
+    if (actor.admin)
+      await enqueuePush(tx, {
+        event: "ticket.replied",
+        eventKey: event.id,
+        companyId: ticket.companyId,
+        entityId: ticket.id,
+        engagementId: ticket.engagementId,
+        authorId: ticket.authorId,
+        actorId: actor.user.id,
+      });
     return { success: input.body ? "Resposta enviada." : "Anexo enviado." };
   });
   revalidatePath(`/chamados/${input.ticketId}`);
   revalidatePath("/chamados");
   revalidatePath("/painel", "layout");
-  if ("success" in result) scheduleTicketNotices();
+  if ("success" in result) {
+    scheduleTicketNotices();
+    schedulePushNotices();
+  }
   return result;
 }

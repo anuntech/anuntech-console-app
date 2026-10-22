@@ -6,6 +6,9 @@ import { useFonts } from "expo-font";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth";
 import { queryClient } from "@/lib/api";
+// From launch: the banner with the app open, taps on notifications (kept until
+// signed in and unlocked) and the icon's badge. Permission is asked from Início's card.
+import "@/lib/push";
 import { fonts } from "@/lib/theme";
 import { Opening } from "@/components/opening";
 

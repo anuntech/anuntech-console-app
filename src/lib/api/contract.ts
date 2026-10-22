@@ -267,8 +267,14 @@ export const contract = {
         company: z.string(),
         statusLabel: z.string(),
         columns: z.array(z.object({ status: z.string(), label: z.string(), tasks: z.array(projectTask) })),
+        /** The viewer approves deliveries in Revisão (a client company's Administrador). */
+        canReview: z.boolean(),
       }),
     ),
+    /** Approves a delivery in Revisão, or sends it back with what did not work. */
+    reviewTask: oc
+      .input(z.object({ id: z.uuid(), decision: z.enum(["approve", "problem"]), note: z.string().max(5000).default("") }))
+      .output(message),
   },
   contracts: {
     /** Contracts of the person's finance companies (Administradores and the team). */
@@ -284,8 +290,18 @@ export const contract = {
         signatures: z.array(z.object({ party: z.string(), name: z.string(), signedAt: z.string() })),
         /** Path of the PDF on the Console; the app sends its session cookie. */
         pdfPath: z.string(),
+        /** SHA-256 of the text that went out (null for a draft) and its version. */
+        documentHash: z.string().nullable(),
+        version: z.number().nullable(),
+        /** The client company's CPF or CNPJ, digits only, as the signature block shows it. */
+        companyDocument: z.string().nullable(),
+        /** The viewer's side: a client Administrador signs for the company, the team for Anuntech. */
+        party: z.enum(["client", "anuntech"]).nullable(),
+        canSign: z.boolean(),
       }),
     ),
+    /** Signs the version on screen, with the person's own session as proof (same as the web). */
+    sign: oc.input(z.object({ id: z.uuid(), consent: z.literal(true) })).output(z.object({ message: z.string(), signed: z.boolean() })),
   },
   quotes: {
     /** Quotes of the person's finance companies, with the figures that were sent. */
@@ -305,8 +321,31 @@ export const contract = {
         hoursMax: z.number(),
         decision: z.object({ party: z.string(), name: z.string(), note: z.string().nullable(), at: z.string() }).nullable(),
         pdfPath: z.string(),
+        /** The proposal as it was sent: summary, phases with hours and tasks, notes. */
+        summary: z.string(),
+        phases: z.array(
+          z.object({ name: z.string(), description: z.string(), hoursMin: z.number(), hoursMax: z.number(), tasks: z.array(z.string()) }),
+        ),
+        notes: z.string(),
+        upfrontPercent: z.number(),
+        documentHash: z.string().nullable(),
+        version: z.number().nullable(),
+        expired: z.boolean(),
+        /** The viewer answers for the company (a client Administrador) and the quote waits for an answer. */
+        canAnswer: z.boolean(),
       }),
     ),
+    /** Accepts (with consent) or declines (with an optional note) a quote that was sent. */
+    answer: oc
+      .input(
+        z.object({
+          id: z.uuid(),
+          decision: z.enum(["accept", "decline"]),
+          note: z.string().max(1000).default(""),
+          consent: z.boolean().default(false),
+        }),
+      )
+      .output(message),
   },
   bookmarks: {
     /** The person's folders and bookmarks (links, files and boards). */

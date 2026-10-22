@@ -78,6 +78,8 @@ test("company deletion knows every table that points at a company", () => {
     "console_automation_events.company_id": "null",
     "console_journeys.company_id": "null",
     "console_engagement_suspensions.company_id": "not null",
+    // Gone with it by the database (on delete cascade): pushes still queued.
+    "console_push_notices.company_id": "not null",
     // Kept, set to null: the history outlives the company.
     "console_audit_events.company_id": "null",
   });

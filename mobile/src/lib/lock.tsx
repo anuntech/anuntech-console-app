@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, View } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
@@ -28,37 +28,48 @@ export async function confirmIdentity(promptMessage: string) {
   return result.success;
 }
 
+/** Whether the person is past the lock: false while it is up and while the app still checks whether to show it. */
+const UnlockedContext = createContext(false);
+export function useUnlocked() {
+  return use(UnlockedContext);
+}
+
 /**
  * Covers the app with a lock when the person turned it on in Conta: on
  * launch and after five minutes away. The session stays the same.
  */
 export function AppLock({ children }: { children: ReactNode }) {
   const palette = usePalette();
-  const [locked, setLocked] = useState(false);
+  // "checking" until the stored choice is read: nothing opens on its own before that.
+  const [lock, setLock] = useState<"checking" | "locked" | "open">("checking");
   const leftAt = useRef<number | null>(null);
   const unlock = async () => {
-    if (await confirmIdentity("Destravar o Console")) setLocked(false);
+    if (await confirmIdentity("Destravar o Console")) setLock("open");
   };
   useEffect(() => {
     const lockIfEnabled = () =>
-      lockEnabled().then((on) => {
-        if (!on) return;
-        setLocked(true);
-        void unlock();
-      });
+      lockEnabled()
+        .then((on) => {
+          if (!on) return setLock("open");
+          setLock("locked");
+          void unlock();
+        })
+        .catch(() => setLock("open"));
     void lockIfEnabled();
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "background") leftAt.current = Date.now();
-      if (state === "active" && leftAt.current && Date.now() - leftAt.current > GRACE_MS)
+      if (state === "active" && leftAt.current && Date.now() - leftAt.current > GRACE_MS) {
+        setLock((current) => (current === "locked" ? current : "checking"));
         void lockIfEnabled();
+      }
     });
     return () => subscription.remove();
     // Once per mount: each check reads the stored choice again.
   }, []);
   return (
     <View style={{ flex: 1 }}>
-      {children}
-      {locked && (
+      <UnlockedContext value={lock === "open"}>{children}</UnlockedContext>
+      {lock === "locked" && (
         <View
           accessibilityViewIsModal
           style={{

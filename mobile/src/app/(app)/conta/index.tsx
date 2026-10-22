@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
+import { Alert, AppState, Linking, Platform, Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
+import * as Notifications from "expo-notifications";
+import { IosAuthorizationStatus } from "expo-notifications";
 import { SymbolView } from "expo-symbols";
 import { Avatar } from "@/components/avatar";
 import { Notice } from "@/components/surface";
@@ -16,6 +18,7 @@ import { errorMessage } from "@/lib/api";
 import { CONSOLE_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
 import { confirmIdentity, lockAvailable, lockEnabled, setLockEnabled } from "@/lib/lock";
+import { registerForPush } from "@/lib/push";
 import { signOut } from "@/lib/session";
 import { useTabBarSpace } from "@/lib/layout";
 import { rounded, space, usePalette } from "@/lib/theme";
@@ -40,6 +43,36 @@ function HeaderSkeleton() {
   );
 }
 
+type PushPermission = "granted" | "ask" | "denied";
+
+/** This phone's notification permission, read again whenever the app comes back (from Ajustes, say). */
+function usePushPermission() {
+  const [permission, setPermission] = useState<PushPermission | null>(null);
+  useEffect(() => {
+    const read = () =>
+      Notifications.getPermissionsAsync()
+        .then((current) => {
+          const provisional = current.ios?.status === IosAuthorizationStatus.PROVISIONAL;
+          setPermission(current.granted || provisional ? "granted" : current.canAskAgain ? "ask" : "denied");
+        })
+        .catch(() => setPermission(null));
+    void read();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void read();
+    });
+    return () => subscription.remove();
+  }, []);
+  const enable = async () => {
+    await registerForPush();
+    const current = await Notifications.getPermissionsAsync().catch(() => null);
+    if (current?.granted) {
+      setPermission("granted");
+      haptic.success();
+    } else if (current && !current.canAskAgain) setPermission("denied");
+  };
+  return { permission, enable };
+}
+
 /**
  * Conta, the person's settings, as Minha conta and Segurança on the web:
  * profile, contacts, two-step and sessions; the company's pages for its
@@ -53,6 +86,7 @@ export default function Account() {
   const [canLock, setCanLock] = useState(false);
   const [locked, setLocked] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const push = usePushPermission();
   useEffect(() => {
     void lockAvailable().then(setCanLock);
     void lockEnabled().then(setLocked);
@@ -181,6 +215,40 @@ export default function Account() {
           />
         </Section>
       ) : null}
+      {push.permission && (
+        <Section
+          footer={
+            push.permission === "denied"
+              ? `Os avisos estão desligados nos ${Platform.OS === "ios" ? "Ajustes" : "configurações"} do celular.`
+              : "Avisos de chamados, faturas, contratos e projetos neste celular."
+          }
+        >
+          <ListRow
+            testID="row-push"
+            title="Notificações no celular"
+            value={{ granted: "Ativadas", ask: "Ativar", denied: "Desativadas" }[push.permission]}
+            valueTone={push.permission === "ask" ? "primary" : "muted"}
+            leading={<IconTile icon="bell.badge.fill" color="red" />}
+            trailing={push.permission === "denied" ? "external" : "none"}
+            accessibilityHint={
+              push.permission === "denied"
+                ? Platform.OS === "ios"
+                  ? "Abre os Ajustes"
+                  : "Abre as configurações"
+                : push.permission === "ask"
+                  ? "Pede permissão para enviar avisos"
+                  : undefined
+            }
+            onPress={
+              push.permission === "ask"
+                ? () => void push.enable()
+                : push.permission === "denied"
+                  ? () => void Linking.openSettings()
+                  : undefined
+            }
+          />
+        </Section>
+      )}
       {canLock && (
         <Section footer="Pede o Face ID ao abrir o app e depois de 5 minutos fora dele.">
           <View

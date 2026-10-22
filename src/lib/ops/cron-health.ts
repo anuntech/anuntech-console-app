@@ -12,7 +12,7 @@ import { errorText } from "../action-errors";
 export const ROUTINES = {
   "billing-sync": { label: "Conciliação com o Inter", every: 30 },
   "recurring-billing": { label: "Emissão das recorrências e avisos de cobrança", every: 30 },
-  "ticket-notifications": { label: "Avisos de chamados", every: 30 },
+  "ticket-notifications": { label: "Avisos de chamados e push do app", every: 30 },
   "ops-digest": { label: "Resumo da manhã", every: 26 * 60 },
   "contract-expiry": { label: "Aviso de vigência dos contratos", every: 26 * 60 },
   "client-notices": { label: "Avisos automáticos aos clientes", every: 26 * 60 },
