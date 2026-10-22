@@ -12,6 +12,9 @@ import { security } from "./procedures/security";
 import { company } from "./procedures/company";
 import { members } from "./procedures/members";
 import { notifications } from "./procedures/notifications";
+import { products } from "./procedures/products";
+import { apps } from "./procedures/apps";
+import { hours } from "./procedures/hours";
 
-export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, overview, devices, profile, security, company, members, notifications });
+export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, overview, devices, profile, security, company, members, notifications, products, apps, hours });
 export type Router = typeof router;
