@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["pdfkit"],
-  outputFileTracingIncludes: { "/api/contratos/*/pdf": ["./assets/fonts/**"] },
+  // The PDFs (lib/pdf-brand.ts) read fonts and the logo from assets/ at runtime, also inside server actions.
+  outputFileTracingIncludes: { "/**": ["./assets/**"] },
   experimental: { serverActions: { bodySizeLimit: "2mb" } },
   async headers() {
     return [

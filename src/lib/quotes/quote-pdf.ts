@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
-import path from "node:path";
 import { APP_LOCALE, APP_TIME_ZONE } from "../dates";
 import { currency, longDateLabel } from "../format";
+import { PDF_COLORS, pdfFonts, pdfHeader, registerPdfFonts } from "../pdf-brand";
 import { discountShareLabel, hoursLabel, quoteTotals, taskCode, weeksLabel, type QuotePublication, type QuoteStatus } from "./quote-model";
 
 export type QuoteDecisionLine = {
@@ -18,11 +18,7 @@ const when = (date: Date) =>
   `${new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: "short", timeStyle: "short", timeZone: APP_TIME_ZONE }).format(date)} (São Paulo)`;
 const day = (date: Date) => new Intl.DateTimeFormat(APP_LOCALE, { dateStyle: "short", timeZone: APP_TIME_ZONE }).format(date);
 
-const INK = "#0d1d41";
-const TEXT = "#202630";
-const MUTED = "#53637a";
-const LINE = "#e3e8ef";
-const SOFT = "#f3f5f9";
+const { ink: INK, text: TEXT, muted: MUTED, line: LINE, soft: SOFT } = PDF_COLORS;
 
 /**
  * The proposal as a PDF, in the layout Kauan writes them: the headline
@@ -41,14 +37,13 @@ export async function quotePdf(
     superseded?: boolean;
   },
 ): Promise<Buffer> {
-  const fonts = path.join(process.cwd(), "assets/fonts");
   const draft = input.status === "draft";
   const totals = quoteTotals(input);
   const doc = new PDFDocument({
     size: "A4",
     margins: { top: 54, bottom: 64, left: 54, right: 54 },
     bufferPages: true,
-    font: path.join(fonts, "NotoSans-Regular.ttf"),
+    font: pdfFonts().regular,
     info: {
       Title: `Orçamento ${input.number} — ${input.title}`,
       Author: "Anuntech",
@@ -65,8 +60,7 @@ export async function quotePdf(
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
   });
-  doc.registerFont("Regular", path.join(fonts, "NotoSans-Regular.ttf"));
-  doc.registerFont("Bold", path.join(fonts, "NotoSans-Bold.ttf"));
+  registerPdfFonts(doc);
   const left = 54;
   const width = doc.page.width - 108;
   const bottom = doc.page.height - 64;
@@ -87,8 +81,9 @@ export async function quotePdf(
           : input.status === "cancelled"
             ? "CANCELADO"
             : "AGUARDANDO RESPOSTA";
+  pdfHeader(doc, left, width);
   doc.font("Bold").fontSize(9).fillColor(MUTED).text("BACKLOG TÉCNICO · PROPOSTA COMERCIAL", left, doc.y, { width: width - 200, continued: false });
-  doc.text(marker, left + width - 200, doc.y - doc.currentLineHeight(), { width: 200, align: "right" });
+  doc.fillColor(PDF_COLORS.violet).text(marker, left + width - 200, doc.y - doc.currentLineHeight(), { width: 200, align: "right" });
   doc.moveDown(1).fontSize(20).fillColor(INK).text(input.title, left, doc.y, { width });
   doc
     .moveDown(0.5)
@@ -100,7 +95,7 @@ export async function quotePdf(
 
   /* ---------- headline numbers ---------- */
   const box = (x: number, y: number, w: number, value: string, label: string, valueSize = 14) => {
-    doc.roundedRect(x, y, w, 52, 6).fill(SOFT);
+    doc.roundedRect(x, y, w, 52, 10).fill(SOFT);
     doc.font("Bold").fontSize(valueSize).fillColor(INK).text(value, x + 12, y + 10, { width: w - 24, lineBreak: false });
     doc.font("Regular").fontSize(8.5).fillColor(MUTED).text(label, x + 12, y + 32, { width: w - 24, lineBreak: false });
   };
@@ -229,13 +224,13 @@ export async function quotePdf(
   doc.moveDown(1.6);
   fit(70);
   y = doc.y;
-  doc.roundedRect(left, y, width, 64, 8).fill(INK);
-  doc.font("Regular").fontSize(8.5).fillColor("#c8d2e0").text("TOTAL ESTIMADO DO PROJETO", left + 16, y + 12, { width: width / 2 });
+  doc.roundedRect(left, y, width, 64, 12).fill(INK);
+  doc.font("Regular").fontSize(8.5).fillColor(PDF_COLORS.onInk).text("TOTAL ESTIMADO DO PROJETO", left + 16, y + 12, { width: width / 2 });
   doc.font("Bold").fontSize(16).fillColor("#ffffff").text(hoursLabel(totals.hoursMin, totals.hoursMax), left + 16, y + 28, { width: width / 2 });
   doc
     .font("Regular")
     .fontSize(8.5)
-    .fillColor("#c8d2e0")
+    .fillColor(PDF_COLORS.onInk)
     .text(
       `${totals.hoursMax}h × ${currency(input.hourlyRateCents)}/h${totals.discountCents > 0 ? `, com ${currency(totals.discountCents)} de desconto` : ""}`,
       left + width / 2,
@@ -291,7 +286,8 @@ export async function quotePdf(
     }
     if (input.hash) {
       doc.moveDown(0.8).font("Bold").fontSize(9).fillColor(MUTED).text("HASH DO DOCUMENTO (SHA-256)");
-      doc.font("Regular").fontSize(9).fillColor(TEXT).text(input.hash, { width });
+      doc.font("Mono").fontSize(8.5).fillColor(TEXT).text(input.hash, { width });
+      doc.font("Regular").fontSize(9);
       doc.moveDown(0.3).fillColor(MUTED).text(`Identificador: ${input.id} · versão ${input.version}`, { width });
     }
   }
@@ -302,7 +298,7 @@ export async function quotePdf(
     doc
       .font("Regular")
       .fontSize(8)
-      .fillColor("#687589")
+      .fillColor(PDF_COLORS.faint)
       .text(
         draft ? "Rascunho" : input.superseded ? "Versão substituída" : input.hash ? `Orçamento ${input.number} · hash ${input.hash.slice(0, 16)}…` : `Orçamento ${input.number}`,
         left,
