@@ -7,6 +7,8 @@ import { AvatarPicker } from "./avatar-picker";
 import { EmailRow, NameForm, WhatsappRow } from "./account-forms";
 import { AccountDeletion } from "./account-deletion";
 import { getAccountEmails } from "@/lib/account/account-identity";
+import { accountActivity } from "@/lib/account/activity";
+import { ActivityCard } from "./activity-card";
 
 export async function AccountSection() {
   const actor = await getActor();
@@ -17,6 +19,7 @@ export async function AccountSection() {
   const owner = (
     await getAccountEmails(actor.user.id, actor.user.email)
   ).includes(process.env.CONSOLE_ADMIN_EMAIL?.trim().toLowerCase() || "");
+  const activity = await accountActivity(actor.user.id);
   return (
     <>
       <Card>
@@ -30,6 +33,7 @@ export async function AccountSection() {
           </div>
         </CardContent>
       </Card>
+      <ActivityCard days={activity} />
       <Card>
         <CardHeader>
           <SectionTitle title="Contatos de acesso" />
