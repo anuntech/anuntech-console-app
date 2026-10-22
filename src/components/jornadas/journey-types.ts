@@ -43,8 +43,10 @@ export type JourneyListRow = {
   id: string;
   title: string;
   status: JourneyStatus;
-  /** The company, or "Contato: …" while it is a lead. */
+  /** The company's display name, or "Contato: …" while it is a lead. */
   who: string;
+  /** The company's razão social, for its tile; null for a lead. */
+  tile?: string | null;
   lead: boolean;
   stage: string;
   done: number;

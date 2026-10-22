@@ -52,7 +52,7 @@ export async function listContracts(actor: Actor, input: ReturnType<typeof contr
       .where(where),
     query.company
       ? db
-          .select({ id: companies.id, name: companies.name })
+          .select({ id: companies.id, name: companies.name, document: companies.document })
           .from(companies)
           .where(eq(companies.id, query.company))
           .then((found) => found[0] ?? null)
@@ -74,6 +74,7 @@ export async function listContracts(actor: Actor, input: ReturnType<typeof contr
       parentTitle: parents.title,
       companyId: contracts.companyId,
       company: companies.name,
+      companyDocument: companies.document,
       engagement: engagements.name,
       status: contracts.status,
       startsAt: contracts.startsAt,

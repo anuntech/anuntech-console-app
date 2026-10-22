@@ -53,8 +53,8 @@ export function RoleSelect({
 }) {
   return (
     <NativeSelect id={id} name="role" defaultValue={defaultValue} required onChange={(event) => onValueChange?.(event.target.value)}>
-      <NativeSelectOption value="member">Membro — chamados, bookmarks e projetos</NativeSelectOption>
-      <NativeSelectOption value="manager">Administrador — tudo, inclusive financeiro</NativeSelectOption>
+      <NativeSelectOption value="member">Membro: chamados, bookmarks e projetos</NativeSelectOption>
+      <NativeSelectOption value="manager">Administrador: tudo, inclusive o financeiro</NativeSelectOption>
     </NativeSelect>
   );
 }
@@ -85,7 +85,8 @@ export function InviteForm({
       {companyId && <input type="hidden" name="companyId" value={companyId} />}
       <FormError />
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <FormField label="Convidar pessoa" htmlFor="invite-email" className="flex-1">
+        {/* The button already says "Convidar pessoa"; the field names what goes in it. */}
+        <FormField label="E-mail" htmlFor="invite-email" className="flex-1">
           <Input
             id="invite-email"
             name="email"
@@ -120,7 +121,7 @@ export function InviteForm({
       <p className="text-xs text-muted-foreground">
         {staff
           ? "A pessoa passa a administrar o Console inteiro e recebe um e-mail para entrar."
-          : "A pessoa recebe um e-mail para entrar e aparece aqui como convidada até o primeiro acesso."}
+          : "A pessoa recebe um e-mail para entrar."}
         {!staff && (
           <>
             {" "}

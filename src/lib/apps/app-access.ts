@@ -30,7 +30,7 @@ export type AppOpening =
       tenant: string | undefined;
       role: PassRole;
       engagement: { id: string; name: string; url: string | null };
-      company: { id: string; name: string };
+      company: { id: string; name: string; document: string };
     }
   | { ok: false; reason: "not_found" }
   | {
@@ -38,7 +38,7 @@ export type AppOpening =
       reason: AppBlock;
       app: ProtectedApp | null;
       engagement: { id: string; name: string; kind: string; status: string; url: string | null };
-      company: { id: string; name: string };
+      company: { id: string; name: string; document: string };
     };
 
 /**
@@ -60,6 +60,7 @@ export async function resolveAppOpening(actor: Actor, id: string): Promise<AppOp
       url: engagements.url,
       companyId: engagements.companyId,
       company: companies.name,
+      companyDocument: companies.document,
     })
     .from(engagements)
     .innerJoin(companies, eq(companies.id, engagements.companyId))
@@ -67,7 +68,7 @@ export async function resolveAppOpening(actor: Actor, id: string): Promise<AppOp
   if (!row || !canSeeEngagement(actor, { id: row.id, companyId: row.companyId })) return { ok: false, reason: "not_found" };
   const role = passRole(actor, row.companyId);
   if (!role) return { ok: false, reason: "not_found" };
-  const company = { id: row.companyId, name: row.company };
+  const company = { id: row.companyId, name: row.company, document: row.companyDocument };
   const decision = decideAppOpening(row, role);
   if ("blocked" in decision)
     return {

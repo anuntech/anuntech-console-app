@@ -7,7 +7,7 @@ export default function Page() {
     <SettingsShell
       section="contracts"
       title="Modelos de contrato"
-      description="O texto de cada contrato, escrito uma vez. Cada cliente recebe uma cópia com os dados dele."
+      description="Cada cliente recebe uma cópia do modelo com os dados dele."
       actions={<NewContractTemplateButton />}
     >
       <ContractTemplatesSection />

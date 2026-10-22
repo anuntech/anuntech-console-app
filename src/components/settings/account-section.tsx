@@ -21,10 +21,7 @@ export async function AccountSection() {
     <>
       <Card>
         <CardHeader>
-          <SectionTitle
-            title="Perfil"
-            description="Como você aparece para a equipe e para as outras pessoas do ambiente."
-          />
+          <SectionTitle title="Perfil" />
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           <AvatarPicker name={actor.user.name} image={actor.user.image ?? null} />
@@ -35,10 +32,7 @@ export async function AccountSection() {
       </Card>
       <Card>
         <CardHeader>
-          <SectionTitle
-            title="Contatos de acesso"
-            description="Por onde você entra e recebe os códigos."
-          />
+          <SectionTitle title="Contatos de acesso" />
         </CardHeader>
         <CardContent className="flex flex-col gap-4 px-0">
           {locked && (
@@ -57,10 +51,7 @@ export async function AccountSection() {
       </Card>
       <Card>
         <CardHeader>
-          <SectionTitle
-            title="Excluir conta"
-            description="Apaga seus dados pessoais. Os registros das empresas ficam com o autor “Conta excluída”."
-          />
+          <SectionTitle title="Excluir conta" />
         </CardHeader>
         <CardContent>
           <AccountDeletion owner={owner} hasWhatsapp={!!phone} />

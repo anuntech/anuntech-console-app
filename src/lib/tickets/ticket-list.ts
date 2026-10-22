@@ -72,6 +72,7 @@ export async function listTickets(actor: Actor, query: TicketQuery, now = new Da
         priority: tickets.priority,
         companyId: tickets.companyId,
         company: companies.name,
+        companyDocument: companies.document,
         engagement: engagements.name,
         // Accounts created by e-mail code may have no name yet; the e-mail still says who wrote it.
         author: sql<string>`coalesce(nullif(${user.name}, ''), ${user.email})`,
@@ -108,7 +109,7 @@ export async function listTickets(actor: Actor, query: TicketQuery, now = new Da
       .offset(offsetOf({ ...query, page })),
     query.company
       ? db
-          .select({ id: companies.id, name: companies.name })
+          .select({ id: companies.id, name: companies.name, document: companies.document })
           .from(companies)
           .where(eq(companies.id, query.company))
           .then((rows) => rows[0] ?? null)

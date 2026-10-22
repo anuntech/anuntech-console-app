@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useId, useState, type FocusEvent, type ReactNode } from "react";
 import {
   BanIcon,
-  Building2Icon,
   CircleCheckIcon,
   CircleSlashIcon,
   Clock3Icon,
@@ -37,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { Disclosure } from "@/components/console/disclosure";
 import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
 import {
@@ -60,6 +60,7 @@ import {
 } from "@/lib/billing/billing-notice-rules";
 import { bankStatusLabels } from "@/lib/billing/billing-rules";
 import { formatDocument, formatPhone } from "@/lib/companies/company-input";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { auditLabels, currency, dateLabel, dateTimeLabel } from "@/lib/format";
 import type { InvoiceDisplayStatus, InvoiceTableStatus } from "@/lib/billing/invoice-table";
 import { BankSync, SyncControl } from "./bank-sync";
@@ -70,7 +71,7 @@ import {
 } from "./invoice-badges";
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
 import { hasTerms, lateFeesLabel, type ChargeTerms } from "@/lib/billing/billing-terms";
-import { billingTypeLabel, DeleteInvoiceDialog } from "./invoices-table";
+import { DeleteInvoiceDialog } from "./invoices-table";
 import { HelpLink } from "@/components/console/help-link";
 
 export type InvoiceDetailData = {
@@ -156,7 +157,8 @@ export type InvoiceDetailData = {
   } | null;
   canSend: { email: boolean; whatsapp: boolean };
   events: { id: string; action: string; createdAt: string }[];
-  viewer: { admin: boolean };
+  /** `companies`: how many companies the viewer sees invoices of; a client with one is not named back to itself. */
+  viewer: { admin: boolean; companies?: number };
   /** "once" checks stale data on open; "poll" keeps checking while the bank processes. */
   sync: "poll" | "once" | "off";
   today: string;
@@ -266,7 +268,7 @@ function PaidOutsideCard({ invoiceId }: { invoiceId: string }) {
             Se o pagamento entrou por outro meio (transferência, dinheiro), confirme aqui. A fatura passa a contar como paga e os lembretes param.
           </p>
           <p className="m-0 text-xs text-muted-foreground">
-            Se o dinheiro não entrou, a baixa foi por engano e o boleto já não pode ser pago: confira com quem deu a baixa no Internet Banking e, se for o caso, cancele no Inter e crie outra cobrança.
+            Se o dinheiro não entrou, a baixa foi por engano e o boleto não pode mais ser pago. Confira no Internet Banking e, se for o caso, cancele no Inter e crie outra cobrança.
           </p>
           <div>
             <Label htmlFor={`outside-${invoiceId}`} className="mb-1.5">
@@ -379,7 +381,17 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
   const processing =
     issued && !!invoice.providerId && !invoice.pixCopyPaste && !invoice.boletoLine;
   const late = invoice.display === "overdue" ? daysOverdue(invoice.dueDate, today) : 0;
-  const typeLabel = billingTypeLabel(!!sub, sub?.interval ?? null);
+  // Recurrence lives in the Recorrência card (team); the client, without it, reads it in the charge.
+  const intervalLabel = sub ? (sub.interval === "yearly" ? "Anual" : "Mensal") : null;
+  // The name people read; the razão social stays in the payer block, the document data.
+  const companyName = companyDisplayName(company.name, company.document);
+  const nameCompany = admin || (viewer.companies ?? 1) > 1;
+  const showFiscal =
+    invoice.fiscalStatus !== "not_requested" || (admin ? settled : paid);
+  // The side column only when something goes in it; otherwise the charge takes the width.
+  const hasAside = (admin && (settled || !!sub || events.length > 0)) || showFiscal;
+  const hasMenu =
+    settled || invoice.editable === "draft" || deletable || (issued && !!invoice.providerId);
   const editMode: InvoiceEditMode =
     editing === "subscription"
       ? "subscription"
@@ -411,30 +423,26 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
   return (
     <>
       <PageHeader
-        crumbs={[
-          { label: "Financeiro", href: "/financeiro" },
-          { label: invoice.description },
-        ]}
+        crumbs={[{ label: "Financeiro", href: "/financeiro" }]}
         title={invoice.description}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <InvoiceStatusBadge status={invoice.display} />
-            {admin ? (
-              <Link
-                href={`/empresas/${company.id}`}
-                className="text-foreground hover:text-primary"
-              >
-                {company.name}
-              </Link>
-            ) : (
-              <span>{company.name}</span>
-            )}
-            <span>{typeLabel}</span>
-          </span>
-        }
+        meta={[
+          <InvoiceStatusBadge key="status" status={invoice.display} />,
+          admin ? (
+            <Link
+              key="company"
+              href={`/empresas/${company.id}`}
+              className="text-foreground hover:text-primary"
+            >
+              {companyName}
+            </Link>
+          ) : (
+            nameCompany && <span key="company">{companyName}</span>
+          ),
+        ]}
         actionsInline
         actions={
-          admin && (
+          admin &&
+          hasMenu && (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="Mais ações">
@@ -442,20 +450,6 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem asChild>
-                  <Link href={`/empresas/${company.id}`}>
-                    <Building2Icon />
-                    Ver empresa
-                  </Link>
-                </DropdownMenuItem>
-                {invoice.publicUrl && (
-                  <DropdownMenuItem asChild>
-                    <a href={invoice.publicUrl} target="_blank" rel="noreferrer">
-                      <ExternalLinkIcon />
-                      Abrir página de pagamento
-                    </a>
-                  </DropdownMenuItem>
-                )}
                 {settled && (
                   <DropdownMenuItem onSelect={() => ask("link")}>
                     {invoice.publicEnabled ? <Link2OffIcon /> : <Link2Icon />}
@@ -464,15 +458,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       : "Ativar link de pagamento"}
                   </DropdownMenuItem>
                 )}
-                {sub && ["active", "paused"].includes(sub.status) && (
-                  <DropdownMenuItem onSelect={() => ask("subscription")}>
-                    {sub.status === "active" ? <PauseIcon /> : <PlayIcon />}
-                    {sub.status === "active"
-                      ? "Pausar recorrência"
-                      : "Retomar recorrência"}
-                  </DropdownMenuItem>
-                )}
-                {(invoice.editable === "draft" || deletable || (issued && invoice.providerId)) && (
+                {settled && (invoice.editable === "draft" || deletable || (issued && invoice.providerId)) && (
                   <DropdownMenuSeparator />
                 )}
                 {issued && invoice.providerId && (
@@ -508,14 +494,16 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
       {admin && sync !== "off" && <BankSync id={invoice.id} mode={sync} />}
 
       {/* items-start: the main card ends with its content, not at the sidebar's height. */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className={cn("grid gap-6 lg:items-start", hasAside ? "lg:grid-cols-[minmax(0,1fr)_320px]" : "max-w-4xl")}>
         <div className="reveal-fade flex min-w-0 flex-col gap-6">
           <Card>
             <CardHeader>
               <SectionTitle
                 title="Cobrança"
                 description={
-                  invoice.engagement
+                  // Said only when the title does not already name it ("Synova · outubro").
+                  invoice.engagement &&
+                  !invoice.description.toLocaleLowerCase("pt-BR").includes(invoice.engagement.toLocaleLowerCase("pt-BR"))
                     ? `Produto ou projeto: ${invoice.engagement}`
                     : undefined
                 }
@@ -568,7 +556,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                         Como pagar
                       </HelpLink>
                     )}
-                    {scheduled && scheduledIssueDate && (
+                    {scheduled && scheduledIssueDate && !admin && (
                       <p className={cn("text-xs", scheduledIssueDate <= today ? "text-warning" : "text-muted-foreground")}>
                         {scheduledIssueDate <= today
                           ? "Emissão automática em instantes"
@@ -579,23 +567,31 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 </div>
               </div>
               <dl className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2">
-                <Fact label="Cliente">
-                  {admin ? (
-                    <Link
-                      href={`/empresas/${company.id}`}
-                      className="hover:text-primary"
-                    >
-                      {company.name}
-                    </Link>
-                  ) : (
-                    company.name
-                  )}
+                {/* The billing data as the boleto carries it: razão social, CNPJ and, for the team, the address. */}
+                <Fact label="Pagador" className={admin ? "sm:col-span-2" : undefined}>
+                  {company.name}
                   <span className="block text-xs tabular-nums text-muted-foreground">
                     {formatDocument(company.document)}
                   </span>
+                  {admin &&
+                    (company.address ? (
+                      <span className="block text-xs text-muted-foreground">{company.address}</span>
+                    ) : (
+                      <span className="mt-1 block text-xs">
+                        <span className="text-warning">
+                          Falta o endereço de cobrança. Sem ele, o Inter não emite a cobrança.
+                        </span>{" "}
+                        <Link
+                          href={`/empresas/${company.id}?editar=1`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          Cadastrar endereço
+                        </Link>
+                      </span>
+                    ))}
                 </Fact>
-                <Fact label="Tipo">{typeLabel}</Fact>
-                {sub && sub.status === "active" && settled && (
+                {!admin && intervalLabel && <Fact label="Recorrência">{intervalLabel}</Fact>}
+                {!admin && sub && sub.status === "active" && settled && (
                   <Fact label="Próxima cobrança">
                     {sub.ahead ? (
                       <>
@@ -618,7 +614,8 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     )}
                   </Fact>
                 )}
-                {hasTerms(invoice.terms) && (
+                {/* Discount and late fees matter only while the charge can still be paid. */}
+                {hasTerms(invoice.terms) && !paid && invoice.status !== "cancelled" && (
                   <Fact label="Condições" className="sm:col-span-2">
                     {invoice.terms.discountCents ? (
                       <span className="block">
@@ -636,25 +633,18 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     )}
                   </Fact>
                 )}
-                {admin && (
-                  <Fact label="Endereço de cobrança" className="sm:col-span-2">
-                    {company.address || (
-                      <>
-                        <span className="text-warning">
-                          Não cadastrado. Sem ele, o Inter não emite a cobrança.
-                        </span>{" "}
-                        <Link
-                          href={`/empresas/${company.id}?editar=1`}
-                          className="font-medium text-primary hover:underline"
-                        >
-                          Corrigir o cadastro
-                        </Link>
-                      </>
-                    )}
-                  </Fact>
-                )}
-                <Fact label="Criada em">{dateLabel(new Date(invoice.createdAt))}</Fact>
               </dl>
+              {/* Record facts, on demand: they do not change what anyone does with the charge. */}
+              <Disclosure className="mt-5">
+                <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+                  <Fact label="Criada em">{dateLabel(new Date(invoice.createdAt))}</Fact>
+                  {admin && invoice.bankStatus && (
+                    <Fact label="Situação no Inter">
+                      {bankStatusLabels[invoice.bankStatus] ?? invoice.bankStatus}
+                    </Fact>
+                  )}
+                </dl>
+              </Disclosure>
             </CardContent>
           </Card>
 
@@ -671,7 +661,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       ? sub.interval === "monthly"
                         ? "Ativa a recorrência: cada cobrança sai assim que a anterior é paga, ou 5 dias antes do vencimento, e o aviso vai 5 dias antes."
                         : "Ativa a recorrência: esta e as próximas cobranças são emitidas e avisadas 5 dias antes de cada vencimento."
-                      : "Emite boleto e Pix no Inter com os dados abaixo."
+                      : "Emite boleto e Pix com os dados acima."
                   }
                 />
               </CardHeader>
@@ -679,28 +669,18 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 <input type="hidden" name="id" value={invoice.id} />
                 <CardContent className="flex flex-col gap-5">
                   <FormError />
-                  <div className="rounded-lg border bg-secondary/40 px-4 py-3 text-sm">
-                    <p className="font-medium text-foreground">
-                      {company.name}{" "}
-                      <span className="font-normal tabular-nums text-muted-foreground">
-                        · {formatDocument(company.document)}
-                      </span>
-                    </p>
-                    {company.address ? (
-                      <p className="mt-0.5 text-muted-foreground">{company.address}</p>
-                    ) : (
-                      <p className="mt-0.5 text-warning">
-                        Endereço de cobrança não cadastrado. Complete o cadastro
-                        antes de publicar.
-                      </p>
-                    )}
-                    <Link
-                      href={`/empresas/${company.id}?editar=1`}
-                      className="mt-1.5 inline-block text-xs font-medium text-primary"
-                    >
-                      Editar cadastro do cliente
-                    </Link>
-                  </div>
+                  {/* The payer is in the charge above; here only what blocks publishing. */}
+                  {!company.address && (
+                    <Notice tone="warning" icon={<TriangleAlertIcon />}>
+                      Falta o endereço de cobrança. Sem ele, o Inter não emite a cobrança.{" "}
+                      <Link
+                        href={`/empresas/${company.id}?editar=1`}
+                        className="font-medium underline-offset-2 hover:underline"
+                      >
+                        Cadastrar endereço
+                      </Link>
+                    </Notice>
+                  )}
                   <div className="grid gap-5 sm:grid-cols-2">
                     <div>
                       <Label htmlFor="collection-days" className="mb-1.5">
@@ -770,10 +750,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
           {admin && scheduled && (
             <Card>
               <CardHeader>
-                <SectionTitle
-                  title="Emissão agendada"
-                  description="A recorrência está ativa; o Console emite e avisa sozinho."
-                />
+                <SectionTitle title="Emissão agendada" />
               </CardHeader>
               <CardContent>
                 <Notice icon={<Loader2Icon />}>
@@ -782,16 +759,14 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       A data de emissão ({dateLabel(scheduledIssueDate)}) já chegou: a rotina automática roda a cada 5
                       minutos e emite na próxima passagem. Os avisos saem logo depois.
                     </>
-                  ) : (
+                  ) : scheduledIssueDate ? (
                     <>
-                      Emissão prevista para{" "}
-                      <span className="font-medium text-foreground">
-                        {scheduledIssueDate ? dateLabel(scheduledIssueDate) : "—"}
-                      </span>
-                      {scheduledIssueDate &&
-                        `, ${daysBetween(scheduledIssueDate, invoice.dueDate)} dias antes do vencimento`}
-                      . Os avisos saem após a emissão.
+                      O Console emite sozinho em{" "}
+                      <span className="font-medium text-foreground">{dateLabel(scheduledIssueDate)}</span>,{" "}
+                      {daysBetween(scheduledIssueDate, invoice.dueDate)} dias antes do vencimento. Os avisos saem logo depois.
                     </>
+                  ) : (
+                    "O Console emite sozinho, e os avisos saem logo depois."
                   )}
                 </Notice>
               </CardContent>
@@ -851,20 +826,12 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             </Card>
           )}
 
-          {(settled || (invoice.status === "cancelled" && invoice.providerId)) && (
+          {/* An expired charge is told by its debt card; the payment card would say it again. */}
+          {(settled || (invoice.status === "cancelled" && invoice.providerId && !(admin && debt))) && (
             <Card>
               <CardHeader>
                 <SectionTitle
                   title="Pagamento"
-                  description={
-                    paid
-                      ? "Confirmado pelo Inter."
-                      : processing
-                        ? "O Inter está processando a emissão."
-                        : invoice.status === "cancelled"
-                          ? "Cobrança cancelada no banco."
-                          : "Boleto e Pix desta cobrança."
-                  }
                   action={
                     admin &&
                     invoice.providerId && (
@@ -881,7 +848,8 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 {paid && (
                   <Notice tone="success" icon={<CircleCheckIcon />}>
                     <span className="font-medium">Pagamento confirmado pelo Inter.</span>
-                    {invoice.bankCheckedAt && (
+                    {/* The team reads the last check beside the title (SyncControl). */}
+                    {!admin && invoice.bankCheckedAt && (
                       <span className="block text-xs opacity-80">
                         Última consulta {dateTimeLabel(invoice.bankCheckedAt)}.
                       </span>
@@ -925,62 +893,55 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     }
                   />
                 )}
-                {admin && invoice.bankStatus && (
+                {admin && invoice.requestedDueDate && (
                   <p className="text-xs text-muted-foreground">
-                    Situação no Inter:{" "}
-                    <span className="font-medium text-foreground">
-                      {bankStatusLabels[invoice.bankStatus] ?? invoice.bankStatus}
-                    </span>
-                    {invoice.requestedDueDate && (
-                      <>
-                        {" "}
-                        · o banco moveu o vencimento de{" "}
-                        {dateLabel(invoice.requestedDueDate)} para{" "}
-                        {dateLabel(invoice.dueDate)}
-                      </>
-                    )}
-                    .
+                    O Inter moveu o vencimento de {dateLabel(invoice.requestedDueDate)} para{" "}
+                    {dateLabel(invoice.dueDate)}.
                   </p>
                 )}
               </CardContent>
             </Card>
           )}
 
-          {admin && settled && contacts && (
+          {admin && contacts && (issued || notices.length > 0) && (
             <Card>
               <CardHeader>
                 <SectionTitle
                   title={
                     <span className="flex items-center gap-2">
                       Avisos ao cliente
-                      <Count>{notices.length}</Count>
+                      {notices.length > 0 && <Count>{notices.length}</Count>}
                     </span>
                   }
-                  description="E-mail e WhatsApp com o link de pagamento: nova cobrança, vencimento e lembretes aos 5, 10, 15, 20 e 25 dias de atraso, a partir das 8h. Param com o pagamento."
+                  description="Com o link de pagamento: nova cobrança, vencimento e 5, 10, 15, 20 e 25 dias de atraso, a partir das 8h. Param com o pagamento."
                 />
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
-                <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-                  <Fact label="E-mail">
-                    {contacts.email || (
-                      <span className="text-muted-foreground">Não cadastrado</span>
-                    )}
-                    {contacts.email && !contacts.emailEnabled && (
-                      <span className="text-muted-foreground"> · desativado</span>
-                    )}
-                  </Fact>
-                  <Fact label="WhatsApp">
-                    {contacts.phone ? (
-                      formatPhone(contacts.phone)
-                    ) : (
-                      <span className="text-muted-foreground">Não cadastrado</span>
-                    )}
-                    {contacts.phone && !contacts.whatsappEnabled && (
-                      <span className="text-muted-foreground"> · desativado</span>
-                    )}
-                  </Fact>
-                </dl>
-                {notices.length ? (
+                {contacts.email || contacts.phone ? (
+                  <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+                    <Fact label="E-mail">
+                      {contacts.email && (
+                        <>
+                          {contacts.email}
+                          {!contacts.emailEnabled && <span className="text-muted-foreground"> · desativado</span>}
+                        </>
+                      )}
+                    </Fact>
+                    <Fact label="WhatsApp">
+                      {contacts.phone && (
+                        <>
+                          {formatPhone(contacts.phone)}
+                          {!contacts.whatsappEnabled && <span className="text-muted-foreground"> · desativado</span>}
+                        </>
+                      )}
+                    </Fact>
+                  </dl>
+                ) : (
+                  <Notice tone="warning" icon={<TriangleAlertIcon />}>
+                    Ninguém recebe os avisos de cobrança. O cliente escolhe em Notificações.
+                  </Notice>
+                )}
+                {notices.length > 0 && (
                   <ul className="divide-y rounded-lg border">
                     {notices.map((notice) => (
                       <li
@@ -990,7 +951,8 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                         <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-3.5">
                           {notice.channel === "email" ? <MailIcon /> : <MessageCircleIcon />}
                         </span>
-                        <span className="min-w-0 flex-1">
+                        {/* min-w-40: at 320 px the badge drops below instead of squeezing the title to a word per line. */}
+                        <span className="min-w-40 flex-1">
                           <span className="block font-medium text-foreground">
                             {noticeChannelLabels[notice.channel] ?? notice.channel} ·{" "}
                             {noticeKindLabel(notice.kind)}
@@ -1013,10 +975,6 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       </li>
                     ))}
                   </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum aviso enviado ainda.
-                  </p>
                 )}
                 {(canSend.email || canSend.whatsapp) && (
                   <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
@@ -1041,6 +999,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
         </div>
 
         {/* Supporting cards recede (quiet), so the charge leads. */}
+        {hasAside && (
         <aside className="reveal-fade flex min-w-0 flex-col gap-6">
           {admin && settled && (
             <Card variant="quiet">
@@ -1095,8 +1054,13 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             <Card variant="quiet">
               <CardHeader>
                 <SectionTitle
-                  title="Recorrência"
-                  description={sub.interval === "yearly" ? "Cobrança anual" : "Cobrança mensal"}
+                  title={
+                    // Active is the normal state: only an exception gets a badge.
+                    <span className="flex flex-wrap items-center gap-2">
+                      Recorrência {intervalLabel?.toLocaleLowerCase("pt-BR")}
+                      {sub.status !== "active" && <SubscriptionStatusBadge status={sub.status} />}
+                    </span>
+                  }
                   action={
                     sub.status !== "cancelled" && (
                       <Button
@@ -1113,19 +1077,34 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <dl className="grid gap-4">
-                  <Fact label="Situação">
-                    <SubscriptionStatusBadge status={sub.status} />
+                  {sub.ahead && sub.status === "active" && (
+                    // Same name the client reads on the charge: the next period, already issued.
+                    <Fact label="Próxima cobrança">
+                      <Link href={`/financeiro/${sub.ahead.id}`} className="font-medium text-foreground hover:text-primary">
+                        <span className="tabular-nums">{currency(sub.ahead.amountCents)}</span>, vence {dateLabel(sub.ahead.dueDate)}
+                      </Link>
+                      <span className="block text-xs text-muted-foreground">
+                        {sub.ahead.status === "paid" ? "Já paga." : "Boleto e Pix já disponíveis."}
+                      </span>
+                    </Fact>
+                  )}
+                  <Fact label={sub.ahead && sub.status === "active" ? "Depois dela" : "Próxima cobrança"}>
+                    {dateLabel(sub.nextDueDate)}
+                    {/* The value per period, only when it is not the value of this charge. */}
+                    {sub.amountCents !== invoice.amountCents && (
+                      <span className="tabular-nums">, {currency(sub.amountCents)}</span>
+                    )}
                   </Fact>
-                  <Fact label="Próximo vencimento">{dateLabel(sub.nextDueDate)}</Fact>
-                  <Fact label="Próxima emissão">
-                    {sub.issueOnPayment
-                      ? `Quando a anterior for paga, ou em ${dateLabel(sub.issueDate)}`
-                      : dateLabel(sub.issueDate)}
-                  </Fact>
-                  <Fact label="Aviso ao cliente">{dateLabel(sub.issueDate)}</Fact>
-                  <Fact label="Valor por período">
-                    <span className="tabular-nums">{currency(sub.amountCents)}</span>
-                  </Fact>
+                  {sub.issueOnPayment ? (
+                    <>
+                      <Fact label="Próxima emissão">
+                        Quando a anterior for paga, ou em {dateLabel(sub.issueDate)}
+                      </Fact>
+                      <Fact label="Aviso ao cliente">{dateLabel(sub.issueDate)}</Fact>
+                    </>
+                  ) : (
+                    <Fact label="Emissão e aviso ao cliente">{dateLabel(sub.issueDate)}</Fact>
+                  )}
                 </dl>
                 {sub.lastError && (
                   <p
@@ -1151,9 +1130,10 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             </Card>
           )}
 
+          {showFiscal && (
           <Card variant="quiet">
             <CardHeader>
-              <SectionTitle title="Nota fiscal" description="Documento fiscal desta cobrança." />
+              <SectionTitle title="Nota fiscal" />
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <p className="text-muted-foreground">
@@ -1191,31 +1171,28 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
               )}
               {admin && (
                 <p className="text-xs text-muted-foreground">
-                  Nota fiscal automática{" "}
-                  {company.autoIssueNfse ? "ativada" : "desativada"} para este
-                  cliente; a emissão depende da integração fiscal.{" "}
+                  {company.autoIssueNfse
+                    ? "Nota automática ativada para este cliente. A emissão depende da integração fiscal."
+                    : "Nota automática desativada para este cliente."}{" "}
                   <Link
                     href={`/empresas/${company.id}?editar=1`}
                     className="font-medium text-primary"
                   >
-                    Configurar no cadastro
+                    Alterar no cadastro
                   </Link>
                 </p>
               )}
             </CardContent>
           </Card>
+          )}
 
-          {admin && (
+          {admin && events.length > 0 && (
             <Card variant="quiet">
               <CardHeader>
-                <SectionTitle
-                  title="Histórico"
-                  description="O que aconteceu com esta cobrança."
-                />
+                <SectionTitle title="Histórico" />
               </CardHeader>
               <CardContent>
-                {events.length ? (
-                  <ol className="relative flex flex-col gap-4 border-l border-border pl-5">
+                <ol className="relative flex flex-col gap-4 border-l border-border pl-5">
                     {(allEvents ? events : events.slice(0, 5)).map((event) => (
                       <li key={event.id} className="relative text-sm">
                         <span
@@ -1234,11 +1211,6 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                       </li>
                     ))}
                   </ol>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhum registro ainda.
-                  </p>
-                )}
                 {events.length > 5 && (
                   <Button
                     variant="ghost"
@@ -1246,13 +1218,14 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                     className="mt-4 text-muted-foreground"
                     onClick={() => setAllEvents((value) => !value)}
                   >
-                    {allEvents ? "Mostrar menos" : `Mostrar mais ${events.length - 5}`}
+                    {allEvents ? "Ver menos" : `Ver todos (${events.length})`}
                   </Button>
                 )}
               </CardContent>
             </Card>
           )}
         </aside>
+        )}
       </div>
 
       {admin && (
@@ -1345,7 +1318,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             action={cancelCharge}
             fields={{ id: invoice.id }}
             title="Cancelar esta cobrança no Inter?"
-            description={`O boleto e o Pix de ${currency(invoice.amountCents)} para ${company.name} deixam de valer e os avisos param. Não dá para desfazer: para cobrar de novo, crie outra cobrança.${sub?.status === "active" ? " A recorrência fica pausada para não emitir o próximo período; retome se o cliente continuar." : ""}`}
+            description={`O boleto e o Pix de ${currency(invoice.amountCents)} para ${companyName} deixam de valer e os avisos param. Não dá para desfazer: para cobrar de novo, crie outra cobrança.${sub?.status === "active" ? " A recorrência fica pausada para não emitir o próximo período; retome se o cliente continuar." : ""}`}
             confirmLabel="Cancelar no Inter"
             destructive
           />
@@ -1355,14 +1328,14 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             action={cancelDraft}
             fields={{ id: invoice.id }}
             title="Cancelar este rascunho?"
-            description={`A cobrança de ${currency(invoice.amountCents)} para ${company.name} não será emitida.`}
+            description={`A cobrança de ${currency(invoice.amountCents)} para ${companyName} não será emitida.`}
             confirmLabel="Cancelar rascunho"
             destructive
           />
           {deletable && (
             <DeleteInvoiceDialog
               invoice={invoice}
-              company={company.name}
+              company={companyName}
               recurring={!!sub}
               open={confirm === "delete"}
               onOpenChange={(open) => !open && setConfirm(null)}
@@ -1374,7 +1347,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             action={sendInvoiceNotice}
             fields={{ id: invoice.id, channel: send ?? "email" }}
             title={`Enviar a cobrança por ${send === "whatsapp" ? "WhatsApp" : "e-mail"}?`}
-            description={`${company.name} recebe o aviso desta fatura de ${currency(invoice.amountCents)} com o link de pagamento.`}
+            description={`${companyName} recebe o aviso desta fatura de ${currency(invoice.amountCents)} com o link de pagamento.`}
             confirmLabel="Enviar"
             onSuccess={() => setSend(null)}
           />
@@ -1384,7 +1357,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             action={resendBillingNotice}
             fields={{ noticeId: resend ?? "" }}
             title="Reenviar este aviso?"
-            description={`${company.name} recebe novamente o aviso desta fatura. Se o contato foi corrigido nas preferências, o envio também vai para o novo endereço.`}
+            description={`${companyName} recebe novamente o aviso desta fatura. Se o contato foi corrigido nas preferências, o envio também vai para o novo endereço.`}
             confirmLabel="Reenviar"
             onSuccess={() => setResend(null)}
           />

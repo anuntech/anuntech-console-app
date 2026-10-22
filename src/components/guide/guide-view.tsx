@@ -89,7 +89,6 @@ export function GuideView({ sections, terms, staff }: { sections: GuideSection[]
           className="mb-8 min-w-0"
           crumbs={[{ label: "Ajuda", href: "/ajuda" }, { label: "Como trabalhamos" }]}
           title="Como trabalhamos"
-          description="Como a Anuntech atende a sua empresa: chamados, prazos, projetos e contratação."
         />
         {/* Blocks being built: how the work comes together. Beside the title from 1024px… */}
         <BrandArt name="blocos" className="hidden w-20 shrink-0 lg:block xl:hidden" />

@@ -242,7 +242,8 @@ function suggestionsFor(admin: boolean, finance: boolean, support: boolean) {
     ];
   return [
     finance ? "Qual é o meu último boleto?" : "Como estão meus projetos?",
-    support ? "Quero abrir um chamado" : "Quais produtos eu tenho?",
+    // "Abrir chamado" is already a shortcut under the box; the question finds what waits on them.
+    support ? "Tem chamado esperando minha resposta?" : "Quais produtos eu tenho?",
     finance
       ? "Tenho algum orçamento aguardando resposta?"
       : "O que a Anuntech faz?",
@@ -870,8 +871,7 @@ export function AssistantPanel({
                     ajudar?
                   </p>
                   <p className="m-0 mt-1.5 max-w-[52ch] text-sm text-pretty text-muted-foreground">
-                    Peça em português, como falaria com alguém da equipe. Eu uso
-                    o seu acesso e nunca vejo o que você não veria.
+                    Uso o seu acesso: não vejo nada que você não veria.
                   </p>
                 </div>
                 <ul className="stagger m-0 grid list-none gap-2 p-0 sm:grid-cols-2">

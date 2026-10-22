@@ -111,22 +111,10 @@ export function TwoStepSettings({
   return (
     <Card>
       <CardHeader>
+        {/* The switches below are the state (on, and by which channel); no badge repeats it. */}
         <SectionTitle
-          title={
-            <span className="flex items-center gap-2">
-              Verificação em duas etapas
-              <span
-                className={
-                  enabled
-                    ? "rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success"
-                    : "rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                }
-              >
-                {enabled ? "Ativada" : "Desativada"}
-              </span>
-            </span>
-          }
-          description="Ao entrar, um segundo código confirma que é você. Escolha por onde ele chega."
+          title="Verificação em duas etapas"
+          description="Ao entrar, um segundo código confirma que é você."
         />
       </CardHeader>
       <CardContent className="flex flex-col gap-5">

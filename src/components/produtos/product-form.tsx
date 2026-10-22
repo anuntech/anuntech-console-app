@@ -40,7 +40,6 @@ export function ProductSheet({
       open={open}
       onOpenChange={onOpenChange}
       title="Editar produto"
-      description="Nome, link, valor e descrição."
       action={updateProject}
       formKey={shown.id}
       submitLabel="Salvar"

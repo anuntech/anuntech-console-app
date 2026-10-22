@@ -18,7 +18,6 @@ export default async function NotificationsPage({
     <SettingsShell
       section="notifications"
       title="Notificações"
-      description="Quem recebe os avisos, por qual canal, e o que já foi enviado."
     >
       <NotificationsSection page={page} />
       {!actor.admin && actor.grants.length > 0 && <MarkFirstStep companyId={actor.grants[0].company.id} step="notices_reviewed" />}

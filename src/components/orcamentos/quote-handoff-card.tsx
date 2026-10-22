@@ -59,7 +59,7 @@ export function QuoteHandoffCard({ quote, handoff, upfrontCents, balanceCents }:
       <CardHeader>
         <SectionTitle
           title="Próximos passos"
-          description={accepted ? "Cada passo sai preenchido com o orçamento e nasce como rascunho para você conferir." : undefined}
+          description={accepted ? "Cada passo abre preenchido, como rascunho." : undefined}
         />
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
@@ -77,7 +77,8 @@ export function QuoteHandoffCard({ quote, handoff, upfrontCents, balanceCents }:
           ))}
         {accepted &&
           (handoff.project ? (
-            <Step href={`/projetos/${handoff.project.id}`} icon={FolderKanbanIcon} label="Projeto" done={handoff.project.name} />
+            // The project usually has the proposal's name, already the page title.
+            <Step href={`/projetos/${handoff.project.id}`} icon={FolderKanbanIcon} label="Projeto" done={handoff.project.name === quote.title ? "Criado" : handoff.project.name} />
           ) : (
             <ConfirmAction
               action={createProjectFromQuote}

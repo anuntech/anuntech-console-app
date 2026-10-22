@@ -15,6 +15,8 @@ export type UpcomingCharge = {
   subscriptionId: string;
   companyId: string;
   company: string;
+  /** The company's CNPJ or CPF, so a MEI's name is shown without the number. */
+  companyDocument: string | null;
   description: string;
   amountCents: number;
   dueDate: string;
@@ -68,6 +70,7 @@ export async function upcomingCharges({ admin, companyIds }: { admin: boolean; c
     subscriptionId: row.subscriptionId,
     companyId: row.companyId,
     company: row.company,
+    companyDocument: row.document,
     description: row.description,
     amountCents: row.amountCents,
     dueDate: row.dueDate,

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import { currency, dateLabel } from "@/lib/format";
 import type { UpcomingCharge } from "@/lib/billing/upcoming-charges";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 const SHOWN = 4;
 
@@ -14,7 +15,11 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
   const title = (
     <>
       <span className="block truncate font-medium text-foreground">{charge.description}</span>
-      {showCompany && <span className="block truncate text-xs text-muted-foreground">{charge.company}</span>}
+      {showCompany && (
+        <span className="block truncate text-xs text-muted-foreground">
+          {companyDisplayName(charge.company, charge.companyDocument)}
+        </span>
+      )}
     </>
   );
   return (
@@ -34,7 +39,7 @@ function Row({ charge, showCompany }: { charge: UpcomingCharge; showCompany: boo
         )}
         <span className={warn ? "mt-0.5 block text-xs text-warning" : "mt-0.5 block text-xs text-muted-foreground"}>
           {paused
-            ? `Pausada: não será emitida até ser retomada.${charge.lastError ? ` ${charge.lastError}` : ""}`
+            ? `Pausada. Não sai até ser retomada.${charge.lastError ? ` ${charge.lastError}` : ""}`
             : charge.problems
               ? `A emissão vai falhar: ${charge.problems}.`
               : (charge.lastError ??
@@ -76,12 +81,8 @@ export function UpcomingCharges({ charges, showCompany, team }: { charges: Upcom
           description={
             !team
               ? "Você recebe o aviso por e-mail e WhatsApp 5 dias antes de cada vencimento."
-              : `${[
-                  paused.length ? (paused.length === 1 ? "1 pausada" : `${paused.length} pausadas`) : "",
-                  failing.length ? (failing.length === 1 ? "1 com a emissão para corrigir" : `${failing.length} com a emissão para corrigir`) : "",
-                ]
-                  .filter(Boolean)
-                  .join(" e ")}. As outras são emitidas sozinhas, com o aviso ao cliente 5 dias antes do vencimento.`
+              : // Each row says what is wrong; the subtitle only says why the others are not here.
+                "As demais saem sozinhas, com o aviso ao cliente 5 dias antes do vencimento."
           }
         />
       </CardHeader>

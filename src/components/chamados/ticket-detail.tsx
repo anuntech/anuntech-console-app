@@ -3,7 +3,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
 import {
-  Building2Icon,
   SparklesIcon,
   CalculatorIcon,
   ClockIcon,
@@ -20,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Disclosure } from "@/components/console/disclosure";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
@@ -106,7 +106,6 @@ export type TicketClock = {
   respondedIn: string | null;
   /** While the clock stands still waiting for the client. */
   pausedSince: string | null;
-  commitment: string | null;
   /** Team only: the client sees these dates from this instant. */
   clientFrom: string | null;
 };
@@ -127,6 +126,7 @@ export type TicketDetailData = {
     createdAt: string;
     updatedAt: string;
     companyId: string;
+    /** The display name (companyDisplayName), never the razão social. */
     company: string;
     engagement: string | null;
     author: { name: string; email: string };
@@ -134,7 +134,8 @@ export type TicketDetailData = {
   /** Messages and attachments in the order they happened. */
   entries: TicketEntry[];
   files: TicketFile[];
-  viewer: { admin: boolean };
+  /** `showCompany`: the team, or a client who sees more than one company; a client is not told its own name. */
+  viewer: { admin: boolean; showCompany?: boolean };
   /** Staff: a reply prepared elsewhere (a proposal sent or answered), ready to review and send. */
   replyDraft?: string;
   /** Staff: remind or resolve a ticket that waits on the client; say a finished one took no hours. */
@@ -331,8 +332,8 @@ function Count({ children }: { children: ReactNode }) {
   );
 }
 
-/** What the team needs from the client to go on, in their words. */
-function WaitingNotice({ waitingFor, paused, admin }: { waitingFor?: string | null; paused: boolean; admin: boolean }) {
+/** What the team needs from the client to go on, in their words. The paused deadline reads in Prazos. */
+function WaitingNotice({ waitingFor, admin }: { waitingFor?: string | null; admin: boolean }) {
   return (
     <div className="flex gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm">
       <HourglassIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -341,11 +342,6 @@ function WaitingNotice({ waitingFor, paused, admin }: { waitingFor?: string | nu
           {admin ? "Aguardando o cliente" : "A equipe precisa de você para continuar"}
         </p>
         {waitingFor && <p className="m-0 whitespace-pre-wrap text-foreground">{waitingFor}</p>}
-        {paused && (
-          <p className="m-0 text-xs text-muted-foreground">
-            {admin ? "O prazo está pausado até o cliente responder." : "O prazo da Anuntech fica pausado até você responder."}
-          </p>
-        )}
       </div>
     </div>
   );
@@ -417,13 +413,13 @@ function ClockCard({ clock, status, admin, now }: { clock: TicketClock; status: 
             </Fact>
           )}
         </dl>
+        {/* The status already says who it waits for; this says what that does to the deadline. */}
         {clock.pausedSince && (
           <p className="m-0 flex items-start gap-2 text-xs text-muted-foreground">
             <ClockIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-            Prazo pausado desde {dateTimeLabel(clock.pausedSince)}: aguardando {admin ? "o cliente" : "você"}.
+            Prazo pausado desde {dateTimeLabel(clock.pausedSince)}.
           </p>
         )}
-        {clock.commitment && <p className="m-0 text-xs leading-5 text-muted-foreground">{clock.commitment}</p>}
         {clock.clientFrom && (
           <p className="m-0 text-xs text-muted-foreground">O cliente vê estes prazos a partir de {dateLabel(new Date(clock.clientFrom))}.</p>
         )}
@@ -448,33 +444,30 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
   const messages = entries.filter((e) => e.kind === "message").length;
   const deletable = admin && canDeleteTicket(ticket.status);
   const assignee = assigneeOptions(data.assignees ?? [], ticket.assignedTo);
+  const showCompany = viewer.showCompany ?? admin;
+  // Who opened it: the e-mail only when it is one (a client reads "Equipe Anuntech" for the team).
+  const authorEmail = ticket.author.email.includes("@") ? ticket.author.email : null;
 
   return (
     <>
+      {/* Header: the status, an Alta or Crítica priority and, for the team, the company. The body tells what it is about. */}
       <PageHeader
-        crumbs={[{ label: "Chamados", href: "/chamados" }, { label: ticket.subject }]}
+        crumbs={[{ label: "Chamados", href: "/chamados" }]}
         title={ticket.subject}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <TicketStatusBadge status={ticket.status} client={!admin} />
-            {(ticket.priority === "high" || ticket.priority === "critical") && (
-              <TicketPriorityMark priority={ticket.priority} />
-            )}
-            {admin ? (
-              <Link
-                href={`/empresas/${ticket.companyId}`}
-                className="text-foreground hover:text-primary"
-              >
+        meta={[
+          <TicketStatusBadge key="status" status={ticket.status} client={!admin} />,
+          (ticket.priority === "high" || ticket.priority === "critical") && (
+            <TicketPriorityMark key="priority" priority={ticket.priority} label="Prioridade" />
+          ),
+          showCompany &&
+            (admin ? (
+              <Link key="company" href={`/empresas/${ticket.companyId}`} className="text-foreground hover:text-primary">
                 {ticket.company}
               </Link>
             ) : (
-              <span>{ticket.company}</span>
-            )}
-            {ticket.engagement && (
-              <span>{ticket.engagement}</span>
-            )}
-          </span>
-        }
+              <span key="company">{ticket.company}</span>
+            )),
+        ]}
         actionsInline
         actions={
           admin && (
@@ -485,12 +478,7 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem asChild>
-                  <Link href={`/empresas/${ticket.companyId}`}>
-                    <Building2Icon />
-                    Ver empresa
-                  </Link>
-                </DropdownMenuItem>
+                {/* The company is a link under the title; the menu keeps what has no other place. */}
                 <DropdownMenuItem asChild>
                   <Link href={`/chamados/novo?companyId=${ticket.companyId}`}>
                     <HeadsetIcon />
@@ -565,14 +553,13 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                   </Count>
                 </span>
               }
-              description="Mensagens e arquivos trocados neste chamado."
             />
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
             <TicketThread entries={entries} now={now} admin={admin} closed={ticket.status === "closed"} />
             {/* The latest word in the conversation: what the team still needs, right above the reply. */}
             {ticket.status === "waiting_customer" && (
-              <WaitingNotice waitingFor={ticket.waitingFor} paused={!!data.clock?.pausedSince} admin={admin} />
+              <WaitingNotice waitingFor={ticket.waitingFor} admin={admin} />
             )}
             {ticket.status === "closed" ? (
               <ClosedNotice
@@ -589,93 +576,62 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
         <aside className="reveal-fade flex min-w-0 flex-col gap-6">
           <Card variant="quiet">
             <CardHeader>
-              <SectionTitle
-                title="Detalhes"
-                description={
-                  admin
-                    ? "Situação, prioridade e quem atende."
-                    : "Onde este chamado está."
-                }
-              />
+              <SectionTitle title="Detalhes" />
             </CardHeader>
             <CardContent>
-              {admin ? (
-                <ServerForm
-                  key={`${ticket.status}-${ticket.priority}-${ticket.assignedTo ?? ""}-${ticket.waitingFor ?? ""}`}
-                  action={updateTicket}
-                  className="flex flex-col gap-5"
-                >
-                  <input type="hidden" name="ticketId" value={ticket.id} />
-                  <FormError />
-                  <StatusField ticket={ticket} />
-                  <FormField label="Prioridade" htmlFor="ticket-priority">
-                    <NativeSelect
-                      id="ticket-priority"
-                      name="priority"
-                      defaultValue={ticket.priority}
-                    >
-                      <NativeSelectOption value="normal">
-                        {priorityLabels.normal}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="high">
-                        {priorityLabels.high}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="critical">
-                        {priorityLabels.critical}
-                      </NativeSelectOption>
-                    </NativeSelect>
-                  </FormField>
-                  <FormField label="Responsável" htmlFor="ticket-assignee">
-                    <NativeSelect
-                      id="ticket-assignee"
-                      name="assignedTo"
-                      defaultValue={assignee.selected}
-                    >
-                      <NativeSelectOption value="">
-                        Sem responsável
-                      </NativeSelectOption>
-                      {assignee.options.map((person) => (
-                        <NativeSelectOption key={person.email} value={person.email}>
-                          {person.name}
+              {admin && (
+                <>
+                  <ServerForm
+                    key={`${ticket.status}-${ticket.priority}-${ticket.assignedTo ?? ""}-${ticket.waitingFor ?? ""}`}
+                    action={updateTicket}
+                    className="flex flex-col gap-5"
+                  >
+                    <input type="hidden" name="ticketId" value={ticket.id} />
+                    <FormError />
+                    <StatusField ticket={ticket} />
+                    <FormField label="Prioridade" htmlFor="ticket-priority">
+                      <NativeSelect
+                        id="ticket-priority"
+                        name="priority"
+                        defaultValue={ticket.priority}
+                      >
+                        <NativeSelectOption value="normal">
+                          {priorityLabels.normal}
                         </NativeSelectOption>
-                      ))}
-                    </NativeSelect>
-                  </FormField>
-                  <div className="flex justify-end">
-                    <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
-                  </div>
-                </ServerForm>
-              ) : (
-                <dl className="grid gap-4">
-                  <Fact label="Situação">
-                    <TicketStatusBadge status={ticket.status} client />
-                  </Fact>
-                  <Fact label="Prioridade">
-                    <TicketPriorityMark priority={ticket.priority} />
-                  </Fact>
-                  <Fact label="Responsável">
-                    {ticket.assigneeName || ticket.assignedTo || (
-                      <span className="text-muted-foreground">
-                        Ainda não atribuído
-                      </span>
-                    )}
-                  </Fact>
-                </dl>
+                        <NativeSelectOption value="high">
+                          {priorityLabels.high}
+                        </NativeSelectOption>
+                        <NativeSelectOption value="critical">
+                          {priorityLabels.critical}
+                        </NativeSelectOption>
+                      </NativeSelect>
+                    </FormField>
+                    <FormField label="Responsável" htmlFor="ticket-assignee">
+                      <NativeSelect
+                        id="ticket-assignee"
+                        name="assignedTo"
+                        defaultValue={assignee.selected}
+                      >
+                        <NativeSelectOption value="">
+                          Sem responsável
+                        </NativeSelectOption>
+                        {assignee.options.map((person) => (
+                          <NativeSelectOption key={person.email} value={person.email}>
+                            {person.name}
+                          </NativeSelectOption>
+                        ))}
+                      </NativeSelect>
+                    </FormField>
+                    <div className="flex justify-end">
+                      <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
+                    </div>
+                  </ServerForm>
+                  <Separator className="my-5" />
+                </>
               )}
-              <Separator className="my-5" />
+              {/* What the ticket is about. Status and priority are in the header; an unassigned ticket says nothing here. */}
               <dl className="grid gap-4">
-                <Fact label="Empresa">
-                  {admin ? (
-                    <Link
-                      href={`/empresas/${ticket.companyId}`}
-                      className="hover:text-primary"
-                    >
-                      {ticket.company}
-                    </Link>
-                  ) : (
-                    ticket.company
-                  )}
-                </Fact>
+                {!admin && <Fact label="Responsável">{ticket.assigneeName || ticket.assignedTo}</Fact>}
                 {ticket.kind && (
                   <Fact label="Tipo">
                     {ticketKindLabels[ticket.kind]}
@@ -684,23 +640,23 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                     )}
                   </Fact>
                 )}
-                {ticket.engagement && (
-                  <Fact label="Produto ou projeto">{ticket.engagement}</Fact>
-                )}
+                <Fact label="Produto ou projeto">{ticket.engagement}</Fact>
                 {admin && ticket.channel && ticket.channel !== "console" && (
                   <Fact label="Recebido por">{ticketChannelLabels[ticket.channel]}</Fact>
                 )}
-                <Fact label="Aberto por">
-                  {ticket.author.name}
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {ticket.author.email}
-                  </span>
-                </Fact>
-                <Fact label="Aberto em">{dateTimeLabel(ticket.createdAt)}</Fact>
-                <Fact label="Última atividade">
-                  <When at={ticket.updatedAt} now={now} />
-                </Fact>
+                <Fact label="Aberto por">{ticket.author.name}</Fact>
               </dl>
+              <Disclosure className="mt-4">
+                <dl className="grid gap-4">
+                  <Fact label="E-mail de quem abriu">
+                    {authorEmail && <span className="block truncate">{authorEmail}</span>}
+                  </Fact>
+                  <Fact label="Aberto em">{dateTimeLabel(ticket.createdAt)}</Fact>
+                  <Fact label="Última atividade">
+                    <When at={ticket.updatedAt} now={now} />
+                  </Fact>
+                </dl>
+              </Disclosure>
             </CardContent>
           </Card>
 
@@ -708,20 +664,20 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
           {data.hours && (admin ? <TicketHoursCard ticketId={ticket.id} data={data.hours} /> : <EstimateCard ticketId={ticket.id} data={data.hours} />)}
           {admin && data.followUp && <TicketFollowCard ticketId={ticket.id} followUp={data.followUp} />}
 
-          <Card variant="quiet">
-            <CardHeader>
-              <SectionTitle
-                title={
-                  <span className="flex items-center gap-2">
-                    Anexos
-                    <Count>{files.length}</Count>
-                  </span>
-                }
-                description="Arquivos enviados nesta conversa."
-              />
-            </CardHeader>
-            <CardContent>
-              {files.length ? (
+          {/* Every file of the conversation in one list; with none, the composer's Anexar is enough. */}
+          {files.length > 0 && (
+            <Card variant="quiet">
+              <CardHeader>
+                <SectionTitle
+                  title={
+                    <span className="flex items-center gap-2">
+                      Anexos
+                      <Count>{files.length}</Count>
+                    </span>
+                  }
+                />
+              </CardHeader>
+              <CardContent>
                 <ul className="flex flex-col gap-2">
                   {files.map((file) => (
                     <li key={file.id}>
@@ -729,14 +685,9 @@ export function TicketDetail({ data }: { data: TicketDetailData }) {
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum arquivo ainda.
-                  {ticket.status !== "closed" && " Anexe pela caixa de resposta."}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </aside>
       </div>
 

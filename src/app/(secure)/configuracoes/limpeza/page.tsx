@@ -9,7 +9,7 @@ export default async function Page() {
     <SettingsShell
       section="cleanup"
       title="Limpeza"
-      description="Registros com cara de teste. Abra cada um e exclua com as regras de sempre, ou marque que não é teste."
+      description="Registros com cara de teste. A exclusão segue as regras de sempre, na página de cada um."
     >
       <CleanupList items={await cleanupCandidates()} />
     </SettingsShell>

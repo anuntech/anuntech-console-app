@@ -63,7 +63,7 @@ export function useAiCall() {
     try {
       return await work(current.signal);
     } catch (error) {
-      if (!current.signal.aborted) toast.error(error instanceof Error ? error.message : "Não foi possível agora.");
+      if (!current.signal.aborted) toast.error(error instanceof Error ? error.message : "A IA não respondeu. Tente de novo.");
       return null;
     } finally {
       if (controller.current === current) setPending(false);

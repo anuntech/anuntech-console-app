@@ -53,7 +53,6 @@ export function BoardEditor({ data }: { data: BoardEditorData }) {
   const crumbs = [
     { label: "Bookmarks", href: "/bookmarks" },
     ...(data.folder ? [{ label: data.folder.name, href: `/bookmarks?pasta=${data.folder.id}` }] : []),
-    { label: data.title },
   ];
   return (
     <>

@@ -173,7 +173,8 @@ export default async function Contract({ params }: { params: Promise<{ id: strin
           signedAt: s.signedAt.toISOString(),
           ip: s.ip,
         })),
-        viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email },
+        // A client with a single company is not named back to itself.
+        viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email, companies: actor.admin ? 0 : actor.grants.length },
         review: {
           requests: requests.map(({ request: r, author, email }) => ({
             id: r.id,

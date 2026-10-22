@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { db } from "@/lib/db";
 import { settingsEnvironment } from "@/lib/access/environment";
 import { auditLabels, dateTimeLabel } from "@/lib/format";
+import { formatPhone } from "@/lib/companies/company-input";
 import {
   getNoticePreferences,
   noticeEmails,
@@ -62,6 +63,12 @@ const statusTones: Record<string, string> = {
   expired: "bg-warning-soft text-warning",
 };
 
+/** "5511987650002" → "(11) 98765-0002"; e-mails and foreign numbers as stored. */
+function destinationLabel(channel: string, destination: string) {
+  const digits = destination.replace(/\D/g, "");
+  return channel !== "email" && /^55\d{10,11}$/.test(digits) ? formatPhone(digits.slice(2)) : destination;
+}
+
 type HistoryRow = {
   id: string;
   channel: string;
@@ -83,7 +90,7 @@ async function TopicCard({
   companyId: string | null;
   topic: NotificationTopic;
   title: string;
-  description: ReactNode;
+  description?: ReactNode;
 }) {
   const preferences = await getNoticePreferences(companyId, topic);
   return (
@@ -116,8 +123,7 @@ async function TopicCard({
             </label>
           </fieldset>
         </CardContent>
-        <CardFooter className="justify-between gap-3 border-t">
-          <span className="text-xs text-muted-foreground">Vale para os próximos envios.</span>
+        <CardFooter className="justify-end border-t">
           <SubmitButton pendingLabel="Salvando…">Salvar</SubmitButton>
         </CardFooter>
       </ServerForm>
@@ -156,10 +162,7 @@ export async function NotificationsSection({
       {actor.admin && (
         <Card>
           <CardHeader>
-            <SectionTitle
-              title="Equipe Anuntech"
-              description="Avisos internos quando um chamado é aberto, respondido ou alterado."
-            />
+            <SectionTitle title="Equipe Anuntech" />
           </CardHeader>
           <CardContent>
             <TicketNoticesSwitch enabled={enabled} />
@@ -171,18 +174,13 @@ export async function NotificationsSection({
           companyId={companyId}
           topic="billing"
           title="Financeiro"
-          description={
-            <>
-              Novas cobranças, vencimentos e lembretes. <HelpLink slug="avisos-de-cobranca">Quando cada aviso chega</HelpLink>
-            </>
-          }
+          description={<HelpLink slug="avisos-de-cobranca">Quando cada aviso chega</HelpLink>}
         />
       )}
       <TopicCard
         companyId={companyId}
         topic="tickets"
         title="Chamados"
-        description="Abertura, respostas e atualizações."
       />
       <Card>
         <CardHeader>
@@ -190,12 +188,14 @@ export async function NotificationsSection({
             title={
               <span className="flex items-center gap-2">
                 Histórico de envios
-                <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium tabular-nums text-secondary-foreground">
-                  {total}
-                </span>
+                {/* An empty history says so below; a "0" beside the title would say it twice. */}
+                {total > 0 && (
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium tabular-nums text-secondary-foreground">
+                    {total}
+                  </span>
+                )}
               </span>
             }
-            description="O que já saiu por e-mail e WhatsApp, com a confirmação do provedor."
           />
         </CardHeader>
         <CardContent className="px-0">
@@ -226,11 +226,13 @@ export async function NotificationsSection({
                       </span>
                     </TableCell>
                     <TableCell className="max-w-[16rem]">
+                      {/* An address or a number already says the channel; the channel's name only stands in for a missing one. */}
                       <span className="block truncate text-foreground">
-                        {row.destination || "—"}
-                      </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {row.channel === "email" ? "E-mail" : "WhatsApp"}
+                        {row.destination
+                          ? destinationLabel(row.channel, row.destination)
+                          : row.channel === "email"
+                            ? "E-mail"
+                            : "WhatsApp"}
                       </span>
                     </TableCell>
                     <TableCell>

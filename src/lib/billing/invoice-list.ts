@@ -96,6 +96,7 @@ export async function listInvoices(actor: Actor, input: InvoiceQuery, today: str
         description: invoices.description,
         companyId: invoices.companyId,
         company: companies.name,
+        companyDocument: companies.document,
         amountCents: invoices.amountCents,
         discountCents: invoices.discountCents,
         fineBps: invoices.fineBps,
@@ -139,7 +140,7 @@ export async function listInvoices(actor: Actor, input: InvoiceQuery, today: str
       .offset(offsetOf({ ...query, page })),
     query.company
       ? db
-          .select({ id: companies.id, name: companies.name })
+          .select({ id: companies.id, name: companies.name, document: companies.document })
           .from(companies)
           .where(eq(companies.id, query.company))
           .then((rows) => rows[0] ?? null)

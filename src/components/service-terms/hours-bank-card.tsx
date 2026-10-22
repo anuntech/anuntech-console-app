@@ -11,6 +11,7 @@ import { FormError, ServerForm, SubmitButton } from "@/components/console/server
 import { currency, dateLabel, dateTimeLabel } from "@/lib/format";
 import { approveOverage, contestHoursReport, sendBankAlert, sendHoursReport } from "@/lib/service-terms/hours-actions";
 import type { BankCard } from "@/lib/service-terms/hours-bank";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 const hours = (minutes: number) => {
   const h = Math.round((minutes / 60) * 10) / 10;
@@ -98,8 +99,9 @@ export function HoursBankCard({
     <Card className="gap-4 py-5">
       <CardHeader>
         <SectionTitle
-          title={showCompany ? `Banco de horas · ${bank.companyName}` : "Banco de horas"}
-          description={`${monthName(bank.month)}: ${hours(bank.usedMinutes)} de ${hours(bank.includedMinutes)}`}
+          title={showCompany ? `Banco de horas de ${companyDisplayName(bank.companyName, bank.companyDocument)}` : "Banco de horas"}
+          // The month's use, said once: hours and their share together.
+          description={`${monthName(bank.month)}: ${hours(bank.usedMinutes)} de ${hours(bank.includedMinutes)} (${percent}%)`}
         />
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -114,10 +116,11 @@ export function HoursBankCard({
           >
             <div className={cn("h-full rounded-full", percent >= 100 ? "bg-destructive" : alert ? "bg-warning" : "bg-primary")} style={{ width: `${Math.min(percent, 100)}%` }} />
           </div>
-          <p className="m-0 mt-1.5 text-xs text-muted-foreground">
-            {percent}% usado
-            {bank.overageApprovedMinutes > 0 && ` · até ${hours(bank.overageApprovedMinutes)} além do banco aprovadas`}
-          </p>
+          {bank.overageApprovedMinutes > 0 && (
+            <p className="m-0 mt-1.5 text-xs text-muted-foreground">
+              {`Até ${hours(bank.overageApprovedMinutes)} além do banco aprovadas.`}
+            </p>
+          )}
           {alert && viewer !== "team" && (
             <p className="m-0 mt-1 text-xs text-muted-foreground">
               Fora a correção de um defeito crítico, nada passa do banco sem a aprovação de um Administrador da empresa.

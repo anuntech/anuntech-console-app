@@ -8,7 +8,7 @@ import { dateLabel } from "@/lib/format";
 import type { HelpArticle, HelpCategory } from "@/lib/help/help-model";
 import type { Tutorial } from "@/lib/help/tutorials";
 import { HelpFaqList, HelpSections, sectionAnchor } from "./help-content";
-import { AdminOnly, NotFoundHelp, type HelpViewer } from "./help-hub";
+import { NotFoundHelp, type HelpViewer } from "./help-hub";
 import { CategoryTile } from "./help-icons";
 import { TocList } from "./toc";
 import { TutorialPlayer } from "./tutorial-player";
@@ -70,16 +70,14 @@ export function HelpArticleView({
         crumbs={[{ label: "Ajuda", href: "/ajuda" }, { label: category.title, href: `/ajuda#${category.id}` }, { label: article.title }]}
         leading={<CategoryTile id={category.id} className="size-11 rounded-xl [&_svg]:size-5" />}
         title={article.title}
+        // Who does it, said once: a Membro gets the note below the header, whoever administers this line.
         description={
-          <span className="flex flex-col gap-2">
-            <span>{article.summary}</span>
-            {adminOnly && (
-              <span className="flex items-center gap-2 text-xs">
-                <AdminOnly />
-                <span>Só o Administrador da empresa faz isto no Console.</span>
-              </span>
+          <>
+            {article.summary}
+            {adminOnly && !readsAsMember && (
+              <span className="mt-1 block text-xs">Só o Administrador da empresa faz isto no Console.</span>
             )}
-          </span>
+          </>
         }
       />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">

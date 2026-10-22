@@ -40,7 +40,7 @@ export type InvoiceEditMode = "draft" | "issued" | "subscription";
 
 const copy: Record<
   InvoiceEditMode,
-  { title: string; description: string; submit: string }
+  { title: string; description?: string; submit: string }
 > = {
   draft: {
     title: "Editar rascunho",
@@ -48,8 +48,8 @@ const copy: Record<
     submit: "Salvar",
   },
   issued: {
+    // The note at the end says what a new amount or date does at the bank.
     title: "Editar fatura",
-    description: "Descrição, valor e vencimento desta cobrança.",
     submit: "Salvar",
   },
   subscription: {
@@ -226,7 +226,6 @@ export function NewInvoiceSheet({
     <FormSheet
       {...sheet}
       title="Nova cobrança"
-      description="Quem paga, o que está sendo cobrado e as condições."
       action={createInvoice}
       submitLabel="Criar rascunho"
       pendingLabel="Criando…"

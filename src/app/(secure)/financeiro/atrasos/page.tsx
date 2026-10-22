@@ -44,7 +44,7 @@ export default async function Collections() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Financeiro", href: "/financeiro" }, { label: "Atrasos" }]}
+        crumbs={[{ label: "Financeiro", href: "/financeiro" }]}
         title="Atrasos"
         count={cases.length}
         className="mb-4"

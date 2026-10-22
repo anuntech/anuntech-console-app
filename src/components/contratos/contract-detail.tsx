@@ -4,7 +4,6 @@ import { ContractHandoffCard, type ContractHandoff } from "./contract-handoff-ca
 import { InviteManagerField } from "@/components/console/invite-manager-field";
 import { useRef, useState } from "react";
 import {
-  Building2Icon,
   CalendarRangeIcon,
   CheckCircle2Icon,
   CircleDashedIcon,
@@ -62,7 +61,8 @@ import {
 import { deleteContract } from "@/lib/contracts/contract-deletion";
 import { canDeleteContract } from "@/lib/deletion-rules";
 import { auditLabels, currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
-import { formatDocument } from "@/lib/companies/company-input";
+import { companyDisplayName } from "@/lib/companies/display-name";
+import { Disclosure } from "@/components/console/disclosure";
 import {
   contractStatusLabels,
   contractTerm,
@@ -70,7 +70,7 @@ import {
   type ContractKind,
   type ContractStatus,
 } from "@/lib/contracts/contract-table";
-import { ContractKindChip, ContractStatusBadge, ContractTermBadge } from "./contract-badges";
+import { ContractStatusBadge, ContractTermBadge } from "./contract-badges";
 import { ContractText } from "./contract-text";
 import { ContractFieldsPanel, type FieldSuggestions } from "./contract-fields-panel";
 import { HelpLink } from "@/components/console/help-link";
@@ -122,7 +122,8 @@ export type ContractDetailData = {
     signedAt: string;
     ip: string | null;
   }[];
-  viewer: { admin: boolean; party: "anuntech" | "client" | null; name: string };
+  /** `companies`: how many companies a client sees; with one, the page does not name it back. */
+  viewer: { admin: boolean; party: "anuntech" | "client" | null; name: string; companies?: number };
   /**
    * Change requests (the client's side also sees the ones it has not sent)
    * and the text of the version before the one shown, to mark what changed.
@@ -142,14 +143,13 @@ export type ContractDetailData = {
   today: string;
 };
 
+/** One side of the signature. The text names the parties in full; here, only who signed and when. */
 function Party({
   label,
-  who,
   signature,
   pending,
 }: {
   label: string;
-  who: string;
   signature?: ContractDetailData["signatures"][number];
   pending: boolean;
 }) {
@@ -162,13 +162,12 @@ function Party({
       )}
       <div className="min-w-0">
         <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{who}</p>
         {signature ? (
-          <p className="mt-1 text-xs text-foreground">
+          <p className="mt-0.5 text-xs text-foreground">
             {signature.name} · {dateTimeLabel(signature.signedAt)}
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">{pending ? "Aguardando assinatura" : "—"}</p>
+          pending && <p className="mt-0.5 text-xs text-muted-foreground">Aguardando assinatura</p>
         )}
       </div>
     </div>
@@ -219,6 +218,8 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
   const [consent, setConsent] = useState(false);
   const signed = (party: "client" | "anuntech") => signatures.find((s) => s.party === party);
   const canSign = c.status === "sent" && viewer.party !== null && !signed(viewer.party);
+  // A draft has nothing to sign yet; a cancelled one keeps the card only for what was signed or sent.
+  const signaturesShown = ["sent", "in_review", "signed"].includes(c.status) || signatures.length > 0 || (c.status === "cancelled" && !!c.documentHash);
   // During a review the team edits the next version while the client reads the sent one.
   const editable = viewer.admin && (c.status === "draft" || c.status === "in_review");
   const review = data.review ?? { requests: [], previousBody: null };
@@ -253,30 +254,36 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
   const termLabel = term ? contractTermLabel(term) : null;
   const canAmend = viewer.admin && !amendment && c.status === "signed";
   const deletable = viewer.admin && !!deletion && canDeleteContract({ status: c.status, kind: c.kind, ...deletion });
+  // The name people read; the text keeps the razão social and CNPJ.
+  const companyName = companyDisplayName(c.company, c.companyDocument);
+  const nameCompany = viewer.admin || (viewer.companies ?? 1) > 1;
+  // The product or project, unless the title already names it ("… · Agenda online").
+  const titleTail = (c.title.split("·").pop() ?? "").trim().toLocaleLowerCase("pt-BR");
+  const engagementShown =
+    !!c.engagement &&
+    !c.title.toLocaleLowerCase("pt-BR").includes(c.engagement.toLocaleLowerCase("pt-BR")) &&
+    !(titleTail && c.engagement.toLocaleLowerCase("pt-BR").startsWith(titleTail));
   return (
     <>
       <PageHeader
+        // An amendment's way back passes through the contract it changes.
         crumbs={[
           { label: "Contratos", href: "/contratos" },
           ...(parent ? [{ label: parent.title, href: `/contratos/${parent.id}` }] : []),
-          { label: c.title },
         ]}
         title={c.title}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <ContractStatusBadge status={c.status} />
-            <ContractTermBadge status={c.status} startsAt={c.startsAt} endsAt={c.endsAt} today={today} />
-            <ContractKindChip kind={c.kind} />
-            {viewer.admin ? (
-              <Link href={`/empresas/${c.companyId}`} className="text-foreground hover:text-primary">
-                {c.company}
-              </Link>
-            ) : (
-              <span>{c.company}</span>
-            )}
-            {c.engagement && <span>{c.engagement}</span>}
-          </span>
-        }
+        meta={[
+          <ContractStatusBadge key="status" status={c.status} />,
+          <ContractTermBadge key="term" status={c.status} startsAt={c.startsAt} endsAt={c.endsAt} today={today} />,
+          viewer.admin ? (
+            <Link key="company" href={`/empresas/${c.companyId}`} className="text-foreground hover:text-primary">
+              {companyName}
+            </Link>
+          ) : (
+            nameCompany && <span key="company">{companyName}</span>
+          ),
+          engagementShown && <span key="engagement">{c.engagement}</span>,
+        ]}
         actions={
           <>
             {(viewer.admin || c.status !== "draft") && c.status !== "cancelled" && (
@@ -319,12 +326,6 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem asChild>
-                    <Link href={`/empresas/${c.companyId}`}>
-                      <Building2Icon />
-                      Ver empresa
-                    </Link>
-                  </DropdownMenuItem>
                   {c.status !== "draft" && (
                     <DropdownMenuItem onSelect={() => setTimeout(() => setEditingTerm(true), 0)}>
                       <CalendarRangeIcon />
@@ -433,8 +434,9 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                   title={amendment ? "Texto do aditivo" : "Texto do contrato"}
                   description={
                     [
+                      // Signed: the badge says it, and Versões marks the one in force.
                       c.status === "signed"
-                        ? `Versão assinada${c.version > 1 ? ` (${c.version}ª)` : ""}. O hash abaixo identifica este texto.`
+                        ? null
                         : c.status === "in_review"
                           ? `Versão ${c.version}, como foi enviada. Os pedidos de alteração estão com a Anuntech.`
                           : canRequest
@@ -480,7 +482,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
           {viewer.party === "client" && c.status === "signed" && !amendment && (
             <Card variant="quiet" className="gap-4 py-5">
               <CardHeader>
-                <SectionTitle title="Próximos passos" description="O que acontece com o contrato assinado." />
+                <SectionTitle title="Próximos passos" />
               </CardHeader>
               <CardContent>
                 <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-sm leading-6 text-foreground marker:text-muted-foreground">
@@ -500,29 +502,24 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
               </CardContent>
             </Card>
           )}
+          {signaturesShown && (
           <Card>
             <CardHeader>
               <SectionTitle
                 title="Assinaturas"
                 description={
-                  c.status === "signed"
-                    ? "Assinado pelas duas partes."
-                    : c.status === "sent"
-                      ? "Cada parte assina com o próprio acesso ao Console."
-                      : c.status === "in_review"
-                        ? "Disponíveis quando a nova versão chegar."
-                        : "Disponíveis depois do envio."
+                  // Signed or cancelled: the badge and the checks already say it.
+                  c.status === "sent"
+                    ? "Cada parte assina com o próprio acesso ao Console."
+                    : c.status === "in_review"
+                      ? "Disponíveis quando a nova versão chegar."
+                      : undefined
                 }
               />
             </CardHeader>
             <CardContent className="flex flex-col gap-5">
-              <Party
-                label="Contratante"
-                who={`${c.company} · ${formatDocument(c.companyDocument)}`}
-                signature={signed("client")}
-                pending={c.status === "sent"}
-              />
-              <Party label="Contratada" who="Anuntech" signature={signed("anuntech")} pending={c.status === "sent"} />
+              <Party label="Cliente" signature={signed("client")} pending={c.status === "sent"} />
+              <Party label="Anuntech" signature={signed("anuntech")} pending={c.status === "sent"} />
               {/* Signing is the person's own: the assistant leaves it alone. */}
               {canSign && (
                 <ServerForm action={signContract} className="flex flex-col gap-3 border-t pt-5" data-assistant-ignore="">
@@ -553,8 +550,25 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                   {viewer.party === "client" && <HelpLink slug="assinar-um-contrato">Como assinar e pedir alteração</HelpLink>}
                 </ServerForm>
               )}
+              {/* The sent text's record, on demand; each signature carries its own date. */}
+              {c.documentHash && (
+                <Disclosure>
+                  <dl className="grid gap-4">
+                    {c.sentAt && <Fact label="Enviado em">{dateTimeLabel(c.sentAt)}</Fact>}
+                    {c.version > 1 && <Fact label="Versão">{c.version}ª</Fact>}
+                    <Fact label="Hash SHA-256">
+                      <span className="flex items-start gap-1">
+                        <code className="min-w-0 break-all text-xs">{c.documentHash}</code>
+                        <CopyButton value={c.documentHash} label="Copiar hash" />
+                      </span>
+                    </Fact>
+                    {c.template && <Fact label="Modelo">{c.template}</Fact>}
+                  </dl>
+                </Disclosure>
+              )}
             </CardContent>
           </Card>
+          )}
 
           {c.status !== "draft" && c.status !== "cancelled" && (
             <Card variant="quiet">
@@ -575,25 +589,15 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
               {(c.startsAt || c.endsAt || viewer.admin) && (
                 <CardContent>
                   <dl className="grid grid-cols-2 gap-4">
-                    <Fact label="Início">{c.startsAt ? dateLabel(c.startsAt) : "—"}</Fact>
+                    <Fact label="Início">{c.startsAt && dateLabel(c.startsAt)}</Fact>
                     <Fact label="Fim">
-                      {c.endsAt ? (
+                      {c.endsAt && (
                         <span className={cn(term?.state === "expired" && "text-destructive")}>{dateLabel(c.endsAt)}</span>
-                      ) : (
-                        "—"
                       )}
                     </Fact>
-                    {termLabel && (
-                      <Fact label="Situação" className="col-span-2">
-                        <span
-                          className={cn(
-                            "font-medium",
-                            term?.state === "expired" ? "text-destructive" : term?.state === "expiring" ? "text-warning" : "",
-                          )}
-                        >
-                          {termLabel}
-                        </span>
-                      </Fact>
+                    {/* Expiring or expired is the badge under the title; only a start ahead is said here. */}
+                    {term?.state === "upcoming" && termLabel && (
+                      <p className="col-span-2 m-0 text-xs text-muted-foreground">{termLabel}</p>
                     )}
                   </dl>
                   {viewer.admin && !c.endsAt && !amendment && (
@@ -660,41 +664,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
             </Card>
           )}
 
-          {parent && (
-            <Card variant="quiet">
-              <CardHeader>
-                <SectionTitle title="Contrato original" />
-              </CardHeader>
-              <CardContent>
-                <Link href={`/contratos/${parent.id}`} className="block text-sm font-medium text-foreground hover:text-primary">
-                  {parent.title}
-                </Link>
-                <ContractStatusBadge status={parent.status} className="mt-2" />
-              </CardContent>
-            </Card>
-          )}
-
-          {c.documentHash && (
-            <Card variant="quiet">
-              <CardHeader>
-                <SectionTitle title="Documento" />
-              </CardHeader>
-              <CardContent>
-                <dl className="grid gap-4">
-                  {c.sentAt && <Fact label="Enviado em">{dateTimeLabel(c.sentAt)}</Fact>}
-                  {c.signedAt && <Fact label="Concluído em">{dateTimeLabel(c.signedAt)}</Fact>}
-                  {c.version > 1 && <Fact label="Versão">{c.version}ª</Fact>}
-                  <Fact label="Hash SHA-256">
-                    <span className="flex items-start gap-1">
-                      <code className="min-w-0 break-all text-xs">{c.documentHash}</code>
-                      <CopyButton value={c.documentHash} label="Copiar hash" />
-                    </span>
-                  </Fact>
-                  {c.template && <Fact label="Modelo">{c.template}</Fact>}
-                </dl>
-              </CardContent>
-            </Card>
-          )}
+          {/* The original contract is the link in the breadcrumb. */}
 
           {versions.some((v) => !v.current) && (
             <Card variant="quiet">
@@ -744,7 +714,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
               </CardHeader>
               <CardContent>
                 <ol className="flex flex-col gap-3">
-                  {events.map((event) => (
+                  {events.slice(0, 5).map((event) => (
                     <li key={event.id} className="flex items-baseline justify-between gap-3 text-sm">
                       <span className="text-foreground">{auditLabels[event.action] ?? event.action}</span>
                       <time

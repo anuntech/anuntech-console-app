@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { JourneysList } from "@/components/jornadas/journeys-list";
 import type { JourneyListRow } from "@/components/jornadas/journey-types";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 export const metadata: Metadata = {
   title: "Jornadas",
@@ -36,7 +37,7 @@ export default async function Journeys({ searchParams }: { searchParams: Promise
       : undefined,
   );
   const rows = await db
-    .select({ journey: journeys, company: companies.name, movedAt: journeyMovedAt })
+    .select({ journey: journeys, company: companies.name, companyDocument: companies.document, movedAt: journeyMovedAt })
     .from(journeys)
     .leftJoin(companies, eq(companies.id, journeys.companyId))
     .where(where)
@@ -49,14 +50,16 @@ export default async function Journeys({ searchParams }: { searchParams: Promise
     Promise.all(rows.map((r) => journeyFacts(r.journey))),
   ]);
   const now = new Date();
-  const list: JourneyListRow[] = rows.map(({ journey, company, movedAt }, index) => {
+  const list: JourneyListRow[] = rows.map(({ journey, company, companyDocument, movedAt }, index) => {
     const resolved = resolveJourney(facts[index], stored.get(journey.id) ?? [], readBriefing(journey.briefing), journey);
     const stage = currentStage(resolved);
     return {
       id: journey.id,
       title: journey.title,
       status: journey.status,
-      who: company ?? (journey.lead ? `Contato: ${journey.lead.name}` : "Sem cadastro"),
+      who: company ? companyDisplayName(company, companyDocument) : journey.lead ? `Contato: ${journey.lead.name}` : "Sem cadastro",
+      // The tile keeps the razão social, so its pixels match the company's own page.
+      tile: company ?? null,
       lead: !company,
       stage: stageTitle(stage),
       done: resolved.done,

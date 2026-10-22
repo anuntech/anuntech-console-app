@@ -14,14 +14,8 @@ export default async function VerifyAccessPage({
   const returnTo = safeReturnPath((await searchParams).volta);
   return (
     <main id="main-content" tabIndex={-1} className="contents">
-      <AuthShell
-        eyebrow="Segurança da conta"
-        title="Confirme seu acesso"
-        intro={{
-          headline: "Uma confirmação a mais para proteger sua conta.",
-          text: "Use o código recebido no seu outro contato verificado.",
-        }}
-      >
+      {/* No lead: the challenge itself says where the code goes, or that the verification expired. */}
+      <AuthShell title="Confirme seu acesso">
         <SecurityChallenge returnTo={returnTo} />
       </AuthShell>
     </main>

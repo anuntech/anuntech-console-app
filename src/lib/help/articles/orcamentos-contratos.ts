@@ -90,7 +90,7 @@ export const orcamentosContratosArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Ao lado da proposta (em telas menores, abaixo dela) ficam os quadros “Resposta”, “Validade”, “Documento”, com a data de envio e o hash SHA-256, e “Versões”, quando já houve um envio anterior.",
+            text: "Ao lado da proposta (em telas menores, abaixo dela) ficam os quadros “Resposta” e “Versões”, quando já houve um envio anterior. Em “Resposta”, enquanto o orçamento aguarda, aparece por quanto tempo ele ainda vale, e “Ver detalhes” mostra a data de envio, o hash SHA-256 e, depois da resposta, o e-mail e o IP de quem respondeu. A data de validade fica no rodapé da proposta.",
           },
         ],
       },
@@ -152,7 +152,7 @@ export const orcamentosContratosArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "O hash SHA-256 é um código que identifica exatamente o texto da proposta. Ele fica no quadro “Documento” e no PDF. Antes de registrar a resposta, o Console confere o hash. Se ele não bater com o da proposta enviada, aparece “O conteúdo não confere com o registro. Peça um novo envio.”",
+            text: "O hash SHA-256 é um código que identifica exatamente o texto da proposta. Ele fica em “Ver detalhes”, no quadro “Resposta”, e no PDF. Antes de registrar a resposta, o Console confere o hash. Se ele não bater com o da proposta enviada, aparece “O conteúdo não confere com o registro. Peça um novo envio.”",
           },
           {
             kind: "note",
@@ -167,15 +167,15 @@ export const orcamentosContratosArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "O quadro “Validade” mostra “Válido até” e, enquanto o orçamento aguarda resposta, a situação: “Válido por N dias”, “Válido até amanhã” ou “Válido até hoje”.",
+              "A data de validade fica no rodapé da proposta. Enquanto o orçamento aguarda resposta, o quadro “Resposta” diz quanto falta: “Válido por N dias”, “Válido até amanhã” ou “Válido até hoje”.",
               "O orçamento vale até o fim do dia indicado. No dia seguinte ele fica “Expirado” e não aceita mais resposta.",
-              "Quando a equipe não define uma data, o quadro diz “Sem prazo definido.” e o orçamento não expira.",
+              "Quando a equipe não define uma data, a proposta não mostra validade e o orçamento não expira.",
               "Quando faltam 3 dias ou menos para a validade e o orçamento ainda aguarda resposta, os Administradores recebem um lembrete por e-mail, uma vez por versão.",
             ],
           },
           {
             kind: "p",
-            text: "Se a validade passou, o quadro “Resposta” diz “A validade passou sem resposta.” Peça uma nova versão no chamado em que você pediu o orçamento, ou abra um chamado. A nova versão chega por e-mail, com o mesmo número e uma validade nova.",
+            text: "Se a validade passou, o orçamento aparece como “Expirado” e o quadro “Resposta” diz “Peça à Anuntech uma nova versão.” Peça uma nova versão no chamado em que você pediu o orçamento, ou abra um chamado. A nova versão chega por e-mail, com o mesmo número e uma validade nova.",
           },
         ],
       },
@@ -216,7 +216,7 @@ export const orcamentosContratosArticles: HelpArticle[] = [
       },
       {
         q: "O que é o hash SHA-256?",
-        a: "É um código calculado a partir do texto da proposta. Se uma vírgula mudar, o código muda. Ele prova qual versão exata você aceitou ou recusou. Use “Copiar hash”, no quadro Documento, para guardar.",
+        a: "É um código calculado a partir do texto da proposta. Se uma vírgula mudar, o código muda. Ele prova qual versão exata você aceitou ou recusou. Use “Copiar hash”, em “Ver detalhes” no quadro Resposta, para guardar.",
       },
       {
         q: "O orçamento sumiu da minha lista. O que houve?",
@@ -591,11 +591,11 @@ export const orcamentosContratosArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "O contrato abre com o título, a situação e o “Texto do contrato”, cláusula por cláusula. O texto foi congelado no envio: o que você assina é exatamente o que está na tela, e o hash SHA-256 do quadro “Documento” identifica esse texto.",
+            text: "O contrato abre com o título, a situação e o “Texto do contrato”, cláusula por cláusula. O texto foi congelado no envio: o que você assina é exatamente o que está na tela, e o hash SHA-256, em “Ver detalhes” no quadro “Assinaturas”, identifica esse texto.",
           },
           {
             kind: "p",
-            text: "Ao lado do texto (em telas menores, depois dele) ficam “Assinaturas”, com a “Contratante” (a sua empresa) e a “Contratada” (Anuntech), “Vigência”, “Documento” e “Versões”, quando já houve um envio anterior. Para guardar uma cópia, clique em “Baixar PDF”.",
+            text: "Ao lado do texto (em telas menores, depois dele) ficam “Assinaturas”, com o “Cliente” (a sua empresa) e a “Anuntech”, e “Ver detalhes” com a data de envio e o hash; “Vigência”; e “Versões”, quando já houve um envio anterior. Para guardar uma cópia, clique em “Baixar PDF”.",
           },
           {
             kind: "p",
@@ -656,7 +656,7 @@ export const orcamentosContratosArticles: HelpArticle[] = [
       },
       {
         q: "Outro Administrador já assinou. Preciso assinar também?",
-        a: "Não. A empresa assina uma vez por versão, e vale a assinatura do primeiro Administrador que assinar. O quadro “Assinaturas” mostra quem assinou pela Contratante.",
+        a: "Não. A empresa assina uma vez por versão, e vale a assinatura do primeiro Administrador que assinar. O quadro “Assinaturas” mostra quem assinou pela sua empresa, na linha “Cliente”.",
       },
       {
         q: "Já assinei, mas o contrato voltou a pedir a minha assinatura.",
@@ -858,9 +858,8 @@ export const orcamentosContratosArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "A situação vira “Assinado”, e o quadro “Assinaturas” diz “Assinado pelas duas partes.”",
+              "A situação vira “Assinado”, e o quadro “Assinaturas” mostra as duas assinaturas, cada uma com a data e a hora.",
               "Os Administradores recebem o e-mail “Contrato assinado: título do contrato” (num aditivo, “Aditivo assinado”), com o link do contrato no Console e os próximos passos. O PDF não vai anexado.",
-              "O quadro “Documento” passa a mostrar “Concluído em”, com a data e a hora da segunda assinatura.",
             ],
           },
         ],
@@ -949,7 +948,7 @@ export const orcamentosContratosArticles: HelpArticle[] = [
             kind: "steps",
             items: [
               "Você recebe o e-mail “Aditivo para assinatura: título do aditivo”.",
-              "Abra o aditivo. O topo mostra a marca “Aditivo”, e a lateral mostra o “Contrato original”.",
+              "Abra o aditivo. O topo mostra a marca “Aditivo”, e o caminho acima do título leva ao contrato original.",
               "Leia, peça alterações se precisar e clique em “Assinar aditivo”, como num contrato.",
             ],
           },
@@ -971,7 +970,7 @@ export const orcamentosContratosArticles: HelpArticle[] = [
       },
       {
         q: "Como confiro que o PDF é o mesmo texto que assinei?",
-        a: "Compare o hash SHA-256 do quadro “Documento” com o que aparece na última página do PDF. Se o texto mudasse, o hash seria outro.",
+        a: "Compare o hash SHA-256 de “Ver detalhes”, no quadro “Assinaturas”, com o que aparece na última página do PDF. Se o texto mudasse, o hash seria outro.",
       },
       {
         q: "O contrato vai vencer. Preciso fazer algo?",

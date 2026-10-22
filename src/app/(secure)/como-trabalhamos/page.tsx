@@ -8,6 +8,7 @@ import { visibleToClient } from "@/lib/service-terms/ticket-clock";
 import { termsSummary } from "@/lib/service-terms/terms-text";
 import { guideSections } from "@/lib/guide/guide-content";
 import { GuideView, type CompanyTermsView } from "@/components/guide/guide-view";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 export const metadata: Metadata = {
   title: "Como trabalhamos",
@@ -28,7 +29,8 @@ export default async function HowWeWork() {
   );
   const terms: CompanyTermsView[] = companies
     .map((company) => ({
-      company: company.name,
+      // Shown only to someone with more than one company, by its screen name.
+      company: companyDisplayName(company.name, company.document),
       items: rows
         .filter((r) => r.companyId === company.id)
         // A product's own conditions only for those who see that product.

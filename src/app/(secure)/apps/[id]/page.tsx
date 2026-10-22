@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ExternalLinkIcon } from "lucide-react";
-import { getActor } from "@/lib/access/access";
+import { allowedIds, getActor } from "@/lib/access/access";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { resolveAppOpening } from "@/lib/apps/app-access";
 import { appBlockText } from "@/lib/apps/app-texts";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,8 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
   const { id } = await params;
   const opening = await resolveAppOpening(actor, id);
   if (!opening.ok && opening.reason === "not_found") notFound();
+  // A client with one company is that company: it is "sua empresa", not its name. Otherwise the name people read.
+  const company = actor.admin || new Set(allowedIds(actor, "overview")).size > 1 ? companyDisplayName(opening.company.name, opening.company.document) : undefined;
   if (!opening.ok) {
     // Services and projects have pages of their own.
     if (opening.reason === "not_product")
@@ -40,7 +43,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
     const text = appBlockText(opening.reason, {
       app: opening.app?.name,
       product: opening.engagement.name,
-      company: opening.company.name,
+      company,
       status: opening.engagement.status,
     });
     const link = opening.reason === "not_protected" ? webUrl(opening.engagement.url) : null;
@@ -82,7 +85,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
         id: opening.engagement.id,
         name: opening.engagement.name,
         app: opening.app.name,
-        company: opening.company.name,
+        company,
       }}
     />
   );

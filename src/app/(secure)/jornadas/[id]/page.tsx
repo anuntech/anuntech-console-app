@@ -10,6 +10,7 @@ import { journeyFacts, journeyRows, readBriefing } from "@/lib/journeys/journey-
 import { journeyCandidates, journeyStaff } from "@/lib/journeys/journey-queries";
 import { resolveJourney } from "@/lib/journeys/journey-model";
 import { JourneyDetail } from "@/components/jornadas/journey-detail";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 const uuid = /^[0-9a-f-]{36}$/;
 
@@ -49,6 +50,8 @@ export default async function Journey({ params }: { params: Promise<{ id: string
       null)
     : null;
   const company = facts.company ? { id: facts.company.id, name: facts.company.name } : null;
+  // The header names the company the way people read it; the pickers keep the razão social.
+  const shown = company && { id: company.id, name: companyDisplayName(company.name, list.find((c) => c.id === company.id)?.document) };
   return (
     <JourneyDetail
       data={{
@@ -56,7 +59,7 @@ export default async function Journey({ params }: { params: Promise<{ id: string
           id: journey.id,
           title: journey.title,
           status: journey.status,
-          company,
+          company: shown,
           lead: journey.lead ?? null,
           owner,
           ticketId: journey.ticketId,

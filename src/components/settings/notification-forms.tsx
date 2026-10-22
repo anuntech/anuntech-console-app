@@ -86,8 +86,9 @@ export function TicketNoticesSwitch({ enabled }: { enabled: boolean }) {
     <div className="flex items-center justify-between gap-4">
       <Label htmlFor={id} className="flex-col items-start gap-0.5">
         <span>Avisar a equipe sobre chamados</span>
+        {/* The switch shows on or off; the line says when it fires. */}
         <span className="text-xs font-normal text-muted-foreground">
-          {value ? "Ativado" : "Desativado"}
+          Quando um chamado é aberto, respondido ou alterado.
         </span>
       </Label>
       <Switch

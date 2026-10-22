@@ -6,7 +6,7 @@ export default function Page() {
     <SettingsShell
       section="appearance"
       title="Aparência"
-      description="Como o Console se apresenta para você, neste navegador."
+      description="Vale só para este navegador."
     >
       <AppearanceSection />
     </SettingsShell>

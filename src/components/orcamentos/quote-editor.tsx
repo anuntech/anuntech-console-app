@@ -278,7 +278,7 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
           <CardHeader>
             <SectionTitle
               title="Proposta"
-              description="O que o cliente lê primeiro: para quem é, do que se trata e quanto custa por hora."
+              description="O que o cliente lê primeiro."
             />
           </CardHeader>
           <CardContent className="grid gap-5">
@@ -392,7 +392,7 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
           <CardHeader>
             <SectionTitle
               title="Fases e tarefas"
-              description="Cada fase leva uma faixa de horas; as tarefas explicam o que entra nela. O código P1-01 é automático."
+              description="Cada fase leva uma faixa de horas. O código P1-01 é automático."
             />
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -429,7 +429,7 @@ export function QuoteEditor({ quote }: QuoteEditorData) {
       <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-6">
         <Card>
           <CardHeader>
-            <SectionTitle title="Resumo" description="Os números que a proposta vai mostrar." />
+            <SectionTitle title="Resumo" />
           </CardHeader>
           <CardContent>
             <dl className="grid grid-cols-2 gap-4">

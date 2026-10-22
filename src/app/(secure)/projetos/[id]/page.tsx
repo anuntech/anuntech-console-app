@@ -41,6 +41,7 @@ export default async function Project({
           description: row.project.description,
           companyId: row.project.companyId,
           company: row.company,
+          companyDocument: row.companyDocument,
           links: links?.get(id),
         },
         tasks,

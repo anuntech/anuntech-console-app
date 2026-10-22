@@ -86,7 +86,9 @@ export function MembersTable({
           </div>
         )
       }
+      // Up to 10 people fit on one page: no footer to page through (the rule of ListPagination).
       footer={
+        (people.length > 10 || shown.page > 1) && (
         <TablePagination
           page={shown.page}
           pageCount={pageCountOf(people.length, shown.pageSize)}
@@ -96,6 +98,7 @@ export function MembersTable({
           onPageChange={(page) => setPaging({ ...shown, page })}
           onPageSizeChange={(pageSize) => setPaging({ page: 1, pageSize })}
         />
+        )
       }
     >
       {rows.length ? (
@@ -103,7 +106,6 @@ export function MembersTable({
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Pessoa</TableHead>
-              <TableHead>Situação</TableHead>
               <TableHead className="hidden md:table-cell">Permissão</TableHead>
               <TableHead className="w-12 pr-3">
                 <span className="sr-only">Ações</span>
@@ -114,32 +116,32 @@ export function MembersTable({
             {rows.map((person) => (
               <TableRow key={person.key}>
                 {/* PrimaryCell's look without its link: a person has no page to open. */}
-                <TableCell className="max-w-[28rem] py-3 pl-4">
+                <TableCell className="w-full max-w-0 min-w-40 py-3 pl-4">
                   <span className="flex min-w-0 items-center gap-3">
                     <Portrait image={person.image} />
                     <span className="min-w-0">
-                      <span className="block truncate font-medium text-foreground">
-                        {person.name || person.email}
-                        {person.self && <span className="text-muted-foreground"> (você)</span>}
+                      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="min-w-0 truncate font-medium text-foreground">
+                          {person.name || person.email}
+                          {person.self && <span className="text-muted-foreground"> (você)</span>}
+                        </span>
+                        {/* Only the exception gets a badge: someone who has signed in is the normal case. */}
+                        {person.pending && (
+                          <span className={cn(pill, "bg-warning-soft text-warning")}>
+                            <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />
+                            Aguardando primeiro acesso
+                          </span>
+                        )}
                       </span>
                       {person.name && (
                         <span className="block truncate text-xs text-muted-foreground">{person.email}</span>
                       )}
+                      {/* Phones have no Permissão column: the role rides under the person. */}
+                      <span className="block truncate text-xs text-muted-foreground md:hidden">
+                        {person.fixed || roleLabels[person.role] || person.role}
+                        {person.role === "member" && person.scope?.access === "selected" && ` · Vê: ${scopeSummary(person.scope)}`}
+                      </span>
                     </span>
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <span
-                    className={cn(
-                      pill,
-                      person.pending ? "bg-warning-soft text-warning" : "bg-success-soft text-success",
-                    )}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={cn("size-1.5 rounded-full", person.pending ? "bg-warning" : "bg-success")}
-                    />
-                    {person.pending ? "Aguardando primeiro acesso" : "Ativo"}
                   </span>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
@@ -147,7 +149,8 @@ export function MembersTable({
                     <Badge variant={person.role === "manager" || person.fixed ? "default" : "secondary"}>
                       {person.fixed || roleLabels[person.role] || person.role}
                     </Badge>
-                    {person.role === "member" && person.scope && (
+                    {/* Only a limited Membro says what it sees; "Tudo da empresa" is the normal case (as on the company page). */}
+                    {person.role === "member" && person.scope?.access === "selected" && (
                       <span className="text-xs text-muted-foreground">{`Vê: ${scopeSummary(person.scope)}`}</span>
                     )}
                   </span>

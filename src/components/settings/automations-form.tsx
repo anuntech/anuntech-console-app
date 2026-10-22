@@ -17,11 +17,8 @@ export function AutomationsForm({ state }: { state: Record<AutomationKey, boolea
           <CardHeader>
             <SectionTitle
               title={group === "Cliente" ? "Avisos ao cliente" : "Para a equipe"}
-              description={
-                group === "Cliente"
-                  ? "E-mails que saem sozinhos para os Administradores de cada empresa, uma vez cada um."
-                  : "Ajuda à equipe que usa serviços de fora do Console."
-              }
+              // Each switch already says who receives what and how often.
+              description={group === "Cliente" ? "Saem por e-mail." : undefined}
             />
           </CardHeader>
           <CardContent className="flex flex-col divide-y">

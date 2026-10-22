@@ -27,7 +27,7 @@ export async function ContractTemplatesSection() {
   void eq;
   return (
     <>
-      <SynovaTerms companies={synova.map((row) => row.company)} drafts={drafts} />
+      <SynovaTerms companies={synova.map((row) => ({ name: row.company, document: row.document }))} drafts={drafts} />
       <ContractTemplatesTable rows={rows.sort((a, b) => Number(b.active) - Number(a.active))} />
     </>
   );

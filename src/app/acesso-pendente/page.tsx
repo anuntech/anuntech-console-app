@@ -12,7 +12,6 @@ export default async function Pending() {
   return (
     <main id="main-content" tabIndex={-1} className="contents">
       <AuthShell
-        eyebrow="Acesso pendente"
         title="Falta só liberar seu acesso"
         description={
           <>

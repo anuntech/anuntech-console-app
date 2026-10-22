@@ -393,7 +393,7 @@ export const comecarContaArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "O passo “Leia como a Anuntech trabalha com a …” dos Primeiros passos, na Visão geral.",
+              "O passo “Leia como trabalhamos com vocês” dos Primeiros passos, na Visão geral.",
               "O botão “Abrir Como trabalhamos” do artigo [Prazos do seu contrato](/ajuda/como-trabalhamos), nesta central.",
               "O link “Como contamos o tempo”, no quadro “Prazos” de um chamado.",
               "O link “Como trabalhamos”, em “Sobre este projeto”: o botão com o ícone de informação, ao lado de “Nova tarefa”, no quadro do projeto.",
@@ -525,7 +525,7 @@ export const comecarContaArticles: HelpArticle[] = [
       },
       {
         q: "Onde fica a página Como trabalhamos?",
-        a: "Ela não está no menu. Abra pelo passo “Leia como a Anuntech trabalha com a …” dos Primeiros passos, pelo link “Como contamos o tempo” de um chamado, pelo link “Como trabalhamos” de “Sobre este projeto” ou, para o Administrador, dos “Próximos passos” de um contrato assinado. Também abre pelo botão “Abrir Como trabalhamos” do artigo [Prazos do seu contrato](/ajuda/como-trabalhamos) e pelo botão “Ler Como trabalhamos” deste artigo.",
+        a: "Ela não está no menu. Abra pelo passo “Leia como trabalhamos com vocês” dos Primeiros passos, pelo link “Como contamos o tempo” de um chamado, pelo link “Como trabalhamos” de “Sobre este projeto” ou, para o Administrador, dos “Próximos passos” de um contrato assinado. Também abre pelo botão “Abrir Como trabalhamos” do artigo [Prazos do seu contrato](/ajuda/como-trabalhamos) e pelo botão “Ler Como trabalhamos” deste artigo.",
       },
     ],
     actions: [
@@ -553,9 +553,7 @@ export const comecarContaArticles: HelpArticle[] = [
       "primeiros passos",
       "ocultar",
       "a pagar",
-      "indicadores",
       "resumo",
-      "tudo em dia",
     ],
     sections: [
       {
@@ -563,7 +561,7 @@ export const comecarContaArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "A Visão geral é a página inicial do Console e abre logo depois que você entra. No menu do computador ela se chama “Visão geral”; no celular, “Início”. Ela reúne os números da sua empresa e o que está esperando por alguém, e cada bloco leva à página onde o assunto se resolve.",
+            text: "A Visão geral é a página inicial do Console e abre logo depois que você entra. No menu do computador ela se chama “Visão geral”; no celular, “Início”. Ela reúne o que a sua empresa tem com a Anuntech e o que está esperando por alguém, e cada bloco leva à página onde o assunto se resolve.",
           },
           {
             kind: "p",
@@ -583,9 +581,8 @@ export const comecarContaArticles: HelpArticle[] = [
             items: [
               { term: "Primeiros passos", text: "As poucas coisas que se fazem uma vez para trabalhar bem com a Anuntech. Aparece enquanto houver passo pendente." },
               { term: "Banco de horas", text: "Quando o contrato da sua empresa tem banco de horas: quanto do mês já foi usado e as últimas horas registradas. Veja [Banco de horas](/ajuda/banco-de-horas)." },
-              { term: "Indicadores", text: "Os números principais. Cada quadro abre a lista que está por trás dele." },
-              { term: "A pagar", text: "Só para o Administrador: até 5 faturas em aberto ou vencidas, da que vence primeiro para a última, com o botão “Pagar” quando a fatura tem link de pagamento. Sem fatura em aberto, aparece “Nada a pagar agora” e, se houver recorrência, o valor e o vencimento da próxima cobrança." },
-              { term: "Precisa de atenção", text: "O que depende de alguém da sua empresa hoje." },
+              { term: "A pagar", text: "Só para o Administrador: até 5 faturas em aberto ou vencidas, da que vence primeiro para a última, com o botão “Pagar” quando a fatura tem link de pagamento. A vencida leva a etiqueta “Vencida”. Com mais de uma fatura, o total aparece sob o título. Sem fatura em aberto, aparece “Nada a pagar agora” e, se houver recorrência, o valor e o vencimento da próxima cobrança." },
+              { term: "Precisa de atenção", text: "O que depende de alguém da sua empresa hoje. Sem nada pendente, o card não aparece." },
               { term: "Projetos", text: "Até 4 projetos ativos ou pausados, com o progresso das tarefas." },
               { term: "Produtos e serviços", text: "Até 5 itens ativos ou suspensos, os suspensos primeiro. Um app abre dentro do Console, um produto com site abre em outra aba, um serviço abre a página dele e os outros abrem a lista." },
               { term: "Últimos chamados", text: "Os 5 chamados atualizados mais recentemente, com a situação de cada um." },
@@ -599,37 +596,22 @@ export const comecarContaArticles: HelpArticle[] = [
         ],
       },
       {
-        title: "Os indicadores",
-        blocks: [
-          {
-            kind: "pairs",
-            items: [
-              { term: "A pagar (Administrador)", text: "Soma as faturas em aberto e vencidas. A linha de baixo mostra quantas venceram ou a data da próxima. Sem nada em aberto, mostra a próxima cobrança da recorrência, se houver, ou “Nada em aberto”." },
-              { term: "Chamados em andamento", text: "Chamados aguardando atendimento, em atendimento ou aguardando você. A linha de baixo mostra quantos esperam você." },
-              { term: "Projetos ativos", text: "Projetos em andamento, sem contar os pausados, e quantas tarefas estão em aberto." },
-              { term: "Produtos e serviços", text: "Os produtos e serviços ativos contratados com a Anuntech." },
-            ],
-          },
-        ],
-      },
-      {
         title: "Precisa de atenção",
         blocks: [
           {
             kind: "pairs",
             items: [
-              { term: "Faturas vencidas para pagar", text: "Administrador. Faturas que passaram do vencimento, com o valor em atraso." },
+              { term: "Produto suspenso", text: "Todos. Um produto ou serviço suspenso por atraso. A linha leva a Produtos, que diz como reativar." },
               { term: "Chamados esperando sua resposta", text: "Todos. Chamados em “Aguardando você” que você pode ver, mesmo os que outra pessoa abriu." },
               { term: "Orçamentos para você responder", text: "Administrador. Orçamentos enviados e ainda dentro da validade." },
               { term: "Contratos para você assinar", text: "Administrador. Contratos enviados que ainda esperam a assinatura da sua empresa." },
-              { term: "Banco de horas em …%", text: "Todos. Aparece quando o uso do mês chega ao percentual de alerta do seu contrato. O número no canto da linha são as horas já usadas. Para o Administrador, o card do banco de horas mostra também “Aprovar horas além do banco”." },
               { term: "Estimativas de melhoria para aprovar", text: "Administrador. Chamados com estimativa de horas proposta pela equipe." },
               { term: "Entregas para você revisar", text: "Administrador. Tarefas de projeto na coluna Revisão, esperando o seu teste." },
             ],
           },
           {
             kind: "p",
-            text: "Clique na linha para ir até o que precisa de você. Depois que o assunto é resolvido, a linha sai sozinha na próxima vez que a página carregar. Sem nada pendente, aparece “Tudo em dia”.",
+            text: "Clique na linha para ir até o que precisa de você. Depois que o assunto é resolvido, a linha sai sozinha na próxima vez que a página carregar. Sem nada pendente, o card não aparece. A fatura vencida fica em “A pagar”, e o banco de horas avisa no próprio card quando o uso do mês chega ao percentual de alerta do contrato.",
           },
         ],
       },
@@ -641,11 +623,11 @@ export const comecarContaArticles: HelpArticle[] = [
             items: [
               {
                 term: "Administrador",
-                text: "“Revise quem tem acesso ao Console” (abre Membros), “Escolha quem recebe os avisos de chamados” (abre Notificações) e “Leia como a Anuntech trabalha com a …” (abre Como trabalhamos). Quando a empresa já tem uma fatura ou uma recorrência e falta o endereço, “Complete o endereço de cobrança da empresa” (abre Dados da empresa) aparece primeiro.",
+                text: "“Revise quem tem acesso ao Console” (abre Membros), “Escolha quem recebe os avisos de chamados” (abre Notificações) e “Leia como trabalhamos com vocês” (abre Como trabalhamos). Quando a empresa já tem uma fatura ou uma recorrência e falta o endereço, “Complete o endereço de cobrança da empresa” (abre Dados da empresa) aparece primeiro.",
               },
               {
                 term: "Membro",
-                text: "“Complete seu nome e WhatsApp” (abre Minha conta) e “Leia como a Anuntech trabalha com a …”.",
+                text: "“Complete seu nome e WhatsApp” (abre Minha conta) e “Leia como trabalhamos com vocês”.",
               },
             ],
           },
@@ -682,11 +664,7 @@ export const comecarContaArticles: HelpArticle[] = [
       },
       {
         q: "Quando um item sai de “Precisa de atenção”?",
-        a: "Quando o que estava pendente é resolvido (pagar, responder, assinar, aprovar) e a página carrega de novo. Sem nada pendente, aparece “Tudo em dia”.",
-      },
-      {
-        q: "Na linha do banco de horas aparece um número. É o percentual?",
-        a: "Não. O percentual está no título, por exemplo “Banco de horas em 85%”. O número no canto da linha são as horas já usadas no mês, arredondadas.",
+        a: "Quando o que estava pendente é resolvido (responder, assinar, aprovar) e a página carrega de novo. Sem nada pendente, o card não aparece.",
       },
       {
         q: "Como escondo os Primeiros passos? Dá para mostrar de novo?",
@@ -1150,7 +1128,7 @@ export const comecarContaArticles: HelpArticle[] = [
               "No card “Verificação em duas etapas”, ligue o interruptor “E-mail” ou “WhatsApp”. Ele define para onde vai o segundo código quando você entra com o Google.",
               "No quadro “1 de 2 · Confirme seu e-mail”, clique em “Receber código”, digite o código e clique em “Confirmar código”.",
               "Aparece “E-mail confirmado. Agora confirme seu WhatsApp para concluir.” Faça o mesmo no quadro “2 de 2 · Confirme seu WhatsApp”.",
-              "Aparece “Configuração de segurança atualizada. As outras sessões foram encerradas.” e o selo muda para “Ativada”.",
+              "Aparece “Configuração de segurança atualizada. As outras sessões foram encerradas.” e o interruptor fica ligado.",
             ],
           },
         ],

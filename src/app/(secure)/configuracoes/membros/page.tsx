@@ -9,18 +9,10 @@ export const metadata: Metadata = {
     "Quem acessa o Console e o que cada pessoa pode fazer.",
 };
 export default async function MembersPage() {
-  // The list card has no heading of its own, so the page says whose people these are.
+  // Whose people these are is already said by the rail ("Anuntech" or "Empresa") and the invite hint.
   const actor = await getActor();
   return (
-    <SettingsShell
-      section="members"
-      title="Membros"
-      description={
-        actor.admin
-          ? "Quem administra o Console da Anuntech."
-          : "Quem entra no Console em nome da sua empresa e o que cada pessoa pode fazer."
-      }
-    >
+    <SettingsShell section="members" title="Membros">
       <MembersSection />
       {!actor.admin && actor.grants.length > 0 && <MarkFirstStep companyId={actor.grants[0].company.id} step="members_reviewed" />}
     </SettingsShell>

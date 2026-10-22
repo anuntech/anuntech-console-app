@@ -22,7 +22,7 @@ import { EmptyState } from "@/components/console/page-header";
 import { LinkRow, ListCard, PrimaryCell, RowActions } from "@/components/console/list-view";
 import { ServerForm } from "@/components/console/server-form";
 import { toggleContractTemplate } from "@/lib/contracts/contract-actions";
-import { ActiveStatus } from "./catalog-table";
+import { DisabledBadge } from "./catalog-table";
 import { ContractTemplateSheet, type ContractTemplateValues } from "./contract-template-sheet";
 
 export type ContractTemplateRow = ContractTemplateValues & { id: string; active: boolean; uses: number };
@@ -64,7 +64,6 @@ export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="pl-4">Modelo</TableHead>
-                <TableHead>Situação</TableHead>
                 <TableHead className="hidden text-right md:table-cell">Contratos</TableHead>
                 <TableHead className="w-12 pr-3">
                   <span className="sr-only">Ações</span>
@@ -77,16 +76,20 @@ export function ContractTemplatesTable({ rows }: { rows: ContractTemplateRow[] }
                   <PrimaryCell
                     onOpen={() => edit(row)}
                     title={row.name}
-                    subtitle={row.description || "Sem descrição"}
+                    subtitle={
+                      (!row.active || row.description) && (
+                        <>
+                          {!row.active && <DisabledBadge />}
+                          {row.description}
+                        </>
+                      )
+                    }
                     leading={
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">
                         <FileSignatureIcon />
                       </span>
                     }
                   />
-                  <TableCell>
-                    <ActiveStatus active={row.active} />
-                  </TableCell>
                   <TableCell className="hidden text-right tabular-nums md:table-cell">{row.uses}</TableCell>
                   <RowActions label={row.name}>
                     <DropdownMenuItem onSelect={() => setTimeout(() => edit(row), 0)}>

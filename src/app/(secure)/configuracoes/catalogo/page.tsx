@@ -7,7 +7,7 @@ export default function Page() {
     <SettingsShell
       section="catalog"
       title="Catálogo"
-      description="Os produtos e serviços da Anuntech. Vincule cada um a um cliente em Produtos e serviços."
+      description="Cada item é vinculado a um cliente em Produtos e serviços."
       actions={<NewCatalogItemButton />}
     >
       <CatalogSection />

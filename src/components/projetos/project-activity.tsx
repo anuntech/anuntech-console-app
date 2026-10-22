@@ -57,7 +57,7 @@ export function ProjectActivity({
         <SheetContent className="w-full gap-0 sm:max-w-md">
           <SheetHeader className="border-b">
             <SheetTitle>Atividade</SheetTitle>
-            <SheetDescription>{name}: quem mexeu em cada tarefa, e quando.</SheetDescription>
+            <SheetDescription>{name}</SheetDescription>
           </SheetHeader>
           <div role="group" aria-label="Filtrar a atividade" className="flex flex-wrap gap-1.5 border-b px-4 py-3">
             {activityFilters.map((option) => (

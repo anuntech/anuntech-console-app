@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import {
+  AlertTriangleIcon,
   ArrowDownIcon,
   CheckCircle2Icon,
   CircleCheckIcon,
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { Disclosure } from "@/components/console/disclosure";
 import { PersonAvatar } from "@/components/console/person-avatar";
 import { PixelProgress } from "@/components/console/pixel-progress";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
@@ -122,10 +124,7 @@ function StageRail({ data, current }: { data: JourneyDetailData; current: string
                   label={`Etapa ${stage.title}`}
                   className="gap-[3px] [&>span]:size-2 lg:gap-1 lg:[&>span]:size-2.5"
                 />
-                <span className="text-muted-foreground tabular-nums">
-                  {stage.done} de {stage.total}
-                  {stage.key === "setup" ? " · em paralelo" : ""}
-                </span>
+                {/* The count and "Em paralelo" are on the stage's own card; here the pixels say it. */}
               </a>
             </li>
           );
@@ -182,25 +181,12 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
   return (
     <Card variant="quiet" className="gap-4 py-5">
       <CardHeader>
-        <SectionTitle title="Registros" description="O que já existe no Console para este projeto." />
+        <SectionTitle title="Registros" />
       </CardHeader>
       <CardContent>
         <dl className="m-0 grid gap-4">
-          <Fact label="Empresa">
-            {journey.company ? (
-              <span className="flex flex-wrap items-center gap-x-2">
-                <Link href={`/empresas/${journey.company.id}`} className="font-medium text-primary hover:underline">
-                  {journey.company.name}
-                </Link>
-                {linkButton("company", "Trocar")}
-              </span>
-            ) : (
-              <span className="flex flex-wrap items-center gap-x-2">
-                <span className="text-muted-foreground">{journey.lead ? `Contato: ${journey.lead.name}` : "Sem cadastro"}</span>
-                {linkButton("company")}
-              </span>
-            )}
-          </Fact>
+          {/* The company is in the header, as a link; "Trocar empresa" is in the "…" menu. */}
+          {!journey.company && <Fact label="Empresa">{linkButton("company", "Vincular empresa")}</Fact>}
           {journey.company && (
             <>
               <Fact label="Pedido">
@@ -209,9 +195,7 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
                     <Link href={`/chamados/${facts.ticket.id}`} className="text-primary hover:underline">
                       {facts.ticket.subject}
                     </Link>
-                  ) : (
-                    <span className="text-muted-foreground">Nenhum</span>
-                  )}
+                  ) : null}
                   {linkButton("ticket", facts.ticket ? "Trocar" : "Vincular")}
                 </span>
               </Fact>
@@ -221,9 +205,7 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
                     <Link href={`/orcamentos/${facts.quote.id}`} className="text-primary hover:underline">
                       {facts.quote.number} · {quoteStatusLabels[facts.quote.status]}
                     </Link>
-                  ) : (
-                    <span className="text-muted-foreground">Nenhum</span>
-                  )}
+                  ) : null}
                   {linkButton("quote", facts.quote ? "Trocar" : "Vincular")}
                 </span>
               </Fact>
@@ -254,9 +236,7 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
                     <Link href={`/projetos/${facts.project.id}`} className="text-primary hover:underline">
                       {facts.project.name}
                     </Link>
-                  ) : (
-                    <span className="text-muted-foreground">Nenhum</span>
-                  )}
+                  ) : null}
                   {linkButton("project", facts.project ? "Trocar" : "Vincular")}
                 </span>
               </Fact>
@@ -266,9 +246,7 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
                     <Link href={`/produtos/${facts.hosting.id}`} className="text-primary hover:underline">
                       {facts.hosting.name}
                     </Link>
-                  ) : (
-                    <span className="text-muted-foreground">Nenhuma</span>
-                  )}
+                  ) : null}
                   {linkButton("hosting", facts.hosting ? "Trocar" : "Vincular")}
                 </span>
               </Fact>
@@ -292,6 +270,21 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
   );
 }
 
+function ActivityList({ events, now }: { events: JourneyDetailData["activity"]; now: string }) {
+  return (
+    <ol className="m-0 flex list-none flex-col gap-3 p-0">
+      {events.map((event) => (
+        <li key={event.id} className="text-sm">
+          <span className="block text-foreground">{event.label}</span>
+          <time dateTime={event.at} title={dateTimeLabel(event.at)} className="text-xs text-muted-foreground">
+            {event.who} · {relativeLabel(event.at, now)}
+          </time>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function ActivityCard({ data }: { data: JourneyDetailData }) {
   if (!data.activity.length) return null;
   return (
@@ -300,19 +293,25 @@ function ActivityCard({ data }: { data: JourneyDetailData }) {
         <SectionTitle title="Atividade" />
       </CardHeader>
       <CardContent>
-        <ol className="m-0 flex list-none flex-col gap-3 p-0">
-          {data.activity.map((event) => (
-            <li key={event.id} className="text-sm">
-              <span className="block text-foreground">{event.label}</span>
-              <time dateTime={event.at} title={dateTimeLabel(event.at)} className="text-xs text-muted-foreground">
-                {event.who} · {relativeLabel(event.at, data.now)}
-              </time>
-            </li>
-          ))}
-        </ol>
+        <ActivityList events={data.activity.slice(0, 5)} now={data.now} />
+        {data.activity.length > 5 && (
+          <Disclosure summary={`Ver todos (${data.activity.length})`} className="mt-3">
+            <ActivityList events={data.activity.slice(5)} now={data.now} />
+          </Disclosure>
+        )}
       </CardContent>
     </Card>
   );
+}
+
+/** What a stage waits for outside itself: its steps' unfinished prerequisites in other stages, by title. */
+function stageBlockers(steps: ResolvedStep[], statusOf: Map<string, ResolvedStep["status"]>, titleOf: Map<string, string>) {
+  const inside = new Set(steps.map((s) => s.def.key));
+  const keys = [...new Set(steps.flatMap((s) => s.def.after ?? []))].filter((key) => {
+    const status = statusOf.get(key);
+    return !inside.has(key) && status !== "done" && status !== "skipped";
+  });
+  return keys.map((key) => titleOf.get(key)).filter((title): title is string => !!title).map((title) => title.charAt(0).toLowerCase() + title.slice(1));
 }
 
 /** The journey: the stages with their steps on the left, "Agora", the records and the history on the right. */
@@ -327,6 +326,9 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
   const statusForm = useRef<HTMLFormElement>(null);
   const handlers: StepHandlers = { onLinkHosting: () => setLink("hosting"), onLinkCompany: () => setLink("company") };
   const current = currentStage(resolved);
+  const everyStep = resolved.stages.flatMap((s) => [...s.steps, ...s.optional]);
+  const statusOf = new Map(everyStep.map((s) => [s.def.key, s.status]));
+  const titleOf = new Map(everyStep.map((s) => [s.def.key, s.def.title]));
   const owner = journey.owner;
   const step = (s: ResolvedStep) => (
     <JourneyStep
@@ -344,38 +346,29 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Jornadas", href: "/jornadas" }, { label: journey.title }]}
+        crumbs={[{ label: "Jornadas", href: "/jornadas" }]}
         title={journey.title}
         className="mb-5"
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <JourneyStatusBadge status={journey.status} />
-            {journey.company ? (
-              <Link href={`/empresas/${journey.company.id}`} className="text-primary hover:underline">
-                {journey.company.name}
-              </Link>
-            ) : (
-              <span>{journey.lead ? `Contato: ${journey.lead.name}` : "Sem cadastro"}</span>
-            )}
-            {owner && (
-              <span className="inline-flex items-center gap-1.5">
-                <PersonAvatar person={owner} size={18} tone="staff" />
-                {owner.name || owner.email}
-              </span>
-            )}
-          </span>
-        }
+        // In progress is the normal state; the next step lives in "Agora", once.
+        meta={[
+          journey.status !== "active" && <JourneyStatusBadge key="status" status={journey.status} />,
+          journey.company ? (
+            <Link key="company" href={`/empresas/${journey.company.id}`} className="text-primary hover:underline">
+              {journey.company.name}
+            </Link>
+          ) : (
+            <span key="company">{journey.lead ? `Contato: ${journey.lead.name}` : "Sem cadastro"}</span>
+          ),
+          owner && (
+            <span key="owner" className="inline-flex items-center gap-1.5">
+              <PersonAvatar person={owner} size={18} tone="staff" />
+              {owner.name || owner.email}
+            </span>
+          ),
+        ]}
         actionsInline
         actions={
           <>
-            {resolved.next && (
-              <Button asChild className="max-sm:hidden">
-                <a href={`#passo-${resolved.next.def.key}`}>
-                  <ArrowDownIcon />
-                  Próximo: {resolved.next.def.title}
-                </a>
-              </Button>
-            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="Mais ações da jornada">
@@ -387,12 +380,10 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
                   <PencilIcon />
                   Editar jornada
                 </DropdownMenuItem>
-                {!journey.company && (
-                  <DropdownMenuItem onSelect={() => later(() => setLink("company"))}>
-                    <LinkIcon />
-                    Vincular empresa
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem onSelect={() => later(() => setLink("company"))}>
+                  <LinkIcon />
+                  {journey.company ? "Trocar empresa" : "Vincular empresa"}
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => later(() => setAdding(true))}>
                   <PlusIcon />
                   Acrescentar passo
@@ -439,7 +430,28 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
         <div className="flex min-w-0 flex-col gap-6">
           <NowCard data={data} className="xl:hidden" />
-          {resolved.stages.map((stage) => (
+          {resolved.stages.map((stage) => {
+            const all = [...stage.steps, ...stage.optional];
+            // A warning several steps share is said once, under the stage title.
+            const warnings = [...new Set(all.map((s) => s.warning).filter((w): w is string => !!w))];
+            const quiet = (s: ResolvedStep) => (s.warning ? { ...s, warning: null } : s);
+            // Nothing to do yet and nothing done: the stage opens closed, said by what it waits for.
+            const blocked = stage.steps.length > 0 && all.every((s) => s.status === "waiting");
+            const waitsFor = blocked ? stageBlockers(all, statusOf, titleOf) : [];
+            const list = (
+              <>
+                <ul className="m-0 flex list-none flex-col gap-1 p-0">{stage.steps.map((s) => step(quiet(s)))}</ul>
+                {stage.optional.length > 0 && (
+                  <details className="group mt-2">
+                    <summary className="cursor-pointer rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                      Também vale conferir ({stage.optional.length})
+                    </summary>
+                    <ul className="m-0 mt-1 flex list-none flex-col gap-1 p-0">{stage.optional.map((s) => step(quiet(s)))}</ul>
+                  </details>
+                )}
+              </>
+            );
+            return (
             <Card key={stage.key} id={stage.key} className="scroll-mt-24 gap-3 py-5">
               <CardHeader>
                 <SectionTitle
@@ -449,27 +461,32 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
                       <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground tabular-nums">
                         {stage.done} de {stage.total}
                       </span>
-                      {stage.key === "setup" && (
-                        <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-primary">Em paralelo</span>
-                      )}
                     </span>
                   }
                   description={stage.description}
                 />
               </CardHeader>
               <CardContent className="px-3 sm:px-4">
-                <ul className="m-0 flex list-none flex-col gap-1 p-0">{stage.steps.map(step)}</ul>
-                {stage.optional.length > 0 && (
-                  <details className="group mt-2">
-                    <summary className="cursor-pointer rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-                      Também vale conferir ({stage.optional.length})
-                    </summary>
-                    <ul className="m-0 mt-1 flex list-none flex-col gap-1 p-0">{stage.optional.map(step)}</ul>
-                  </details>
+                {warnings.map((warning) => (
+                  <p key={warning} className="m-0 mb-2 flex items-start gap-1.5 px-3 text-xs text-warning">
+                    <AlertTriangleIcon className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                    {warning}
+                  </p>
+                ))}
+                {blocked ? (
+                  <Disclosure
+                    className="px-3"
+                    summary={waitsFor.length ? `Depende de: ${waitsFor.join(", ")}` : "Esperando outro passo"}
+                  >
+                    <div className="-mx-3">{list}</div>
+                  </Disclosure>
+                ) : (
+                  list
                 )}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => setAdding(true)}>
               <PlusIcon />

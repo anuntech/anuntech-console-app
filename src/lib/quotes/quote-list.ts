@@ -57,6 +57,7 @@ export async function listQuotes(actor: Actor, input: ReturnType<typeof quoteTab
         title: quotes.title,
         companyId: quotes.companyId,
         company: companies.name,
+        companyDocument: companies.document,
         status: quotes.status,
         validUntil: quotes.validUntil,
         content: quotes.content,
@@ -72,7 +73,7 @@ export async function listQuotes(actor: Actor, input: ReturnType<typeof quoteTab
       .offset(offsetOf(paged)),
     query.company
       ? db
-          .select({ id: companies.id, name: companies.name })
+          .select({ id: companies.id, name: companies.name, document: companies.document })
           .from(companies)
           .where(eq(companies.id, query.company))
           .then((found) => found[0] ?? null)
@@ -88,6 +89,7 @@ export async function listQuotes(actor: Actor, input: ReturnType<typeof quoteTab
       title: row.title,
       companyId: row.companyId,
       company: row.company,
+      companyDocument: row.companyDocument,
       status: row.status,
       validUntil: row.validUntil,
       totalCents: totals.totalCents,
