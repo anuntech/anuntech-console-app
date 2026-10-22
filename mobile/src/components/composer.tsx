@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { SymbolView } from "expo-symbols";
@@ -25,6 +25,9 @@ export function Composer({
   testID,
   sendTestID,
   maxLength = 10000,
+  leading,
+  accessory,
+  canSend = false,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -37,11 +40,17 @@ export function Composer({
   testID?: string;
   sendTestID?: string;
   maxLength?: number;
+  /** A button at the start of the capsule (Anexar). */
+  leading?: ReactNode;
+  /** Above the capsule: the files of this message. */
+  accessory?: ReactNode;
+  /** Something besides text is ready to go (a file), so sending is allowed without words. */
+  canSend?: boolean;
 }) {
   const palette = usePalette();
   const tabBar = useBottomBarSpace();
   const typing = useKeyboardVisible();
-  const ready = !!value.trim() && !busy;
+  const ready = (!!value.trim() || canSend) && !busy;
   const stop = busy && !!onStop;
   const active = ready || stop;
   const scale = useSharedValue(active ? 1 : 0.85);
@@ -52,6 +61,7 @@ export function Composer({
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: typing ? 8 : tabBar, gap: 8 }}>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      {accessory}
       <View
         style={{
           flexDirection: "row",
@@ -62,6 +72,7 @@ export function Composer({
           ...raised(palette, "float"),
         }}
       >
+        {leading ? <View style={{ margin: 7, marginRight: 0 }}>{leading}</View> : null}
         <TextInput
           testID={testID}
           accessibilityLabel={placeholder}
@@ -74,7 +85,7 @@ export function Composer({
           style={{
             flex: 1,
             maxHeight: 140,
-            paddingLeft: 18,
+            paddingLeft: leading ? 8 : 18,
             paddingRight: 8,
             paddingTop: 13,
             paddingBottom: 13,
