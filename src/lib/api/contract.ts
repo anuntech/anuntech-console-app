@@ -519,6 +519,35 @@ export const contract = {
         }),
       )
       .output(message),
+    /** Histórico de envios: each notice that went out, newest first, 20 a page (as the web). */
+    history: oc.input(z.object({ page: z.number().int().min(1).max(9_999_999).default(1) })).output(
+      z.object({
+        rows: z.array(
+          z.object({
+            id: z.string(),
+            /** The ticket's subject or the invoice's description. */
+            subject: z.string(),
+            /** What moved ("Resposta da equipe", "Financeiro"…). */
+            actionLabel: z.string(),
+            kind: z.enum(["ticket", "invoice"]),
+            /** The ticket or invoice the notice is about. */
+            recordId: z.string(),
+            channel: z.enum(["email", "whatsapp"]),
+            /** Address or number as the web shows it; the channel's name when there is none. */
+            recipient: z.string(),
+            status: z.string(),
+            statusLabel: z.string(),
+            tone: z.enum(["good", "info", "danger", "attention", "neutral"]),
+            error: z.string().nullable(),
+            createdAt: z.string(),
+          }),
+        ),
+        total: z.number(),
+        page: z.number(),
+        pageCount: z.number(),
+        showCompany: z.boolean(),
+      }),
+    ),
   },
 };
 export type Contract = typeof contract;
