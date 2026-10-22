@@ -1,7 +1,7 @@
 import { Alert, Linking, Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { File } from "expo-file-system";
+import { File, FileMode } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { sessionHeaders } from "./api";
 import { CONSOLE_URL } from "./config";
@@ -164,7 +164,7 @@ export async function uploadFile(
   if (file.size > ATTACHMENT_RULES.maxBytes) throw new UploadError("Escolha um arquivo de até 20 MB.");
   let handle: ReturnType<File["open"]>;
   try {
-    handle = new File(file.uri).open();
+    handle = new File(file.uri).open(FileMode.ReadOnly);
   } catch {
     throw new UploadError("Não foi possível ler o arquivo. Selecione de novo.");
   }
