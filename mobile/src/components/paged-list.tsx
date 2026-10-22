@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, View } from "react-native";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { errorMessage } from "@/lib/api";
 import { useTabBarSpace } from "@/lib/layout";
 import { space, usePalette } from "@/lib/theme";
@@ -21,12 +21,15 @@ export function PagedList<T extends { id: string }>({
   load,
   render,
   empty,
+  filtered,
   header,
 }: {
   queryKey: unknown[];
   load: (page: number) => Promise<Page<T>>;
   render: (row: T, showCompany: boolean) => ReactElement;
   empty: Empty;
+  /** What an empty list says when a filter or a search narrowed it. */
+  filtered?: Empty;
   header?: ReactElement;
 }) {
   const palette = usePalette();
@@ -36,6 +39,8 @@ export function PagedList<T extends { id: string }>({
     queryFn: ({ pageParam }) => load(pageParam),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page < last.pageCount ? last.page + 1 : undefined),
+    // A filter or search change keeps the old rows (dimmed) until the new ones arrive.
+    placeholderData: keepPreviousData,
   });
   const loading = useDelayed(list.isPending);
   const showCompany = list.data?.pages[0]?.showCompany ?? false;
@@ -47,7 +52,7 @@ export function PagedList<T extends { id: string }>({
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingTop: space.sm, paddingBottom: bottom }}
       scrollIndicatorInsets={{ bottom }}
-      refreshControl={<RefreshControl refreshing={list.isRefetching} onRefresh={() => void list.refetch()} />}
+      refreshControl={<RefreshControl refreshing={list.isRefetching && !list.isPlaceholderData} onRefresh={() => void list.refetch()} />}
       onEndReached={() => list.hasNextPage && !list.isFetchingNextPage && void list.fetchNextPage()}
       onEndReachedThreshold={0.4}
       ListHeaderComponent={
@@ -62,14 +67,16 @@ export function PagedList<T extends { id: string }>({
         list.isPending ? (
           loading ? <SkeletonRows /> : undefined
         ) : !list.error ? (
-          <EmptyState {...empty} />
+          <EmptyState {...(filtered ?? empty)} />
         ) : undefined
       }
       ListFooterComponent={
         list.isFetchingNextPage ? <ActivityIndicator accessibilityLabel="Carregando mais" style={{ paddingVertical: space.lg }} /> : undefined
       }
       ItemSeparatorComponent={GroupSeparator}
-      renderItem={({ item, index }) => <View style={groupedItem(palette, index, rows.length)}>{render(item, showCompany)}</View>}
+      renderItem={({ item, index }) => <View style={groupedItem(palette, index, rows.length)}>
+          <View style={{ opacity: list.isPlaceholderData ? 0.6 : 1 }}>{render(item, showCompany)}</View>
+        </View>}
     />
   );
 }

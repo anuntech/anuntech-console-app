@@ -11,10 +11,23 @@ import { Text } from "./text";
 const mono = Platform.select({ ios: "Menlo", default: "monospace" });
 
 /**
- * The web's "Documento" card: the version when there was more than one send,
- * and the SHA-256 that identifies the text, with a copy button.
+ * The web's "Documento" card: when it was sent, the version when there was
+ * more than one send, the facts a screen adds, and the SHA-256 that
+ * identifies the text, with a copy button.
  */
-export function DocumentFacts({ hash, version }: { hash: string; version: number | null }) {
+export function DocumentFacts({
+  hash,
+  version,
+  sent,
+  facts = [],
+}: {
+  hash: string;
+  version: number | null;
+  /** When it was sent, as the screen writes it. */
+  sent?: string | null;
+  /** More of the record after the version: who answered, the template. */
+  facts?: { title: string; value: string }[];
+}) {
   const palette = usePalette();
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -30,7 +43,11 @@ export function DocumentFacts({ hash, version }: { hash: string; version: number
   };
   return (
     <Section header="Documento" indent={space.lg}>
+      {sent ? <ListRow title="Enviado em" value={sent} /> : null}
       {version && version > 1 ? <ListRow title="Versão" value={`${version}ª`} /> : null}
+      {facts.map((fact) => (
+        <ListRow key={fact.title} title={fact.title} value={fact.value} />
+      ))}
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
         <View accessible accessibilityLabel={`Hash SHA-256: ${hash}`} style={{ flex: 1, gap: 2 }}>
           <Text variant="body">Hash SHA-256</Text>
