@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -7,6 +7,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth";
 import { queryClient } from "@/lib/api";
 import { fonts } from "@/lib/theme";
+import { Opening } from "@/components/opening";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -28,9 +29,10 @@ export default function RootLayout() {
   const [booted, setBooted] = useState(false);
   if (loaded && !isPending && !booted) setBooted(true);
   const ready = booted;
-  useEffect(() => {
-    if (ready) void SplashScreen.hideAsync();
-  }, [ready]);
+  // The native splash hides once the opening is on screen over it (same violet, same symbol).
+  const [opened, setOpened] = useState(false);
+  const hideSplash = useCallback(() => SplashScreen.hide(), []);
+  const finishOpening = useCallback(() => setOpened(true), []);
   if (!ready) return null;
   return (
     <QueryClientProvider client={queryClient}>
@@ -43,6 +45,7 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)" />
           </Stack.Protected>
         </Stack>
+        {!opened && <Opening onShown={hideSplash} onDone={finishOpening} />}
       </ThemeProvider>
     </QueryClientProvider>
   );

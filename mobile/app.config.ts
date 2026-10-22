@@ -34,7 +34,7 @@ const config: ExpoConfig = {
   android: {
     package: env === "production" ? "com.anuntech.console" : `com.anuntech.console.${env}`,
     adaptiveIcon: {
-      backgroundColor: "#0d1d41",
+      backgroundColor: "#6E56FF",
       foregroundImage: "./assets/images/android-foreground.png",
       backgroundImage: "./assets/images/android-background.png",
       monochromeImage: "./assets/images/android-monochrome.png",
@@ -62,7 +62,8 @@ const config: ExpoConfig = {
     [
       "expo-splash-screen",
       {
-        backgroundColor: "#0d1d41",
+        // Same violet and symbol size as the opening animation (src/components/opening.tsx).
+        backgroundColor: "#6E56FF",
         image: "./assets/images/splash-icon.png",
         imageWidth: 120,
       },
@@ -71,7 +72,7 @@ const config: ExpoConfig = {
       "expo-notifications",
       {
         icon: "./assets/images/notification-icon.png",
-        color: "#1a428a",
+        color: "#6E56FF",
         // Push needs an App ID with the capability, which EAS creates; a build
         // signed in Xcode with the team's wildcard profile cannot have it.
         enableRemoteNotifications: env === "production" || !!process.env.EAS_BUILD,
