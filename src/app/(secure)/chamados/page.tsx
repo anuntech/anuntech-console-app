@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/console/page-header";
 import { TicketsTable } from "@/components/chamados/tickets-table";
 import { ticketQuery } from "@/lib/tickets/ticket-table";
 import { listTickets } from "@/lib/tickets/ticket-list";
+import { companyDisplayName } from "@/lib/companies/display-name";
 export const metadata: Metadata = {
   title: "Chamados",
   description:
@@ -21,6 +22,9 @@ export default async function Tickets({
   const actor = await getActor();
   const now = new Date();
   const list = await listTickets(actor, ticketQuery(await searchParams), now);
+  // Names as people read them; the search still looks in the razão social.
+  const rows = list.rows.map((row) => ({ ...row, company: companyDisplayName(row.company, row.companyDocument) }));
+  const companyFilter = list.companyFilter && { ...list.companyFilter, name: companyDisplayName(list.companyFilter.name, list.companyFilter.document) };
   return (
     <>
       <PageHeader
@@ -39,7 +43,7 @@ export default async function Tickets({
             </Button>
           )
         }
-        rows={list.rows}
+        rows={rows}
         query={list.query}
         total={list.total}
         pageCount={list.pageCount}
@@ -47,7 +51,7 @@ export default async function Tickets({
         admin={actor.admin}
         showCompany={list.showCompany}
         canCreate={list.canCreate}
-        companyFilter={list.companyFilter}
+        companyFilter={companyFilter}
       />
     </>
   );

@@ -39,7 +39,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Building2Icon,
   CalendarIcon,
   CircleCheckIcon,
   Clock3Icon,
@@ -74,6 +73,7 @@ import { toast } from "@/components/shell/notifications";
 import { moveTask } from "@/lib/projects/task-actions";
 import { dueLabel, shortDateLabel } from "@/lib/format";
 import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { AvatarStack, PersonAvatar } from "@/components/console/person-avatar";
 import {
   TASK_PRIORITIES,
@@ -107,7 +107,10 @@ export type ProjectBoardData = {
     status: string;
     description: string | null;
     companyId: string;
+    /** Razão social, as stored; the header shows its display name. */
     company: string;
+    /** The company's CNPJ or CPF, when the loader sends it: lets a MEI's name drop its number. */
+    companyDocument?: string | null;
     /** Staff only: what points at it, so "Excluir" shows only when it can go. */
     links?: EngagementLinks;
   };
@@ -195,9 +198,13 @@ function TaskCard({
   onReview?: () => void;
   now?: string;
 }) {
+  // Only a priority above normal is worth a mark; Baixa and Normal stay quiet (the sheet and the filter have them).
+  // A finished task's priority and deadline no longer ask anything of anyone.
+  const urgent = !done && (task.priority === "high" || task.priority === "urgent");
+  const due = done ? null : task.dueDate;
   const meta =
-    task.priority !== "normal" ||
-    task.dueDate ||
+    urgent ||
+    due ||
     task.assignees.length > 0 ||
     task.estimateMinutes != null ||
     task.files.length > 0 ||
@@ -242,17 +249,17 @@ function TaskCard({
         )}
         {meta && (
           <span className="flex w-full flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
-            {task.priority !== "normal" && <TaskPriorityMark priority={task.priority} />}
-            {task.dueDate && (
+            {urgent && <TaskPriorityMark priority={task.priority} />}
+            {due && (
               <span
                 className={cn(
                   "inline-flex items-center gap-1 tabular-nums",
-                  dueTone(task.dueDate, today, done),
+                  dueTone(due, today, done),
                 )}
-                title={`Prazo ${shortDateLabel(task.dueDate)}`}
+                title={`Prazo ${shortDateLabel(due)}`}
               >
                 <CalendarIcon className="size-3" />
-                {shortDateLabel(task.dueDate)}
+                {shortDateLabel(due)}
               </span>
             )}
             {task.estimateMinutes != null && (
@@ -612,16 +619,18 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
           the name, and the actions share the line with the filters. */}
       <PageHeader
         className="mb-4"
-        crumbs={[{ label: "Projetos", href: "/projetos" }, { label: project.name }]}
-        title={
-          <>
-            {project.name}
-            {/* Active is the normal state; only a paused or finished project says so. */}
-            {project.status !== "active" && (
-              <EngagementStatusBadge status={project.status} className="ml-2.5 align-middle" />
-            )}
-          </>
-        }
+        crumbs={[{ label: "Projetos", href: "/projetos" }]}
+        title={project.name}
+        meta={[
+          // Active is the normal state; only a paused or finished project says so.
+          project.status !== "active" && <EngagementStatusBadge key="status" status={project.status} />,
+          // The team works across clients, so the board names whose it is; the client is the company.
+          viewer.admin && (
+            <Link key="company" href={`/empresas/${project.companyId}`} className="text-foreground hover:text-primary">
+              {companyDisplayName(project.company, project.companyDocument)}
+            </Link>
+          ),
+        ]}
       />
 
       {/* Arrival: the header rises, the filters follow a beat later, the columns
@@ -726,12 +735,6 @@ export function ProjectBoard({ data }: { data: ProjectBoardData }) {
                 <DropdownMenuItem onSelect={() => setTimeout(() => setEditingProject(true), 0)}>
                   <PencilIcon />
                   Editar projeto
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={`/empresas/${project.companyId}`}>
-                    <Building2Icon />
-                    Ver empresa
-                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {project.status !== "active" && (

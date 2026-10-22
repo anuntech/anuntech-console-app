@@ -114,10 +114,9 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
       )}
       {challenge && (
         <p className="reveal-fade text-sm text-muted-foreground">
-          Enviamos um código para o{" "}
+          {sent ? "Enviamos um código para o " : "O código da segunda etapa vai para o "}
           {challenge.channel === "email" ? "e-mail" : "WhatsApp"}{" "}
-          <span className="font-medium text-foreground">{challenge.destination}</span>
-          {sent ? "." : " assim que você pedir."}
+          <span className="font-medium text-foreground">{challenge.destination}</span>.
         </p>
       )}
       {!expired && (

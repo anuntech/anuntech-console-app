@@ -140,6 +140,8 @@ export function finalReport(reportSentAt: string | null, month: string, lastLogg
 export type BankCard = Omit<BankMonth, "terms" | "entries"> & {
   companyId: string;
   companyName: string;
+  /** The company's CNPJ or CPF, so a MEI's name is shown without the number. */
+  companyDocument: string | null;
   entries: Omit<BankMonth["entries"][number], "ticketId" | "engagementId">[];
   /** When this month's 80% alert went out (once a month; see hours-delivery.ts). */
   alertSentAt: string | null;
@@ -151,7 +153,7 @@ export type BankCard = Omit<BankMonth, "terms" | "entries"> & {
 };
 
 /** This month's card for a company, plus last month while its report is pending or contestable. */
-export async function bankCard(companyId: string, companyName: string, audience: BankAudience = {}): Promise<BankCard | null> {
+export async function bankCard(companyId: string, companyName: string, audience: BankAudience = {}, companyDocument: string | null = null): Promise<BankCard | null> {
   const now = audience.now ?? new Date();
   const current = await bankMonth(companyId, monthOf(), audience);
   if (!current) return null;
@@ -170,6 +172,7 @@ export async function bankCard(companyId: string, companyName: string, audience:
     ...rest,
     companyId,
     companyName,
+    companyDocument,
     alertSentAt: alert?.at.toISOString() ?? null,
     entries: entries
       .filter((e) => !audience.engagements || !e.engagementId || scopeIncludes(audience.engagements, e.engagementId))

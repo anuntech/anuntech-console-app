@@ -92,10 +92,9 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
               const receivedPct = (m.receivedCents / max) * 100;
               const openPct = (m.openCents / max) * 100;
               return (
-                <button
+                // Pointer only (the table below is the accessible copy): a plain box, not a nameless button.
+                <div
                   key={m.month}
-                  type="button"
-                  tabIndex={-1}
                   onPointerEnter={() => setActive(i)}
                   onPointerLeave={() => setActive(null)}
                   className="group relative flex h-full flex-col justify-end outline-none"
@@ -121,7 +120,7 @@ export function BillingChart({ months }: { months: BillingMonth[] }) {
                       {total === 0 && <span className="block h-[2px] rounded-full bg-border" />}
                     </span>
                   </span>
-                </button>
+                </div>
               );
             })}
           </div>

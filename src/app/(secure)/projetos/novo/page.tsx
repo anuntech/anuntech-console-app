@@ -17,9 +17,8 @@ export default async function NewProject({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Projetos", href: "/projetos" }, { label: "Novo" }]}
+        crumbs={[{ label: "Projetos", href: "/projetos" }]}
         title="Novo projeto"
-        description="O projeto fica vinculado à empresa e ganha um quadro de tarefas."
       />
       <NewProjectForm {...context} />
     </>

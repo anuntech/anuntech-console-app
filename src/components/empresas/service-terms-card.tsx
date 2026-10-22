@@ -71,18 +71,18 @@ export function ServiceTermsCard({
   const [editing, setEditing] = useState<ServiceTermsItem | "new" | null>(null);
   const [removing, setRemoving] = useState<ServiceTermsItem | null>(null);
   const scope = (item: ServiceTermsItem) => engagements.find((e) => e.id === item.engagementId)?.name ?? "Toda a empresa";
+  // In force and visible to the client is the normal state: only the exceptions are said.
   const status = (item: ServiceTermsItem) =>
     !item.verifiedAt
       ? "Rascunho, ainda não vale"
       : item.publishAt && new Date(item.publishAt) > new Date(now)
-        ? `Valendo para a equipe; o cliente vê a partir de ${dateLabel(new Date(item.publishAt))}`
-        : "Valendo e visível para o cliente";
+        ? `Vale para a equipe; o cliente vê a partir de ${dateLabel(new Date(item.publishAt))}`
+        : null;
   return (
     <Card variant="quiet" className="gap-4 py-5">
       <CardHeader>
         <SectionTitle
           title="Condições de atendimento"
-          description="Os prazos do contrato desta empresa, cláusula por cláusula."
           action={
             <Button type="button" variant="outline" size="sm" onClick={() => setEditing("new")}>
               <PlusIcon />
@@ -100,9 +100,10 @@ export function ServiceTermsCard({
                   <p className="m-0 text-sm font-medium text-foreground">{item.label}</p>
                   {/* The dot opens the next item, so a wrapped line never ends on one. */}
                   <p className="m-0 flex flex-wrap gap-x-1.5 text-xs text-muted-foreground [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
-                    <span>{scope(item)}</span>
+                    {/* The scope only when the label does not already name it; the version only once there is a second. */}
+                    {scope(item).toLocaleLowerCase("pt-BR") !== item.label.toLocaleLowerCase("pt-BR") && <span>{scope(item)}</span>}
                     <span>{basisLabels[item.basis]}</span>
-                    <span>versão {item.version}</span>
+                    {item.version > 1 && <span>versão {item.version}</span>}
                   </p>
                 </div>
                 <Button type="button" variant="ghost" size="icon-sm" aria-label={`Editar ${item.label}`} onClick={() => setEditing(item)}>
@@ -122,7 +123,7 @@ export function ServiceTermsCard({
                 </ul>
               )}
               <div className="mt-2 flex items-center gap-2">
-                <span className={item.verifiedAt ? "text-xs text-muted-foreground" : "text-xs font-medium text-warning"}>{status(item)}</span>
+                {status(item) && <span className={item.verifiedAt ? "text-xs text-muted-foreground" : "text-xs font-medium text-warning"}>{status(item)}</span>}
                 <Button type="button" variant="link" size="sm" className="ml-auto h-auto p-0 text-xs text-muted-foreground" onClick={() => setRemoving(item)}>
                   Desativar
                 </Button>

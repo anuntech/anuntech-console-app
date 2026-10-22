@@ -35,14 +35,8 @@ export async function CompanySection() {
   const card = (
     <Card>
       <CardHeader>
-        <SectionTitle
-          title={companyId ? "Cadastro" : "Dados da Anuntech"}
-          description={
-            companyId
-              ? "Razão social, contato financeiro e endereço usados nas cobranças."
-              : "Emissor das cobranças e das notas."
-          }
-        />
+        {/* Where this data goes is the page's description; the card only names itself. */}
+        <SectionTitle title="Cadastro" />
       </CardHeader>
       <ServerForm action={saveCompanySettings} className="contents">
         <input type="hidden" name="id" value={companyId || "console"} />

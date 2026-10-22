@@ -124,7 +124,7 @@ export function CompanyFields({
     } catch {
       if (!controller.signal.aborted)
         toast.error(
-          "Não foi possível consultar. Você pode preencher os dados manualmente.",
+          "Não foi possível consultar. Preencha os dados manualmente.",
         );
     } finally {
       if (sequence === generation.current) setLooking(null);
@@ -274,7 +274,7 @@ export function CompanyFields({
       >
         {cnpjLookup && addressMissing && digits(values.document).length === 14 && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-xs text-warning sm:col-span-6">
-            <span className="min-w-0 flex-1">Sem o endereço completo, o Inter não emite as cobranças desta empresa.</span>
+            <span className="min-w-0 flex-1">Falta o endereço completo. Sem ele, a cobrança e a nota não saem.</span>
             <button
               type="button"
               onClick={() => void fillAddressFromReceita()}

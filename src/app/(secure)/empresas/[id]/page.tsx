@@ -143,7 +143,7 @@ export default async function Company({
       .where(and(eq(contracts.companyId, id), inArray(contracts.status, ["signed", "sent", "in_review"])))
       .orderBy(desc(contracts.updatedAt)),
   ]);
-  const [bank, memberScopes, scopeEngagements] = await Promise.all([bankCard(id, company.name), membershipScopes(members), scopeChoices(id)]);
+  const [bank, memberScopes, scopeEngagements] = await Promise.all([bankCard(id, company.name, {}, company.document), membershipScopes(members), scopeChoices(id)]);
   // Closed months' hours beyond the bank, once the client's window to contest closed (ready to bill, once), and the reports still owed.
   const [overages, reports] = bank ? await Promise.all([overagesReady(id), reportsToSend(id)]) : [[], []];
   const onboarding = isNewClient(company) ? await onboardingMissing(id) : [];

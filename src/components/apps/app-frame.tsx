@@ -22,7 +22,8 @@ export type AppFrameData = {
   name: string;
   /** The app's name in the registry, shown when the product is called something else. */
   app: string;
-  company: string;
+  /** Left out for a client with one company: it is their own. */
+  company?: string;
 };
 
 /** One app filling the content area, under a bar with the way back, its name and the company. */
@@ -72,10 +73,12 @@ export function AppFrame({ data }: { data: AppFrameData }) {
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-title-sm text-foreground">{data.name}</h1>
-          <p className="flex min-w-0 gap-x-1.5 text-xs text-muted-foreground [&>*]:truncate [&>*+*]:shrink-0 [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
-            <span>{data.company}</span>
-            {data.app !== data.name && <span>{data.app}</span>}
-          </p>
+          {(data.company || data.app !== data.name) && (
+            <p className="flex min-w-0 gap-x-1.5 text-xs text-muted-foreground [&>*]:truncate [&>*+*]:shrink-0 [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
+              {data.company && <span>{data.company}</span>}
+              {data.app !== data.name && <span>{data.app}</span>}
+            </p>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={reload} disabled={frame.phase === "opening"}>
           <RotateCwIcon />

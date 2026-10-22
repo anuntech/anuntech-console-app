@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  Building2Icon,
   HeadsetIcon,
   MoreHorizontalIcon,
   ReceiptTextIcon,
@@ -50,7 +49,7 @@ export type ServiceDetailData = {
     expectedResults: string | null;
     deadlines: string | null;
   };
-  viewer: { admin: boolean };
+  viewer: { admin: boolean; showCompany?: boolean };
 };
 
 const SECTIONS = [
@@ -71,50 +70,43 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Produtos e serviços", href: "/produtos" }, { label: service.name }]}
+        crumbs={[{ label: "Produtos e serviços", href: "/produtos" }]}
         title={service.name}
         leading={<ProductIcon src={service.icon} name={service.name} size={44} />}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <EngagementStatusBadge status={service.status} />
-            {viewer.admin ? (
-              <Link href={`/empresas/${service.companyId}`} className="text-foreground hover:text-primary">
+        // Active is the normal state: only an exception gets a badge. The company once, as a link for the team.
+        meta={[
+          service.status !== "active" && <EngagementStatusBadge key="status" status={service.status} />,
+          viewer.showCompany &&
+            (viewer.admin ? (
+              <Link key="company" href={`/empresas/${service.companyId}`} className="text-foreground hover:text-primary">
                 {service.company}
               </Link>
             ) : (
-              <span>{service.company}</span>
-            )}
-            {service.description && <span>{service.description}</span>}
-          </span>
-        }
+              <span key="company">{service.company}</span>
+            )),
+        ]}
+        description={service.description}
+        actionsInline={viewer.admin}
         actions={
           viewer.admin ? (
-            <>
-              <Button variant="outline" asChild>
-                <Link href={`/empresas/${service.companyId}`}>
-                  <Building2Icon />
-                  Ver empresa
-                </Link>
-              </Button>
-              {deletable && (
-                <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" aria-label="Mais ações">
-                      <MoreHorizontalIcon />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => setTimeout(() => setDeleting(true), 0)}
-                    >
-                      <Trash2Icon />
-                      Excluir
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </>
+            deletable && (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="Mais ações">
+                    <MoreHorizontalIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => setTimeout(() => setDeleting(true), 0)}
+                  >
+                    <Trash2Icon />
+                    Excluir
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
           ) : (
             <Button variant="outline" asChild>
               <Link href={`/chamados/novo?companyId=${service.companyId}`}>
@@ -128,16 +120,17 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
       <div className={cn("grid gap-6 lg:items-start", billing && "lg:grid-cols-[minmax(0,1fr)_300px]")}>
         <div className="flex min-w-0 flex-col gap-6">
           {filled.length ? (
-            filled.map(([key, title]) => (
-              <Card key={key}>
-                <CardHeader>
-                  <SectionTitle title={title} />
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm leading-6 whitespace-pre-wrap text-foreground">{sections[key]}</p>
-                </CardContent>
-              </Card>
-            ))
+            // One card, one heading per section: four short answers do not need four frames.
+            <Card>
+              <CardContent className="flex flex-col gap-6">
+                {filled.map(([key, title]) => (
+                  <section key={key}>
+                    <SectionTitle title={title} />
+                    <p className="m-0 mt-1.5 text-sm leading-6 whitespace-pre-wrap text-foreground">{sections[key]}</p>
+                  </section>
+                ))}
+              </CardContent>
+            </Card>
           ) : (
             <Card className="py-0">
               <EmptyState
@@ -145,8 +138,8 @@ export function ServiceDetail({ data }: { data: ServiceDetailData }) {
                 size="compact"
                 title={
                   viewer.admin
-                    ? "Este serviço ainda não tem os detalhes preenchidos no catálogo."
-                    : "Os detalhes deste serviço serão publicados em breve."
+                    ? "Faltam os detalhes deste serviço no catálogo."
+                    : "Os detalhes deste serviço ainda não foram publicados."
                 }
               />
             </Card>

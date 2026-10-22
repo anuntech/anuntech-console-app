@@ -38,7 +38,7 @@ export function ContractHandoffCard({ contractId, handoff }: { contractId: strin
   return (
     <Card>
       <CardHeader>
-        <SectionTitle title="A partir deste contrato" description="Cada passo sai preenchido e nasce como rascunho para você conferir." />
+        <SectionTitle title="A partir deste contrato" description="Cada passo abre preenchido, como rascunho." />
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
         {quote && <Step href={`/orcamentos/${quote.id}`} icon={CalculatorIcon} label="Orçamento de origem" done={quote.label} />}

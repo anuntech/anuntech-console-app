@@ -32,7 +32,7 @@ export const financeiroArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "A [Visão geral](/painel) também mostra o que pagar. O cartão “A pagar” soma as faturas em aberto e as vencidas, e o quadro “A pagar” lista até 5 delas, a partir da que vence primeiro, com o botão “Pagar”. O botão “Ver todos”, no canto do quadro, leva ao Financeiro.",
+            text: "A [Visão geral](/painel) também mostra o que pagar. O quadro “A pagar” lista até 5 faturas em aberto ou vencidas, a partir da que vence primeiro, com o botão “Pagar”, e mostra o total sob o título quando há mais de uma. O botão “Ver todos”, no canto do quadro, leva ao Financeiro.",
           },
         ],
       },
@@ -52,9 +52,9 @@ export const financeiroArticles: HelpArticle[] = [
             kind: "steps",
             items: [
               "No menu do Console, clique em “Financeiro”.",
-              "No topo, os cartões “Em aberto”, “Vencidas”, “Todas” e “Pagas” mostram o total em reais e quantas faturas há em cada grupo, já com a busca e o período que você escolheu.",
+              "No topo, os cartões “Em aberto”, “Vencidas” e “Pagas” mostram o total em reais e quantas faturas há em cada grupo, já com a busca e o período que você escolheu. O número ao lado do título é o total de faturas.",
               "Se a empresa tem recorrências, o quadro “Próximas cobranças” mostra o que vem pela frente. Veja [Próximas cobranças e recorrências](/ajuda/recorrencias).",
-              "Na tabela, cada linha traz a “Fatura” (a descrição e o tipo: “Cobrança única”, “Recorrente · Mensal” ou “Recorrente · Anual”), a “Situação”, o “Valor” e o “Vencimento”. Numa fatura vencida, a data fica em vermelho com os dias de atraso.",
+              "Na tabela, cada linha traz a “Fatura” (a descrição e, numa recorrência, “Recorrência mensal” ou “Recorrência anual”; a cobrança única não leva rótulo), a “Situação”, o “Valor” e o “Vencimento”. Numa fatura vencida, a data fica em vermelho com os dias de atraso.",
               "Clique na linha para abrir a fatura. O botão de três pontos (“...”) da linha tem “Abrir fatura” e, enquanto o link de pagamento estiver ativo, “Copiar link de pagamento” e “Abrir página de pagamento”.",
             ],
           },
@@ -123,7 +123,7 @@ export const financeiroArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "“Cobrança”: o “Valor”, o “Vencimento” (com os dias de atraso, quando houver), o “Cliente” com o CNPJ ou CPF, o “Tipo”, a “Próxima cobrança” nas recorrências, as “Condições” (desconto, multa e juros, quando a fatura tem) e “Criada em”. Enquanto a fatura não foi paga, o link “Como pagar” abre [Pagar com Pix ou boleto](/ajuda/pagar-uma-fatura).",
+              "“Cobrança”: o “Valor”, o “Vencimento” (com os dias de atraso, quando houver), o “Pagador” (a razão social com o CNPJ ou CPF, como sai no boleto), a “Recorrência” e a “Próxima cobrança” nas recorrências e as “Condições” (desconto, multa e juros, enquanto a fatura pode ser paga). “Criada em” fica em “Ver detalhes”. Enquanto a fatura não foi paga, o link “Como pagar” abre [Pagar com Pix ou boleto](/ajuda/pagar-uma-fatura).",
               "“Pagamento”: com a fatura em aberto ou vencida, o “Pix copia e cola” e a “Linha digitável do boleto”, cada um com “Copiar”, e “Baixar PDF” para o boleto. Com a fatura paga, aparece “Pagamento confirmado pelo Inter.”",
               "“Nota fiscal”: se a nota desta cobrança já foi emitida. Veja [Nota fiscal](/ajuda/nota-fiscal).",
             ],
@@ -499,7 +499,7 @@ export const financeiroArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Recorrência é uma cobrança que se repete, mensal ou anual, por um produto ou serviço contínuo, como suporte, hospedagem ou um sistema. A equipe da Anuntech cria cada recorrência com o valor, o dia do vencimento e as condições de pagamento. A cada período, o Console emite uma fatura nova, que aparece em Financeiro como “Recorrente · Mensal” ou “Recorrente · Anual”.",
+            text: "Recorrência é uma cobrança que se repete, mensal ou anual, por um produto ou serviço contínuo, como suporte, hospedagem ou um sistema. A equipe da Anuntech cria cada recorrência com o valor, o dia do vencimento e as condições de pagamento. A cada período, o Console emite uma fatura nova, que aparece em Financeiro com “Recorrência mensal” ou “Recorrência anual”.",
           },
         ],
       },
@@ -647,7 +647,7 @@ export const financeiroArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "A fatura vence no fim do dia do vencimento, no horário de Brasília. No dia seguinte, ela passa a “Vencida”, com os dias de atraso em vermelho, e a [Visão geral](/painel) mostra “Faturas vencidas para pagar” em “Precisa de atenção”.",
+            text: "A fatura vence no fim do dia do vencimento, no horário de Brasília. No dia seguinte, ela passa a “Vencida”, com os dias de atraso em vermelho, e aparece primeiro no quadro “A pagar” da [Visão geral](/painel), com a etiqueta “Vencida”.",
           },
         ],
       },

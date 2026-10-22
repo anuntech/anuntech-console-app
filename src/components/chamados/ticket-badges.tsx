@@ -63,9 +63,12 @@ export function TicketStatusText({
 /** Alta and Crítica ask for attention (Crítica in solid red); normal priority stays quiet text. */
 export function TicketPriorityMark({
   priority,
+  label,
   className,
 }: {
   priority: TicketPriority;
+  /** Read before the value by screen readers where no column or field names it ("Prioridade"). */
+  label?: string;
   className?: string;
 }) {
   if (priority !== "high" && priority !== "critical")
@@ -83,6 +86,7 @@ export function TicketPriorityMark({
       )}
     >
       <span aria-hidden="true" className={cn("size-1.5 rounded-full", priority === "critical" ? "bg-white" : "bg-destructive")} />
+      {label && <span className="sr-only">{label} </span>}
       {priorityLabels[priority]}
     </span>
   );

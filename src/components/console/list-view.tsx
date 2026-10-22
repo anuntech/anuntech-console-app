@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { downloadFile } from "@/components/console/download-link";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { TablePagination } from "@/components/console/table-pagination";
+import { PAGE_SIZES } from "@/lib/list-query";
 import { LinkPending } from "@/components/console/motion";
 
 /**
@@ -19,6 +20,7 @@ import { LinkPending } from "@/components/console/motion";
  *   ┌ toolbar: search · filter chips · filters ···· actions ┐
  *   │ table (or an EmptyState)                              │
  *   └ footer: per page · "1–25 de 80 x" · ‹ page › ──────────┘
+ *     (only when there is more than one page's worth: more than 10 rows)
  *
  * Every list (chamados, faturas, empresas, contratos, orçamentos, projetos,
  * produtos…) renders inside this card, with the same toolbar and footer.
@@ -329,8 +331,10 @@ export function ListPagination({
   hrefFor: (patch: { page: number; pageSize?: number }) => string;
 }) {
   const router = useRouter();
-  // An empty list has no pages to move between.
-  if (total === 0) return null;
+  // Nothing to move between: an empty list, or one that fits on a single page
+  // even at the smallest size. The count already sits beside the title, so a
+  // "1–6 de 6" footer with a size picker and dead arrows would only repeat it.
+  if (total === 0 || (page === 1 && total <= PAGE_SIZES[0])) return null;
   return (
     <TablePagination
       page={page}

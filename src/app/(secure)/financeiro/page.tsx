@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlarmClockIcon, CalendarClockIcon, CircleCheckIcon, Clock3Icon, MailCheckIcon, PlusIcon, ReceiptTextIcon, TriangleAlertIcon } from "lucide-react";
+import { AlarmClockIcon, CalendarClockIcon, CircleCheckIcon, Clock3Icon, MailCheckIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
 import { getActor } from "@/lib/access/access";
 import { listInvoices } from "@/lib/billing/invoice-list";
 import { saoPauloDate } from "@/lib/dates";
@@ -36,7 +36,9 @@ export default async function Finance({
   const { ids, totals, total, pageCount, upcoming, list, companyFilter, query: listed } = await listInvoices(actor, query, today);
   const page = listed.page;
   Object.assign(query, listed);
-  const metrics: InvoiceMetric[] = [
+  // The client has no "Todas" tile: the count beside the title is that total, and the
+  // situation filter clears back to it.
+  const metrics: (InvoiceMetric | false)[] = [
     {
       status: "issued",
       label: "Em aberto",
@@ -50,19 +52,12 @@ export default async function Finance({
       icon: <TriangleAlertIcon />,
       ...totals.overdue,
     },
-    actor.admin
-      ? {
-          status: "scheduled",
-          label: "Agendadas",
-          icon: <CalendarClockIcon />,
-          ...totals.scheduled,
-        }
-      : {
-          status: "all",
-          label: "Todas",
-          icon: <ReceiptTextIcon />,
-          ...totals.all,
-        },
+    actor.admin && {
+      status: "scheduled",
+      label: "Agendadas",
+      icon: <CalendarClockIcon />,
+      ...totals.scheduled,
+    },
     {
       status: "paid",
       label: "Pagas",
@@ -79,7 +74,7 @@ export default async function Finance({
         count={total}
       />
       <InvoiceMetrics
-        metrics={metrics}
+        metrics={metrics.filter((metric): metric is InvoiceMetric => !!metric)}
         active={query.status}
         hrefFor={(status) => invoiceListHref({ ...query, status, page: 1 })}
       />
@@ -114,6 +109,7 @@ export default async function Finance({
           description: row.description,
           companyId: row.companyId,
           company: row.company,
+          companyDocument: row.companyDocument,
           amountCents: row.amountCents,
           status: row.status,
           display: row.display as InvoiceDisplayStatus,

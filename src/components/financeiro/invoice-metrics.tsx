@@ -32,7 +32,13 @@ export function InvoiceMetrics({
 }) {
   return (
     // Mounts once per visit; a filter re-renders the same tiles, so the stagger does not replay.
-    <div className="stagger mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div
+      className={cn(
+        "stagger mb-4 grid grid-cols-2 gap-3",
+        // Three tiles (the client's): one row from sm; on a phone the last takes the full width.
+        metrics.length === 3 ? "sm:grid-cols-3 max-sm:[&>:last-child]:col-span-2" : "xl:grid-cols-4",
+      )}
+    >
       {metrics.map((metric) => {
         const alert = metric.tone === "destructive" && metric.count > 0;
         const current = active === metric.status;
@@ -60,10 +66,11 @@ export function InvoiceMetrics({
               </span>
             </span>
             <span className="min-w-0">
-              {/* The figure slides in when a filter changes it; never on load, never counting. */}
+              {/* The figure slides in when a filter changes it; never on load, never counting.
+                  Never cut: a smaller size on the narrowest phones, and a wrap after "R$" if still needed. */}
               <span
                 className={cn(
-                  "block truncate text-title tabular-nums sm:text-title-lg",
+                  "block text-title-sm tabular-nums min-[360px]:text-title sm:text-title-lg",
                   alert ? "text-destructive" : "text-foreground",
                 )}
               >

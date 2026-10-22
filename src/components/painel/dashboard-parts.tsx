@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowDownRightIcon, ArrowUpRightIcon, CheckCircle2Icon, ChevronRightIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { AttentionMore } from "./attention-more";
 
 /**
  * The Painel's building blocks, in the same card language as the lists:
@@ -85,10 +86,14 @@ export type AttentionItem = {
   tone?: Tone;
 };
 
+/** Rows shown before "Ver todos (n)": the most urgent, which come first. */
+const ATTENTION_SHOWN = 5;
+
 /**
  * What needs someone today, most urgent first; empty means all caught up.
  * The rows arrive one after another when the page opens (`stagger`); the list
  * mounts once per visit and never re-sorts on screen, so nothing replays.
+ * Past five rows the rest wait behind "Ver todos (n)".
  */
 export function AttentionList({ items }: { items: AttentionItem[] }) {
   if (!items.length)
@@ -101,22 +106,26 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
         <p className="text-xs text-muted-foreground">Quando algo vencer ou ficar esperando alguém, aparece aqui.</p>
       </div>
     );
-  return (
-    <ul className="stagger divide-y border-t">
-      {items.map((item) => (
-        <li key={item.key}>
-          <Link href={item.href} className="group flex items-center gap-3 px-6 py-3 transition-colors hover:bg-muted/50">
-            <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4", toneIcon[item.tone ?? "default"])}>{item.icon}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">{item.title}</span>
-              {item.detail && <span className="block truncate text-xs text-muted-foreground">{item.detail}</span>}
-            </span>
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-foreground tabular-nums">{item.count}</span>
-            <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground/60 group-hover:text-primary" />
-          </Link>
-        </li>
-      ))}
-    </ul>
+  const rows = items.map((item, index) => (
+    <li key={item.key} data-extra={index >= ATTENTION_SHOWN ? "" : undefined}>
+      <Link href={item.href} className="group flex items-center gap-3 px-6 py-3 transition-colors hover:bg-muted/50">
+        <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4", toneIcon[item.tone ?? "default"])}>{item.icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">{item.title}</span>
+          {item.detail && <span className="block truncate text-xs text-muted-foreground">{item.detail}</span>}
+        </span>
+        <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-foreground tabular-nums">{item.count}</span>
+        <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground/60 group-hover:text-primary" />
+      </Link>
+    </li>
+  ));
+  const list = "stagger divide-y border-t";
+  return items.length > ATTENTION_SHOWN ? (
+    <AttentionMore total={items.length} className={list}>
+      {rows}
+    </AttentionMore>
+  ) : (
+    <ul className={list}>{rows}</ul>
   );
 }
 

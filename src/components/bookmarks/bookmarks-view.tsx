@@ -64,6 +64,7 @@ import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bo
 import type { ListLayout } from "@/lib/list-layout";
 import { CardGrid, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { dateTimeLabel, fileSizeLabel, relativeLabel } from "@/lib/format";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
 import { BookmarkSheet, deleteNote, type BookmarkEditor } from "./bookmark-sheet";
 import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
@@ -226,10 +227,14 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   const [view, chooseView] = useListLayout("bookmarks", data.view ?? "grid");
   const { submit: move, form: moveForm } = useBookmarkMove();
   const folderById = new Map(folders.map((folder) => [folder.id, folder]));
-  const companyName = new Map(companies.map((company) => [company.id, company.name]));
+  // Names as people read them; the picker keeps the razão social to search by.
+  const companyName = new Map(companies.map((company) => [company.id, companyDisplayName(company.name, company.document)]));
   const current = folderById.get(query.folder);
   const manyCompanies = companies.length > 1;
-  const showCompany = manyCompanies && query.company === "all";
+  // The folder rail spans companies until one is picked; the bookmarks inside a
+  // folder are all one company's, and the header names it once.
+  const railCompany = manyCompanies && query.company === "all";
+  const showCompany = railCompany && !current;
   // Staff get the company as its own column while the list spans companies; a
   // member of several companies keeps it in the subtitle.
   const companyColumn = viewer.admin && showCompany;
@@ -398,9 +403,8 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               />
               {folderColumn && (
                 <TableCell className="hidden max-w-[14rem] md:table-cell">
-                  <span className={cn("block truncate", folder ? "text-foreground" : "text-muted-foreground")}>
-                    {folder ? folder.name : "Sem pasta"}
-                  </span>
+                  {/* Unfiled is the absence of a folder: the cell stays empty. */}
+                  {folder && <span className="block truncate text-foreground">{folder.name}</span>}
                 </TableCell>
               )}
               {companyColumn && (
@@ -438,10 +442,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             actions={<RowActions label={item.title}>{actionsFor(item)}</RowActions>}
             footer={
               <>
-                {folderColumn && (
+                {folderColumn && folder && (
                   <span className="flex min-w-0 items-center gap-1.5">
                     <FolderIcon aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span className="truncate">{folder ? folder.name : "Sem pasta"}</span>
+                    <span className="truncate">{folder.name}</span>
                   </span>
                 )}
                 <time dateTime={item.createdAt} title={dateTimeLabel(item.createdAt)} className="ml-auto shrink-0">
@@ -472,25 +476,22 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         className="mb-4"
         title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Bookmarks"}
         count={paging.total}
-        description={
-          current ? (
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              {manyCompanies && <span>{companyName.get(current.companyId ?? "")}</span>}
-              {manyCompanies && <span aria-hidden="true">·</span>}
-              {current.visibility === "people" ? (
-                <span className="flex items-center gap-2">
-                  {current.sharedWith.length > 0 && (
-                    <AvatarStack people={current.sharedWith} size={20} />
-                  )}
-                  {current.sharedWith.length
-                    ? `Só ${current.owner} e ${current.sharedWith.length} ${current.sharedWith.length === 1 ? "pessoa" : "pessoas"}`
-                    : `Só ${current.ownerId === viewer.id ? "você" : current.owner}`}
-                </span>
-              ) : (
-                <span>Todos da empresa</span>
-              )}
-            </span>
-          ) : undefined
+        // A folder says whose it is (when there are several companies) and, only
+        // when it is not open to the whole company, who sees it.
+        meta={
+          current
+            ? [
+                manyCompanies && <span key="company">{companyName.get(current.companyId ?? "")}</span>,
+                current.visibility === "people" && (
+                  <span key="people" className="flex items-center gap-2">
+                    {current.sharedWith.length > 0 && <AvatarStack people={current.sharedWith} size={20} />}
+                    {current.sharedWith.length
+                      ? `Só ${current.owner} e ${current.sharedWith.length} ${current.sharedWith.length === 1 ? "pessoa" : "pessoas"}`
+                      : `Só ${current.ownerId === viewer.id ? "você" : current.owner}`}
+                  </span>
+                ),
+              ]
+            : undefined
         }
       />
 
@@ -511,7 +512,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                   {folders.map((folder) => (
                     <NativeSelectOption key={folder.id} value={folder.id}>
                       {folder.name}
-                      {showCompany ? ` · ${companyName.get(folder.companyId ?? "") ?? ""}` : ""}
+                      {railCompany ? ` · ${companyName.get(folder.companyId ?? "") ?? ""}` : ""}
                     </NativeSelectOption>
                   ))}
                 </NativeSelectOptGroup>
@@ -525,7 +526,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 href={href(state, { folder: "all" })}
                 icon={<BookmarkIcon />}
                 label="Todos"
-                count={counts.total}
+                // No count: it is the number beside the title whenever this view is open.
               />
               <NavItem
                 active={query.folder === "root"}
@@ -544,7 +545,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                   href={href(state, { folder: folder.id })}
                   icon={folder.visibility === "people" ? <UsersIcon /> : <FolderIcon />}
                   label={folder.name}
-                  hint={showCompany ? companyName.get(folder.companyId ?? "") : undefined}
+                  hint={railCompany ? companyName.get(folder.companyId ?? "") : undefined}
                   count={folder.count}
                   menu={manages(folder) ? folderMenu(folder) : undefined}
                 />

@@ -91,8 +91,8 @@ export const segurancaArticles: HelpArticle[] = [
             kind: "steps",
             items: [
               "Abra o menu da conta, escolha “Meu perfil” e, no grupo “Conta”, clique em “Segurança”.",
-              "Em “Sessões recentes”, veja o aparelho e a data de cada entrada. O selo mostra “Esta sessão”, “Ativa”, “Expirada” ou “Encerrada”.",
-              "Se houver uma sessão “Ativa” que você não reconhece, ligue a verificação em duas etapas, ou troque o canal se ela já estiver ligada. Ao confirmar o código no e-mail e depois no WhatsApp, aparece “Configuração de segurança atualizada. As outras sessões foram encerradas.”",
+              "Em “Sessões recentes”, veja o aparelho e a data de cada entrada. A sessão aberta diz “ativa até” e a data; o selo marca “Esta sessão”, “Expirada” ou “Encerrada”.",
+              "Se houver uma sessão ativa que você não reconhece, ligue a verificação em duas etapas, ou troque o canal se ela já estiver ligada. Ao confirmar o código no e-mail e depois no WhatsApp, aparece “Configuração de segurança atualizada. As outras sessões foram encerradas.”",
               "Troque a senha do seu e-mail e confira quem mais abre essa caixa de entrada. O código de acesso chega nela e, sem a verificação em duas etapas, quem lê o seu e-mail consegue entrar no Console.",
               "Abra um chamado do tipo “Acesso” e conte o que viu. Se não conseguir entrar, use “Fale com a equipe da Anuntech” na tela de entrada ou o WhatsApp (11) 5107-3435.",
             ],

@@ -43,7 +43,7 @@ export const condicoesPessoasArticles: HelpArticle[] = [
             kind: "list",
             items: [
               'Nesta central de Ajuda, no botão "Abrir Como trabalhamos" deste artigo. A [Ajuda](/ajuda) abre pelo menu da conta (a sua foto, no fim do menu do Console) e, no celular, em "Mais".',
-              'Nos Primeiros passos da Visão geral, no passo que começa com "Leia como a Anuntech trabalha".',
+              'Nos Primeiros passos da Visão geral, no passo "Leia como trabalhamos com vocês".',
               'No link "Como contamos o tempo", no quadro "Prazos" de um chamado que tem prazo.',
               'No link "Como trabalhamos", em "Sobre este projeto", na página do projeto.',
               'Para Administradores, em "Próximos passos", na página de um contrato assinado.',

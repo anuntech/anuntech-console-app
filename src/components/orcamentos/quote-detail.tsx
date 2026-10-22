@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  Building2Icon,
   CheckCircle2Icon,
   CircleDashedIcon,
   CopyPlusIcon,
@@ -17,7 +16,6 @@ import {
   XCircleIcon,
   RouteIcon,
 } from "lucide-react";
-import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +38,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
+import { Disclosure } from "@/components/console/disclosure";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { FormField } from "@/components/console/form-field";
 import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
@@ -79,7 +79,8 @@ export type QuoteDetailData = {
   };
   /** Every send so far, newest first; `current` is the one in force. */
   versions: { version: number; sentAt: string; hash: string; current: boolean }[];
-  viewer: { admin: boolean; party: "anuntech" | "client" | null; name: string };
+  /** `companies`: how many companies a client sees; with one, the page does not name it back. */
+  viewer: { admin: boolean; party: "anuntech" | "client" | null; name: string; companies?: number };
   events: { id: string; action: string; createdAt: string }[];
   /** Staff: what the proposal already became and the request it answers. */
   handoff?: QuoteHandoff;
@@ -170,25 +171,30 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
   const validity = validityText(q.status, q.validUntil, today);
   const pdfHref = `/api/orcamentos/${q.id}/pdf`;
   const menu = (open: () => void) => () => setTimeout(open, 0);
+  // The name people read; the proposal keeps the razão social and CNPJ.
+  const companyName = companyDisplayName(q.company, q.companyDocument);
+  const nameCompany = viewer.admin || (viewer.companies ?? 1) > 1;
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Orçamentos", href: "/orcamentos" }, { label: `nº ${q.number}` }]}
+        crumbs={[{ label: "Orçamentos", href: "/orcamentos" }]}
         title={q.title}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <QuoteStatusBadge status={q.status} validUntil={q.validUntil} today={today} />
-            <span className="tabular-nums">nº {q.number}</span>
-            {viewer.admin ? (
-              <Link href={`/empresas/${q.companyId}`} className="text-foreground hover:text-primary">
-                {q.company}
-              </Link>
-            ) : (
-              <span>{q.company}</span>
-            )}
-            <span className="tabular-nums">{currency(totals.totalCents)}</span>
-          </span>
-        }
+        // The proposal below carries the number and the total; the editor (draft) does not.
+        meta={[
+          <QuoteStatusBadge key="status" status={q.status} validUntil={q.validUntil} today={today} />,
+          viewer.admin ? (
+            <Link key="company" href={`/empresas/${q.companyId}`} className="text-foreground hover:text-primary">
+              {companyName}
+            </Link>
+          ) : (
+            nameCompany && <span key="company">{companyName}</span>
+          ),
+          editable && (
+            <span key="number" className="tabular-nums">
+              nº {q.number}
+            </span>
+          ),
+        ]}
         actions={
           <>
             {(viewer.admin || q.status !== "draft") && q.status !== "cancelled" && (
@@ -221,12 +227,6 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-60">
-                  <DropdownMenuItem asChild>
-                    <Link href={`/empresas/${q.companyId}`}>
-                      <Building2Icon />
-                      Ver empresa
-                    </Link>
-                  </DropdownMenuItem>
                   {q.status !== "cancelled" && (
                     <DropdownMenuItem asChild>
                       <Link href={data.journey ? `/jornadas/${data.journey.id}` : `/jornadas/nova?orcamento=${q.id}`}>
@@ -303,22 +303,8 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
           <aside className="reveal-fade flex min-w-0 flex-col gap-6">
             <Card>
               <CardHeader>
-                <SectionTitle
-                  title="Resposta"
-                  description={
-                    q.status === "accepted"
-                      ? "Proposta aceita."
-                      : q.status === "declined"
-                        ? "Proposta recusada."
-                        : q.status === "cancelled"
-                          ? "Cancelada pela Anuntech."
-                          : expired
-                            ? "A validade passou sem resposta."
-                            : canAnswer
-                              ? "Responda com o seu acesso ao Console."
-                              : "Aguardando o cliente."
-                  }
-                />
+                {/* The badge above says the situation; the card says who answered or what to do. */}
+                <SectionTitle title="Resposta" />
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {q.decision ? (
@@ -333,12 +319,15 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                         {q.status === "accepted" ? "Aceito" : "Recusado"} por {q.decision.name}
                       </p>
                       <p className="m-0 text-xs text-muted-foreground">
-                        {q.decision.party === "client" ? `por ${q.company}` : "registrado pela Anuntech a pedido do cliente"}
-                        {q.decidedAt && ` · ${dateTimeLabel(q.decidedAt)}`}
+                        {[
+                          q.decision.party === "client"
+                            ? nameCompany && `por ${companyName}`
+                            : "registrado pela Anuntech a pedido do cliente",
+                          q.decidedAt && dateTimeLabel(q.decidedAt),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
-                      {q.decision.email && q.decision.party === "client" && (
-                        <p className="m-0 text-xs text-muted-foreground">{q.decision.email}{q.decision.ip ? ` · IP ${q.decision.ip}` : ""}</p>
-                      )}
                       {q.decision.note && <p className="m-0 mt-2 text-sm text-foreground">“{q.decision.note}”</p>}
                     </div>
                   </div>
@@ -346,6 +335,8 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                   <div className="flex items-start gap-3">
                     <CircleDashedIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                     <p className="m-0 text-sm text-muted-foreground">
+                      {/* While it waits, how long the proposal still holds; the date is in the proposal. */}
+                      {waiting && validity && <span className="mb-1 block text-xs font-medium text-warning">{validity}</span>}
                       {q.status === "cancelled"
                         ? "Este orçamento não vale mais."
                         : expired
@@ -384,13 +375,30 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                     <HelpLink slug="responder-um-orcamento">Como funciona o aceite</HelpLink>
                   </ServerForm>
                 )}
+                {/* The sent proposal's record and the answer's (who, from where), on demand. */}
+                {q.documentHash && (
+                  <Disclosure>
+                    <dl className="grid gap-4">
+                      {q.sentAt && <Fact label="Enviado em">{dateTimeLabel(q.sentAt)}</Fact>}
+                      {q.version > 1 && <Fact label="Versão">{q.version}ª</Fact>}
+                      {q.decision?.party === "client" && <Fact label="E-mail de quem respondeu">{q.decision.email}</Fact>}
+                      {q.decision?.party === "client" && <Fact label="IP">{q.decision.ip}</Fact>}
+                      <Fact label="Hash SHA-256">
+                        <span className="flex items-start gap-1">
+                          <code className="min-w-0 break-all text-xs">{q.documentHash}</code>
+                          <CopyButton value={q.documentHash} label="Copiar hash" />
+                        </span>
+                      </Fact>
+                    </dl>
+                  </Disclosure>
+                )}
               </CardContent>
             </Card>
 
             {!viewer.admin && q.status === "accepted" && (
               <Card variant="quiet">
                 <CardHeader>
-                  <SectionTitle title="Próximos passos" description="O que acontece depois do aceite." />
+                  <SectionTitle title="Próximos passos" />
                 </CardHeader>
                 <CardContent>
                   <ol className="m-0 flex list-none flex-col gap-3 p-0">
@@ -432,47 +440,6 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
               />
             )}
 
-            <Card variant="quiet">
-              <CardHeader>
-                <SectionTitle title="Validade" description={q.validUntil ? undefined : "Sem prazo definido."} />
-              </CardHeader>
-              {q.validUntil && (
-                <CardContent>
-                  <dl className="grid grid-cols-2 gap-4">
-                    <Fact label="Válido até">
-                      <span className={cn(expired && "text-destructive")}>{dateLabel(q.validUntil)}</span>
-                    </Fact>
-                    {(validity || expired) && (
-                      <Fact label="Situação">
-                        <span className={cn("font-medium", expired ? "text-destructive" : "text-warning")}>{expired ? "Expirado" : validity}</span>
-                      </Fact>
-                    )}
-                  </dl>
-                </CardContent>
-              )}
-            </Card>
-
-            {q.documentHash && (
-              <Card variant="quiet">
-                <CardHeader>
-                  <SectionTitle title="Documento" />
-                </CardHeader>
-                <CardContent>
-                  <dl className="grid gap-4">
-                    {q.sentAt && <Fact label="Enviado em">{dateTimeLabel(q.sentAt)}</Fact>}
-                    {q.decidedAt && <Fact label="Respondido em">{dateTimeLabel(q.decidedAt)}</Fact>}
-                    {q.version > 1 && <Fact label="Versão">{q.version}ª</Fact>}
-                    <Fact label="Hash SHA-256">
-                      <span className="flex items-start gap-1">
-                        <code className="min-w-0 break-all text-xs">{q.documentHash}</code>
-                        <CopyButton value={q.documentHash} label="Copiar hash" />
-                      </span>
-                    </Fact>
-                  </dl>
-                </CardContent>
-              </Card>
-            )}
-
             {versions.some((v) => !v.current) && (
               <Card variant="quiet">
                 <CardHeader>
@@ -512,7 +479,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                 </CardHeader>
                 <CardContent>
                   <ol className="flex flex-col gap-3">
-                    {events.map((event) => (
+                    {events.slice(0, 5).map((event) => (
                       <li key={event.id} className="flex items-baseline justify-between gap-3 text-sm">
                         <span className="text-foreground">{auditLabels[event.action] ?? event.action}</span>
                         <time dateTime={event.createdAt} title={dateTimeLabel(event.createdAt)} className="shrink-0 text-xs text-muted-foreground">

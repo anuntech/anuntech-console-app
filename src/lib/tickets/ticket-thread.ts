@@ -17,6 +17,7 @@ export async function loadTicketThread(actor: Actor, id: string) {
     .select({
       ticket: tickets,
       company: companies.name,
+      companyDocument: companies.document,
       engagement: engagements.name,
       authorName: user.name,
       authorEmail: user.email,
@@ -120,6 +121,7 @@ export async function loadTicketThread(actor: Actor, id: string) {
       updatedAt: t.updatedAt.toISOString(),
       companyId: t.companyId,
       company: row.company,
+      companyDocument: row.companyDocument,
       engagement: row.engagement,
       author: { name: row.authorName, email: authorIsTeam ? "Equipe Anuntech" : row.authorEmail },
     },

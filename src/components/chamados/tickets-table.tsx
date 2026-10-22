@@ -47,6 +47,7 @@ import { dateTimeLabel, relativeLabel } from "@/lib/format";
 import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import {
   ticketFilterLabels,
+  ticketFilterStatuses,
   ticketFilters,
   ticketListHref,
   type TicketPriority,
@@ -210,6 +211,11 @@ export function TicketsTable({
   // (the "Empresa" column is a staff view). A company filter makes it moot.
   const spansCompanies = showCompany && !query.company;
   const companyColumn = admin && spansCompanies;
+  // A list filtered to one situation already says it in the filter; the rows keep only deadlines and priority.
+  const showStatus = ticketFilterStatuses(query.status)?.length !== 1;
+  const attention = (ticket: TicketRow) => ticket.priority === "high" || ticket.priority === "critical";
+  // Situação holds the status, an Alta or Crítica priority and the deadline; with none of them on the page it goes.
+  const situationColumn = showStatus || rows.some((ticket) => ticket.due || attention(ticket));
   const subtitle = (ticket: TicketRow) =>
     [
       ticket.kind ? ticketKindShort[ticket.kind] : null,
@@ -277,15 +283,17 @@ export function TicketsTable({
               {companyColumn && (
                 <TableHead className="hidden md:table-cell">Empresa</TableHead>
               )}
-              <TableHead className="hidden md:table-cell">Situação</TableHead>
-              <TableHead className="hidden md:table-cell">Prioridade</TableHead>
+              {situationColumn && <TableHead className="hidden md:table-cell">Situação</TableHead>}
               {admin && (
                 <TableHead className="hidden md:table-cell">Responsável</TableHead>
               )}
-              <TableHead className="hidden md:table-cell">Atualizado</TableHead>
-              <TableHead className="w-12 pr-3">
-                <span className="sr-only">Ações</span>
-              </TableHead>
+              <TableHead className={cn("hidden md:table-cell", !admin && "pr-4")}>Atualizado</TableHead>
+              {/* The client's only row action would be opening the ticket, which the row already does. */}
+              {admin && (
+                <TableHead className="w-12 pr-3">
+                  <span className="sr-only">Ações</span>
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -298,34 +306,40 @@ export function TicketsTable({
                     <>
                       <span className="max-md:hidden">{subtitle(ticket)}</span>
                       {/* Phones: the status column would be cut by the scroll, so it reads here. */}
-                      <span className="flex min-w-0 items-center gap-x-2 md:hidden">
-                        <TicketStatusText status={ticket.status} client={!admin} className="min-w-0 truncate" />
-                        {ticket.due && (
-                          <span className={cn("shrink-0", ticket.due.late && "font-medium text-destructive")}>{ticket.due.label}</span>
-                        )}
-                      </span>
+                      {showStatus || ticket.due ? (
+                        <span className="flex min-w-0 items-center gap-x-2 md:hidden">
+                          {showStatus && <TicketStatusText status={ticket.status} client={!admin} className="min-w-0 truncate" />}
+                          {ticket.due && (
+                            <span className={cn("shrink-0", ticket.due.late && "font-medium text-destructive")}>{ticket.due.label}</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="md:hidden">{subtitle(ticket)}</span>
+                      )}
                     </>
                   }
                 />
                 {companyColumn && (
                   <CompanyCell>{ticket.company}</CompanyCell>
                 )}
-                <TableCell className="hidden md:table-cell">
-                  <TicketStatusBadge status={ticket.status} client={!admin} />
-                  {ticket.due && (
-                    <span className={cn("mt-1 block text-xs whitespace-nowrap", ticket.due.late ? "font-medium text-destructive" : "text-muted-foreground")}>
-                      {ticket.due.label}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {/* Only priorities that ask for attention show; the rest read as "Normal" to screen readers. */}
-                  {ticket.priority === "high" || ticket.priority === "critical" ? (
-                    <TicketPriorityMark priority={ticket.priority} />
-                  ) : (
-                    <span className="sr-only">Normal</span>
-                  )}
-                </TableCell>
+                {situationColumn && (
+                  <TableCell className="hidden md:table-cell">
+                    {/* One status badge and, only when it asks for attention, the priority beside it. */}
+                    {(showStatus || attention(ticket)) && (
+                      <span className="flex items-center gap-1.5">
+                        {showStatus && <TicketStatusBadge status={ticket.status} client={!admin} />}
+                        {attention(ticket) && (
+                          <TicketPriorityMark priority={ticket.priority} label="Prioridade" />
+                        )}
+                      </span>
+                    )}
+                    {ticket.due && (
+                      <span className={cn("mt-1 block text-xs whitespace-nowrap", ticket.due.late ? "font-medium text-destructive" : "text-muted-foreground")}>
+                        {ticket.due.label}
+                      </span>
+                    )}
+                  </TableCell>
+                )}
                 {admin && (
                   <TableCell
                     className="hidden max-w-[12rem] truncate text-muted-foreground md:table-cell"
@@ -334,7 +348,7 @@ export function TicketsTable({
                     {ticket.assignee || ticket.assignedTo || "—"}
                   </TableCell>
                 )}
-                <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+                <TableCell className={cn("hidden whitespace-nowrap text-muted-foreground md:table-cell", !admin && "pr-4")}>
                   <time
                     dateTime={ticket.updatedAt}
                     title={dateTimeLabel(ticket.updatedAt)}
@@ -342,7 +356,7 @@ export function TicketsTable({
                     {relativeLabel(ticket.updatedAt, now)}
                   </time>
                 </TableCell>
-                <TicketActions ticket={ticket} admin={admin} />
+                {admin && <TicketActions ticket={ticket} admin={admin} />}
               </LinkRow>
             ))}
           </TableBody>
@@ -362,7 +376,7 @@ export function TicketsTable({
               ? "Tente outro termo ou mude os filtros."
               : admin
                 ? "Tudo em dia. Novos chamados dos clientes aparecem aqui."
-                : "Abra um chamado quando algo der erro, quando tiver uma dúvida ou quando quiser um ajuste. A conversa e os arquivos ficam registrados aqui."
+                : "Abra um chamado para um erro, uma dúvida ou um ajuste."
           }
           action={
             filtered ? (

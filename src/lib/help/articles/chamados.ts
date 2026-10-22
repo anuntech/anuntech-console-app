@@ -386,13 +386,13 @@ export const chamadosArticles: HelpArticle[] = [
               'Por padrão, o seletor de situação fica em "Em aberto": "Aguardando atendimento", "Em atendimento" e "Aguardando você". Os com atividade mais recente vêm primeiro.',
               'Para ver outros, troque o seletor de situação, ao lado da busca, por exemplo para "Resolvidos", "Encerrados" ou "Todas as situações".',
               'Para achar um chamado, digite no campo "Buscar por assunto".',
-              'Cada linha mostra o assunto, o tipo, quem abriu, o produto ou projeto, a situação, a prioridade e quando foi atualizado. No celular, a prioridade e a data ficam na página do chamado. Quando o contrato da empresa tem prazos publicados, a situação vem com "Resposta até…", "Meta até…" ou "Prazo pausado".',
+              'Cada linha mostra o assunto, o tipo, quem abriu, o produto ou projeto, a situação e quando foi atualizado. A prioridade aparece ao lado da situação só quando é Alta ou Crítica. Com o seletor numa situação só, as linhas não repetem a situação. No celular, a data fica na página do chamado. Quando o contrato da empresa tem prazos publicados, a situação vem com "Resposta até…", "Meta até…" ou "Prazo pausado".',
               'No rodapé, em "Por página", escolha ver 10, 25, 50 ou 100 chamados.',
             ],
           },
           {
             kind: "p",
-            text: 'Na [Visão geral](/painel), o card "Chamados em andamento" mostra quantos estão abertos e quantos esperam por você. O item "Chamados esperando sua resposta", em "Precisa de atenção", leva direto ao filtro "Aguardando você".',
+            text: 'Na [Visão geral](/painel), o item "Chamados esperando sua resposta", em "Precisa de atenção", leva direto ao filtro "Aguardando você".',
           },
         ],
       },
@@ -405,7 +405,7 @@ export const chamadosArticles: HelpArticle[] = [
               { term: "Conversa", text: 'As mensagens e os arquivos em ordem. As mensagens da Anuntech têm o selo "Equipe".' },
               {
                 term: "Detalhes",
-                text: 'Situação, prioridade e responsável, mais empresa, tipo (com o impacto, quando é erro), produto ou projeto, quem abriu, quando abriu e a última atividade. O responsável é a pessoa da equipe que cuida do chamado, ou "Ainda não atribuído".',
+                text: 'Responsável, tipo (com o impacto, quando é erro), produto ou projeto, por onde chegou (quando não foi pelo Console) e quem abriu. Em "Ver detalhes": o e-mail de quem abriu, quando abriu e a última atividade. O responsável é a pessoa da equipe que cuida do chamado e aparece quando já existe.',
               },
               {
                 term: "Prazos",
@@ -415,7 +415,7 @@ export const chamadosArticles: HelpArticle[] = [
                 term: "Estimativa da melhoria",
                 text: "Aparece quando a equipe estima as horas de uma melhoria. [Melhorias com estimativa de horas](/ajuda/estimativas-de-melhoria).",
               },
-              { term: "Anexos", text: "Todos os arquivos enviados no chamado, para baixar." },
+              { term: "Anexos", text: "Aparece quando há arquivos: todos os enviados no chamado, para baixar." },
             ],
           },
         ],
@@ -625,7 +625,7 @@ export const chamadosArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: 'No topo do chamado, a prioridade só aparece quando é Alta ou Crítica. Em "Detalhes", ela aparece sempre. Quando a equipe muda a prioridade, quem abriu recebe um e-mail e os prazos do chamado são recalculados. [Prazos de atendimento](/ajuda/prazos-de-atendimento).',
+            text: 'No topo do chamado, a prioridade só aparece quando é Alta ou Crítica. Quando a equipe muda a prioridade, quem abriu recebe um e-mail e os prazos do chamado são recalculados. [Prazos de atendimento](/ajuda/prazos-de-atendimento).',
           },
         ],
       },

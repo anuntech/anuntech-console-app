@@ -54,7 +54,7 @@ export async function firstStepsFor(actor: Actor): Promise<FirstSteps | null> {
   if (seen.has(`first_steps_hidden:${companyId}`)) return forced.length ? { companyId, steps: forced, forced: true } : null;
   const guide: FirstStep = {
     key: "guide",
-    title: `Leia como a Anuntech trabalha com a ${grant.company.name}`,
+    title: "Leia como trabalhamos com vocês",
     href: "/como-trabalhamos",
     done: seen.has(`guide_read_v${GUIDE_VERSION}:`),
   };

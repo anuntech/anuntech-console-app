@@ -17,9 +17,8 @@ export default async function NewInvoice({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Financeiro", href: "/financeiro" }, { label: "Nova cobrança" }]}
+        crumbs={[{ label: "Financeiro", href: "/financeiro" }]}
         title="Nova cobrança"
-        description="Quem paga, o que está sendo cobrado e as condições."
       />
       <NewInvoiceForm {...context} />
     </>

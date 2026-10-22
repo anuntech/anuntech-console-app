@@ -18,6 +18,7 @@ import { ProductsList } from "@/components/produtos/products-list";
 import { SuspendedNotice } from "@/components/produtos/suspension";
 import { openSuspensions } from "@/lib/suspensions/suspensions";
 import { suspensionView } from "@/lib/suspensions/suspension-view";
+import { companyDisplayName } from "@/lib/companies/display-name";
 export const metadata: Metadata = {
   title: "Produtos e serviços",
   description: "Os produtos e serviços que cada empresa tem com a Anuntech.",
@@ -71,6 +72,7 @@ export default async function Products({
         subscriptionId: engagements.subscriptionId,
         companyId: engagements.companyId,
         company: companies.name,
+        companyDocument: companies.document,
         catalogItemId: engagements.catalogItemId,
         icon: catalogItems.icon,
         suspensionKind: catalogItems.suspensionKind,
@@ -86,20 +88,20 @@ export default async function Products({
       .offset(offsetOf(paging)),
     query.company
       ? db
-          .select({ id: companies.id, name: companies.name })
+          .select({ id: companies.id, name: companies.name, document: companies.document })
           .from(companies)
           .where(eq(companies.id, query.company))
-          .then((found) => found[0] ?? null)
+          .then((found) => (found[0] ? { id: found[0].id, name: companyDisplayName(found[0].name, found[0].document) } : null))
       : null,
     // The companies behind every match (not only this page), for the "Só desta empresa" shortcuts.
     query.search && !query.company && showCompany
       ? db
-          .selectDistinct({ id: companies.id, name: companies.name })
+          .selectDistinct({ id: companies.id, name: companies.name, document: companies.document })
           .from(engagements)
           .innerJoin(companies, eq(companies.id, engagements.companyId))
           .where(where)
           .orderBy(asc(companies.name))
-          .then((found) => companyShortcuts(found, query.search))
+          .then((found) => companyShortcuts(found, query.search).map((company) => ({ id: company.id, name: companyDisplayName(company.name, company.document) })))
       : [],
     // Clients get the status filter only when something is paused or closed.
     actor.admin
@@ -147,8 +149,10 @@ export default async function Products({
             </Button>
           )
         }
-        rows={rows.map(({ amountCents, interval, nextDueDate, subscriptionId, catalogItemId, icon, suspensionKind, ...row }) => ({
+        rows={rows.map(({ amountCents, interval, nextDueDate, subscriptionId, catalogItemId, icon, suspensionKind, companyDocument, ...row }) => ({
           ...row,
+          // The name people read; the razão social stays on the company's Cadastro.
+          company: companyDisplayName(row.company, companyDocument),
           suspension: suspensionView(suspensions.get(row.id), suspensionKind, actor.admin),
           kind: row.kind === "service" ? "service" : "product",
           appPage: row.kind === "product" && appForUrl(row.url, apps) ? `/apps/${row.id}` : null,

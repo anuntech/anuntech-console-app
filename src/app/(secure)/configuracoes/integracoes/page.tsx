@@ -6,7 +6,6 @@ export default function Page() {
     <SettingsShell
       section="integrations"
       title="Integrações"
-      description="Os serviços que mantêm o Console funcionando e o estado de cada um."
     >
       <IntegrationsSection />
     </SettingsShell>

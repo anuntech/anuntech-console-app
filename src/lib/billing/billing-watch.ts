@@ -80,6 +80,7 @@ export async function leavingCharges(today = saoPauloDate()) {
     .select({
       id: subscriptions.id,
       company: companies.name,
+      companyDocument: companies.document,
       description: subscriptions.description,
       nextDueDate: subscriptions.nextDueDate,
       leadDays: subscriptions.leadDays,
@@ -101,6 +102,7 @@ export async function leavingCharges(today = saoPauloDate()) {
     .map((row) => ({
       id: row.id,
       company: row.company,
+      companyDocument: row.companyDocument,
       description: row.description,
       issueDate: issueDate(row.nextDueDate, row.leadDays),
       reason: row.engagementStatus === "completed" ? "serviço concluído" : row.engagementStatus === "paused" ? "serviço pausado" : "contrato vencido sem renovação",

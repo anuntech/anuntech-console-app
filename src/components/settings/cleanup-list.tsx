@@ -1,11 +1,28 @@
 "use client";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SectionTitle } from "@/components/console/page-header";
 import { ServerForm, SubmitButton } from "@/components/console/server-form";
 import { keepRecord } from "@/lib/companies/cleanup-actions";
 import type { CleanupItem } from "@/lib/companies/cleanup";
+import { companyDisplayName } from "@/lib/companies/display-name";
+
+/** The kind word the detail line starts with ("Chamado · CLINICA…"); the card title already says it. */
+const kindWords: Record<CleanupItem["kind"], string> = {
+  ticket: "Chamado",
+  invoice: "Fatura",
+  contract: "Contrato",
+  quote: "Orçamento",
+  company: "Empresa",
+};
+
+/** The detail without the kind word; for a child record what is left is its company, named for the screen. */
+function detailOf(item: CleanupItem) {
+  const prefix = `${kindWords[item.kind]} · `;
+  if (!item.detail.startsWith(prefix)) return item.detail;
+  const rest = item.detail.slice(prefix.length);
+  return item.kind === "company" ? rest : companyDisplayName(rest, item.document);
+}
 
 const titles: Record<CleanupItem["kind"], string> = {
   ticket: "Chamados",
@@ -38,14 +55,12 @@ export function CleanupList({ items }: { items: CleanupItem[] }) {
                 <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
                   <span className="min-w-0 flex-1">
                     <Link href={item.href} className="block truncate text-sm font-medium text-foreground hover:text-primary">
-                      {item.label}
+                      {item.kind === "company" ? companyDisplayName(item.label, item.document) : item.label}
                     </Link>
-                    <span className="block truncate text-xs text-muted-foreground">{item.detail}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{detailOf(item)}</span>
                   </span>
+                  {/* The name is the link that opens the record; "Abrir" beside it would be a second way to the same page. */}
                   <span className="flex gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={item.href}>Abrir</Link>
-                    </Button>
                     <ServerForm action={keepRecord}>
                       <input type="hidden" name="id" value={item.id} />
                       <SubmitButton variant="ghost" size="sm" pendingLabel="Salvando…">

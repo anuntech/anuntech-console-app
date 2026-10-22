@@ -17,7 +17,7 @@ import { BUSINESS_DAY_MINUTES } from "../service-terms/terms-model";
  */
 export async function findEngagement(actor: Actor, id: string) {
   const [row] = await db
-    .select({ project: engagements, company: companies.name })
+    .select({ project: engagements, company: companies.name, companyDocument: companies.document })
     .from(engagements)
     .innerJoin(companies, eq(companies.id, engagements.companyId))
     .where(eq(engagements.id, id));

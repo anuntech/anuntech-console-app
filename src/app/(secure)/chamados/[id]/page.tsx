@@ -3,7 +3,7 @@ import { and, eq, isNotNull, or } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { accountEmails, consoleStaffMembers, user } from "@/db/schema";
-import { getActor, canAccess } from "@/lib/access/access";
+import { allowedIds, getActor, canAccess } from "@/lib/access/access";
 import { loadTicketThread } from "@/lib/tickets/ticket-thread";
 import { resolveAccountIdentity } from "@/lib/account/account-identity";
 import { normalizeEmail } from "@/lib/access/permissions";
@@ -15,13 +15,13 @@ import {
 import { loadCalendar } from "@/lib/service-terms/terms";
 import { businessMinutesBetween } from "@/lib/service-terms/business-calendar";
 import { businessSpanLabel, visibleToClient } from "@/lib/service-terms/ticket-clock";
-import { commitmentLine } from "@/lib/service-terms/terms-text";
 import { bankTerms } from "@/lib/service-terms/hours-bank";
 import { saoPauloDate } from "@/lib/dates";
 import type { TicketHoursData } from "@/components/chamados/ticket-hours";
 import { automationEvents, journeys, timeEntries } from "@/db/schema";
 import { ticketTriage } from "@/lib/tickets/ticket-triage";
 import { desc } from "drizzle-orm";
+import { companyDisplayName } from "@/lib/companies/display-name";
 export const metadata: Metadata = {
   title: "Chamado",
   description:
@@ -108,7 +108,6 @@ export default async function Ticket({
         ? businessSpanLabel(Math.max(1, businessMinutesBetween(t.createdAt, t.firstResponseAt, cal)))
         : null,
       pausedSince: t.status === "waiting_customer" && t.terms.policy.pausesWhileWaiting ? t.waitingSince?.toISOString() ?? null : null,
-      commitment: commitmentLine(t.terms),
       clientFrom: actor.admin && !visibleToClient(t.terms, now) ? t.terms.publishAt : null,
     };
   }
@@ -135,13 +134,16 @@ export default async function Ticket({
           today: saoPauloDate(now),
         }
       : null;
+  // The company as people read it; a client with a single company is not told its own name.
+  const company = companyDisplayName(thread.ticket.company, thread.ticket.companyDocument);
+  const showCompany = actor.admin || new Set(allowedIds(actor, "support")).size > 1;
   return (
     <TicketDetail
       data={{
-        ticket: thread.ticket,
+        ticket: { ...thread.ticket, company },
         entries: thread.entries,
         files: thread.files,
-        viewer: { admin: actor.admin },
+        viewer: { admin: actor.admin, showCompany },
         replyDraft: actor.admin && typeof resposta === "string" ? resposta.slice(0, 2000) : undefined,
         triage: actor.admin && !["resolved", "closed"].includes(t.status) ? await ticketTriage(t.id, t.priority) : null,
         journeyId:

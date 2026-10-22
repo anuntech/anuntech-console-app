@@ -13,7 +13,6 @@ export default function NotFound() {
   return (
     <StatusPage
       art="busca"
-      eyebrow="Erro 404"
       title="Esta página não existe"
       description="O endereço pode estar incompleto ou ter mudado. Se o link veio de alguém, peça de novo."
       actions={

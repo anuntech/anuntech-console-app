@@ -9,7 +9,7 @@ import {
   invoices,
   subscriptions,
 } from "@/db/schema";
-import { getActor } from "@/lib/access/access";
+import { allowedIds, getActor } from "@/lib/access/access";
 import { findInvoice } from "@/lib/billing/invoice-access";
 import { addressLabel } from "@/lib/companies/company-billing";
 import { saoPauloDate } from "@/lib/dates";
@@ -255,7 +255,8 @@ export default async function Invoice({
           action: e.action,
           createdAt: e.createdAt.toISOString(),
         })),
-        viewer: { admin: actor.admin },
+        // A client with a single company is not named back to itself.
+        viewer: { admin: actor.admin, companies: actor.admin ? 0 : allowedIds(actor, "finance").length },
         sync,
         today,
         now: now.toISOString(),
