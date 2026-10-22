@@ -1,7 +1,8 @@
-import { useRef, useState, type ComponentRef } from "react";
+import { useEffect, useRef, useState, type ComponentRef } from "react";
 import {
   AccessibilityInfo,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +17,7 @@ import { SymbolView, type SFSymbol } from "expo-symbols";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/button";
 import { Composer } from "@/components/composer";
+import { DictationStatus, MicButton } from "@/components/dictation";
 import { ListRow } from "@/components/list-row";
 import { Markdown } from "@/components/markdown";
 import { ProposalCardView } from "@/components/proposal-card";
@@ -23,13 +25,16 @@ import { Section } from "@/components/section";
 import { Bar, useDelayed } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { loadConversation, sendTurn, type Card as ProposalCard, type PageAction } from "@/lib/assistant";
-import { CONSOLE_URL } from "@/lib/config";
+import { CONSOLE_URL, SUPPORT_WHATSAPP_URL } from "@/lib/config";
+import { appendTranscript, useDictation } from "@/lib/dictation";
+import { useMe } from "@/lib/me";
 import { askAssistantConsent } from "@/lib/consent";
 import { enterUp } from "@/lib/motion";
 import { HeaderIconButton } from "@/lib/stack";
 import { rounded, space, usePalette } from "@/lib/theme";
 
-type Link = { label: string; href: string; inApp: boolean };
+/** `external`: opens another app (WhatsApp); otherwise a screen of the app or the Console in the browser. */
+type Link = { label: string; href: string; inApp: boolean; external?: boolean };
 
 type Message = {
   id: string;
@@ -45,17 +50,47 @@ type Message = {
   fresh?: boolean;
 };
 
-const suggestions: { icon: SFSymbol; text: string }[] = [
-  { icon: "exclamationmark.bubble", text: "O que está aguardando minha resposta?" },
-  { icon: "creditcard", text: "Tenho faturas em aberto?" },
-  { icon: "chart.bar.xaxis", text: "Como está o andamento dos projetos?" },
-];
+type Suggestion = { icon: SFSymbol; text: string };
+
+/**
+ * The first questions, as the web's panel offers them (assistant-panel.tsx,
+ * suggestionsFor): money only for whoever sees finance, tickets only for
+ * whoever reaches support, and the team's own list for the team.
+ */
+function suggestionsFor(staff: boolean, finance: boolean, support: boolean): Suggestion[] {
+  if (staff)
+    return [
+      { icon: "exclamationmark.triangle", text: "Quais faturas estão vencidas?" },
+      { icon: "bubble.left.and.bubble.right", text: "Quais chamados estão abertos?" },
+      { icon: "square.grid.2x2", text: "Monte um projeto com tarefas para um site institucional" },
+      { icon: "building.2", text: "Me dê um resumo de uma empresa" },
+    ];
+  return [
+    finance
+      ? { icon: "barcode", text: "Qual é o meu último boleto?" }
+      : { icon: "chart.bar.xaxis", text: "Como estão meus projetos?" },
+    support
+      ? { icon: "exclamationmark.bubble", text: "Tem chamado esperando minha resposta?" }
+      : { icon: "shippingbox", text: "Quais produtos eu tenho?" },
+    finance
+      ? { icon: "list.bullet.rectangle.portrait", text: "Tenho algum orçamento aguardando resposta?" }
+      : { icon: "info.circle", text: "O que a Anuntech faz?" },
+    { icon: "person.wave.2", text: "Quero falar com alguém da Anuntech" },
+  ];
+}
+
+/** The routes of the shortcuts under the box; Ajuda is a screen of its own (frente 7). */
+const NEW_TICKET = "/chamados/novo";
+const HELP = "/ajuda";
 
 const phaseLabels: Record<string, string> = {
   tools: "Consultando o Console…",
   reading: "Lendo o que encontrou…",
   answer: "Escrevendo a resposta…",
 };
+
+/** The longest message the box takes (the server takes up to 20,000, assistant-http.ts). */
+const MAX_MESSAGE = 4000;
 
 /** Distance from the bottom (pt) within which the conversation follows a new answer. */
 const FOLLOW = 80;
@@ -90,15 +125,22 @@ function linkLabel(href: string): string {
   return named.find(([pattern]) => pattern.test(path))?.[1] ?? "Abrir no navegador";
 }
 
-/** Links the answer offers: the screens it points at, or a new ticket. */
+/**
+ * Links the answer offers: the screens it points at or, when the person
+ * asked for someone of the Anuntech (the web's support chat), the team's
+ * WhatsApp and a new ticket.
+ */
 function linksFrom(actions: PageAction[]) {
   const links: Link[] = [];
   const add = (href: string, label = linkLabel(href)) => {
     if (!links.some((l) => l.href === href)) links.push({ label, href, inApp: !!appRoute(href) });
   };
   for (const action of actions) {
-    if (action.type === "open_support") add("/chamados/novo", "Abrir chamado");
-    else if (action.type === "navigate" && "href" in action) add(action.href);
+    if (action.type === "open_support") {
+      if (!links.some((l) => l.href === SUPPORT_WHATSAPP_URL))
+        links.push({ label: "Falar no WhatsApp", href: SUPPORT_WHATSAPP_URL, inApp: false, external: true });
+      add(NEW_TICKET, "Abrir chamado");
+    } else if (action.type === "navigate" && "href" in action) add(action.href);
   }
   return links;
 }
@@ -132,7 +174,8 @@ function ConversationsButton() {
  * conversation picked in Conversas opens here with its messages.
  */
 export default function Assistant() {
-  const { conversa } = useLocalSearchParams<{ conversa?: string }>();
+  // `q` fills the box (Ajuda's "Perguntar ao assistente"); the person still sends it.
+  const { conversa, q } = useLocalSearchParams<{ conversa?: string; q?: string }>();
   const stored = useQuery({
     queryKey: ["assistant-conversation", conversa],
     queryFn: () => loadConversation(conversa!),
@@ -148,6 +191,7 @@ export default function Assistant() {
       initialId={stored.data?.id}
       initialMessages={conversa ? initial : []}
       loadError={conversa && stored.error ? stored.error.message : null}
+      prefill={typeof q === "string" ? q : undefined}
     />
   );
 }
@@ -174,13 +218,44 @@ function Loading() {
   );
 }
 
-function Chat({ initialId, initialMessages, loadError }: { initialId?: string; initialMessages: Message[]; loadError: string | null }) {
+function Chat({
+  initialId,
+  initialMessages,
+  loadError,
+  prefill,
+}: {
+  initialId?: string;
+  initialMessages: Message[];
+  loadError: string | null;
+  prefill?: string;
+}) {
   const palette = usePalette();
+  const me = useMe();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [conversationId, setConversationId] = useState<string | undefined>(initialId);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(() => (prefill ?? "").slice(0, MAX_MESSAGE));
+  // A question that arrives while the screen is open replaces what was in the box.
+  const [filled, setFilled] = useState(prefill);
+  if (prefill !== filled) {
+    setFilled(prefill);
+    if (prefill) setDraft(prefill.slice(0, MAX_MESSAGE));
+  }
+  useEffect(() => {
+    // Read once: coming back to the tab must not fill the box again.
+    if (prefill) router.setParams({ q: undefined });
+  }, [prefill]);
+  const staff = !!me.data?.staff;
+  const finance = staff || !!me.data?.companies.some((c) => c.role === "manager");
+  // Every role of a company reaches support (lib/access/permissions.ts): anyone with a company, or the team.
+  const support = staff || !!me.data?.companies.length;
+  const dictation = useDictation((text) => {
+    const result = appendTranscript(draft, text, MAX_MESSAGE);
+    setDraft(result.value);
+    if (result.truncated)
+      return `O texto passou do limite de ${MAX_MESSAGE.toLocaleString("pt-BR")} caracteres e foi cortado. Revise antes de enviar.`;
+  });
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState("");
   const [error, setError] = useState<string | null>(loadError);
@@ -225,11 +300,15 @@ function Chat({ initialId, initialMessages, loadError }: { initialId?: string; i
   const send = async (text: string) => {
     const message = text.trim();
     if (!message || busy) return;
+    // What was said is still on its way: sending now would leave it out.
+    if (dictation.phase === "transcribing") return;
+    if (dictation.phase === "recording" || dictation.phase === "starting") dictation.cancel();
     // The first message waits for the person's consent; "Agora não" keeps it unsent.
     if (!(await askAssistantConsent(() => router.push("/assistente/consentimento" as never)))) return;
     seq.current += 1;
     const answerId = `a-${seq.current}`;
     setDraft("");
+    dictation.dismiss();
     setError(null);
     setBusy(true);
     setPhase("tools");
@@ -288,6 +367,10 @@ function Chat({ initialId, initialMessages, loadError }: { initialId?: string; i
   };
 
   const open = (href: string) => {
+    if (href === SUPPORT_WHATSAPP_URL) {
+      void Linking.openURL(href).catch(() => WebBrowser.openBrowserAsync(href));
+      return;
+    }
     const route = appRoute(href);
     if (route) router.push(route as never);
     else void WebBrowser.openBrowserAsync(`${CONSOLE_URL}${href}`);
@@ -296,8 +379,8 @@ function Chat({ initialId, initialMessages, loadError }: { initialId?: string; i
   // A confirmed change may have touched what other screens show.
   const changed = (actions: PageAction[]) => {
     void queryClient.invalidateQueries();
-    const links = linksFrom(actions);
-    if (links[0]) open(links[0].href);
+    const next = linksFrom(actions).find((link) => !link.external);
+    if (next) open(next.href);
   };
 
   const last = messages[messages.length - 1]?.id;
@@ -346,22 +429,24 @@ function Chat({ initialId, initialMessages, loadError }: { initialId?: string; i
             <Text variant="caption" tone="muted" style={{ textAlign: "center" }}>
               Respostas geradas por IA podem conter erros.
             </Text>
-            <Section indent={52} style={{ marginTop: space.md, alignSelf: "stretch" }}>
-              {suggestions.map((s) => (
-                <ListRow
-                  key={s.text}
-                  title={s.text}
-                  leading={
-                    <View style={{ width: 24, alignItems: "center" }}>
-                      <SymbolView name={s.icon} size={18} tintColor={palette.primary} accessible={false} />
-                    </View>
-                  }
-                  trailing={<SymbolView name="arrow.up.right" size={13} weight="semibold" tintColor={palette.tertiary} accessible={false} />}
-                  accessibilityHint="Envia a pergunta ao assistente"
-                  onPress={() => void send(s.text)}
-                />
-              ))}
-            </Section>
+            {me.data ? (
+              <Section indent={52} style={{ marginTop: space.md, alignSelf: "stretch" }}>
+                {suggestionsFor(staff, finance, support).map((s) => (
+                  <ListRow
+                    key={s.text}
+                    title={s.text}
+                    leading={
+                      <View style={{ width: 24, alignItems: "center" }}>
+                        <SymbolView name={s.icon} size={18} tintColor={palette.primary} accessible={false} />
+                      </View>
+                    }
+                    trailing={<SymbolView name="arrow.up.right" size={13} weight="semibold" tintColor={palette.tertiary} accessible={false} />}
+                    accessibilityHint="Envia a pergunta ao assistente"
+                    onPress={() => void send(s.text)}
+                  />
+                ))}
+              </Section>
+            ) : null}
           </View>
         ) : null}
         {messages.map((m) =>
@@ -408,7 +493,31 @@ function Chat({ initialId, initialMessages, loadError }: { initialId?: string; i
         error={error}
         testID="assistant-message"
         sendTestID="assistant-send"
-        maxLength={4000}
+        maxLength={MAX_MESSAGE}
+        accessory={support && dictation.available ? <MicButton dictation={dictation} testID="assistant-mic" /> : undefined}
+        status={<DictationStatus dictation={dictation} />}
+        footer={
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm, paddingHorizontal: space.xs }}>
+            {support ? (
+              <Button
+                title="Abrir chamado"
+                variant="secondary"
+                size="small"
+                icon="square.and.pencil"
+                testID="assistant-shortcut-ticket"
+                onPress={() => router.push(NEW_TICKET)}
+              />
+            ) : null}
+            <Button
+              title="Ajuda"
+              variant="secondary"
+              size="small"
+              icon="questionmark.circle"
+              testID="assistant-shortcut-help"
+              onPress={() => router.push(HELP as never)}
+            />
+          </View>
+        }
       />
     </KeyboardAvoidingView>
   );
@@ -494,8 +603,11 @@ function Turn({
                 title={link.label}
                 variant="secondary"
                 size="small"
+                icon={link.external ? "message.fill" : undefined}
                 trailingIcon={link.inApp ? "chevron.right" : "arrow.up.right"}
-                accessibilityHint={link.inApp ? undefined : "Abre no navegador"}
+                accessibilityHint={
+                  link.external ? "Abre o WhatsApp da equipe, (11) 5107-3435" : link.inApp ? undefined : "Abre no navegador"
+                }
                 onPress={() => onLink(link.href)}
               />
             ))}

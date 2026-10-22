@@ -6,11 +6,13 @@ import { SymbolView } from "expo-symbols";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/button";
 import { Composer } from "@/components/composer";
+import { DictationStatus, MicButton } from "@/components/dictation";
 import { Pill } from "@/components/pill";
 import { SkeletonHeader, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { api, errorMessage } from "@/lib/api";
+import { appendTranscript, useDictation } from "@/lib/dictation";
 import { openAttachment } from "@/lib/files";
 import { fileSize, when } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
@@ -135,12 +137,18 @@ export default function Ticket() {
   const tabBar = useBottomBarSpace();
   const typing = useKeyboardVisible();
   const [body, setBody] = useState("");
+  const dictation = useDictation((text) => {
+    const result = appendTranscript(body, text, 10000);
+    setBody(result.value);
+    if (result.truncated) return "O texto passou do limite de 10.000 caracteres e foi cortado. Revise antes de enviar.";
+  });
   const ticket = useQuery({ queryKey: ["ticket", id], queryFn: () => api.tickets.get({ id }) });
   const loading = useDelayed(ticket.isPending);
   const reply = useMutation({
     mutationFn: () => api.tickets.reply({ id, body: body.trim() }),
     onSuccess: async () => {
       setBody("");
+      dictation.dismiss();
       haptic.success();
       AccessibilityInfo.announceForAccessibility("Resposta enviada");
       await Promise.all([
@@ -250,13 +258,20 @@ export default function Ticket() {
           <Composer
             value={body}
             onChangeText={setBody}
-            onSend={() => reply.mutate()}
+            onSend={() => {
+              // What was said is still on its way: sending now would leave it out.
+              if (dictation.phase === "transcribing") return;
+              if (dictation.busy) dictation.cancel();
+              reply.mutate();
+            }}
             placeholder="Escreva sua resposta"
             sendLabel="Enviar resposta"
             busy={reply.isPending}
             error={reply.error ? errorMessage(reply.error) : null}
             testID="reply"
             sendTestID="send-reply"
+            accessory={dictation.available ? <MicButton dictation={dictation} testID="reply-mic" /> : undefined}
+            status={<DictationStatus dictation={dictation} />}
           />
         ) : (
           <View style={{ paddingHorizontal: 12, paddingTop: space.sm, paddingBottom: typing ? space.sm : tabBar, gap: space.sm }}>

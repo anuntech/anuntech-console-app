@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { SymbolView } from "expo-symbols";
@@ -25,6 +25,9 @@ export function Composer({
   testID,
   sendTestID,
   maxLength = 10000,
+  accessory,
+  status,
+  footer,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -37,6 +40,12 @@ export function Composer({
   testID?: string;
   sendTestID?: string;
   maxLength?: number;
+  /** A button inside the box, before send (the microphone). */
+  accessory?: ReactNode;
+  /** A line above the box (what the microphone is doing). */
+  status?: ReactNode;
+  /** A line under the box (the assistant's shortcuts). */
+  footer?: ReactNode;
 }) {
   const palette = usePalette();
   const tabBar = useBottomBarSpace();
@@ -52,6 +61,7 @@ export function Composer({
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: typing ? 8 : tabBar, gap: 8 }}>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      {status}
       <View
         style={{
           flexDirection: "row",
@@ -86,6 +96,7 @@ export function Composer({
             color: palette.foreground,
           }}
         />
+        {accessory ? <View style={{ marginVertical: 7, marginLeft: 2 }}>{accessory}</View> : null}
         <Animated.View style={[{ margin: 7 }, pop]}>
           <Pressable
             testID={sendTestID}
@@ -122,6 +133,7 @@ export function Composer({
           </Pressable>
         </Animated.View>
       </View>
+      {footer}
     </View>
   );
 }

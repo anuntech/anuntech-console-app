@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { SymbolView, type SFSymbol } from "expo-symbols";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/button";
+import { DictationBar } from "@/components/dictation";
 import { Field } from "@/components/field";
 import { ListRow } from "@/components/list-row";
 import { Section } from "@/components/section";
@@ -12,6 +13,7 @@ import { SkeletonRows, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";
 import { IconTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
+import { appendTranscript, useDictation } from "@/lib/dictation";
 import { haptic } from "@/lib/haptics";
 import { space, usePalette, type tile } from "@/lib/theme";
 
@@ -54,6 +56,11 @@ export default function NewTicket() {
   const [impact, setImpact] = useState<Impact>();
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const dictation = useDictation((text) => {
+    const result = appendTranscript(body, text, 10000);
+    setBody(result.value);
+    if (result.truncated) return "O texto passou do limite de 10.000 caracteres e foi cortado. Revise antes de enviar.";
+  });
   const [tried, setTried] = useState(false);
   const companies = choices.data?.companies ?? [];
   // With one company there is nothing to pick.
@@ -91,7 +98,12 @@ export default function NewTicket() {
   ];
   const warning = `Escolha ${list(pick)}${pick.length > 1 ? "," : ""} e preencha assunto e descrição.`;
   const submit = () => {
-    if (ready) return create.mutate();
+    // What was said is still on its way: opening now would leave it out.
+    if (dictation.phase === "transcribing") return;
+    if (ready) {
+      if (dictation.busy) dictation.cancel();
+      return create.mutate();
+    }
     setTried(true);
     const where = positions.current;
     const block = missing[0];
@@ -215,6 +227,9 @@ export default function NewTicket() {
                   invalid={tried && !body.trim()}
                   style={{ minHeight: 140, paddingTop: space.md, textAlignVertical: "top" }}
                 />
+                <View style={{ marginTop: space.sm }}>
+                  <DictationBar dictation={dictation} testID="body-mic" />
+                </View>
               </View>
             </View>
             <View style={{ paddingHorizontal: space.gutter, gap: space.md }}>
