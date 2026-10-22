@@ -12,6 +12,7 @@ import { answerQuoteAs, quoteNoteField, type QuoteAnswer } from "./quote-answer"
 import { documentHash as hashOf } from "../document-hash";
 import { saoPauloDate } from "../dates";
 import { deliverQuoteNotice } from "./quote-mail";
+import { notifiedLabel, RESEND_TOO_SOON, sentMomentsAgo } from "../notifications/resend-guard";
 import { enqueuePush, schedulePushNotices } from "../notifications/push-queue";
 import { quoteBoardTasks } from "./quote-handoff";
 import { inviteManagerOnSend } from "../access/invite-manager";
@@ -289,6 +290,53 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
           ? `Orçamento enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
           : "Orçamento enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.") + (invite ? ` ${invite}` : ""),
     };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** Sends the "proposal awaits your answer" e-mail again to the Administradores, as the first send did. */
+export async function resendQuote(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const quoteId = id.parse(form.get("id"));
+    const [q] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
+    if (!q) throw Error("Orçamento não encontrado.");
+    if (q.status !== "sent" || !q.publication) throw Error("Só um orçamento aguardando resposta tem aviso para reenviar.");
+    if (q.validUntil && q.validUntil < saoPauloDate())
+      throw Error("A validade passou. Edite o orçamento e envie a nova versão, com outra data.");
+    if (await sentMomentsAgo(q.id, ["quote.sent", "quote.notice_resent"])) throw Error(RESEND_TOO_SOON);
+    const managers = await companyManagers(q.companyId);
+    if (!managers.length) throw Error("Ninguém da empresa é Administrador para receber o aviso. Libere o acesso em Empresas.");
+    const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, q.companyId));
+    let notified = 0;
+    for (const manager of managers) {
+      try {
+        await deliverQuoteNotice(manager.email, {
+          companyName: company.name,
+          title: q.publication.title,
+          number: q.publication.number,
+          url: `${consoleUrl()}/orcamentos/${q.id}`,
+          totalCents: quoteTotals(q.publication).totalCents,
+          validUntil: q.validUntil,
+          version: q.publishedVersion,
+        });
+        notified += 1;
+      } catch {
+        /* One address failing does not stop the others. */
+      }
+    }
+    if (!notified) throw Error("O e-mail não saiu. Tente de novo em alguns minutos.");
+    await db.insert(auditEvents).values({
+      actorId: actor.user.id,
+      companyId: q.companyId,
+      entityId: q.id,
+      action: "quote.notice_resent",
+      details: { version: q.publishedVersion, notified },
+    });
+    refresh(q.id);
+    return { success: `E-mail reenviado para ${notifiedLabel(notified)}.` };
   } catch (e) {
     return failure(e);
   }

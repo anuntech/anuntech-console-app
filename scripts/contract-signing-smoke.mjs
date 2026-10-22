@@ -90,6 +90,23 @@ export async function runContractSigningTests({ database, ids, request, ok, mark
     "Assinatura é única por parte e versão, não por contrato",
   );
 
+  // Resending the signature e-mail: not right after a send (a double click), again later, never once the client signed.
+  const notice = await create(`Resend ${marker}`);
+  await send(notice);
+  const resent = async () =>
+    (await one("select count(*)::int as n from console_audit_events where entity_id=$1 and action='contract.notice_resent'", [notice])).n;
+  await act(notice, "admin", "resendContract");
+  ok((await resent()) === 0, "Reenvio do e-mail logo depois do envio do contrato é recusado");
+  await database.query("update console_audit_events set created_at = now() - interval '10 minutes' where entity_id=$1 and action='contract.sent'", [notice]);
+  await act(notice, "finance", "resendContract");
+  ok((await resent()) === 0, "Cliente não reenvia o e-mail do contrato");
+  await act(notice, "admin", "resendContract");
+  ok((await resent()) === 1, "A equipe reenvia o e-mail de assinatura minutos depois");
+  await database.query("update console_audit_events set created_at = now() - interval '10 minutes' where entity_id=$1", [notice]);
+  await sign(notice, "finance");
+  await act(notice, "admin", "resendContract");
+  ok((await resent()) === 1, "Depois que o cliente assina, não há e-mail para reenviar");
+
   // The production case: the team signed version 1, the contract went back to draft, and the team signs version 2.
   const team = await create(`Resign team ${marker}`);
   await send(team);
