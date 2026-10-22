@@ -105,7 +105,7 @@ export async function helpChecks({ db, rpc, ok, marker, emailSignIn, staff }) {
         r.body.faq.length > 0 &&
         r.body.canOpenTicket &&
         stub(r.body, "relatorio-de-horas")?.adminOnly === true &&
-        stub(r.body, "pagar-uma-fatura")?.adminOnly === false,
+        stub(r.body, "abrir-um-chamado")?.adminOnly === false,
       "The help home lists subjects, videos and questions, marking the Administrador's articles for a Membro",
     );
     r = await rpc("help.home", {}, admin);
