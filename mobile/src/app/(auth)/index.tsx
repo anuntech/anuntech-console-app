@@ -4,12 +4,14 @@ import { Image, KeyboardAvoidingView, Platform, View, type TextInput } from "rea
 import { SymbolView } from "expo-symbols";
 import type { ComponentRef } from "react";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { Screen, Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
 import { CodeField, Field } from "@/components/field";
 import { Segmented } from "@/components/segmented";
 import { authClient, normalizePhone } from "@/lib/auth";
+import { CONSOLE_URL } from "@/lib/config";
 import { useCooldown } from "@/lib/cooldown";
 import { clearSignInNotice, peekSignInNotice } from "@/lib/sign-in-notice";
 import { radius, rounded, space, usePalette } from "@/lib/theme";
@@ -263,6 +265,15 @@ export default function SignIn() {
             )}
           </View>
         </View>
+        <Text
+          variant="caption"
+          tone="primary"
+          accessibilityRole="link"
+          onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/privacidade`)}
+          style={{ textAlign: "center", marginTop: space.lg }}
+        >
+          Política de privacidade
+        </Text>
       </Screen>
     </KeyboardAvoidingView>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, RefreshControl, ScrollView, Switch, View } from "react-native";
 import { router } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
 import { SymbolView } from "expo-symbols";
 import { Avatar } from "@/components/avatar";
@@ -12,7 +13,7 @@ import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { useMe } from "@/lib/me";
 import { errorMessage } from "@/lib/api";
-import { formatPhone } from "@/lib/config";
+import { CONSOLE_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
 import { confirmIdentity, lockAvailable, lockEnabled, setLockEnabled } from "@/lib/lock";
 import { signOut } from "@/lib/session";
@@ -203,6 +204,20 @@ export default function Account() {
           </View>
         </Section>
       )}
+      <Section>
+        <ListRow
+          title="Ajuda e suporte"
+          leading={<IconTile icon="questionmark.circle.fill" color="teal" />}
+          trailing="external"
+          onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/suporte`)}
+        />
+        <ListRow
+          title="Política de privacidade"
+          leading={<IconTile icon="hand.raised.fill" color="gray" />}
+          trailing="external"
+          onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/privacidade`)}
+        />
+      </Section>
       <Section>
         <ListRow
           testID="sign-out"

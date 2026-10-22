@@ -94,6 +94,7 @@ try {
         FLW_SENDER_NUMBER: "5511000000000",
         FLW_OTP_TEMPLATE_ID: randomUUID(),
         APP_REVIEW_PHONE: reviewPhone,
+        APP_REVIEW_EMAIL: reviewEmail,
         APP_REVIEW_CODE: reviewCode,
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -346,6 +347,17 @@ try {
     code: reviewCode,
   });
   ok(r.status >= 400, "O código fixo só vale depois de um pedido de código");
+  // The same reviewer by e-mail: the fixed code, and no e-mail goes out.
+  await unlock(reviewEmail);
+  before = messages().length;
+  r = await api("/email-otp/send-verification-otp", { email: reviewEmail, type: "sign-in" });
+  ok(r.status === 200 && messages().length === before, "O e-mail do revisor não recebe mensagem");
+  r = await api("/sign-in/email-otp", { email: reviewEmail, otp: "000000" });
+  ok(r.status >= 400, "O e-mail do revisor recusa outro código");
+  await unlock(reviewEmail);
+  await api("/email-otp/send-verification-otp", { email: reviewEmail, type: "sign-in" });
+  r = await api("/sign-in/email-otp", { email: reviewEmail, otp: reviewCode });
+  ok(r.status === 200 && r.body.user?.id === reviewId, "O revisor entra pelo e-mail com o código fixo");
   console.log(`Concluído: ${count} verificações OTP, sem mensagens reais.`);
 } catch (error) {
   console.error("FAIL", error.message);

@@ -111,6 +111,17 @@ export function appReviewCode(phoneNumber: string) {
     return null;
   return phoneNumber === number ? code : null;
 }
+/**
+ * The same for e-mail: APP_REVIEW_EMAIL signs in with APP_REVIEW_CODE and no
+ * message is sent (the reviewer has no mailbox there). The account still needs
+ * an active membership, like any other.
+ */
+export function appReviewEmailCode(email: string) {
+  const address = process.env.APP_REVIEW_EMAIL?.trim().toLowerCase();
+  const code = process.env.APP_REVIEW_CODE?.trim();
+  if (!address || !code || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) || !/^\d{6}$/.test(code)) return null;
+  return email.trim().toLowerCase() === address ? code : null;
+}
 export async function deliverWhatsappOtp(phoneNumber: string, code: string) {
   if (
     !process.env.FLW_OTP_TEMPLATE_ID ||

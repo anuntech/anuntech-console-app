@@ -13,6 +13,7 @@ import { expo } from "@better-auth/expo";
 import {
   allowedEmail,
   appReviewCode,
+  appReviewEmailCode,
   reserveOtp,
   deliverEmailOtp,
   deliverWhatsappOtp,
@@ -229,7 +230,10 @@ export const auth = betterAuth({
       allowedAttempts: 3,
       storeOTP: "hashed",
       rateLimit: { window: 60, max: 3 },
+      // The App Store reviewer's address gets the fixed code (and no e-mail); everyone else a random one.
+      generateOTP: ({ email, type }) => (type === "sign-in" ? (appReviewEmailCode(email) ?? undefined) : undefined),
       sendVerificationOTP: async ({ email, otp, type }) => {
+        if (type === "sign-in" && appReviewEmailCode(email)) return;
         if (type === "sign-in" && (await allowedEmail(email)))
           await deliverEmailOtp(email, otp);
       },
