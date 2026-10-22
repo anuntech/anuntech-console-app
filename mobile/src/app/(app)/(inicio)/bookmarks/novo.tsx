@@ -12,9 +12,11 @@ import { SkeletonRows, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
+import { documentsAvailable } from "@/lib/uploads";
 import { api, errorMessage } from "@/lib/api";
 import {
   BookmarkFileError,
+  pickDocument,
   pickPhoto,
   refreshBookmarks,
   uploadBookmarkFile,
@@ -29,7 +31,7 @@ import { space } from "@/lib/theme";
 type Kind = "link" | "file" | "board";
 const kinds: { value: Kind; label: string; hint: string }[] = [
   { value: "link", label: "Link", hint: "Um endereço na web." },
-  { value: "file", label: "Arquivo", hint: "Uma foto do celular, de até 1 MB." },
+  { value: "file", label: "Arquivo", hint: documentsAvailable ? "Um arquivo ou foto do celular, de até 1 MB." : "Uma foto do celular, de até 1 MB." },
   { value: "board", label: "Lousa", hint: "Um quadro para desenhar. A lousa abre no Console para desenhar; no celular você vê o desenho." },
 ];
 
@@ -89,14 +91,14 @@ export default function NewBookmark() {
     }
     save.mutate();
   };
-  const choosePhoto = async (source: "camera" | "library") => {
+  const choosePhoto = async (source: "camera" | "library" | "files") => {
     setFileError(null);
     try {
-      const chosen = await pickPhoto(source);
+      const chosen = source === "files" ? await pickDocument() : await pickPhoto(source);
       if (!chosen) return;
       haptic.select();
       setPhoto(chosen);
-      if (!title.trim()) setTitle(chosen.name.replace(/\.jpg$/, ""));
+      if (!title.trim()) setTitle(chosen.name.replace(/\.[^.]+$/, ""));
     } catch (failure) {
       haptic.error();
       setFileError(failure instanceof BookmarkFileError ? failure.message : "Não foi possível abrir as fotos. Tente novamente.");
@@ -175,7 +177,7 @@ export default function NewBookmark() {
                 {photo ? (
                   <Section header="Arquivo" inset={space.gutter}>
                     <ListRow
-                      leading={<IconTile icon="photo.fill" color="teal" />}
+                      leading={<IconTile icon={photo.mime.startsWith("image/") ? "photo.fill" : "doc.fill"} color="teal" />}
                       title={photo.name}
                       subtitle={fileSize(photo.size)}
                       value="Trocar"
@@ -185,7 +187,14 @@ export default function NewBookmark() {
                     />
                   </Section>
                 ) : (
-                  <Section header="Arquivo" footer="No celular dá para enviar fotos. Outros arquivos, pelo Console no computador." inset={space.gutter}>
+                  <Section
+                    header="Arquivo"
+                    footer={documentsAvailable ? "Até 1 MB." : "No celular dá para enviar fotos. Outros arquivos, pelo Console no computador."}
+                    inset={space.gutter}
+                  >
+                    {documentsAvailable ? (
+                      <ListRow leading={<IconTile icon="doc.fill" color="teal" />} title="Escolher arquivo" onPress={() => void choosePhoto("files")} />
+                    ) : null}
                     <ListRow leading={<IconTile icon="photo.on.rectangle" color="violet" />} title="Escolher da galeria" onPress={() => void choosePhoto("library")} />
                     <ListRow leading={<IconTile icon="camera.fill" color="gray" />} title="Tirar foto" onPress={() => void choosePhoto("camera")} />
                   </Section>

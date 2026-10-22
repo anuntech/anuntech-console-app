@@ -1,6 +1,6 @@
 import { useDeferredValue, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, ScrollView, useWindowDimensions, View } from "react-native";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import type { SearchBarCommands } from "react-native-screens";
 import { Text } from "@/components/text";
@@ -166,7 +166,15 @@ export default function Invoices() {
   const { fontScale, width } = useWindowDimensions();
   const stacked = fontScale > 1.3 || width < 340;
   const searchBar = useRef<SearchBarCommands>(null);
-  const [filter, setFilter] = useState<Filter>("all");
+  // A link may open the list filtered ("Pagar agora" on a suspended product: /financeiro?status=overdue).
+  const { status } = useLocalSearchParams<{ status?: string }>();
+  const linked = filters.find((f) => f === status);
+  const [filter, setFilter] = useState<Filter>(linked ?? "all");
+  const [seenLink, setSeenLink] = useState(status);
+  if (status !== seenLink) {
+    setSeenLink(status);
+    if (linked) setFilter(linked);
+  }
   const [period, setPeriod] = useState<Period>("all");
   const [search, setSearch] = useState("");
   const deferred = useDeferredValue(search.trim());

@@ -10,6 +10,7 @@ import {
   ATTACHMENT_RULES,
   UploadError,
   discardUpload,
+  documentsAvailable,
   pickFiles,
   uploadFile,
   type PickedFile,
@@ -90,13 +91,13 @@ export function useAttachments({ value, onChange, target, max = ATTACHMENT_RULES
       return setError(ATTACHMENT_RULES.limitError);
     }
     if (Platform.OS === "ios") {
-      const options = ["Câmera", "Fotos", "Arquivo", "Cancelar"];
+      const options = documentsAvailable ? ["Câmera", "Fotos", "Arquivo", "Cancelar"] : ["Câmera", "Fotos", "Cancelar"];
       ActionSheetIOS.showActionSheetWithOptions(
-        { title: "Anexar", message: ATTACHMENT_RULES.hint, options, cancelButtonIndex: 3 },
+        { title: "Anexar", message: ATTACHMENT_RULES.hint, options, cancelButtonIndex: options.length - 1 },
         (index) => {
           if (index === 0) void add("camera");
           else if (index === 1) void add("photos");
-          else if (index === 2) void add("files");
+          else if (index === 2 && documentsAvailable) void add("files");
         },
       );
       return;
@@ -104,7 +105,7 @@ export function useAttachments({ value, onChange, target, max = ATTACHMENT_RULES
     Alert.alert("Anexar", ATTACHMENT_RULES.hint, [
       { text: "Câmera", onPress: () => void add("camera") },
       { text: "Fotos", onPress: () => void add("photos") },
-      { text: "Arquivo", onPress: () => void add("files") },
+      ...(documentsAvailable ? [{ text: "Arquivo", onPress: () => void add("files") }] : []),
     ], { cancelable: true });
   }
 

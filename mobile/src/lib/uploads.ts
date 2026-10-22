@@ -1,10 +1,23 @@
 import { Alert, Linking, Platform } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
+import { requireOptionalNativeModule } from "expo";
+import type * as DocumentPickerModule from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { File, FileMode } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { sessionHeaders } from "./api";
 import { CONSOLE_URL } from "./config";
+
+/*
+ * The document picker is a native module that builds before 1.2.0 do not
+ * have: an update over the air must not crash them, so there "Arquivo" does
+ * not show and photos still go.
+ */
+export const documentPicker: typeof DocumentPickerModule | null = requireOptionalNativeModule("ExpoDocumentPicker")
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require("expo-document-picker") as typeof DocumentPickerModule)
+  : null;
+/** Whether this build can pick documents (PDF and others) besides photos. */
+export const documentsAvailable = !!documentPicker;
 
 /*
  * Attachments for tickets and tasks, as the web's field takes them
@@ -106,9 +119,10 @@ export async function pickFiles(source: "camera" | "photos" | "files", max: numb
     if (result.assets.length > max) throw new UploadError(ATTACHMENT_RULES.limitError);
     return Promise.all(result.assets.map(asJpeg));
   }
-  let result: DocumentPicker.DocumentPickerResult;
+  if (!documentPicker) return [];
+  let result: DocumentPickerModule.DocumentPickerResult;
   try {
-    result = await DocumentPicker.getDocumentAsync({
+    result = await documentPicker.getDocumentAsync({
       type: [...ATTACHMENT_RULES.accept],
       multiple: max > 1,
       copyToCacheDirectory: true,

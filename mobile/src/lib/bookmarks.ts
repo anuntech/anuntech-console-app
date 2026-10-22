@@ -8,6 +8,7 @@ import { useQuery, type InfiniteData } from "@tanstack/react-query";
 import { api, queryClient, sessionHeaders } from "./api";
 import { CONSOLE_URL } from "./config";
 import { openAttachment } from "./files";
+import { documentPicker } from "./uploads";
 export { audience, deleteNote, describe, hostOf } from "./bookmark-text";
 
 export type BookmarkList = Awaited<ReturnType<typeof api.bookmarks.list>>;
@@ -155,6 +156,26 @@ export async function pickPhoto(source: "camera" | "library"): Promise<PickedPho
     if (failure instanceof BookmarkFileError) throw failure;
     throw new BookmarkFileError("Não foi possível preparar a foto. Tente outra.");
   }
+}
+
+/**
+ * A document from the phone's files (PDF, planilha, apresentação…), as it is,
+ * or null when the person gave up. Only on builds with the document picker
+ * (1.2.0 on): before, file bookmarks are photos.
+ */
+export async function pickDocument(): Promise<PickedPhoto | null> {
+  if (!documentPicker) return null;
+  let asset;
+  try {
+    const result = await documentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
+    asset = result.canceled ? undefined : result.assets[0];
+  } catch {
+    throw new BookmarkFileError("Não foi possível abrir os arquivos. Tente novamente.");
+  }
+  if (!asset) return null;
+  const size = asset.size ?? new File(asset.uri).size ?? 0;
+  if (size > MAX_FILE_BYTES) throw new BookmarkFileError(FILE_TOO_LARGE);
+  return { uri: asset.uri, name: asset.name, mime: asset.mimeType || "application/octet-stream", size };
 }
 
 const FAILED = "Não foi possível salvar o bookmark. Tente novamente.";

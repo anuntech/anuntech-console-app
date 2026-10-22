@@ -72,7 +72,7 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 - [x] **K7** Versões anteriores com o PDF de cada uma.
 - [x] **K8** Aditivos do contrato e link para o contrato original.
 - [x] **K9** Vigência com estado (começa, vence, vencido) e o texto do aditivo.
-- 🟡 **K10** "Enviado em", modelo e próximos passos depois de assinado. Falta o passo "Como trabalhamos", que espera a tela da frente 7 (A5).
+- [x] **K10** "Enviado em", modelo e próximos passos depois de assinado (com Como trabalhamos).
 - [x] **Q1** Orçamentos: filtro de situação (Aguardando resposta, Aceitos, Recusados, Expirados) e busca.
 - [x] **Q2** **Pedir orçamento** na lista (abre chamado "App ou projeto novo" já escolhido).
 - [x] **Q3** Detalhe: tecnologias, valor da hora, desconto negociado, semanas por fase, tarefas com descrição.
@@ -98,7 +98,7 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 ## Frente 5 — Bookmarks
 
 - [x] **B1** Chip "Sem pasta", paginação além de 100, tamanho e data dos arquivos, quem vê cada pasta.
-- 🟡 **B2** Novo link (empresa, pasta, título, endereço), nova lousa e novo arquivo (enviar do celular). Falta: arquivo que não é foto (PDF e outros) espera o `expo-document-picker`; hoje o app envia fotos da galeria ou da câmera (`pickPhoto` em `src/lib/bookmarks.ts`), e a rota `/api/v1/bookmarks/arquivo` já aceita qualquer tipo.
+- [x] **B2** Novo link (empresa, pasta, título, endereço), nova lousa e novo arquivo enviado do celular (foto, ou qualquer arquivo de até 1 MB a partir da 1.2.0).
 - [x] **B3** Editar, mover para outra pasta e excluir (quem salvou ou o dono da pasta).
 - [x] **B4** Nova pasta, renomear, compartilhar (empresa toda ou pessoas escolhidas) e excluir (o dono).
 - [x] **B5** Lousa: ver em tela cheia com zoom.
@@ -123,11 +123,11 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 - [x] **A1** **Ajuda**: busca, vídeos, assuntos, perguntas frequentes. (`help.home`, `help.search`; tela `/ajuda` sobre as abas, aberta pela Conta)
 - [x] **A2** Ler artigo (seções, passos, notas, perguntas, links internos que abrem a tela do app), aviso ao Membro em artigo de Administrador, relacionados. (`help.get`; `/ajuda/[slug]`, aberta de qualquer aba por `openHelp`)
-- 🟡 **A3** Vídeos tutoriais com capítulos e transcrição. Falta o player dentro do app: sem `expo-video`, o vídeo abre no navegador do app (cada capítulo e cada linha da transcrição abrem no segundo certo); capítulos e transcrição aparecem como texto.
+- [x] **A3** Vídeos tutoriais com capítulos e transcrição: tocam no app a partir da 1.2.0 (capítulos e transcrição levam ao segundo certo); antes, abrem no navegador do app.
 - [x] **A4** "Não encontrou?": perguntar ao assistente, abrir chamado (Dúvida), falar com a equipe (WhatsApp). (O assistente abre sem a pergunta preenchida: a tela não aceita esse parâmetro.)
 - [x] **A5** **Como trabalhamos**: o guia, os prazos e o que o contrato pede de cada empresa; marcar como lido. (`guide.get`, `guide.markRead`; `/como-trabalhamos`, pela Conta e pela Ajuda)
 - [x] **A6** Primeiros passos no Início (Administrador e Membro têm passos diferentes) e "Ocultar". (`guide.firstSteps`, `guide.markStep`; `components/first-steps-card.tsx` pronto, o integrador põe no Início)
-- 🟡 **A7** Links de ajuda nas telas ("Como pagar", "Como assinar e pedir alteração", "Como funciona o aceite", "Como contamos o tempo"). As rotas existem (`/ajuda/[slug]`, `/como-trabalhamos`); os links entram pelas outras frentes com `openHelp(slug)`.
+- [x] **A7** Links de ajuda nas telas ("Como pagar", "Como assinar e pedir alteração", "Como funciona o aceite", "Como contamos o tempo", "Como funciona o quadro").
 
 ## Frente 8 — Conta, notificações e assistente
 

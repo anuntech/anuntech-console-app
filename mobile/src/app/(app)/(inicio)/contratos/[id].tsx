@@ -43,6 +43,7 @@ const nextSteps = [
   { title: "Financeiro", text: "As cobranças aparecem em Financeiro.", href: "/financeiro" as const },
   { title: "Chamados", text: "Acessos, dúvidas e pedidos seguem por chamado.", href: "/chamados" as const },
   { title: "Projetos", text: "O andamento de um projeto fica em Projetos.", href: "/projetos" as const },
+  { title: "Como trabalhamos", text: "Mostra os prazos e o que ajuda a equipe.", href: "/como-trabalhamos" as const },
 ];
 
 /** One side of the contract, as the web's Party: who it is and whether (and when) it signed. */

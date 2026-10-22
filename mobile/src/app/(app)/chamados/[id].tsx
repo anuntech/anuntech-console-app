@@ -8,6 +8,7 @@ import { AttachmentError, uploadIds, uploading, useAttachments, type Attachment 
 import { Button } from "@/components/button";
 import { Composer } from "@/components/composer";
 import { DictationStatus, MicButton } from "@/components/dictation";
+import { ListRow } from "@/components/list-row";
 import { Pill } from "@/components/pill";
 import { Section } from "@/components/section";
 import { SkeletonHeader, useDelayed } from "@/components/skeleton";
@@ -314,6 +315,7 @@ export default function Ticket() {
                 <Fact label="Primeira resposta" value={t.clock.firstResponse} detail={t.clock.firstResponseAt} />
                 {t.clock.resolution ? <Fact label="Meta de solução" value={t.clock.resolution} /> : null}
                 {t.clock.paused ? <Fact label="Prazo" value={t.clock.paused} /> : null}
+                <ListRow title={<Text variant="body" tone="primary">Como contamos o tempo</Text>} onPress={() => router.push("/como-trabalhamos")} />
               </Section>
             ) : null}
             <Section header="Detalhes" indent={space.lg}>
