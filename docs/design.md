@@ -1,6 +1,6 @@
 # Design do Console
 
-A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026 a marca é monocromática, com a sobriedade da OpenAI como referência: preto, branco e cinzas, cor só com função.
+A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "do bruto ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface em preto, branco e cinzas, e o violeta da marca em link, foco e peças de marca.
 
 ## Como trabalhamos
 
@@ -40,7 +40,8 @@ Os tokens não são escritos aqui: `src/app/brand/` (`tokens.css`, `tailwind.css
 | `--muted-foreground` | `#6b6b6b` | `#a3a3a3` | Texto de apoio |
 | `--border` | `#e5e5e5` | `#2b2b2b` | Divisores e bordas de superfície |
 | `--field-border` | `#d4d4d4` | `#383838` | Borda dos campos (`border-input`) |
-| `--ring` / `--link` | `#1d63d8` | `#5a9bff` / `#6aa5ff` | Foco e link: o único azul |
+| `--ring` / `--link` | `#5b43f0` | `#a99bff` | Foco e link, no violeta da marca |
+| `--brand` | `#6e56ff` | `#6e56ff` | Violeta do logotipo: símbolo, ícone, capas |
 
 Estados, sempre com texto além da cor: `success`, `warning` e `destructive`, cada um com `-soft` (fundo) e `-edge` (borda). Ex.: `bg-warning-soft border-warning-edge text-warning`. Situações que esperam a equipe são neutras (ponto preto, ou azul quando alguém está trabalhando). Ícones de indicador só ganham cor quando pedem atenção. `npm run check` na marca confere todos os pares pela fórmula WCAG.
 

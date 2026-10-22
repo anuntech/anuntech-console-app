@@ -19,9 +19,9 @@
   --anu-gray-870: #212121;
   --anu-gray-900: #171717;
   --anu-gray-950: #0d0d0d;
-  --anu-blue-400: #6aa5ff;
-  --anu-blue-450: #5a9bff;
-  --anu-blue-600: #1d63d8;
+  --anu-violet-400: #A99BFF;
+  --anu-violet-500: #6E56FF;
+  --anu-violet-600: #5B43F0;
   --anu-green-50: #edf7f1;
   --anu-green-200: #c6e6d3;
   --anu-green-400: #4ad08a;
@@ -87,8 +87,8 @@
   --field-background: #ffffff;
   --field-border: #d4d4d4;
   --field-hover: #a3a3a3;
-  --ring: #1d63d8;
-  --link: #1d63d8;
+  --ring: #5B43F0;
+  --link: #5B43F0;
   --success: #127a46;
   --success-bg: #edf7f1;
   --success-border: #c6e6d3;
@@ -101,6 +101,7 @@
   --chart-received: #2a78d6;
   --chart-open: #eb6834;
   --overlay: rgb(0 0 0 / 0.4);
+  --brand: #6E56FF;
   --anu-shadow-card: none;
   --anu-shadow-halo: 0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 8px rgb(0 0 0 / 0.04);
   --anu-shadow-float: 0 0 0 1px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
@@ -128,8 +129,8 @@
   --field-background: #171717;
   --field-border: #383838;
   --field-hover: #6b6b6b;
-  --ring: #5a9bff;
-  --link: #6aa5ff;
+  --ring: #A99BFF;
+  --link: #A99BFF;
   --success: #4ad08a;
   --success-bg: #10291b;
   --success-border: #1f4d33;
@@ -142,6 +143,7 @@
   --chart-received: #3987e5;
   --chart-open: #d95926;
   --overlay: rgb(0 0 0 / 0.6);
+  --brand: #6E56FF;
   --anu-shadow-card: none;
   --anu-shadow-halo: 0 0 0 1px rgb(255 255 255 / 0.05), 0 2px 8px rgb(0 0 0 / 0.4);
   --anu-shadow-float: 0 0 0 1px rgb(255 255 255 / 0.07), 0 8px 24px rgb(0 0 0 / 0.5);
@@ -169,8 +171,8 @@
     --field-background: #171717;
     --field-border: #383838;
     --field-hover: #6b6b6b;
-    --ring: #5a9bff;
-    --link: #6aa5ff;
+    --ring: #A99BFF;
+    --link: #A99BFF;
     --success: #4ad08a;
     --success-bg: #10291b;
     --success-border: #1f4d33;
@@ -183,6 +185,7 @@
     --chart-received: #3987e5;
     --chart-open: #d95926;
     --overlay: rgb(0 0 0 / 0.6);
+    --brand: #6E56FF;
     --anu-shadow-card: none;
     --anu-shadow-halo: 0 0 0 1px rgb(255 255 255 / 0.05), 0 2px 8px rgb(0 0 0 / 0.4);
     --anu-shadow-float: 0 0 0 1px rgb(255 255 255 / 0.07), 0 8px 24px rgb(0 0 0 / 0.5);

@@ -36,6 +36,7 @@
   --color-destructive-border: var(--destructive-border);
   --color-chart-received: var(--chart-received);
   --color-chart-open: var(--chart-open);
+  --color-brand: var(--brand);
   /* No shadcn, border-input é a borda dos campos; --input (mais forte) fica para caixas de seleção. */
   --color-input: var(--field-border);
   --color-control: var(--input);
