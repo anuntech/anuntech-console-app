@@ -1,14 +1,8 @@
 import type { Metadata } from "next";
-import { and, asc, desc, eq, gt, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import {
-  auditEvents,
-  billingNotices,
-  engagements,
-  invoices,
-  subscriptions,
-} from "@/db/schema";
+import { auditEvents, billingNotices, invoices } from "@/db/schema";
 import { allowedIds, getActor } from "@/lib/access/access";
 import { findInvoice } from "@/lib/billing/invoice-access";
 import { addressLabel } from "@/lib/companies/company-billing";
@@ -19,7 +13,8 @@ import { invoiceDisplayStatus } from "@/lib/billing/invoice-table";
 import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
 import { paymentUrl } from "@/lib/billing/payment-link";
 import { invoiceDebt } from "@/lib/billing/invoice-debt";
-import { missedPeriods, addDays, earlyIssueAllowed, issueDate } from "@/lib/billing/recurrence";
+import { missedPeriods, issueDate } from "@/lib/billing/recurrence";
+import { invoiceRecurrence } from "@/lib/billing/invoice-recurrence";
 import {
   InvoiceDetail,
   type InvoiceDetailData,
@@ -39,12 +34,9 @@ export default async function Invoice({
   const row = await findInvoice(actor, id);
   if (!row) notFound();
   const i = row.invoice;
-  const [sub] = i.subscriptionId
-    ? await db
-        .select()
-        .from(subscriptions)
-        .where(eq(subscriptions.id, i.subscriptionId))
-    : [];
+  const today = saoPauloDate();
+  // The recurrence, whether paying now issues the next period, and a later period already at the bank.
+  const { sub, earlyReady, ahead } = await invoiceRecurrence(i, today);
   const scheduled = i.status === "draft" && sub?.status === "active";
   // Paused past its due date: the periods that went by, to bill as drafts when it resumes (a period the routine already drafted keeps its draft).
   const missed = actor.admin && sub && sub.status === "paused" && sub.nextDueDate <= saoPauloDate() ? missedPeriods(sub, saoPauloDate()) : null;
@@ -54,44 +46,8 @@ export default async function Invoice({
         .from(invoices)
         .where(and(eq(invoices.subscriptionId, sub!.id), inArray(invoices.dueDate, missed.missed), eq(invoices.status, "draft")))
     : [];
-  // Whether paying this invoice would issue the next period at once: the same rule the cron applies.
-  const [otherOpen, engagement] = sub
-    ? await Promise.all([
-        db
-          .select({ id: invoices.id })
-          .from(invoices)
-          .where(and(eq(invoices.subscriptionId, sub.id), eq(invoices.status, "issued"), ne(invoices.id, i.id)))
-          .limit(1),
-        sub.engagementId
-          ? db.select({ status: engagements.status }).from(engagements).where(eq(engagements.id, sub.engagementId))
-          : Promise.resolve([{ status: "active" as const }]),
-      ])
-    : [[], []];
-  const today = saoPauloDate();
   // A charge Inter closed unpaid is still a debt until someone bills it again or writes it off (staff only).
   const debt: InvoiceDetailData["debt"] = actor.admin ? await invoiceDebt(i) : null;
-  const earlyReady =
-    !!sub &&
-    sub.status === "active" &&
-    i.dueDate >= addDays(sub.nextDueDate, -40) &&
-    earlyIssueAllowed({
-      interval: sub.interval,
-      issueOnPayment: sub.issueOnPayment,
-      nextDueDate: sub.nextDueDate,
-      today,
-      previousStatus: "paid",
-      hasOpenInvoice: otherOpen.length > 0,
-      engagementActive: engagement[0]?.status === "active",
-    });
-  // A later period of the same recurrence already at the bank (issued early, after this one was paid).
-  const [ahead] = sub
-    ? await db
-        .select({ id: invoices.id, dueDate: invoices.dueDate, amountCents: invoices.amountCents, status: invoices.status })
-        .from(invoices)
-        .where(and(eq(invoices.subscriptionId, sub.id), gt(invoices.dueDate, i.dueDate), inArray(invoices.status, ["issued", "paid"])))
-        .orderBy(asc(invoices.dueDate))
-        .limit(1)
-    : [];
   const now = new Date();
   const [notices, preferences, events] = actor.admin
     ? await Promise.all([
@@ -216,7 +172,7 @@ export default async function Invoice({
               lastError: actor.admin ? sub.lastError : null,
               issueOnPayment: sub.interval === "monthly" ? sub.issueOnPayment : null,
               earlyReady,
-              ahead: ahead ? { ...ahead, status: ahead.status as "issued" | "paid" } : null,
+              ahead: ahead ?? null,
               resume: missed ? { ...missed, drafted: ownDrafts.map((d) => d.dueDate) } : null,
               terms: {
                 discountCents: sub.discountCents,

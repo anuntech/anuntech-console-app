@@ -43,6 +43,26 @@ const invoiceRow = z.object({
   /** Path of the public payment page (/pagar/<id>), when it can be paid or seen there. */
   payPath: z.string().nullable(),
 });
+/** A row of the Financeiro list: the invoice plus its recurrence and how late it is. */
+const financeRow = invoiceRow.extend({
+  /** The recurrence that issued it ("Recorrência mensal/anual"), or null for a one-off charge. */
+  interval: z.enum(["monthly", "yearly"]).nullable(),
+  /** Days past the due date while overdue, else 0. */
+  daysOverdue: z.number(),
+  /** The boleto's own date, when the bank uses a later one than the obligation's. */
+  bankDueDate: z.string().nullable(),
+});
+const upcomingCharge = z.object({
+  subscriptionId: z.string(),
+  company: z.string(),
+  description: z.string(),
+  amountCents: z.number(),
+  dueDate: z.string(),
+  /** By when the boleto and the Pix arrive. */
+  issueDate: z.string(),
+  /** Latest invoice of the recurrence, to open. */
+  invoiceId: z.string().nullable(),
+});
 const page = z.object({ page: z.number().int().min(1).max(10_000).default(1) });
 const paged = { page: z.number(), pageCount: z.number(), showCompany: z.boolean() };
 const projectRow = z.object({
@@ -312,13 +332,20 @@ export const contract = {
       .input(
         z.object({
           status: z.enum(["all", "issued", "overdue", "paid"]).default("all"),
+          /** Words of the description, or of the company's name. */
+          search: z.string().trim().max(160).default(""),
+          /** Due-date window, as the web's period picker (without "Personalizado"). */
+          period: z.enum(["all", "this_month", "last_month", "next_30", "this_year"]).default("all"),
           page: z.number().int().min(1).max(10_000).default(1),
         }),
       )
       .output(
         z.object({
-          rows: z.array(invoiceRow),
+          rows: z.array(financeRow),
+          /** Each situation's count and amount, under the search and the period. */
           totals: z.object({ all: money, issued: money, overdue: money, paid: money }),
+          /** What each active recurrence charges next (clients, first page of the plain list). */
+          upcoming: z.array(upcomingCharge),
           page: z.number(),
           pageCount: z.number(),
           showCompany: z.boolean(),
@@ -326,12 +353,46 @@ export const contract = {
       ),
     /** One invoice with what pays it: Pix copia e cola, the boleto line and its PDF. */
     get: oc.input(z.object({ id: z.uuid() })).output(
-      invoiceRow.extend({
+      financeRow.extend({
         engagement: z.string().nullable(),
         pix: z.string().nullable(),
         boletoLine: z.string().nullable(),
-        /** Path of the boleto PDF on the public payment page, when there is one. */
+        /** Path of the boleto PDF: the public page's, or the session route when the link is off. */
         boletoPath: z.string().nullable(),
+        /** The public payment page as a full address, to copy and share. */
+        payUrl: z.string().nullable(),
+        createdAt: z.string(),
+        /** Last time the Console checked the charge at the bank. */
+        bankCheckedAt: z.string().nullable(),
+        /** The bank holds the charge and has not sent the Pix and the boleto yet. */
+        processing: z.boolean(),
+        /** The razão social and CPF/CNPJ as the boleto carries them. */
+        payer: z.object({ name: z.string(), document: z.string() }),
+        /** Discount and late fees, only while it can still be paid. */
+        terms: z
+          .object({
+            discountCents: z.number().nullable(),
+            onTimeCents: z.number().nullable(),
+            fineBps: z.number().nullable(),
+            interestMonthlyBps: z.number().nullable(),
+            lateFees: z.string().nullable(),
+          })
+          .nullable(),
+        recurrence: z
+          .object({
+            interval: z.enum(["monthly", "yearly"]),
+            next: z
+              .object({ amountCents: z.number(), dueDate: z.string(), issueDate: z.string(), onPayment: z.boolean() })
+              .nullable(),
+            ahead: z
+              .object({ id: z.string(), dueDate: z.string(), amountCents: z.number(), status: z.enum(["issued", "paid"]) })
+              .nullable(),
+          })
+          .nullable(),
+        /** The "Nota fiscal" card, when the web shows it; the link only once authorized. */
+        fiscal: z
+          .object({ status: z.enum(["not_requested", "processing", "authorized", "error"]), url: z.string().nullable() })
+          .nullable(),
       }),
     ),
   },

@@ -12,6 +12,7 @@ import { settingsChecks } from "./api-smoke-settings.mjs";
 import { pushChecks } from "./api-smoke-push.mjs";
 import { ticketsChecks } from "./api-smoke-tickets.mjs";
 import { helpChecks } from "./api-smoke-help.mjs";
+import { financeChecks } from "./api-smoke-finance.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -1076,6 +1077,8 @@ try {
   await ticketsChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
   // Ajuda, Como trabalhamos e Primeiros passos (scripts/api-smoke-help.mjs).
   await helpChecks({ db, rpc, ok, marker, emailSignIn, staff });
+  // Financeiro: busca, período, recorrência, próximas cobranças e o detalhe (scripts/api-smoke-finance.mjs).
+  await financeChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);
