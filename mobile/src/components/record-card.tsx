@@ -5,7 +5,7 @@ import type { ToneName } from "@/lib/status";
 import type { tile } from "@/lib/theme";
 import { ListRow } from "./list-row";
 import { Pill } from "./pill";
-import { Text } from "./text";
+import { Text, type Tone } from "./text";
 import { IconTile } from "./tile";
 
 /** Each kind of record keeps one symbol and one tile color everywhere (Início shortcuts, lists). */
@@ -26,6 +26,7 @@ export function RecordRow({
   status,
   value,
   note,
+  noteTone = "muted",
   onPress,
   children,
 }: {
@@ -37,6 +38,8 @@ export function RecordRow({
   value?: string;
   /** A last line under the pill, read with the row (a project's progress in words). */
   note?: string;
+  /** The note's color when it asks for attention (a signature missing, a contract past its end). */
+  noteTone?: Tone;
   onPress: () => void;
   /** Something drawn under the pill (a project's progress bar); VoiceOver reads `note` instead. */
   children?: ReactNode;
@@ -58,7 +61,7 @@ export function RecordRow({
             {status ? <Pill label={status.label} tone={status.tone} /> : null}
             {children}
             {note ? (
-              <Text variant="caption" tone="muted">
+              <Text variant="caption" tone={noteTone}>
                 {note}
               </Text>
             ) : null}

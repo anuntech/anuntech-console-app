@@ -1,18 +1,19 @@
 "use server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { auditEvents, hoursMonths, tickets, timeEntries } from "@/db/schema";
-import { answersForClient, ASSISTED_DECISION, getActor } from "../access/access";
+import { auditEvents, tickets, timeEntries } from "@/db/schema";
+import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
 import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
 import { saoPauloDate } from "../dates";
 import { dateLabel } from "../format";
-import { sendOpsMail } from "../notifications/ops-alerts";
 import { enqueueTicketNotice, scheduleTicketNotices } from "../tickets/ticket-notifications";
 import { bankMonth, bankTerms, hoursLabel, monthOf } from "./hours-bank";
 import { deliverBankAlert, deliverHoursReport } from "./hours-delivery";
+import { decideEstimateAs } from "./estimate-decision";
+import { approveOverageAs, contestHoursReportAs } from "./hours-client";
 
 /*
  * The hours bank of a support contract (SUP 4.1 to 4.7, 5.1): the team logs
@@ -43,7 +44,6 @@ const failure = (e: unknown): ActionState => ({
         ? e.message
         : "Não foi possível salvar.",
 });
-const consoleUrl = () => process.env.BETTER_AUTH_URL?.replace(/\/$/, "") || "https://console.anuntech.com";
 
 function refresh(companyId: string, ticketId?: string | null) {
   revalidatePath(`/empresas/${companyId}`);
@@ -145,70 +145,22 @@ export async function proposeEstimate(_: ActionState, form: FormData): Promise<A
   }
 }
 
-/** The client's Administrador approves or declines an improvement's estimate. */
+/** The client's Administrador approves or declines an improvement's estimate (decideEstimateAs). */
 export async function decideEstimate(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   try {
     const input = z
       .object({ ticketId: id, decision: z.enum(["approve", "decline"]), minutes: z.coerce.number().int().min(1) })
       .parse(Object.fromEntries(form));
-    const [t] = await db.select().from(tickets).where(eq(tickets.id, input.ticketId));
-    if (actor.assisting) return { error: ASSISTED_DECISION };
-    if (!t || !answersForClient(actor, t.companyId)) return { error: "Só um Administrador da empresa aprova estimativas." };
-    const approved = input.decision === "approve";
-    // The answer is to the estimate the person saw: a newer one in between is not approved by accident.
-    const [decided] = await db
-      .update(tickets)
-      .set({ estimateStatus: approved ? "approved" : "declined", estimateDecidedBy: actor.user.id, estimateDecidedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(tickets.id, t.id), eq(tickets.estimateStatus, "proposed"), eq(tickets.estimateMinutes, input.minutes)))
-      .returning({ id: tickets.id });
-    if (!decided) return { error: "A estimativa mudou ou já foi respondida. Recarregue o chamado." };
-    await db.insert(auditEvents).values({
-      actorId: actor.user.id,
-      companyId: t.companyId,
-      entityId: t.id,
-      action: approved ? "ticket.estimate_approved" : "ticket.estimate_declined",
-      details: { minutes: t.estimateMinutes },
-    });
-    await sendOpsMail(
-      `Estimativa ${approved ? "aprovada" : "recusada"}: ${t.subject}`,
-      `${actor.user.name || actor.user.email} ${approved ? "aprovou" : "recusou"} a estimativa de ${hoursLabel(t.estimateMinutes ?? 0)} do chamado "${t.subject}".\n\n${consoleUrl()}/chamados/${t.id}\n\nConsole da Anuntech`,
-    ).catch(() => undefined);
-    revalidatePath(`/chamados/${t.id}`);
-    return { success: approved ? "Estimativa aprovada. A equipe pode começar." : "Estimativa recusada. A equipe vai falar com você no chamado." };
+    return await decideEstimateAs(actor, input);
   } catch (e) {
     return failure(e);
   }
 }
 
-/** The client's Administrador approves hours beyond this month's bank (SUP 4.3). */
+/** The client's Administrador approves hours beyond this month's bank (SUP 4.3); the rules are in hours-client.ts. */
 export async function approveOverage(_: ActionState, form: FormData): Promise<ActionState> {
-  const actor = await getActor();
-  try {
-    const input = z.object({ companyId: id, hours: hoursInput }).parse(Object.fromEntries(form));
-    if (actor.assisting) return { error: ASSISTED_DECISION };
-    if (!answersForClient(actor, input.companyId)) return { error: "Só um Administrador da empresa aprova horas além do banco." };
-    if (!(await bankTerms(input.companyId, { client: true })))
-      return { error: "As condições com banco de horas desta empresa ainda não estão publicadas." };
-    const month = monthOf();
-    const now = new Date();
-    await db
-      .insert(hoursMonths)
-      .values({ companyId: input.companyId, month, overageApprovedMinutes: input.hours, overageApprovedBy: actor.user.id, overageApprovedAt: now })
-      .onConflictDoUpdate({
-        target: [hoursMonths.companyId, hoursMonths.month],
-        set: { overageApprovedMinutes: input.hours, overageApprovedBy: actor.user.id, overageApprovedAt: now, updatedAt: now },
-      });
-    await db.insert(auditEvents).values({ actorId: actor.user.id, companyId: input.companyId, entityId: input.companyId, action: "hours.overage_approved", details: { month, minutes: input.hours } });
-    await sendOpsMail(
-      "Horas além do banco aprovadas",
-      `${actor.user.name || actor.user.email} aprovou até ${hoursLabel(input.hours)} além do banco de ${month}.\n\n${consoleUrl()}/empresas/${input.companyId}\n\nConsole da Anuntech`,
-    ).catch(() => undefined);
-    refresh(input.companyId);
-    return { success: `Aprovado: até ${hoursLabel(input.hours)} além do banco neste mês. O excedente é cobrado pelo valor do contrato.` };
-  } catch (e) {
-    return failure(e);
-  }
+  return approveOverageAs(await getActor(), Object.fromEntries(form));
 }
 
 /** The team sends the month's report to the company's Administradores, by click (SUP 4.7). */
@@ -247,33 +199,7 @@ export async function sendBankAlert(_: ActionState, form: FormData): Promise<Act
   }
 }
 
-/** The client's Administrador contests the month's report within the contract's window (SUP 4.7). */
+/** The client's Administrador contests the month's report within the contract's window (SUP 4.7); the rules are in hours-client.ts. */
 export async function contestHoursReport(_: ActionState, form: FormData): Promise<ActionState> {
-  const actor = await getActor();
-  try {
-    const input = z
-      .object({ companyId: id, month: z.string().regex(/^\d{4}-\d{2}$/), note: z.string().trim().min(5, "Conte o que não confere.").max(2000) })
-      .parse(Object.fromEntries(form));
-    if (actor.assisting) return { error: ASSISTED_DECISION };
-    if (!answersForClient(actor, input.companyId)) return { error: "Só um Administrador da empresa contesta o relatório." };
-    const [record] = await db.select().from(hoursMonths).where(and(eq(hoursMonths.companyId, input.companyId), eq(hoursMonths.month, input.month)));
-    if (!record?.reportSentAt) return { error: "O relatório deste mês ainda não foi enviado." };
-    if (record.contestedAt) return { error: "Este relatório já foi contestado." };
-    // Past the contract's window the report counts as approved (SUP 4.7).
-    const bank = await bankMonth(input.companyId, input.month, { client: true });
-    if (!bank) return { error: "As condições com banco de horas desta empresa ainda não estão publicadas." };
-    if (bank.contestUntil && new Date() > new Date(bank.contestUntil))
-      return { error: `O prazo para contestar este relatório terminou em ${dateLabel(new Date(bank.contestUntil))}. Fale com a equipe por chamado.` };
-    const now = new Date();
-    await db.update(hoursMonths).set({ contestedAt: now, contestedBy: actor.user.id, contestNote: input.note, updatedAt: now }).where(eq(hoursMonths.id, record.id));
-    await db.insert(auditEvents).values({ actorId: actor.user.id, companyId: input.companyId, entityId: input.companyId, action: "hours.report_contested", details: { month: input.month } });
-    await sendOpsMail(
-      `Relatório de horas contestado: ${input.month}`,
-      `${actor.user.name || actor.user.email} contestou o relatório de ${input.month}:\n\n${input.note}\n\n${consoleUrl()}/empresas/${input.companyId}\n\nConsole da Anuntech`,
-    ).catch(() => undefined);
-    refresh(input.companyId);
-    return { success: "Contestação enviada. A equipe responde por chamado." };
-  } catch (e) {
-    return failure(e);
-  }
+  return contestHoursReportAs(await getActor(), Object.fromEntries(form));
 }

@@ -1,12 +1,18 @@
 import "server-only";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { sql } from "drizzle-orm";
 import { cn } from "@/lib/cn";
-import { db } from "@/lib/db";
 import { settingsEnvironment } from "@/lib/access/environment";
-import { auditLabels, dateTimeLabel } from "@/lib/format";
-import { formatPhone } from "@/lib/companies/company-input";
+import { dateTimeLabel } from "@/lib/format";
+import { noticeHistory } from "@/lib/notifications/notice-history";
+import {
+  NOTICE_HISTORY_PAGE_SIZE,
+  noticeActionLabel,
+  noticeRecipient,
+  noticeStatusLabel,
+  noticeTone,
+  type NoticeTone,
+} from "@/lib/notifications/notice-history-view";
 import {
   getNoticePreferences,
   noticeEmails,
@@ -36,49 +42,12 @@ import { ContactsField, TicketNoticesSwitch } from "./notification-forms";
 import { HelpLink } from "@/components/console/help-link";
 import type { ReactNode } from "react";
 
-const statusLabels: Record<string, string> = {
-  waiting: "Agendado",
-  pending: "Na fila",
-  processing: "Enviando",
-  sending: "Enviando",
-  accepted: "Aceito pelo provedor",
-  sent: "Enviado",
-  delivered: "Entregue",
-  read: "Lido",
-  failed: "Falhou",
-  uncertain: "Sem confirmação",
-  cancelled: "Não enviado",
-  skipped: "Não enviado",
-  expired: "Prazo encerrado",
-};
-const statusTones: Record<string, string> = {
-  delivered: "bg-success-soft text-success",
-  read: "bg-success-soft text-success",
-  sent: "bg-success-soft text-success",
-  accepted: "bg-accent text-primary",
-  sending: "bg-accent text-primary",
-  processing: "bg-accent text-primary",
-  failed: "bg-destructive-soft text-destructive",
-  uncertain: "bg-warning-soft text-warning",
-  expired: "bg-warning-soft text-warning",
-};
-
-/** "5511987650002" → "(11) 98765-0002"; e-mails and foreign numbers as stored. */
-function destinationLabel(channel: string, destination: string) {
-  const digits = destination.replace(/\D/g, "");
-  return channel !== "email" && /^55\d{10,11}$/.test(digits) ? formatPhone(digits.slice(2)) : destination;
-}
-
-type HistoryRow = {
-  id: string;
-  channel: string;
-  destination: string;
-  status: string;
-  error: string | null;
-  created_at: Date;
-  subject: string;
-  href: string;
-  action: string;
+const toneClasses: Record<NoticeTone, string> = {
+  good: "bg-success-soft text-success",
+  info: "bg-accent text-primary",
+  danger: "bg-destructive-soft text-destructive",
+  attention: "bg-warning-soft text-warning",
+  neutral: "bg-secondary text-muted-foreground",
 };
 
 async function TopicCard({
@@ -137,26 +106,10 @@ export async function NotificationsSection({
   page?: string | string[];
 }) {
   const { actor, companyId } = await settingsEnvironment();
-  const ticketScope = companyId
-    ? sql`t.company_id=${companyId} and n.preference_key=${`${companyId}:tickets`}`
-    : sql`(n.preference_key is null or n.preference_key='console:tickets')`;
-  const history = sql`select n.id,n.channel,n.destination,n.status,n.error,n.created_at,t.subject,'/chamados/'||t.id as href,a.action
-    from console_ticket_notices n join console_tickets t on t.id=n.ticket_id join console_audit_events a on a.id=n.event_id where ${ticketScope}
-    ${companyId ? sql`union all select n.id,n.channel,coalesce(nullif(n.recipient,''),case when jsonb_typeof(n.payload->'to')='array' then n.payload->'to'->>0 else n.payload->>'to' end,''),n.status,n.error,n.created_at,i.description,'/financeiro/'||i.id,'billing.notice' from console_billing_notices n join console_invoices i on i.id=n.invoice_id where i.company_id=${companyId}` : sql``}`;
-  const [enabled, counts] = await Promise.all([
+  const [enabled, { rows, total, page, pageCount }] = await Promise.all([
     actor.admin ? ticketNotificationsEnabled() : Promise.resolve(false),
-    db.execute<{ total: number }>(sql`select count(*)::int total from (${history}) history`),
+    noticeHistory(companyId, requestedPage),
   ]);
-  const total = counts.rows[0].total;
-  const pageCount = Math.max(1, Math.ceil(total / 20));
-  const raw =
-    typeof requestedPage === "string" && /^[1-9]\d{0,6}$/.test(requestedPage)
-      ? Number(requestedPage)
-      : 1;
-  const page = Math.min(raw, pageCount);
-  const { rows } = await db.execute<HistoryRow>(
-    sql`select * from (${history}) history order by created_at desc,id desc limit 20 offset ${(page - 1) * 20}`,
-  );
   return (
     <>
       {actor.admin && (
@@ -220,29 +173,23 @@ export async function NotificationsSection({
                         {row.subject}
                       </Link>
                       <span className="block text-xs text-muted-foreground">
-                        {row.action === "billing.notice"
-                          ? "Financeiro"
-                          : auditLabels[row.action] || row.action}
+                        {noticeActionLabel(row.action)}
                       </span>
                     </TableCell>
                     <TableCell className="max-w-[16rem]">
                       {/* An address or a number already says the channel; the channel's name only stands in for a missing one. */}
                       <span className="block truncate text-foreground">
-                        {row.destination
-                          ? destinationLabel(row.channel, row.destination)
-                          : row.channel === "email"
-                            ? "E-mail"
-                            : "WhatsApp"}
+                        {noticeRecipient(row.channel, row.destination)}
                       </span>
                     </TableCell>
                     <TableCell>
                       <span
                         className={cn(
                           "inline-flex rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap",
-                          statusTones[row.status] ?? "bg-secondary text-muted-foreground",
+                          toneClasses[noticeTone(row.status)],
                         )}
                       >
-                        {statusLabels[row.status] || row.status}
+                        {noticeStatusLabel(row.status)}
                       </span>
                       {row.error && (
                         <span className="mt-1 block max-w-[20rem] text-xs text-muted-foreground">
@@ -268,7 +215,7 @@ export async function NotificationsSection({
         {pageCount > 1 && (
           <CardFooter className="justify-between border-t text-xs text-muted-foreground">
             <span className="tabular-nums">
-              {(page - 1) * 20 + 1}–{Math.min(page * 20, total)} de {total}
+              {(page - 1) * NOTICE_HISTORY_PAGE_SIZE + 1}–{Math.min(page * NOTICE_HISTORY_PAGE_SIZE, total)} de {total}
             </span>
             <span className="flex items-center gap-1">
               <Button variant="outline" size="icon-sm" aria-label="Página anterior" disabled={page <= 1} asChild={page > 1}>

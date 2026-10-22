@@ -1,10 +1,7 @@
-import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getActor, allowedIds } from "@/lib/access/access";
-import { db } from "@/lib/db";
-import { ticketUploads } from "@/db/schema";
-import { MAX_TICKET_BYTES, normalizeTicketFile } from "@/lib/tickets/ticket-files";
-import { safeFileName } from "@/lib/bookmarks/bookmark-validation";
+import { MAX_TICKET_BYTES } from "@/lib/tickets/ticket-files";
+import { appendTicketUpload, discardTicketUpload, stageTicketUpload } from "@/lib/tickets/ticket-uploads";
 import { sameOrigin } from "@/lib/http/same-origin";
 import { logDatabaseFault } from "@/lib/action-errors";
 export const maxDuration = 60;
@@ -26,34 +23,7 @@ export async function POST(request: Request) {
         size: z.number().int().min(1).max(MAX_TICKET_BYTES),
       })
       .parse(await request.json());
-    const id = crypto.randomUUID();
-    await db.transaction(async (tx) => {
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${actor.user.id}))`,
-      );
-      await tx
-        .delete(ticketUploads)
-        .where(lt(ticketUploads.expiresAt, new Date()));
-      const [{ n }] = await tx
-        .select({ n: sql<number>`count(*)::int` })
-        .from(ticketUploads)
-        .where(eq(ticketUploads.authorId, actor.user.id));
-      if (n >= 10)
-        throw new Error(
-          "Há muitos envios pendentes. Tente novamente mais tarde.",
-        );
-      await tx
-        .insert(ticketUploads)
-        .values({
-          id,
-          authorId: actor.user.id,
-          name: safeFileName(input.name),
-          expectedSize: input.size,
-          content: Buffer.alloc(0),
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-        });
-    });
-    return respond({ id });
+    return respond({ id: await stageTicketUpload(actor.user.id, input) });
   } catch {
     return respond(
       {
@@ -91,39 +61,7 @@ export async function PATCH(request: Request) {
       chunks.push(value);
     }
     if (!length) return respond({ error: "Arquivo vazio." }, 400);
-    await db.transaction(async (tx) => {
-      const [row] = await tx
-        .select()
-        .from(ticketUploads)
-        .where(
-          and(
-            eq(ticketUploads.id, id),
-            eq(ticketUploads.authorId, actor.user.id),
-          ),
-        )
-        .for("update");
-      if (
-        !row ||
-        row.ready ||
-        row.expiresAt < new Date() ||
-        row.receivedSize !== offset ||
-        offset + length > row.expectedSize
-      )
-        throw new Error("Envio expirado ou incompleto. Tente novamente.");
-      const content = Buffer.concat([row.content, Buffer.concat(chunks)]),
-        ready = content.length === row.expectedSize;
-      const file = ready ? await normalizeTicketFile(content, row.name) : null;
-      await tx
-        .update(ticketUploads)
-        .set({
-          content: file?.content || content,
-          receivedSize: offset + length,
-          ready,
-          mime: file?.mime,
-          name: file?.name || row.name,
-        })
-        .where(eq(ticketUploads.id, id));
-    });
+    await appendTicketUpload(actor.user.id, { id, offset, part: Buffer.concat(chunks) });
     return respond({ success: true });
   } catch (error) {
     return respond(
@@ -138,14 +76,6 @@ export async function DELETE(request: Request) {
   if (!sameOrigin(request)) return respond({}, 403);
   const actor = await getActor(),
     id = new URL(request.url).searchParams.get("id");
-  if (id)
-    await db
-      .delete(ticketUploads)
-      .where(
-        and(
-          eq(ticketUploads.id, id),
-          eq(ticketUploads.authorId, actor.user.id),
-        ),
-      );
+  if (id) await discardTicketUpload(actor.user.id, id);
   return respond({ success: true });
 }

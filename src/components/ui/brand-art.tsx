@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
  * The brand illustrations, drawn from the same geometry as the brand repo
  * (anuntech-brand/scripts/art.mjs) but painted with the Console's tokens, so
  * they follow light and dark mode and carry no background of their own.
- * Every object is half smooth, half pixel ("do bruto ao produto").
+ * Every object is half smooth, half pixel ("da planilha ao produto").
  *
  * The pixel half is grouped by column: on arrival the smooth half fades in
  * and the columns settle one after another (CSS in shadcn.css, `.brand-art`).

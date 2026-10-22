@@ -14,9 +14,11 @@ import { Bar, useDelayed } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { useMe } from "@/lib/me";
+import { appearanceLabel, useAppearanceChoice } from "@/lib/appearance";
 import { errorMessage } from "@/lib/api";
-import { CONSOLE_URL, PRIVACY_URL, formatPhone } from "@/lib/config";
+import { PRIVACY_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
+import { TEAM_WHATSAPP, talkToTeam } from "@/lib/help-routes";
 import { confirmIdentity, lockAvailable, lockEnabled, setLockEnabled } from "@/lib/lock";
 import { registerForPush } from "@/lib/push";
 import { signOut } from "@/lib/session";
@@ -87,6 +89,7 @@ export default function Account() {
   const [locked, setLocked] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const push = usePushPermission();
+  const appearance = useAppearanceChoice();
   useEffect(() => {
     void lockAvailable().then(setCanLock);
     void lockEnabled().then(setLocked);
@@ -192,6 +195,14 @@ export default function Account() {
           leading={<IconTile icon="lock.shield.fill" color="green" />}
           onPress={() => router.push("/conta/seguranca")}
         />
+        <ListRow
+          testID="row-appearance"
+          title="Aparência"
+          subtitle="Tema do app"
+          value={appearanceLabel(appearance)}
+          leading={<IconTile icon="circle.lefthalf.filled" color="ink" />}
+          onPress={() => router.push("/conta/aparencia" as never)}
+        />
       </Section>
       {me.data?.managedCompanyId ? (
         <Section header="Empresa">
@@ -274,11 +285,29 @@ export default function Account() {
       )}
       <Section>
         <ListRow
-          title="Ajuda e suporte"
+          testID="row-help"
+          title="Ajuda"
+          subtitle="Artigos, vídeos e perguntas frequentes"
           leading={<IconTile icon="questionmark.circle.fill" color="teal" />}
-          trailing="external"
-          onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/suporte`)}
+          onPress={() => router.push("/ajuda")}
         />
+        <ListRow
+          testID="row-how-we-work"
+          title="Como trabalhamos"
+          subtitle="Chamados, prazos, projetos e contratação"
+          leading={<IconTile icon="book.fill" color="violet" />}
+          onPress={() => router.push("/como-trabalhamos")}
+        />
+        <ListRow
+          title="Conversar com a equipe"
+          subtitle={`WhatsApp ${TEAM_WHATSAPP.label}, em dias úteis`}
+          leading={<IconTile icon="message.fill" color="green" />}
+          trailing="external"
+          accessibilityHint="Abre o WhatsApp"
+          onPress={talkToTeam}
+        />
+      </Section>
+      <Section>
         <ListRow
           title="Política de privacidade"
           leading={<IconTile icon="hand.raised.fill" color="gray" />}

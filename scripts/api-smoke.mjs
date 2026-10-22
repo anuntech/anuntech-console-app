@@ -10,6 +10,14 @@ import { join } from "node:path";
 import pg from "pg";
 import { settingsChecks } from "./api-smoke-settings.mjs";
 import { pushChecks } from "./api-smoke-push.mjs";
+import { ticketsChecks } from "./api-smoke-tickets.mjs";
+import { helpChecks } from "./api-smoke-help.mjs";
+import { financeChecks } from "./api-smoke-finance.mjs";
+import { contractsChecks } from "./api-smoke-contracts.mjs";
+import { projectsChecks } from "./api-smoke-projects.mjs";
+import { bookmarksChecks } from "./api-smoke-bookmarks.mjs";
+import { homeChecks } from "./api-smoke-home.mjs";
+import { f8Checks } from "./api-smoke-f8.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -889,7 +897,7 @@ try {
       r.body.phases[0].name === "Descoberta" &&
       r.body.phases[0].hoursMax === 20 &&
       r.body.phases[0].tasks.length === 1 &&
-      r.body.phases[0].tasks[0] === "Reunião de descoberta" &&
+      r.body.phases[0].tasks[0]?.title === "Reunião de descoberta" &&
       r.body.notes === "Estimativa de esforço." &&
       r.body.upfrontPercent === 40 &&
       r.body.documentHash === hashOf(quoteFixtures[0][2]) &&
@@ -1070,6 +1078,22 @@ try {
   await settingsChecks({ db, rpc, ok, marker, emailSignIn, staff, mailFile: join(dir, "mail.jsonl") });
   // Notificações no celular (scripts/api-smoke-push.mjs).
   await pushChecks({ db, rpc, ok, marker, emailSignIn, staff, base, pushFile: join(dir, "push.jsonl"), cronSecret: "test-cron-secret" });
+  // Chamados: anexos, detalhes, estimativa e o formulário (scripts/api-smoke-tickets.mjs).
+  await ticketsChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Ajuda, Como trabalhamos e Primeiros passos (scripts/api-smoke-help.mjs).
+  await helpChecks({ db, rpc, ok, marker, emailSignIn, staff });
+  // Financeiro: busca, período, recorrência, próximas cobranças e o detalhe (scripts/api-smoke-finance.mjs).
+  await financeChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Contratos e orçamentos (scripts/api-smoke-contracts.mjs).
+  await contractsChecks({ db, rpc, ok, marker, emailSignIn, staff, base, mailFile: join(dir, "mail.jsonl") });
+  // Projetos: filtros, tarefas, comentários, anexos e atividade (scripts/api-smoke-projects.mjs).
+  await projectsChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Bookmarks no celular (scripts/api-smoke-bookmarks.mjs).
+  await bookmarksChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Início, produtos, apps e banco de horas (scripts/api-smoke-home.mjs).
+  await homeChecks({ db, rpc, ok, marker, emailSignIn, staff });
+  // Histórico de envios e ditado (scripts/api-smoke-f8.mjs).
+  await f8Checks({ db, rpc, ok, marker, emailSignIn, staff, base });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

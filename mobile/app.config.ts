@@ -10,6 +10,8 @@ const consoleUrl =
 // Areas the app shows; the same list the Console serves in /.well-known
 // (src/lib/api/app-links.ts). Change both together.
 const linkPaths = ["/painel", "/chamados", "/financeiro"];
+const MICROPHONE_USAGE =
+  "O Console usa o microfone só quando você toca em Falar, para transformar sua voz em texto. O áudio não fica guardado.";
 
 const config: ExpoConfig = {
   name: env === "production" ? "Anuntech Console" : `Console (${env})`,
@@ -64,7 +66,18 @@ const config: ExpoConfig = {
       {
         photosPermission: "O Console usa suas fotos só quando você escolhe uma para o seu perfil.",
         cameraPermission: "O Console usa a câmera só quando você tira uma foto para o seu perfil.",
-        microphonePermission: false,
+        // The picker never records video; the text is the dictation's, so both plugins write the same one.
+        microphonePermission: MICROPHONE_USAGE,
+      },
+    ],
+    [
+      "expo-audio",
+      {
+        // Dictation only (assistant and tickets): recording stops when the app leaves the screen.
+        microphonePermission: MICROPHONE_USAGE,
+        recordAudioAndroid: true,
+        enableBackgroundRecording: false,
+        enableBackgroundPlayback: false,
       },
     ],
     [

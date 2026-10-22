@@ -13,6 +13,8 @@ export type TicketRow = {
   subject: string;
   status: "open" | "in_progress" | "waiting_customer" | "resolved" | "closed";
   statusLabel: string;
+  /** Alta and Crítica get a mark, as on the web. */
+  priority?: "normal" | "high" | "critical";
   kindLabel: string | null;
   company: string;
   engagement: string | null;
@@ -31,11 +33,13 @@ export function TicketCard({ ticket, showCompany }: { ticket: TicketRow; showCom
   const color = toneColors(palette, look.tone).fg;
   const place = [showCompany ? ticket.company : null, ticket.engagement].filter(Boolean).join(" · ");
   const late = !!ticket.due?.late;
+  const urgent = ticket.priority === "critical" ? "Crítica" : ticket.priority === "high" ? "Alta" : null;
   // Meta line: place and time, then the deadline (an on-time one joins the line;
   // a late one gets its own icon and words and is never cut off).
   const base = [place, when(ticket.updatedAt), late ? null : ticket.due?.label].filter(Boolean).join(" · ");
   const label = [
     ticket.statusLabel,
+    urgent ? `Prioridade ${urgent}` : null,
     ticket.subject,
     ticket.kindLabel,
     place,
@@ -54,6 +58,11 @@ export function TicketCard({ ticket, showCompany }: { ticket: TicketRow; showCom
           <Text variant="label" style={{ color }}>
             {ticket.statusLabel}
           </Text>
+          {urgent ? (
+            <Text variant="label" tone={ticket.priority === "critical" ? "destructive" : "warning"}>
+              {` · ${urgent}`}
+            </Text>
+          ) : null}
           {ticket.kindLabel ? ` · ${ticket.kindLabel}` : ""}
         </Text>
       }

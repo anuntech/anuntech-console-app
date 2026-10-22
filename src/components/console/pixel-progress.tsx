@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * Progress in steps, drawn like the logo's pixel half: one square per step,
- * violet when done, a smaller outline while pending ("do bruto ao produto").
+ * violet when done, a smaller outline while pending ("da planilha ao produto").
  * For short checklists (implantação, a journey's steps); a long count reads
  * better as text. When a step completes, its square fills and settles
  * (a transition, so it plays on change, never on load).

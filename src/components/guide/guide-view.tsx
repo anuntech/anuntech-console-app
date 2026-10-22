@@ -8,8 +8,9 @@ import { TocList } from "@/components/help/toc";
 import { markGuideRead } from "@/lib/guide/milestone-actions";
 import type { GuideBlock, GuideSection } from "@/lib/guide/guide-content";
 import type { TermsFact } from "@/lib/service-terms/terms-text";
+import type { CompanyTermsView } from "@/lib/guide/guide-terms";
 
-export type CompanyTermsView = { company: string; items: { title: string; promises: TermsFact[]; asks: TermsFact[] }[] };
+export type { CompanyTermsView };
 
 function Block({ block }: { block: GuideBlock }) {
   if (block.kind === "p") return <p className="m-0 text-sm leading-6 text-foreground">{block.text}</p>;

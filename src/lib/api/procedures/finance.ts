@@ -4,14 +4,31 @@ import { invoices } from "@/db/schema";
 import { db } from "../../db";
 import { allowedIds, type Actor } from "../../access/access";
 import { saoPauloDate } from "../../dates";
+import { formatDocument } from "../../companies/company-input";
 import { listInvoices } from "../../billing/invoice-list";
 import { findInvoice } from "../../billing/invoice-access";
 import { invoiceDebt } from "../../billing/invoice-debt";
-import { invoiceDisplayStatus, invoiceQuery, invoiceStatusLabels, type InvoiceDisplayStatus } from "../../billing/invoice-table";
+import { invoiceRecurrence } from "../../billing/invoice-recurrence";
+import { paymentUrl } from "../../billing/payment-link";
+import {
+  invoiceFiscalView,
+  invoiceProcessing,
+  invoiceRecurrenceView,
+  invoiceTermsView,
+  overdueDays,
+} from "../../billing/invoice-client-view";
+import {
+  invoiceDisplayStatus,
+  invoiceQuery,
+  invoiceStatusLabels,
+  type InvoiceDisplayStatus,
+  type InvoicePeriod,
+} from "../../billing/invoice-table";
 import { api } from "../server";
 import { guard, missing } from "../access";
 
 type ListRow = Awaited<ReturnType<typeof listInvoices>>["list"][number];
+type Status = "all" | "issued" | "overdue" | "paid";
 /** The public payment page, as a path: the app adds the Console it talks to. */
 const payPath = (i: { publicId: string | null; publicEnabled: boolean; status: string }) =>
   i.publicId && i.publicEnabled && ["issued", "paid"].includes(i.status) ? `/pagar/${i.publicId}` : null;
@@ -30,10 +47,31 @@ export function invoiceRow(row: ListRow) {
   };
 }
 
-/** The same list the web shows, for the app. */
-export async function invoicePage(actor: Actor, status: "all" | "issued" | "overdue" | "paid", page: number, pageSize = 25) {
-  const query = { ...invoiceQuery({ status }), page, pageSize };
-  return listInvoices(actor, query, saoPauloDate());
+/** A Financeiro row: the shared invoice row plus its recurrence and how late it is (as the web's table). */
+function financeRow(row: ListRow, today: string) {
+  return {
+    ...invoiceRow(row),
+    interval: row.subscriptionId ? (row.interval ?? "monthly") : null,
+    daysOverdue: overdueDays(row.display, row.dueDate, today),
+    bankDueDate: row.bankDueDate && row.bankDueDate !== row.dueDate ? row.bankDueDate : null,
+  };
+}
+
+/** The same list the web shows, for the app: the web's query, with its search and period. */
+export async function invoicePage(
+  actor: Actor,
+  status: Status,
+  page: number,
+  pageSize = 25,
+  filters: { search?: string; period?: InvoicePeriod } = {},
+  today = saoPauloDate(),
+) {
+  const query = {
+    ...invoiceQuery({ status, q: filters.search ?? "", periodo: filters.period ?? "all" }),
+    page,
+    pageSize,
+  };
+  return listInvoices(actor, query, today);
 }
 
 const invoiceCompany = async ({ id }: { id: string }) =>
@@ -45,11 +83,24 @@ export const finance = {
     .use(guard({ self: true }))
     .handler(async ({ input, context }) => {
       const { actor } = context;
-      const result = await invoicePage(actor, input.status, input.page);
-      const pick = (k: "all" | "issued" | "overdue" | "paid") => result.totals[k];
+      const today = saoPauloDate();
+      const result = await invoicePage(actor, input.status, input.page, 25, input, today);
+      const pick = (k: Status) => result.totals[k];
       return {
-        rows: result.list.map(invoiceRow),
+        rows: result.list.map((row) => financeRow(row, today)),
         totals: { all: pick("all"), issued: pick("issued"), overdue: pick("overdue"), paid: pick("paid") },
+        // "Próximas cobranças" is the client's; the team's "Recorrências para corrigir" stays on the web.
+        upcoming: actor.admin
+          ? []
+          : result.upcoming.map((c) => ({
+              subscriptionId: c.subscriptionId,
+              company: c.company,
+              description: c.description,
+              amountCents: c.amountCents,
+              dueDate: c.dueDate,
+              issueDate: c.issueDate,
+              invoiceId: c.invoiceId,
+            })),
         page: result.query.page,
         pageCount: result.pageCount,
         showCompany: actor.admin || allowedIds(actor, "finance").length > 1,
@@ -58,16 +109,21 @@ export const finance = {
   get: api.finance.get
     .use(guard({ area: "finance", company: invoiceCompany }))
     .handler(async ({ input, context }) => {
-      const row = await findInvoice(context.actor, input.id);
+      const { actor } = context;
+      const row = await findInvoice(actor, input.id);
       if (!row) throw missing();
       const i = row.invoice;
       const today = saoPauloDate();
-      const debt = context.actor.admin ? await invoiceDebt(i) : null;
+      const [debt, recurrence] = await Promise.all([
+        actor.admin ? invoiceDebt(i) : null,
+        invoiceRecurrence(i, today),
+      ]);
       const display = invoiceDisplayStatus(
         { status: i.status, dueDate: i.dueDate, expired: debt?.state === "open" },
         today,
       );
       const path = payPath(i);
+      const issuedLine = i.status === "issued" && !!i.boletoLine;
       return {
         id: i.id,
         description: i.description,
@@ -77,11 +133,23 @@ export const finance = {
         display,
         statusLabel: invoiceStatusLabels[display] ?? i.status,
         dueDate: i.dueDate,
+        bankDueDate: i.bankDueDate && i.bankDueDate !== i.dueDate ? i.bankDueDate : null,
+        daysOverdue: overdueDays(display, i.dueDate, today),
+        interval: recurrence.sub?.interval ?? null,
         payPath: path,
+        payUrl: path && i.publicId ? paymentUrl(i.publicId) : null,
         // Only while it can still be paid; a paid invoice keeps no payment codes on screen.
         pix: i.status === "issued" ? i.pixCopyPaste : null,
         boletoLine: i.status === "issued" ? i.boletoLine : null,
-        boletoPath: path && i.status === "issued" && i.boletoLine ? `${path}/boleto` : null,
+        // The public page caches the PDF; without the link, the web's own route asks the Inter with the session.
+        boletoPath: !issuedLine ? null : path ? `${path}/boleto` : i.providerId ? `/api/boletos/${i.id}` : null,
+        createdAt: i.createdAt.toISOString(),
+        bankCheckedAt: i.bankCheckedAt?.toISOString() ?? null,
+        processing: invoiceProcessing(i),
+        payer: { name: row.company.name, document: formatDocument(row.company.document) },
+        terms: invoiceTermsView(i),
+        recurrence: invoiceRecurrenceView(i, recurrence.sub, recurrence.earlyReady, recurrence.ahead),
+        fiscal: invoiceFiscalView(i, actor.admin),
       };
     }),
 };

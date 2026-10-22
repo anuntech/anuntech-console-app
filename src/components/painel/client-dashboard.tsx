@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   BanIcon,
   BookmarkIcon,
@@ -18,24 +17,19 @@ import {
   Clock3Icon,
   CheckCircle2Icon,
 } from "lucide-react";
-import { db } from "@/lib/db";
-import { catalogItems, companies, contractSignatures, contracts, engagements, invoices, quotes, tasks, tickets } from "@/db/schema";
 import { catalogIconSrc } from "@/lib/catalog/catalog-icons";
 import { ProductIcon } from "@/components/console/product-icon";
-import { allowedIds, canAccess, engagementWhere, ticketWhere, type Actor } from "@/lib/access/access";
-import { bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
+import type { Actor } from "@/lib/access/access";
+import { clientOverview } from "@/lib/painel/client-overview";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import { dateLabel } from "@/lib/format";
 import { appForUrl, protectedApps } from "@/lib/apps/registry";
-import { saoPauloDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { TicketStatusBadge } from "@/components/chamados/ticket-badges";
 import { FirstStepsCard } from "@/components/guide/first-steps-card";
 import { firstStepsFor } from "@/lib/guide/first-steps";
-import { upcomingCharges } from "@/lib/billing/upcoming-charges";
-import { bankCard, type BankCard } from "@/lib/service-terms/hours-bank";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
@@ -173,157 +167,59 @@ const Tile = ({ icon }: { icon: ReactNode }) => (
 
 export async function ClientDashboard({ actor }: { actor: Actor }) {
   const now = new Date();
-  const today = saoPauloDate(now);
-  const workIds = allowedIds(actor, "overview");
-  const supportIds = allowedIds(actor, "support");
-  const financeIds = allowedIds(actor, "finance");
-  const canSupport = supportIds.length > 0;
-  const canFinance = financeIds.length > 0;
   const manyCompanies = actor.grants.length > 1;
   const apps = protectedApps();
-  const none = sql`false`;
-  // The company and, for a Membro with a selection, only the products and projects chosen for them.
-  const workScope = () => (workIds.length ? (engagementWhere(actor, engagements.id, engagements.companyId) ?? none) : none);
-  // Requests about products left out of a Membro's selection stay out, except the ones they opened.
-  const ticketScope = () =>
-    and(inArray(tickets.companyId, supportIds), ticketWhere(actor, { company: tickets.companyId, engagement: tickets.engagementId, author: tickets.authorId }));
-  const scope = scopeOf(actor);
-
-  const [
+  // The lists come from clientOverview, shared with the app's overview.get.
+  const {
+    today,
+    canSupport,
+    canFinance,
     openInvoices,
-    [dueTotals],
-    [ticketsWaiting],
-    [quotesToAnswer],
-    [contractsToSign],
+    dueTotals,
+    ticketsWaiting,
+    quotesToAnswer,
+    contractsToSign,
     projects,
+    progress,
     products,
+    suspended,
     recentTickets,
     folders,
-  ] = await Promise.all([
-    canFinance
-      ? db
-          .select({ invoice: invoices, company: companies.name, document: companies.document })
-          .from(invoices)
-          .innerJoin(companies, eq(companies.id, invoices.companyId))
-          .where(and(inArray(invoices.companyId, financeIds), eq(invoices.status, "issued")))
-          .orderBy(asc(invoices.dueDate), asc(invoices.id))
-          .limit(5)
-      : [],
-    canFinance
-      ? db
-          .select({
-            n: count(),
-            total: sql<string>`coalesce(sum(${invoices.amountCents}), 0)`,
-            overdueN: sql<number>`count(*) filter (where ${invoices.dueDate} < ${today})::int`,
-            overdueTotal: sql<string>`coalesce(sum(${invoices.amountCents}) filter (where ${invoices.dueDate} < ${today}), 0)`,
-          })
-          .from(invoices)
-          .where(and(inArray(invoices.companyId, financeIds), eq(invoices.status, "issued")))
-      : [{ n: 0, total: "0", overdueN: 0, overdueTotal: "0" }],
-    canSupport
-      ? db.select({ n: count() }).from(tickets).where(and(ticketScope(), eq(tickets.status, "waiting_customer")))
-      : [{ n: 0 }],
-    canFinance
-      ? db
-          .select({ n: count() })
-          .from(quotes)
-          .where(and(inArray(quotes.companyId, financeIds), eq(quotes.status, "sent"), sql`(${quotes.validUntil} is null or ${quotes.validUntil} >= ${today})`))
-      : [{ n: 0 }],
-    // Only what still waits for the client's signature, not what waits for Anuntech's;
-    // a signature of an earlier version of the text does not count (contract-actions.ts).
-    canFinance
-      ? db
-          .select({ n: count() })
-          .from(contracts)
-          .where(
-            and(
-              inArray(contracts.companyId, financeIds),
-              eq(contracts.status, "sent"),
-              sql`not exists (select 1 from ${contractSignatures} where ${contractSignatures.contractId} = ${contracts.id} and ${contractSignatures.party} = 'client' and ${contractSignatures.documentHash} = ${contracts.documentHash})`,
-            ),
-          )
-      : [{ n: 0 }],
-    db
-      .select({ id: engagements.id, name: engagements.name, status: engagements.status, company: companies.name, document: companies.document })
-      .from(engagements)
-      .innerJoin(companies, eq(companies.id, engagements.companyId))
-      .where(and(workScope(), eq(engagements.kind, "project"), inArray(engagements.status, ["active", "paused"])))
-      .orderBy(asc(engagements.status), asc(engagements.name))
-      .limit(4),
-    db
-      .select({
-        id: engagements.id,
-        name: engagements.name,
-        kind: engagements.kind,
-        url: engagements.url,
-        company: companies.name,
-        document: companies.document,
-        catalogItemId: engagements.catalogItemId,
-        icon: catalogItems.icon,
-        status: engagements.status,
-      })
-      .from(engagements)
-      .innerJoin(companies, eq(companies.id, engagements.companyId))
-      .leftJoin(catalogItems, eq(catalogItems.id, engagements.catalogItemId))
-      // A suspended product is still contracted, and shown first.
-      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), inArray(engagements.status, ["active", "suspended"])))
-      .orderBy(desc(sql`${engagements.status} = 'suspended'`), asc(engagements.name))
-      .limit(5),
-    canSupport
-      ? db
-          .select({ ticket: tickets, company: companies.name, document: companies.document })
-          .from(tickets)
-          .innerJoin(companies, eq(companies.id, tickets.companyId))
-          .where(ticketScope())
-          .orderBy(desc(tickets.updatedAt))
-          .limit(5)
-      : [],
-    foldersFor(scope, "all"),
-  ]);
-
-  // Task progress only for the projects on screen.
-  const progress = projects.length
-    ? await db
-        .select({
-          engagementId: tasks.engagementId,
-          total: count(),
-          done: sql<number>`count(*) filter (where ${tasks.status} = 'done')::int`,
-        })
-        .from(tasks)
-        .where(inArray(tasks.engagementId, projects.map((p) => p.id)))
-        .groupBy(tasks.engagementId)
-    : [];
-  const bookmarkPage = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: "", company: "all" }, { page: 1, pageSize: 5 });
+    bookmarkPage,
+    nextCharge,
+    banks,
+    estimates,
+    toReview,
+  } = await clientOverview(actor, now);
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
 
   // An overdue invoice is not listed here: A pagar shows it first, marked Vencida, with "Pagar".
   const candidates: (AttentionItem | false)[] = [
-    ticketsWaiting.n > 0 && {
+    ticketsWaiting > 0 && {
       key: "tickets",
       icon: <HeadsetIcon />,
       tone: "warning" as const,
       title: "Chamados esperando sua resposta",
-      count: ticketsWaiting.n,
+      count: ticketsWaiting,
       href: "/chamados?status=waiting_customer",
     },
-    quotesToAnswer.n > 0 && {
+    quotesToAnswer > 0 && {
       key: "quotes",
       icon: <FileTextIcon />,
       title: "Orçamentos para você responder",
-      count: quotesToAnswer.n,
+      count: quotesToAnswer,
       href: "/orcamentos?status=sent",
     },
-    contractsToSign.n > 0 && {
+    contractsToSign > 0 && {
       key: "contracts",
       icon: <PenLineIcon />,
       title: "Contratos para você assinar",
-      count: contractsToSign.n,
+      count: contractsToSign,
       href: "/contratos?status=sent",
     },
   ];
   const attention = candidates.filter((item): item is AttentionItem => item !== false);
   // Suspended products come first: the client pays or talks to the team (the list on Produtos says how).
-  const suspended = products.filter((product) => product.status === "suspended");
   if (suspended.length)
     attention.unshift({
       key: "suspended",
@@ -336,32 +232,10 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
     });
 
   const firstSteps = await firstStepsFor(actor);
-  // With nothing open, the next recurring charge says when the next boleto comes.
-  const [nextCharge] = canFinance && !dueTotals.n ? await upcomingCharges({ admin: false, companyIds: financeIds }) : [];
-  // Each company's hours bank, once its conditions are published, and estimates waiting for an Administrador.
-  const banks = (
-    await Promise.all(
-      actor.grants.map((g) =>
-        bankCard(g.company.id, g.company.name, { client: true, now, engagements: g.engagements === "all" ? undefined : g.engagements }, g.company.document),
-      ),
-    )
-  ).filter((b): b is BankCard => !!b);
-  const [estimates] = canFinance
-    ? await db
-        .select({ n: count() })
-        .from(tickets)
-        .where(and(inArray(tickets.companyId, financeIds), eq(tickets.estimateStatus, "proposed")))
-    : [{ n: 0 }];
   // A bank past its alert says so in its own card, at the top of the page (bar in amber and the rule).
-  if (estimates.n > 0)
-    attention.push({ key: "estimates", icon: <Clock3Icon />, title: "Estimativas de melhoria para aprovar", count: estimates.n, href: "/chamados" });
+  if (estimates.length > 0)
+    attention.push({ key: "estimates", icon: <Clock3Icon />, title: "Estimativas de melhoria para aprovar", count: estimates.length, href: "/chamados" });
   // Deliveries waiting for the Administrador's test: approve or point out a problem on each card.
-  const toReview = canFinance
-    ? await db
-        .select({ projectId: tasks.engagementId })
-        .from(tasks)
-        .where(and(inArray(tasks.companyId, financeIds), eq(tasks.status, "review")))
-    : [];
   if (toReview.length) {
     const projects = new Set(toReview.map((t) => t.projectId));
     attention.push({
@@ -401,9 +275,9 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         }
       />
       {firstSteps && <FirstStepsCard data={firstSteps} />}
-      {banks.map((bank) => (
+      {banks.map(({ bank, viewer }) => (
         <div key={bank.companyId} id={`banco-de-horas-${bank.companyId}`} className="mb-6 scroll-mt-6">
-          <HoursBankCard viewer={canAccess(actor, bank.companyId, "finance") ? "approver" : "member"} bank={bank} showCompany={banks.length > 1} />
+          <HoursBankCard viewer={viewer} bank={bank} showCompany={banks.length > 1} />
         </div>
       ))}
 

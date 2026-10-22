@@ -15,7 +15,7 @@ export function OnboardingCard({ steps }: { steps: OnboardingStep[] }) {
     <Card variant="quiet" className="gap-4 py-5">
       <CardHeader>
         <SectionTitle title="Implantação" description={steps.length === 1 ? "Falta 1 passo." : `Faltam ${steps.length} passos.`} />
-        {/* "Do bruto ao produto": one pixel per step, violet once it is done. */}
+        {/* "Da planilha ao produto": one pixel per step, violet once it is done. */}
         <PixelProgress done={done} total={ONBOARDING_SLOTS.length} label="Implantação" className="mt-1 gap-1.5 [&>span]:size-3" />
       </CardHeader>
       <CardContent className="flex flex-col gap-0.5 px-3">

@@ -10,6 +10,7 @@ import { api } from "./api";
 export const companyKey = ["company"] as const;
 export const membersKey = ["members"] as const;
 export const notificationsKey = ["notifications"] as const;
+export const noticeHistoryKey = ["notifications", "history"] as const;
 
 export type MemberList = Awaited<ReturnType<typeof api.members.list>>;
 export type Person = MemberList["people"][number];

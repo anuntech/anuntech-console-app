@@ -29,6 +29,7 @@ import {
   type SuspensionReason,
 } from "@/lib/suspensions/suspension-rules";
 import type { SuspensionView } from "@/lib/suspensions/suspension-view";
+import { suspensionNotice, type SuspendedProduct } from "@/lib/suspensions/suspension-notice";
 import { addDays } from "@/lib/billing/recurrence";
 import { saoPauloDate } from "@/lib/dates";
 import { dateLabel, dateTimeLabel } from "@/lib/format";
@@ -39,23 +40,16 @@ type Target = { id: string; name: string; appPage?: string | null; suspension?: 
 const check = "mt-0.5 size-4 min-h-0 shrink-0 accent-primary";
 
 /** What the client reads on Produtos while something is suspended: why, and the two ways out. */
-export function SuspendedNotice({ products }: { products: { name: string; since: string | null; reason: SuspensionReason; canPay: boolean }[] }) {
-  const overdue = products.some((p) => p.reason === "overdue");
-  const canPay = products.some((p) => p.canPay && p.reason === "overdue");
-  const first = products[0];
+export function SuspendedNotice({ products }: { products: SuspendedProduct[] }) {
+  const notice = suspensionNotice(products);
+  if (!notice) return null;
+  const { canPay } = notice;
   return (
     <div role="status" className="mb-4 flex flex-wrap items-start gap-3 rounded-lg border border-destructive-edge bg-destructive-soft px-4 py-3 text-sm">
       <BanIcon className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="m-0 font-medium text-destructive">
-          {products.length === 1
-            ? `${first.name} está suspenso${first.since ? ` desde ${dateLabel(new Date(first.since))}` : ""}${first.reason === "overdue" ? ", por atraso no pagamento" : ""}.`
-            : `${products.length} produtos estão suspensos: ${products.map((p) => p.name).join(", ")}.`}
-        </p>
-        <p className="m-0 mt-0.5 text-foreground">
-          Nenhum dado foi apagado.{" "}
-          {overdue ? "Assim que as faturas vencidas forem pagas, a equipe reativa." : "Para reativar, fale com a equipe."} O Console e os chamados continuam funcionando.
-        </p>
+        <p className="m-0 font-medium text-destructive">{notice.title}</p>
+        <p className="m-0 mt-0.5 text-foreground">{notice.text}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {canPay && (

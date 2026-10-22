@@ -12,9 +12,7 @@ import {
   type TicketAssignee,
   type TicketClock,
 } from "@/components/chamados/ticket-detail";
-import { loadCalendar } from "@/lib/service-terms/terms";
-import { businessMinutesBetween } from "@/lib/service-terms/business-calendar";
-import { businessSpanLabel, visibleToClient } from "@/lib/service-terms/ticket-clock";
+import { ticketClockView } from "@/lib/tickets/ticket-clock-view";
 import { bankTerms } from "@/lib/service-terms/hours-bank";
 import { saoPauloDate } from "@/lib/dates";
 import type { TicketHoursData } from "@/components/chamados/ticket-hours";
@@ -96,21 +94,7 @@ export default async function Ticket({
   const t = thread.row;
   const now = new Date();
   // The deadlines a viewer may see: the team always, the client once the conditions are published.
-  let clock: TicketClock | null = null;
-  if (t.terms && (t.responseDueAt || t.resolutionDueAt) && (actor.admin || visibleToClient(t.terms, now))) {
-    const cal = await loadCalendar();
-    clock = {
-      label: t.terms.label,
-      responseDueAt: t.responseDueAt?.toISOString() ?? null,
-      resolutionDueAt: t.resolutionDueAt?.toISOString() ?? null,
-      firstResponseAt: t.firstResponseAt?.toISOString() ?? null,
-      respondedIn: t.firstResponseAt
-        ? businessSpanLabel(Math.max(1, businessMinutesBetween(t.createdAt, t.firstResponseAt, cal)))
-        : null,
-      pausedSince: t.status === "waiting_customer" && t.terms.policy.pausesWhileWaiting ? t.waitingSince?.toISOString() ?? null : null,
-      clientFrom: actor.admin && !visibleToClient(t.terms, now) ? t.terms.publishAt : null,
-    };
-  }
+  const clock: TicketClock | null = await ticketClockView(actor, t, now);
   // Hours bank and improvement estimate, where the company's conditions have them (SUP 4 and 5).
   const bank = await bankTerms(t.companyId, { client: !actor.admin, now });
   const improvementLimit = t.terms?.policy.improvementBankLimitMinutes ?? bank?.policy.improvementBankLimitMinutes ?? null;
