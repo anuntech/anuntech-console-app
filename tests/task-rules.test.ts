@@ -35,11 +35,12 @@ test("the column picker offers exactly what the rules allow, the current column 
 });
 
 test("moving starts the test window, clears an approval and takes the team's request into the work", () => {
+  const effects = (...args: Parameters<typeof statusSideEffects>) => statusSideEffects(...args) as Record<string, unknown>;
   assert.deepEqual(statusSideEffects(false, task("todo"), "todo"), {});
-  const review = statusSideEffects(true, task("in_progress"), "review");
+  const review = effects(true, task("in_progress"), "review");
   assert.ok(review.reviewSince instanceof Date);
   assert.equal(review.approvedAt, null);
-  assert.equal(statusSideEffects(true, task("backlog", true), "todo").requested, false);
+  assert.equal(effects(true, task("backlog", true), "todo").requested, false);
   assert.equal("requested" in statusSideEffects(false, task("todo", true), "in_progress"), false);
   assert.equal("approvedAt" in statusSideEffects(true, task("review"), "done"), false);
 });
