@@ -17,7 +17,7 @@ const config: ExpoConfig = {
   name: env === "production" ? "Anuntech Console" : `Console (${env})`,
   slug: "anuntech",
   owner: process.env.EXPO_OWNER ?? "anuntech",
-  version: "1.1.0",
+  version: "1.2.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "anuntech",
