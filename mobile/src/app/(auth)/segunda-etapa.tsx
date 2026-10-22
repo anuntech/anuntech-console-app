@@ -7,6 +7,7 @@ import { Button } from "@/components/button";
 import { CodeField } from "@/components/field";
 import { IconTile } from "@/components/tile";
 import { authClient, securityChallenge } from "@/lib/auth";
+import { useCooldown } from "@/lib/cooldown";
 import { space } from "@/lib/theme";
 
 /** The second step: a code on the other verified contact (as /verificar-acesso). */
@@ -16,6 +17,9 @@ export default function SecondStep() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  // One minute between codes, as on the web ("Reenviar em 42s").
+  const [seconds, cooldown] = useCooldown();
   useEffect(() => {
     securityChallenge()
       .then(setChallenge)
@@ -23,18 +27,26 @@ export default function SecondStep() {
   }, []);
 
   async function send() {
-    if (busy) return;
+    if (busy || seconds > 0) return;
     setBusy(true);
     setError("");
+    setMessage("");
     try {
       const result = await authClient.twoFactor.sendOtp({});
       if (result.error)
         setError(
           result.error.status === 429
             ? "Aguarde um minuto antes de pedir outro código."
-            : "Não foi possível enviar o código. Entre novamente.",
+            : sent
+              ? "Não foi possível entregar o código. Aguarde e tente reenviar."
+              : "Não foi possível enviar o código. Entre novamente.",
         );
-      else setSent(true);
+      else {
+        setSent(true);
+        setCode("");
+        cooldown();
+        setMessage("Código enviado. Ele vale por 5 minutos.");
+      }
     } catch {
       setError("Não foi possível conectar. Confira a internet e tente novamente.");
     } finally {
@@ -45,6 +57,7 @@ export default function SecondStep() {
     if (busy || candidate.length !== 6) return;
     setBusy(true);
     setError("");
+    setMessage("");
     try {
       const result = await authClient.twoFactor.verifyOtp({ code: candidate });
       if (result.error) {
@@ -86,6 +99,7 @@ export default function SecondStep() {
           />
         )}
         {error ? <Notice kind="error">{error}</Notice> : null}
+        {message && !error ? <Notice kind="info">{message}</Notice> : null}
         {challenge && (
           <Button
             title={sent ? "Confirmar" : "Enviar código"}
@@ -95,6 +109,14 @@ export default function SecondStep() {
             onPress={() => void (sent ? verify() : send())}
           />
         )}
+        {sent ? (
+          <Button
+            title={seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
+            variant="plain"
+            disabled={busy || seconds > 0}
+            onPress={() => void send()}
+          />
+        ) : null}
         <Button
           title="Voltar para a entrada"
           variant="plain"
