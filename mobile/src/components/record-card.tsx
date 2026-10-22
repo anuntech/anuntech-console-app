@@ -1,3 +1,5 @@
+import type { ToneName } from "@/lib/status";
+import { Pill } from "./pill";
 import type { ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { radius, space, usePalette } from "@/lib/theme";
@@ -58,20 +60,7 @@ export function RecordCard({
   );
 }
 
-/** A neutral pill for a situation the app has no special color for. */
-export function Tag({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "good" | "attention" | "info" }) {
-  const palette = usePalette();
-  const colors = {
-    neutral: { bg: palette.secondary, fg: palette.muted },
-    good: { bg: palette.successSoft, fg: palette.success },
-    attention: { bg: palette.warningSoft, fg: palette.warning },
-    info: { bg: palette.accent, fg: palette.primary },
-  }[tone];
-  return (
-    <View style={{ alignSelf: "flex-start", backgroundColor: colors.bg, borderRadius: radius.xl, paddingHorizontal: space.sm, paddingVertical: 2 }}>
-      <Text variant="caption" style={{ color: colors.fg }}>
-        {label}
-      </Text>
-    </View>
-  );
+/** A situation in words, in its tone. */
+export function Tag({ label, tone = "neutral" }: { label: string; tone?: ToneName }) {
+  return <Pill label={label} tone={tone} />;
 }

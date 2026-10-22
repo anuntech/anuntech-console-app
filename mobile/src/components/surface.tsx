@@ -1,38 +1,44 @@
-import type { ReactNode } from "react";
-import { Pressable, ScrollView, View, type ViewProps } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { radius, space, usePalette } from "@/lib/theme";
+import { useEffect, type ReactNode } from "react";
+import { AccessibilityInfo, Platform, ScrollView, View, type ViewProps } from "react-native";
+import Animated from "react-native-reanimated";
+import { SymbolView, type SFSymbol } from "expo-symbols";
+import { enter } from "@/lib/motion";
+import { raised as raisedStyle, rounded, space, usePalette } from "@/lib/theme";
+import { ListRow } from "./list-row";
 import { Text } from "./text";
 
-/** A scrolling page on the Console's background. */
-export function Screen({ children, edges }: { children: ReactNode; edges?: ("top" | "bottom")[] }) {
+/** A scrolling page on the grouped background, under the native header. */
+export function Screen({ children }: { children: ReactNode }) {
   const palette = usePalette();
   return (
-    <SafeAreaView edges={edges ?? ["top"]} style={{ flex: 1, backgroundColor: palette.background }}>
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: space.lg, gap: space.block, paddingBottom: space.block * 2 }}
-      >
-        {children}
-      </ScrollView>
-    </SafeAreaView>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: palette.background }}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ padding: space.lg, gap: space.block, paddingBottom: space.block * 2 }}
+    >
+      {children}
+    </ScrollView>
   );
 }
 
-/** A card (rounded-xl on the web). */
-export function Card({ style, ...props }: ViewProps) {
+/**
+ * A white card without a border. `raised` floats it (navy shadow) for what
+ * asks for attention; `tone` edges it amber or green.
+ */
+export function Card({ style, raised, tone, ...props }: ViewProps & { raised?: boolean; tone?: "warning" | "success" }) {
   const palette = usePalette();
   return (
     <View
       style={[
         {
           backgroundColor: palette.card,
-          borderRadius: radius.xl,
-          borderWidth: 1,
-          borderColor: palette.border,
+          ...rounded(24),
           padding: space.lg,
           gap: space.md,
+          ...(palette.dark ? { borderWidth: 1, borderColor: palette.border } : {}),
+          ...(raised ? raisedStyle(palette) : {}),
+          ...(tone ? { borderWidth: 1, borderColor: tone === "warning" ? palette.warningEdge : palette.successEdge } : {}),
         },
         style,
       ]}
@@ -41,7 +47,7 @@ export function Card({ style, ...props }: ViewProps) {
   );
 }
 
-/** One line of a list: what it is, its value, and where it goes when tapped. */
+/** @deprecated The old list line; use ListRow inside a Section. */
 export function Row({
   title,
   detail,
@@ -57,62 +63,40 @@ export function Row({
   tone?: "foreground" | "destructive";
   accessory?: ReactNode;
 }) {
-  const palette = usePalette();
-  const content = (
-    <View style={{ minHeight: space.touch, flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.sm }}>
-      <View style={{ flex: 1 }}>
-        <Text variant="body" tone={tone}>
-          {title}
-        </Text>
-        {detail ? (
-          <Text variant="caption" tone="muted">
-            {detail}
-          </Text>
-        ) : null}
-      </View>
-      {accessory}
-      {onPress && !accessory ? (
-        <Text tone="muted" accessible={false} importantForAccessibility="no">
-          ›
-        </Text>
-      ) : null}
-    </View>
-  );
-  if (!onPress) return content;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      accessibilityHint={detail}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, borderRadius: radius.md })}
-      android_ripple={{ color: palette.accent }}
-    >
-      {content}
-    </Pressable>
-  );
+  return <ListRow title={title} subtitle={detail} onPress={onPress} onLongPress={onLongPress} tone={tone} trailing={accessory} />;
 }
 
-/** Feedback with text, never color alone: error or information. */
-export function Notice({ kind, children }: { kind: "error" | "info"; children: ReactNode }) {
+type NoticeKind = "info" | "success" | "warning" | "error";
+
+/** Feedback with an icon and words, never color alone; VoiceOver reads it when it appears. */
+export function Notice({ kind, title, children }: { kind: NoticeKind; title?: string; children: ReactNode }) {
   const palette = usePalette();
-  const error = kind === "error";
+  const look: Record<NoticeKind, { bg: string; edge: string; fg: string; icon: SFSymbol }> = {
+    info: { bg: palette.accent, edge: palette.infoEdge, fg: palette.primary, icon: "info.circle.fill" },
+    success: { bg: palette.successSoft, edge: palette.successEdge, fg: palette.success, icon: "checkmark.seal.fill" },
+    warning: { bg: palette.warningSoft, edge: palette.warningEdge, fg: palette.warning, icon: "exclamationmark.circle.fill" },
+    error: { bg: palette.destructiveSoft, edge: palette.destructiveEdge, fg: palette.destructive, icon: "xmark.octagon.fill" },
+  };
+  const c = look[kind];
+  const text = typeof children === "string" ? children : null;
+  useEffect(() => {
+    if (Platform.OS === "ios" && (kind === "error" || kind === "warning" || kind === "success") && (text || title))
+      AccessibilityInfo.announceForAccessibilityWithOptions([title, text].filter(Boolean).join(". "), { queue: true });
+  }, [kind, text, title]);
   return (
-    <View
-      accessibilityRole={error ? "alert" : "text"}
-      accessibilityLiveRegion="polite"
-      style={{
-        borderRadius: radius.lg,
-        borderWidth: 1,
-        borderColor: error ? palette.destructiveEdge : palette.border,
-        backgroundColor: error ? palette.destructiveSoft : palette.secondary,
-        padding: space.md,
-      }}
+    <Animated.View
+      entering={enter}
+      accessible
+      accessibilityRole={kind === "error" ? "alert" : "text"}
+      style={{ flexDirection: "row", gap: 10, padding: 14, ...rounded(16), borderWidth: 1, borderColor: c.edge, backgroundColor: c.bg }}
     >
-      <Text variant="caption" tone={error ? "destructive" : "foreground"}>
-        {children}
-      </Text>
-    </View>
+      <SymbolView name={c.icon} size={18} tintColor={c.fg} accessible={false} style={{ marginTop: 1 }} />
+      <View style={{ flex: 1, gap: 2 }}>
+        {title ? <Text variant="label">{title}</Text> : null}
+        <Text variant="subhead" tone={kind === "error" ? "destructive" : "foreground"}>
+          {children}
+        </Text>
+      </View>
+    </Animated.View>
   );
 }
