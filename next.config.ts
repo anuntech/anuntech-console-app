@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // The PDFs (lib/pdf-brand.ts) read fonts and the logo from assets/ at runtime, also inside server actions.
   outputFileTracingIncludes: { "/**": ["./assets/**"] },
   experimental: { serverActions: { bodySizeLimit: "2mb" } },
+  // The privacy policy lives on the institutional site; old links (App Store, Google Play, older app builds) keep working.
+  async redirects() {
+    return [{ source: "/privacidade", destination: "https://www.anuntech.com/privacy", permanent: true }];
+  },
   async headers() {
     return [
       {

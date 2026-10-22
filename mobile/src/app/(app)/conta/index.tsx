@@ -15,7 +15,7 @@ import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { useMe } from "@/lib/me";
 import { errorMessage } from "@/lib/api";
-import { CONSOLE_URL, formatPhone } from "@/lib/config";
+import { CONSOLE_URL, PRIVACY_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
 import { confirmIdentity, lockAvailable, lockEnabled, setLockEnabled } from "@/lib/lock";
 import { registerForPush } from "@/lib/push";
@@ -283,7 +283,7 @@ export default function Account() {
           title="Política de privacidade"
           leading={<IconTile icon="hand.raised.fill" color="gray" />}
           trailing="external"
-          onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/privacidade`)}
+          onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_URL)}
         />
       </Section>
       <Section>
