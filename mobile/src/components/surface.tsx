@@ -46,12 +46,14 @@ export function Row({
   title,
   detail,
   onPress,
+  onLongPress,
   tone = "foreground",
   accessory,
 }: {
   title: string;
   detail?: string;
   onPress?: () => void;
+  onLongPress?: () => void;
   tone?: "foreground" | "destructive";
   accessory?: ReactNode;
 }) {
@@ -83,6 +85,7 @@ export function Row({
       accessibilityLabel={title}
       accessibilityHint={detail}
       onPress={onPress}
+      onLongPress={onLongPress}
       style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, borderRadius: radius.md })}
       android_ripple={{ color: palette.accent }}
     >

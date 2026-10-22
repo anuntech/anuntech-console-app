@@ -169,8 +169,11 @@ const consoleEnv = {
   DATABASE_URL: `${server}/${database}`,
   BETTER_AUTH_URL: "http://localhost:3100",
   CONSOLE_ADMIN_EMAIL: "equipe@demo.invalid",
-  // otp-mock.cjs records the codes and refuses every request outside this Mac.
-  NODE_OPTIONS: `--require=${process.cwd()}/scripts/otp-mock.cjs`,
+  // otp-mock.cjs records the codes and refuses every request outside this Mac;
+  // ai-gateway-mock.cjs answers the assistant with scripted replies, never a real model.
+  NODE_OPTIONS: `--require=${process.cwd()}/scripts/otp-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
+  AI_GATEWAY_API_KEY: "test",
+  CONSOLE_TEST_ASSISTANT_FILE: `${dir}/ai.jsonl`,
   CONSOLE_TEST_OTP_FILE: otpFile,
   CONSOLE_TEST_MAIL_FILE: `${dir}/mail.jsonl`,
   RESEND_API_KEY: "test",

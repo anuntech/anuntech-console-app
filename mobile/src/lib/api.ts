@@ -6,12 +6,15 @@ import { QueryClient } from "@tanstack/react-query";
 import { authClient } from "./auth";
 import { CONSOLE_URL } from "./config";
 
+/** The signed-in person's session, as the Console expects it from the app. */
+export async function sessionHeaders(): Promise<Record<string, string>> {
+  const cookie = await authClient.getCookie();
+  return cookie ? { Cookie: cookie } : {};
+}
+
 const link = new RPCLink({
   url: `${CONSOLE_URL}/api/v1`,
-  headers: async (): Promise<Record<string, string>> => {
-    const cookie = await authClient.getCookie();
-    return cookie ? { Cookie: cookie } : {};
-  },
+  headers: sessionHeaders,
   // The cookie goes by hand; letting fetch add its own would mix sessions.
   fetch: (request, init) => fetch(request, { ...init, credentials: "omit" }),
 });

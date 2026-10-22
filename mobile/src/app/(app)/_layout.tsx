@@ -34,6 +34,10 @@ export default function AppLayout() {
             md="forum"
           />
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="assistente">
+          <NativeTabs.Trigger.Label>Assistente</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf={{ default: "sparkles", selected: "sparkles" }} md="auto_awesome" />
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="financeiro" hidden={!finance}>
           <NativeTabs.Trigger.Label>Financeiro</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon
