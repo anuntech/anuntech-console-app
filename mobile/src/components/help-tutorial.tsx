@@ -138,7 +138,6 @@ function TutorialBody({
             justifyContent: "flex-end",
           }}
         >
-          {" "}
           <Text variant="caption" tone="muted">
             Tutorial em vídeo
           </Text>
