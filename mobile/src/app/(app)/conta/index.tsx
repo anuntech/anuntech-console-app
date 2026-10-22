@@ -16,7 +16,7 @@ import { IconTile } from "@/components/tile";
 import { useMe } from "@/lib/me";
 import { appearanceLabel, useAppearanceChoice } from "@/lib/appearance";
 import { errorMessage } from "@/lib/api";
-import { CONSOLE_URL, PRIVACY_URL, formatPhone } from "@/lib/config";
+import { PRIVACY_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
 import { TEAM_WHATSAPP, talkToTeam } from "@/lib/help-routes";
 import { confirmIdentity, lockAvailable, lockEnabled, setLockEnabled } from "@/lib/lock";

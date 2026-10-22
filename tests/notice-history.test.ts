@@ -9,7 +9,7 @@ import {
   noticeStatusLabel,
   noticeTone,
 } from "../src/lib/notifications/notice-history-view";
-import { MAX_AUDIO_BYTES, MAX_SECONDS, MIN_AUDIO_BYTES, MIN_SECONDS, PRIVACY_LINE, WARN_AT, WAV_RATE } from "../src/lib/voice/voice-rules";
+import { MAX_AUDIO_BYTES, MAX_SECONDS, MIN_AUDIO_BYTES, MIN_SECONDS, WARN_AT, WAV_RATE } from "../src/lib/voice/voice-rules";
 
 test("the history pages 20 at a time and keeps a page within the ones there are", () => {
   assert.equal(NOTICE_HISTORY_PAGE_SIZE, 20);
@@ -50,5 +50,6 @@ test("the app's dictation keeps the web's numbers (mobile/src/lib/dictation.ts)"
   assert.equal(number("MAX_AUDIO_BYTES"), MAX_AUDIO_BYTES);
   assert.equal(number("MIN_AUDIO_BYTES"), MIN_AUDIO_BYTES);
   assert.equal(number("WAV_RATE"), WAV_RATE);
-  assert.ok(source.includes(`"${PRIVACY_LINE}"`));
+  // The web dropped the line under the field (the help articles keep it); the app still says it while recording.
+  assert.ok(source.includes("não fica guardado"));
 });
