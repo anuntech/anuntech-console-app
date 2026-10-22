@@ -28,7 +28,7 @@ export function SectionHeader({
       ) : null}
       <View style={{ flex: 1 }} />
       {action ? (
-        <Pressable accessibilityRole="link" hitSlop={10} onPress={action.onPress} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <Pressable accessibilityRole="link" accessibilityLabel={`${action.label}: ${title}`} hitSlop={10} onPress={action.onPress} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <Text variant="label" tone="primary">
             {action.label}
           </Text>

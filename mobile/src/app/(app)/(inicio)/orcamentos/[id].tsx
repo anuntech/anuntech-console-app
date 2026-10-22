@@ -1,12 +1,16 @@
-import { ActivityIndicator, ScrollView, View } from "react-native";
+import { RefreshControl, ScrollView, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useQuery } from "@tanstack/react-query";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
-import { Card, Notice, Row } from "@/components/surface";
-import { Tag } from "@/components/record-card";
-import { PdfButton } from "@/components/pdf-button";
+import { Card, Notice } from "@/components/surface";
+import { Pill } from "@/components/pill";
+import { ListRow } from "@/components/list-row";
+import { Section } from "@/components/section";
+import { StatusTile } from "@/components/tile";
+import { PdfRow } from "@/components/pdf-button";
+import { SkeletonHeader, SkeletonRows, useDelayed } from "@/components/skeleton";
 import { api, errorMessage } from "@/lib/api";
 import { CONSOLE_URL } from "@/lib/config";
 import { civilDate, money, when } from "@/lib/format";
@@ -21,53 +25,76 @@ export default function Quote() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const bottom = useTabBarSpace();
   const quote = useQuery({ queryKey: ["quote", id], queryFn: () => api.quotes.get({ id }) });
+  const loading = useDelayed(quote.isPending);
   const q = quote.data;
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ padding: space.lg, gap: space.block, paddingBottom: bottom }}
+      contentContainerStyle={{ padding: space.gutter, gap: space.block, paddingBottom: bottom }}
       scrollIndicatorInsets={{ bottom }}
+      refreshControl={<RefreshControl refreshing={quote.isRefetching} onRefresh={() => void quote.refetch()} />}
     >
-      {quote.isPending && <ActivityIndicator accessibilityLabel="Carregando" />}
-      {quote.error && <Notice kind="error">{errorMessage(quote.error)}</Notice>}
-      {q && (
+      {loading ? (
+        <>
+          <SkeletonHeader />
+          <SkeletonRows count={2} inset={0} />
+        </>
+      ) : null}
+      {quote.error ? <Notice kind="error">{errorMessage(quote.error)}</Notice> : null}
+      {q ? (
         <>
           <View style={{ gap: space.sm }}>
-            <Tag label={q.statusLabel} tone={quoteTone(q.status)} />
-            <Text variant="heading" accessibilityRole="header">
+            <Pill label={q.statusLabel} tone={quoteTone(q.status)} />
+            <Text variant="title" accessibilityRole="header">
               {q.title}
             </Text>
-            <Text variant="caption" tone="muted">
+            <Text variant="subhead" tone="muted">
               {q.number} · {q.company}
             </Text>
           </View>
-          <Card style={{ gap: 0 }}>
-            <Row title="Total" accessory={<Text variant="label">{money(q.totalCents)}</Text>} />
-            {q.hoursMax > 0 ? <Row title="Estimativa" accessory={<Text>{hours(q.hoursMin, q.hoursMax)}</Text>} /> : null}
-            {q.validUntil ? <Row title="Válido até" accessory={<Text>{civilDate(q.validUntil)}</Text>} /> : null}
-          </Card>
+          <View accessible accessibilityLabel={`Total, ${money(q.totalCents)}`} style={{ gap: 2 }}>
+            <Text variant="caption" tone="muted">
+              Total
+            </Text>
+            <Text variant="display">{money(q.totalCents)}</Text>
+          </View>
+          {q.hoursMax > 0 || q.validUntil ? (
+            <Section indent={space.lg}>
+              {q.hoursMax > 0 ? <ListRow title="Estimativa" value={hours(q.hoursMin, q.hoursMax)} /> : null}
+              {q.validUntil ? <ListRow title="Válido até" value={civilDate(q.validUntil)} /> : null}
+            </Section>
+          ) : null}
           {q.decision ? (
-            <Card>
-              <Text variant="label">{q.statusLabel}</Text>
-              <Text tone="muted">
-                {q.decision.name} ({partyLabels[q.decision.party] ?? q.decision.party}) em {when(q.decision.at)}
-              </Text>
-              {q.decision.note ? <Text>{q.decision.note}</Text> : null}
-            </Card>
+            <Notice kind={q.status === "accepted" ? "success" : "info"} title={q.statusLabel}>
+              {[
+                `${q.decision.name} (${partyLabels[q.decision.party] ?? q.decision.party}) em ${when(q.decision.at)}`,
+                q.decision.note,
+              ]
+                .filter(Boolean)
+                .join("\n")}
+            </Notice>
           ) : q.status === "sent" ? (
             // The answer asks for the full proposal on screen: it stays on the Console for now.
-            <Card>
-              <Text variant="label">Aguardando sua resposta</Text>
-              <Text tone="muted">Leia a proposta completa no PDF e responda pelo Console no navegador.</Text>
+            <Card raised tone="warning">
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+                <StatusTile icon="text.bubble.fill" tone="attention" />
+                <Text variant="subhead" style={{ flex: 1 }}>
+                  Leia a proposta completa no PDF e responda no navegador.
+                </Text>
+              </View>
               <Button
-                title="Responder no Console"
+                title="Responder no navegador"
+                trailingIcon="arrow.up.right"
+                accessibilityHint="Abre no navegador"
                 onPress={() => void WebBrowser.openBrowserAsync(`${CONSOLE_URL}/orcamentos/${q.id}`)}
               />
             </Card>
           ) : null}
-          <PdfButton path={q.pdfPath} name={`Orçamento ${q.number}.pdf`} title="Ver proposta em PDF" />
+          <Section>
+            <PdfRow path={q.pdfPath} name={`Orçamento ${q.number}.pdf`} title="Ver proposta em PDF" icon="doc.richtext.fill" />
+          </Section>
         </>
-      )}
+      ) : null}
     </ScrollView>
   );
 }

@@ -1,18 +1,19 @@
 import type { ReactNode } from "react";
-import { View } from "react-native";
-import { space } from "@/lib/theme";
+import { Text as Span, View } from "react-native";
+import { fonts, space, usePalette } from "@/lib/theme";
 import { Text } from "./text";
 
 /*
  * The little Markdown the assistant writes: paragraphs, "- " and "1. " lists,
  * "#" titles, **bold**, `code` and [links](/path). Anything else shows as
  * plain text. Links go to onLink, which decides between a screen of the app
- * and the browser.
+ * and the browser. Reading size (body 17/24); bold and titles in semibold.
  */
 
 const inline = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g;
 
 function Inline({ text, onLink }: { text: string; onLink: (href: string) => void }) {
+  const palette = usePalette();
   const parts: ReactNode[] = [];
   let last = 0;
   for (const match of text.matchAll(inline)) {
@@ -20,19 +21,25 @@ function Inline({ text, onLink }: { text: string; onLink: (href: string) => void
     const at = match.index ?? 0;
     if (at > last) parts.push(text.slice(last, at));
     if (token.startsWith("**")) {
+      // A span keeps the paragraph's size and line height; only the weight changes.
       parts.push(
-        <Text key={at} variant="label" style={{ fontSize: 16, lineHeight: 24 }}>
+        <Span key={at} style={{ fontFamily: fonts.semibold }}>
           {token.slice(2, -2)}
-        </Text>,
+        </Span>,
       );
     } else if (token.startsWith("`")) {
       parts.push(token.slice(1, -1));
     } else {
       const [, label, href] = token.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/) ?? [];
       parts.push(
-        <Text key={at} tone="primary" accessibilityRole="link" onPress={() => onLink(href)} style={{ textDecorationLine: "underline" }}>
+        <Span
+          key={at}
+          accessibilityRole="link"
+          onPress={() => onLink(href)}
+          style={{ color: palette.primary, fontFamily: fonts.semibold, textDecorationLine: "underline" }}
+        >
           {label}
-        </Text>,
+        </Span>,
       );
     }
     last = at + token.length;
@@ -44,7 +51,7 @@ function Inline({ text, onLink }: { text: string; onLink: (href: string) => void
 export function Markdown({ text, onLink }: { text: string; onLink: (href: string) => void }) {
   const blocks = text.replace(/\r/g, "").split(/\n{2,}/);
   return (
-    <View style={{ gap: space.sm }}>
+    <View style={{ gap: space.md }}>
       {blocks.map((block, b) => {
         const lines = block.split("\n").filter((line) => line.trim());
         const list = lines.length > 0 && lines.every((line) => /^\s*([-*]|\d+\.)\s+/.test(line));
@@ -55,7 +62,9 @@ export function Markdown({ text, onLink }: { text: string; onLink: (href: string
                 const marker = line.match(/^\s*(\d+\.)/)?.[1] ?? "•";
                 return (
                   <View key={i} style={{ flexDirection: "row", gap: space.sm }}>
-                    <Text tone="muted">{marker}</Text>
+                    <Text tone="muted" style={{ minWidth: 14 }}>
+                      {marker}
+                    </Text>
                     <Text selectable style={{ flex: 1 }}>
                       <Inline text={line.replace(/^\s*([-*]|\d+\.)\s+/, "")} onLink={onLink} />
                     </Text>
@@ -67,7 +76,7 @@ export function Markdown({ text, onLink }: { text: string; onLink: (href: string
         const heading = block.match(/^#{1,6}\s+(.*)$/);
         if (heading)
           return (
-            <Text key={b} variant="label" accessibilityRole="header" style={{ fontSize: 16 }}>
+            <Text key={b} variant="headline" accessibilityRole="header" style={{ marginTop: space.xs }}>
               {heading[1]}
             </Text>
           );

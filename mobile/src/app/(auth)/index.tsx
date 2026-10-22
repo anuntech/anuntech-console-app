@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
-import { Image, KeyboardAvoidingView, Platform, Pressable, View, type TextInput } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, View, type TextInput } from "react-native";
+import { SymbolView } from "expo-symbols";
 import type { ComponentRef } from "react";
 import { router } from "expo-router";
 import { Screen, Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
 import { CodeField, Field } from "@/components/field";
+import { Segmented } from "@/components/segmented";
 import { authClient, normalizePhone } from "@/lib/auth";
-import { radius, space, usePalette } from "@/lib/theme";
+import { radius, rounded, space, usePalette } from "@/lib/theme";
 
 type Mode = "email" | "whatsapp";
 
@@ -120,53 +122,35 @@ export default function SignIn() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <Screen>
-        <View style={{ gap: space.md, marginTop: space.block * 2 }}>
+        <View style={{ gap: space.sm, marginTop: space.xl }}>
           <Image
             source={require("@/assets/images/icon.png")}
-            style={{ width: 56, height: 56, borderRadius: radius.lg }}
+            style={{ width: 64, height: 64, ...rounded(14), marginBottom: space.sm }}
             accessibilityIgnoresInvertColors
             accessible={false}
           />
-          <Text variant="caption" tone="muted">
+          <Text variant="subhead" tone="muted">
             Boas-vindas
           </Text>
-          <Text variant="title" accessibilityRole="header">
+          <Text variant="largeTitle" accessibilityRole="header">
             Entre no Console
           </Text>
           <Text tone="muted">Use o e-mail liberado para a sua empresa ou o WhatsApp da sua conta.</Text>
         </View>
 
         {!sent && (
-          <View
-            accessibilityRole="tablist"
-            style={{ flexDirection: "row", backgroundColor: palette.secondary, borderRadius: radius.lg, padding: 4 }}
-          >
-            {(["email", "whatsapp"] as const).map((option) => (
-              <Pressable
-                key={option}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: mode === option }}
-                disabled={busy}
-                onPress={() => {
-                  setMode(option);
-                  setDestination("");
-                  setError("");
-                  setMessage("");
-                }}
-                style={{
-                  flex: 1,
-                  minHeight: 40,
-                  borderRadius: radius.md,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: mode === option ? palette.card : "transparent",
-                }}
-              >
-                <Text variant="label" tone={mode === option ? "foreground" : "muted"}>
-                  {option === "email" ? "E-mail" : "WhatsApp"}
-                </Text>
-              </Pressable>
-            ))}
+          <View style={{ pointerEvents: busy ? "none" : "auto" }}>
+            <Segmented
+              values={["E-mail", "WhatsApp"]}
+              selectedIndex={mode === "email" ? 0 : 1}
+              accessibilityLabel="Entrar com"
+              onChange={(index) => {
+                setMode(index === 0 ? "email" : "whatsapp");
+                setDestination("");
+                setError("");
+                setMessage("");
+              }}
+            />
           </View>
         )}
 
@@ -176,15 +160,21 @@ export default function SignIn() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "space-between",
-                borderRadius: radius.lg,
-                borderWidth: 1,
-                borderColor: palette.border,
-                backgroundColor: palette.secondary,
-                paddingLeft: space.md,
+                gap: space.md,
+                ...rounded(radius.lg),
+                backgroundColor: palette.card,
+                paddingLeft: space.lg,
+                paddingRight: space.xs,
+                ...(palette.dark ? { borderWidth: 1, borderColor: palette.border } : {}),
               }}
             >
-              <View style={{ flex: 1, paddingVertical: space.sm }}>
+              <SymbolView
+                name={mode === "email" ? "envelope.fill" : "message.fill"}
+                size={18}
+                tintColor={palette.primary}
+                accessible={false}
+              />
+              <View style={{ flex: 1, paddingVertical: space.md }}>
                 <Text variant="caption" tone="muted">
                   Código enviado para
                 </Text>
@@ -194,7 +184,8 @@ export default function SignIn() {
               </View>
               <Button
                 title="Alterar"
-                variant="ghost"
+                variant="plain"
+                size="small"
                 disabled={busy}
                 onPress={() => {
                   setSent(false);
@@ -243,7 +234,8 @@ export default function SignIn() {
           {sent && code.length < 6 && (
             <Button
               title="Colar código"
-              variant="outline"
+              icon="doc.on.clipboard"
+              variant="secondary"
               disabled={busy}
               onPress={async () => {
                 // WhatsApp's "Copiar código" leaves the six numbers on the clipboard.
@@ -259,20 +251,22 @@ export default function SignIn() {
           )}
           {error ? <Notice kind="error">{error}</Notice> : null}
           {message ? <Notice kind="info">{message}</Notice> : null}
-          <Button
-            title={busy ? "Aguarde…" : sent ? "Entrar" : seconds ? `Aguarde ${seconds}s para pedir outro código` : "Receber código"}
-            busy={busy}
-            disabled={(!sent && (seconds > 0 || !destination.trim())) || (sent && code.length !== 6)}
-            onPress={() => void (sent ? verify() : send())}
-          />
-          {sent && (
+          <View style={{ gap: space.md }}>
             <Button
-              title={seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
-              variant="ghost"
-              disabled={busy || seconds > 0}
-              onPress={() => void send()}
+              title={busy ? "Aguarde…" : sent ? "Entrar" : seconds ? `Aguarde ${seconds}s para pedir outro código` : "Receber código"}
+              busy={busy}
+              disabled={(!sent && (seconds > 0 || !destination.trim())) || (sent && code.length !== 6)}
+              onPress={() => void (sent ? verify() : send())}
             />
-          )}
+            {sent && (
+              <Button
+                title={seconds ? `Reenviar em ${seconds}s` : "Reenviar código"}
+                variant="plain"
+                disabled={busy || seconds > 0}
+                onPress={() => void send()}
+              />
+            )}
+          </View>
         </View>
       </Screen>
     </KeyboardAvoidingView>

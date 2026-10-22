@@ -1,17 +1,35 @@
 import { useState } from "react";
-import { Alert } from "react-native";
+import { ActivityIndicator, Alert } from "react-native";
+import type { SFSymbol } from "expo-symbols";
 import { openAttachment } from "@/lib/files";
-import { Button } from "./button";
+import { usePalette } from "@/lib/theme";
+import { ListRow } from "./list-row";
+import { IconTile } from "./tile";
 
-/** Downloads a PDF the Console serves with the session and opens the share sheet. */
-export function PdfButton({ path, name, title = "Baixar PDF" }: { path: string; name: string; title?: string }) {
+/**
+ * A row that downloads a PDF the Console serves with the session and opens
+ * the share sheet. Goes inside a Section.
+ */
+export function PdfRow({
+  path,
+  name,
+  title = "Baixar PDF",
+  icon = "arrow.down.doc.fill",
+}: {
+  path: string;
+  name: string;
+  title?: string;
+  icon?: SFSymbol;
+}) {
+  const palette = usePalette();
   const [busy, setBusy] = useState(false);
   return (
-    <Button
+    <ListRow
+      leading={<IconTile icon={icon} color="gray" />}
       title={busy ? "Baixando…" : title}
-      variant="outline"
-      busy={busy}
+      trailing={busy ? <ActivityIndicator size="small" color={palette.muted} /> : "chevron"}
       onPress={async () => {
+        if (busy) return;
         setBusy(true);
         try {
           await openAttachment(path, name);

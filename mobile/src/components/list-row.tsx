@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Pressable, View, type AccessibilityActionEvent, type AccessibilityActionInfo } from "react-native";
+import { Pressable, View, type AccessibilityActionEvent, type AccessibilityActionInfo, type AccessibilityRole, type AccessibilityState } from "react-native";
 import { SymbolView } from "expo-symbols";
 import { space, usePalette } from "@/lib/theme";
 import { Text } from "./text";
@@ -26,6 +26,9 @@ export function ListRow({
   accessibilityHint,
   accessibilityActions,
   onAccessibilityAction,
+  accessibilityRole,
+  accessibilityState,
+  onAccessibilityTap,
   testID,
 }: {
   title: ReactNode;
@@ -44,6 +47,10 @@ export function ListRow({
   accessibilityHint?: string;
   accessibilityActions?: AccessibilityActionInfo[];
   onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
+  /** A row that acts as a switch or an option says so (and its state). */
+  accessibilityRole?: AccessibilityRole;
+  accessibilityState?: AccessibilityState;
+  onAccessibilityTap?: () => void;
   testID?: string;
 }) {
   const palette = usePalette();
@@ -109,13 +116,23 @@ export function ListRow({
   };
   if (!onPress && !onLongPress)
     return (
-      <View accessible accessibilityLabel={label} testID={testID} style={rowStyle}>
+      <View
+        accessible
+        accessibilityLabel={label}
+        accessibilityRole={accessibilityRole}
+        accessibilityState={accessibilityState}
+        onAccessibilityTap={onAccessibilityTap}
+        testID={testID}
+        style={rowStyle}
+      >
         {body}
       </View>
     );
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={accessibilityRole ?? "button"}
+      accessibilityState={accessibilityState}
+      onAccessibilityTap={onAccessibilityTap}
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint ?? (end === "external" ? "Abre no navegador" : undefined)}
       accessibilityActions={accessibilityActions}
