@@ -1,8 +1,8 @@
 import PDFDocument from "pdfkit";
-import path from "node:path";
 import type { ContractPublication } from "@/db/schema";
 import { APP_LOCALE, APP_TIME_ZONE } from "../dates";
 import { longDateLabel } from "../format";
+import { PDF_COLORS, pdfFonts, pdfHeader, registerPdfFonts } from "../pdf-brand";
 import { contractBlocks } from "./contract-text";
 
 export type ContractSignatureLine = {
@@ -42,7 +42,6 @@ export async function contractPdf(
     version?: number;
   },
 ): Promise<Buffer> {
-  const fonts = path.join(process.cwd(), "assets/fonts");
   const draft = input.status === "draft";
   const amendment = input.kind === "amendment";
   const noun = amendment ? "TERMO ADITIVO" : "CONTRATO";
@@ -50,7 +49,7 @@ export async function contractPdf(
     size: "A4",
     margins: { top: 54, bottom: 64, left: 54, right: 54 },
     bufferPages: true,
-    font: path.join(fonts, "NotoSans-Regular.ttf"),
+    font: pdfFonts().regular,
     info: {
       Title: input.title,
       Author: "Anuntech",
@@ -69,8 +68,7 @@ export async function contractPdf(
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
   });
-  doc.registerFont("Regular", path.join(fonts, "NotoSans-Regular.ttf"));
-  doc.registerFont("Bold", path.join(fonts, "NotoSans-Bold.ttf"));
+  registerPdfFonts(doc);
   const width = doc.page.width - 108;
   const eyebrow = input.superseded
     ? `${noun} · VERSÃO ${input.version ?? ""} SUBSTITUÍDA, SEM EFEITO`.replace("  ", " ")
@@ -83,13 +81,14 @@ export async function contractPdf(
         : input.status === "cancelled"
           ? `${noun} CANCELADO`
           : "RASCUNHO — SEM VALIDADE";
-  doc.font("Bold").fontSize(9).fillColor("#53637a").text(eyebrow);
-  doc.moveDown(1).fontSize(20).fillColor("#0d1d41").text(input.title, { width });
+  pdfHeader(doc, 54, width);
+  doc.font("Bold").fontSize(9).fillColor(PDF_COLORS.violet).text(eyebrow);
+  doc.moveDown(1).fontSize(20).fillColor(PDF_COLORS.ink).text(input.title, { width });
   doc
     .moveDown(0.6)
     .font("Regular")
     .fontSize(10)
-    .fillColor("#53637a")
+    .fillColor(PDF_COLORS.muted)
     .text(`${input.companyName} | ${input.companyDocument}`, { width });
   if (input.parentTitle)
     doc.text(
@@ -102,7 +101,7 @@ export async function contractPdf(
     `${draft ? "Rascunho atualizado" : input.status === "signed" ? "Assinado" : "Enviado para assinatura"} em ${when(input.date)}`,
     { width },
   );
-  doc.moveDown(1.5).fillColor("#202630");
+  doc.moveDown(1.5).fillColor(PDF_COLORS.text);
   const blocks = contractBlocks(input.body);
   const bottom = doc.page.height - 64;
   const body = { width, align: "left" as const, lineGap: 3 };
@@ -143,8 +142,8 @@ export async function contractPdf(
         const textWidth = width - numberWidth;
         fit(doc.heightOfString(block.text, { ...body, width: textWidth }));
         const y = doc.y;
-        doc.fillColor("#53637a").text(block.number, left, y, { width: numberWidth, lineGap: 3 });
-        doc.fillColor("#202630").text(block.text, left + numberWidth, y, { ...body, width: textWidth });
+        doc.fillColor(PDF_COLORS.muted).text(block.number, left, y, { width: numberWidth, lineGap: 3 });
+        doc.fillColor(PDF_COLORS.text).text(block.text, left + numberWidth, y, { ...body, width: textWidth });
         doc.moveDown(0.35);
         break;
       }
@@ -159,13 +158,13 @@ export async function contractPdf(
 
   if (!draft) {
     doc.addPage();
-    doc.font("Bold").fontSize(9).fillColor("#53637a").text("ASSINATURAS");
-    doc.moveDown(1).fontSize(16).fillColor("#0d1d41").text("Registro de assinaturas eletrônicas", { width });
+    doc.font("Bold").fontSize(9).fillColor(PDF_COLORS.muted).text("ASSINATURAS");
+    doc.moveDown(1).fontSize(16).fillColor(PDF_COLORS.ink).text("Registro de assinaturas eletrônicas", { width });
     doc
       .moveDown(0.6)
       .font("Regular")
       .fontSize(10)
-      .fillColor("#53637a")
+      .fillColor(PDF_COLORS.muted)
       .text(
         input.superseded
           ? "Esta versão foi substituída por um novo envio e não produz efeitos. As assinaturas abaixo, quando houver, referem-se apenas ao texto desta versão."
@@ -174,28 +173,29 @@ export async function contractPdf(
       );
     for (const party of ["client", "anuntech"] as const) {
       const line = input.signatures.find((s) => s.party === party);
-      doc.moveDown(1.4).font("Bold").fontSize(11).fillColor("#0d1d41").text(
+      doc.moveDown(1.4).font("Bold").fontSize(11).fillColor(PDF_COLORS.ink).text(
         party === "client" ? `Contratante — ${input.companyName}` : "Contratada — Anuntech",
         { width },
       );
-      doc.font("Regular").fontSize(10).fillColor("#202630");
+      doc.font("Regular").fontSize(10).fillColor(PDF_COLORS.text);
       if (line) {
         doc.text(`${line.name} <${line.email}>`, { width });
         doc.text(`Assinado em ${when(line.signedAt)}`, { width });
-        doc.fillColor("#53637a").text(
+        doc.fillColor(PDF_COLORS.muted).text(
           `Identidade: ${line.method === "otp_session" ? "acesso com código de verificação" : line.method}${line.ip ? ` · IP ${line.ip}` : ""}`,
           { width },
         );
       } else {
-        doc.fillColor("#53637a").text(input.superseded ? "Não assinou esta versão." : "Aguardando assinatura.", { width });
+        doc.fillColor(PDF_COLORS.muted).text(input.superseded ? "Não assinou esta versão." : "Aguardando assinatura.", { width });
       }
     }
     if (input.hash) {
-      doc.moveDown(1.6).font("Bold").fontSize(9).fillColor("#53637a").text("HASH DO DOCUMENTO (SHA-256)");
-      doc.font("Regular").fontSize(9).fillColor("#202630").text(input.hash, { width });
+      doc.moveDown(1.6).font("Bold").fontSize(9).fillColor(PDF_COLORS.muted).text("HASH DO DOCUMENTO (SHA-256)");
+      doc.font("Mono").fontSize(8.5).fillColor(PDF_COLORS.text).text(input.hash, { width });
+      doc.font("Regular").fontSize(9);
       doc
         .moveDown(0.4)
-        .fillColor("#53637a")
+        .fillColor(PDF_COLORS.muted)
         .text(`Identificador do contrato: ${input.id}${input.version ? ` · versão ${input.version}` : ""}`, { width });
     }
   }
@@ -206,7 +206,7 @@ export async function contractPdf(
     doc
       .font("Regular")
       .fontSize(8)
-      .fillColor("#687589")
+      .fillColor(PDF_COLORS.faint)
       .text(
         `${draft ? "Rascunho" : input.superseded ? "Versão substituída" : input.hash ? `Hash ${input.hash.slice(0, 16)}…` : input.id}`,
         54,

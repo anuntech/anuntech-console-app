@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { BrandLockup } from "@/components/shell/brand";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "cn";
@@ -81,16 +81,8 @@ export function StatusPage({
   return (
     <div className="flex min-h-svh flex-col bg-background">
       <header className="px-6 pt-6 sm:px-10">
-        <Link href="/" aria-label="Anuntech" className="inline-flex rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-          <Image
-            src="/brand/logo-anuntech.png"
-            alt="Anuntech"
-            width={1200}
-            height={372}
-            sizes="104px"
-            priority
-            className="h-8 w-auto dark:brightness-0 dark:invert"
-          />
+        <Link href="/" aria-label="Anuntech" className="inline-flex rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <BrandLockup className="h-6" />
         </Link>
       </header>
       <main id="main-content" tabIndex={-1} className="flex flex-1 items-center justify-center px-6 py-16 outline-none">

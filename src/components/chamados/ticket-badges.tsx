@@ -3,18 +3,15 @@ import { clientTicketLabels, priorityLabels, ticketLabels } from "@/lib/format";
 import type { TicketPriority, TicketStatus } from "@/lib/tickets/ticket-table";
 
 /* One tone per situation, used identically in lists, headers and cards:
-   what needs the team is blue, what needs the client is amber, what is done
-   is green, what is over is grey. */
+   what needs the team is neutral (a blue dot while someone works on it), what
+   needs the client is amber, what is done is green, what is over is grey. */
 const statusTone: Record<TicketStatus, { pill: string; dot: string }> = {
-  open: { pill: "bg-accent text-primary", dot: "bg-primary" },
-  in_progress: {
-    pill: "bg-primary text-primary-foreground",
-    dot: "bg-primary-foreground/80",
-  },
-  waiting_customer: { pill: "bg-warning-soft text-warning", dot: "bg-warning" },
-  resolved: { pill: "bg-success-soft text-success", dot: "bg-success" },
+  open: { pill: "border border-border bg-card text-foreground", dot: "bg-foreground" },
+  in_progress: { pill: "border border-border bg-secondary text-foreground", dot: "bg-link" },
+  waiting_customer: { pill: "border border-warning-edge bg-warning-soft text-warning", dot: "bg-warning" },
+  resolved: { pill: "border border-success-edge bg-success-soft text-success", dot: "bg-success" },
   closed: {
-    pill: "bg-secondary text-muted-foreground",
+    pill: "border border-border bg-secondary text-muted-foreground",
     dot: "bg-muted-foreground/50",
   },
 };

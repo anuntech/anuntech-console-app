@@ -1,15 +1,16 @@
 "use client";
 import { useLayoutEffect } from "react";
+import { BrandMark } from "@/components/ui/brand-mark";
 import styles from "./brand-loading.module.css";
 /**
  * Vinheta da Anuntech como tela de carregamento.
  *
  * Só entra nos dois momentos combinados: ao confirmar o acesso (tela cheia)
  * e nas rotas pesadas do Console (dentro da página). Nos dois, o mesmo
- * desenho: o logotipo real como máscara em CSS, na cor do tema, com a faixa
- * amarela percorrendo o símbolo, sobre um cinza bem claro (ou o fundo do
- * tema escuro). Nunca na navegação comum, que continua com o esqueleto.
- * Quem pede movimento reduzido vê o logotipo parado.
+ * símbolo da marca, em violeta: no acesso confirmado ele se monta com o nome
+ * (os pixels chegam e se encaixam); nas rotas pesadas, uma onda de luz passa
+ * pelos pixels enquanto a página carrega. Nunca na navegação comum, que
+ * continua com o esqueleto. Quem pede movimento reduzido vê o logotipo parado.
  */
 /** Quando a vinheta de página apareceu pela última vez (`BrandLoadingHold` lê). */
 let shownAt = 0;
@@ -19,14 +20,9 @@ export function takeShownAt() {
   return value;
 }
 
-/** Logotipo real, cor do tema, faixa amarela percorrendo o símbolo. */
-export function BrandLockup() {
-  return (
-    <div className={styles.lockup} aria-hidden="true">
-      <span className={styles.base} />
-      <span className={styles.sweep} />
-    </div>
-  );
+/** O símbolo da marca, em violeta, com a onda de carregamento. */
+export function LoadingMark() {
+  return <BrandMark mode="loading" className={styles.mark} />;
 }
 
 export function BrandLoading({
@@ -49,7 +45,7 @@ export function BrandLoading({
         className={`fixed inset-0 z-[60] grid place-items-center ${styles.splash}`}
       >
         <span className="sr-only">{label}</span>
-        <BrandLockup />
+        <BrandMark mode="intro" wordmark className={styles.intro} />
       </div>
     );
   return (
@@ -59,7 +55,7 @@ export function BrandLoading({
       className={`animate-in fade-in fill-mode-both delay-150 duration-300 ${styles.page}`}
     >
       <span className="sr-only">{label}</span>
-      <BrandLockup />
+      <LoadingMark />
     </div>
   );
 }
