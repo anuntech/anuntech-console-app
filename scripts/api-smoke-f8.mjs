@@ -74,7 +74,8 @@ export async function f8Checks({ db, rpc, ok, marker, emailSignIn, staff, base }
       [companies.own, "manager"],
       [companies.second, "manager"],
     ]);
-    await person("nobody", []);
+    // Signs in while a Membro, then loses the access: a session without any company.
+    await person("nobody", [[companies.second, "member"]]);
     for (const key of ["own", "other"]) {
       const company = companies[key];
       await db.query("insert into console_tickets(id,company_id,subject,author_id) values($1,$2,$3,$4)", [
@@ -113,6 +114,7 @@ export async function f8Checks({ db, rpc, ok, marker, emailSignIn, staff, base }
     const membro = (await emailSignIn(people.membro.email)).cookie;
     const both = (await emailSignIn(people.both.email)).cookie;
     const nobody = (await emailSignIn(people.nobody.email)).cookie;
+    await db.query("delete from console_memberships where email=$1", [people.nobody.email]);
 
     // Histórico de envios: the web's rows, for the Administrador of exactly one company.
     let r = await rpc("notifications.history", { page: 1 }, admin);
