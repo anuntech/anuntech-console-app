@@ -294,27 +294,79 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
   }
 }
 
-/** Reopens a sent proposal for editing; the next send is a new version. */
+/**
+ * Reopens a proposal for editing as its next version, like a contract waiting
+ * for signature: a sent one, a declined one, or an accepted one that nothing
+ * was made from yet (no contract, project or charge). The client's answer to
+ * the current version goes to the history (who, when, from where, the note)
+ * and the next send needs a new answer.
+ */
 export async function revertQuote(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   if (!actor.admin) return blocked;
   try {
     const quoteId = id.parse(form.get("id"));
-    await db.transaction(async (tx) => {
+    const answered = await db.transaction(async (tx) => {
       const [q] = await tx.select().from(quotes).where(eq(quotes.id, quoteId)).for("update");
       if (!q) throw Error("Orçamento não encontrado.");
-      if (q.status !== "sent") throw Error("Só um orçamento aguardando resposta pode voltar para rascunho.");
-      await tx.update(quotes).set({ status: "draft", revision: q.revision + 1, updatedAt: new Date() }).where(eq(quotes.id, q.id));
+      if (q.status !== "sent" && q.status !== "accepted" && q.status !== "declined")
+        throw Error("Só um orçamento enviado, aceito ou recusado ganha uma nova versão.");
+      if (q.status === "accepted") {
+        const [made] = await tx.execute<{ n: number }>(sql`
+          select (
+            (select count(*) from console_contracts where quote_id = ${q.id} and status <> 'cancelled') +
+            (select count(*) from console_engagements where quote_id = ${q.id}) +
+            (select count(*) from console_invoices where quote_id = ${q.id} and status <> 'cancelled')
+          )::int as n`).then((r) => r.rows);
+        if (made && made.n > 0)
+          throw Error("Já existe contrato, projeto ou cobrança feitos a partir deste orçamento. Edite numa cópia.");
+      }
+      await tx
+        .update(quotes)
+        .set({
+          status: "draft",
+          revision: q.revision + 1,
+          decidedAt: null,
+          decidedBy: null,
+          decidedParty: null,
+          decidedName: null,
+          decidedEmail: null,
+          decidedIp: null,
+          decisionNote: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(quotes.id, q.id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: q.companyId,
         entityId: q.id,
         action: "quote.reverted",
-        details: { version: q.publishedVersion },
+        details: {
+          version: q.publishedVersion,
+          // The answer stays as evidence of what the client said to that version.
+          ...(q.status !== "sent" && {
+            answer: {
+              status: q.status,
+              at: q.decidedAt?.toISOString() ?? null,
+              by: q.decidedBy,
+              party: q.decidedParty,
+              name: q.decidedName,
+              email: q.decidedEmail,
+              ip: q.decidedIp,
+              note: q.decisionNote,
+              hash: q.documentHash,
+            },
+          }),
+        },
       });
+      return q.status !== "sent";
     });
     refresh(quoteId);
-    return { success: "De volta ao rascunho. O próximo envio vira uma nova versão." };
+    return {
+      success: answered
+        ? "Nova versão em rascunho. A resposta da versão anterior fica no histórico, e o cliente responde de novo ao próximo envio."
+        : "De volta ao rascunho. O próximo envio vira uma nova versão.",
+    };
   } catch (e) {
     return failure(e);
   }

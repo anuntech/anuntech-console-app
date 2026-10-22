@@ -167,6 +167,10 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
   const waiting = q.status === "sent" && !expired;
   const editable = viewer.admin && q.status === "draft";
   const answered = q.status === "accepted" || q.status === "declined" || q.status === "cancelled";
+  // Like a contract before signature: the same proposal gets a new version, unless something was already made from it.
+  const handoff = data.handoff;
+  const madeFrom = !!(handoff && (handoff.contract || handoff.project || handoff.upfrontInvoiceId || handoff.balanceInvoiceId));
+  const newVersion = q.status === "sent" || q.status === "declined" || (q.status === "accepted" && !madeFrom);
   const deletable = viewer.admin && canDeleteQuote(q.status, { validUntil: q.validUntil, today });
   const decisionNotice = quoteDecisionNotice(q.status);
   const canAnswer = waiting && viewer.party === "client";
@@ -209,7 +213,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
               </Button>
             )}
             {viewer.admin && (q.status === "sent" || answered) && (
-              <Button variant="outline" onClick={() => (q.status === "sent" ? setReverting(true) : setEditCopy(true))}>
+              <Button variant="outline" onClick={() => (newVersion ? setReverting(true) : setEditCopy(true))}>
                 <PencilIcon />
                 Editar
               </Button>
@@ -521,9 +525,15 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         onOpenChange={setReverting}
         action={revertQuote}
         fields={{ id: q.id }}
-        title="Editar o orçamento?"
-        description="Ele volta para rascunho para você ajustar. O cliente deixa de poder responder até você enviar de novo, e o envio atual fica registrado como versão anterior."
-        confirmLabel="Editar"
+        title={q.status === "sent" ? "Editar o orçamento?" : "Gerar uma nova versão?"}
+        description={
+          q.status === "sent"
+            ? "Ele volta para rascunho para você ajustar. O cliente deixa de poder responder até você enviar de novo, e o envio atual fica registrado como versão anterior."
+            : `O orçamento volta para rascunho como versão ${q.version + 1}, com o mesmo número. ${
+                q.status === "accepted" ? "O aceite" : "A recusa"
+              } da versão ${q.version} fica no histórico, com quem respondeu, quando e de onde, e o cliente responde de novo ao próximo envio.`
+        }
+        confirmLabel={q.status === "sent" ? "Editar" : "Gerar nova versão"}
       />
       <ConfirmDialog
         open={cancelling}
@@ -544,7 +554,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         description={
           q.status === "cancelled"
             ? "Este orçamento foi cancelado e fica como está. Você edita uma cópia, com número próprio, e envia de novo quando quiser."
-            : "Este orçamento já foi respondido pelo cliente e fica como está, com o registro da resposta. Você edita uma cópia, com número próprio, e envia de novo."
+            : "Já existe contrato, projeto ou cobrança feitos a partir deste orçamento aceito, então ele fica como está. Você edita uma cópia, com número próprio, e envia de novo."
         }
         confirmLabel="Criar cópia para editar"
       />
