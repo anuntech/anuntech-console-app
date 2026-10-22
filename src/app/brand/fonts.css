@@ -1,0 +1,16 @@
+/* GERADO por anuntech/brand (scripts/build.mjs). Não edite à mão: mude tokens/tokens.json e rode npm run build.
+ * Copie fonts/*.woff2 para public/brand/fonts/ do app. */
+@font-face {
+  font-family: Geist;
+  src: url("/brand/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/brand/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

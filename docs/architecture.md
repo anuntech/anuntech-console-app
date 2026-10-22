@@ -12,7 +12,7 @@ Como o Console é montado: stack, pastas, dados, acesso, integrações, rotinas 
 | Autenticação | Better Auth 1.7: código por e-mail, código por WhatsApp, Google e verificação em duas etapas |
 | Validação | Zod 4 |
 | Arquivos | Vercel Blob privado (fotos de perfil, ícones enviados ou gerados do catálogo); anexos no próprio banco |
-| PDFs | PDFKit no servidor, fontes Noto Sans em `assets/fonts` |
+| PDFs | PDFKit no servidor com a marca em `src/lib/pdf-brand.ts`: Geist (sem ligaduras, para o texto copiar certo) em `assets/fonts` e o logotipo em `assets/brand` |
 | Hospedagem | Vercel (Fluid Compute, Node 24), domínio console.anuntech.com; workspace.anuntech.com (o Workspace encerrado) anexado só para redirecionar ao Console |
 
 ## Pastas
@@ -45,8 +45,9 @@ drizzle/               migrações versionadas e journal
 scripts/               suítes de integração e mocks de provedores (somente teste)
 tests/                 testes unitários (node:test + tsx)
 docs/                  esta documentação
-assets/fonts/          fontes embutidas nos PDFs
-public/brand/          logo, símbolo, fonte Sofia e avatares ilustrados
+assets/fonts/          fontes embutidas nos PDFs (Geist)
+assets/brand/          logotipo dos PDFs
+public/brand/          logo, símbolo, fontes Geist e avatares ilustrados
 ```
 
 ### `src/lib` por domínio
@@ -128,7 +129,7 @@ Na raiz de `lib/` fica só o que todos os domínios usam. `actions.ts` guarda se
 - O Next só encontra uma action a partir de uma página que a renderiza: formulários dentro de painéis e diálogos continuam funcionando porque a página importa o componente.
 - Limite de corpo das actions: 2 MB (`next.config.ts`). O áudio do ditado vai por route handler (`/api/transcricao`, até 4 MB, abaixo dos 4,5 MB da Vercel), não por action: actions rodam uma por vez na página e não podem ser canceladas. Pelo mesmo motivo, as sugestões do modelo (`/api/chamados/[id]/sugestao`, `/api/orcamentos/[id]/fases` e `/api/jornadas/[id]/sugestao`, só a equipe, com limite por hora) também são route handlers, assim como os ícones do catálogo (`/api/catalogo/[id]/icone`: enviar, escolher da galeria, remover e ler; `/icone/gerar`: 4 opções com IA). As imagens passam por `lib/images/normalize-image.ts` (o mesmo filtro das fotos de perfil: só PNG, JPEG e WebP, sem animação, sem metadados) e viram WebP de 256 px. O formato é reconhecido pelos primeiros bytes (`lib/images/image-format.ts`) antes de qualquer decodificação, também nos anexos de chamados e tarefas (`lib/tickets/ticket-files.ts`): SVG, TIFF, HEIF e GIF nunca chegam ao sharp.
 - Anexos maiores sobem em partes de 1 MB por `/api/chamados/uploads` (`components/console/staged-uploads.ts`).
-- A lousa salva sozinha por `PUT /api/bookmarks/[id]/lousa` (cena até 3 MB mais o PNG do card, origem conferida por `sameOrigin`, só quem pode editar o bookmark); o card lê o PNG em `GET /api/bookmarks/[id]/preview`. O editor (`components/bookmarks/board-canvas.tsx`) carrega o Excalidraw só no navegador (`next/dynamic`, sem SSR), espera 1,2 s depois do último traço e tenta de novo sozinho quando a gravação falha. A lousa veste a identidade do Console: `board-theme.css` mapeia as variáveis do Excalidraw para os tokens de `globals.css` (fonte Sofia, azul da marca, cards, bordas e raios, nos dois temas), o menu e a tela inicial são próprios (exportar imagem, limpar, fundo, voltar aos bookmarks; símbolo da Anuntech) e a biblioteca, a ajuda e os links para o site do Excalidraw ficam de fora. O mesmo arquivo anula, só dentro do quadro, as regras de elemento da camada `legacy` (`input` com 42px, links e títulos), com `:where()` e `revert`, para não passar por cima dos estilos do próprio Excalidraw. Um botão no canto superior direito do quadro (`renderTopRightUI`) põe o quadro em tela cheia pela Fullscreen API; some onde o navegador não a oferece (iPhone). As fontes do Excalidraw vêm do CDN dele (esm.sh) por padrão; `window.EXCALIDRAW_ASSET_PATH` apontaria para uma cópia em `public/` se isso virar problema.
+- A lousa salva sozinha por `PUT /api/bookmarks/[id]/lousa` (cena até 3 MB mais o PNG do card, origem conferida por `sameOrigin`, só quem pode editar o bookmark); o card lê o PNG em `GET /api/bookmarks/[id]/preview`. O editor (`components/bookmarks/board-canvas.tsx`) carrega o Excalidraw só no navegador (`next/dynamic`, sem SSR), espera 1,2 s depois do último traço e tenta de novo sozinho quando a gravação falha. A lousa veste a identidade do Console: `board-theme.css` mapeia as variáveis do Excalidraw para os tokens de `globals.css` (fonte Geist, violeta da marca, cards, bordas e raios, nos dois temas), o menu e a tela inicial são próprios (exportar imagem, limpar, fundo, voltar aos bookmarks; símbolo da Anuntech) e a biblioteca, a ajuda e os links para o site do Excalidraw ficam de fora. O mesmo arquivo anula, só dentro do quadro, as regras de elemento da camada `legacy` (`input` com 42px, links e títulos), com `:where()` e `revert`, para não passar por cima dos estilos do próprio Excalidraw. Um botão no canto superior direito do quadro (`renderTopRightUI`) põe o quadro em tela cheia pela Fullscreen API; some onde o navegador não a oferece (iPhone). As fontes do Excalidraw vêm do CDN dele (esm.sh) por padrão; `window.EXCALIDRAW_ASSET_PATH` apontaria para uma cópia em `public/` se isso virar problema.
 
 ## API do app nativo
 

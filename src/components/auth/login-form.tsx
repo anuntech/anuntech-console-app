@@ -269,6 +269,7 @@ export function LoginForm({
               placeholder={
                 mode === "email" ? "voce@empresa.com.br" : "(11) 99999-9999"
               }
+              className="h-11 rounded-xl px-4"
               required
               maxLength={254}
               value={destination}
@@ -323,6 +324,7 @@ export function LoginForm({
         </p>
         <Button
           type="submit"
+          size="lg"
           className="w-full"
           disabled={busy || (!sent && seconds > 0) || (sent && code.length !== 6)}
           aria-describedby={describedBy}

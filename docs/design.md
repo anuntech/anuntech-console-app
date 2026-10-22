@@ -1,6 +1,6 @@
 # Design do Console
 
-A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade da marca vem do repositório `anuntech/design-system` (voz em `project/voz.md`, composição em `composicao.md`); aqui está como ela se aplica ao produto.
+A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "do bruto ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface com base preta, branca e cinza e o violeta da marca no botão principal, na seleção, em link, foco e na vinheta de carregamento.
 
 ## Como trabalhamos
 
@@ -20,37 +20,36 @@ A base visual, os componentes e os padrões de tela do Console. Toda tela nova o
 
 ## Marca e tokens
 
+Os tokens não são escritos aqui: `src/app/brand/` (`tokens.css`, `tailwind.css`, `fonts.css`) e `public/brand/fonts` e `public/brand/logo` vêm do repositório da marca por `npm run sync -- console` lá. Para mudar uma cor, mude a marca. `globals.css` guarda só apelidos que o CSS antigo ainda lê (`--settings-sidebar`, `--yellow`, `--radius`, `--shadow-popover`).
+
 ### Tipografia
 
-- **Sofia** (400, 600, 700), servida de `public/brand`. Fallback: fontes do sistema.
-- Texto base 14 px (`0.875rem`), entrelinha 1,55. Tamanhos em `rem` para respeitar o tamanho de texto do sistema.
-- Título de página: `text-2xl font-semibold tracking-[-0.02em]`. Títulos grandes pedem tracking negativo; texto pequeno fica em 0.
+- **Geist** (variável) em tudo e **Geist Mono** em código e identificadores, servidas de `public/brand/fonts` (licença OFL ao lado). Fallback: fontes do sistema.
+- Texto base 14 px. Escala da marca como utilitários: `text-caption` 12, `text-label` 13, `text-body-sm` 14, `text-body` 16, `text-title-sm` 18, `text-title` 22, `text-title-lg` 28, `text-display-sm` 36, `text-display` 48 (cada um já traz entrelinha, peso e espaçamento).
+- Título de página: `text-title-lg` (28 px, peso 500, tracking negativo). Títulos em peso 500, nunca 700.
 - Números que se comparam (valores, datas em tabela) usam `tabular-nums`.
 
 ### Cores
 
 | Token | Claro | Escuro | Uso |
 | --- | --- | --- | --- |
-| `--background` | `#fafafa` | `#101722` | Fundo da aplicação (cinza quase branco, neutro) |
-| `--foreground` | `#0d1d41` | `#e7edf7` | Texto principal (azul-marinho do logotipo) |
-| `--card` | `#ffffff` | `#182231` | Superfícies |
-| `--primary` | `#1a428a` | `#9ebfff` | Ação principal, links, foco de marca |
-| `--secondary` | `#eef2f8` | `#222f42` | Fundos neutros (`muted` aponta aqui) |
-| `--muted-foreground` | `#5d6c81` | `#acb9cc` | Texto de apoio |
-| `--accent` | `#edf2fc` | `#243b5e` | Item selecionado, realce suave |
-| `--border` | `#e0e6ef` | `#364458` | Divisores e bordas de superfície |
-| `--field-background` / `--field-border` | `#f0f3f8` / `#d5dce7` | `#202c3d` / `#41516a` | Campos (`bg-field`, `border-input`) |
-| `--ring` | `#557ac0` | `#a6c4ff` | Foco |
-| `--yellow` | `#e1e666` | | Amarelo do logotipo, só em destaque |
+| `--background` / `--card` | `#ffffff` / `#ffffff` | `#0d0d0d` / `#171717` | Fundo plano e superfícies |
+| `--foreground` | `#0d0d0d` | `#ececec` | Texto principal |
+| `--primary` | `#6e56ff` | `#6e56ff` | Ação principal: botão pílula violeta com texto branco |
+| `--secondary` | `#f3f3f3` | `#212121` | Fundos neutros e hover |
+| `--accent` | `#f3f0ff` | `#1c1640` | Item selecionado (dock, menus, listas), com texto `--accent-foreground` violeta |
+| `--muted-foreground` | `#6b6b6b` | `#a3a3a3` | Texto de apoio |
+| `--border` | `#e5e5e5` | `#2b2b2b` | Divisores e bordas de superfície |
+| `--field-border` | `#d4d4d4` | `#383838` | Borda dos campos (`border-input`) |
+| `--ring` / `--link` | `#5b43f0` | `#a99bff` | Foco e link, no violeta da marca |
+| `--brand` | `#6e56ff` | `#6e56ff` | Violeta do logotipo: símbolo, ícone, capas |
 
-Estados, sempre com texto além da cor: `success`, `warning` e `destructive`, cada um com `-soft` (fundo) e `-edge` (borda). Ex.: `bg-warning-soft border-warning-edge text-warning`.
-
-O azul-marinho e o amarelo são as tintas do logotipo, as mesmas do `anuntech/design-system`. Sombras usam o azul-marinho com transparência. O tema escuro tem valores próprios e não segue essas duas tintas.
+Estados, sempre com texto além da cor: `success`, `warning` e `destructive`, cada um com `-soft` (fundo) e `-edge` (borda). Ex.: `bg-warning-soft border-warning-edge text-warning`. Situações que esperam a equipe são neutras (ponto preto, ou azul quando alguém está trabalhando). Ícones de indicador só ganham cor quando pedem atenção. `npm run check` na marca confere todos os pares pela fórmula WCAG.
 
 ### Forma e profundidade
 
-- Raios: `sm` 6, `md` 8, `lg` 12, `xl` 18, `2xl` 22 px. Cards usam `rounded-xl`.
-- Sombras: `shadow-card` (superfícies) e `shadow-float` (popovers, dock, painéis flutuantes).
+- Raios: `xs` 4, `sm` 6, `md` 8, `lg` 12, `xl` 16, `2xl` 24 px e `pill`. Botões, abas, etiquetas e o dock em pílula; campos `rounded-lg`; cards `rounded-xl`; diálogos `rounded-2xl`.
+- Sem sombra em superfície: profundidade por borda de 1 px. `shadow-float` só no que flutua (menus, popovers, diálogos, dock); `shadow-halo` no campo do assistente.
 - Espaço entre blocos de uma página: 24 px (`gap-6`); dentro de formulários: 20 px (`gap-5`).
 
 ### Gráficos
@@ -62,7 +61,7 @@ O azul-marinho e o amarelo são as tintas do logotipo, as mesmas do `anuntech/de
 
 ### Primitivos (`src/components/ui`)
 
-accordion (perguntas frequentes), alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `ai-orb` (a esfera de pontos do assistente, sobre `thinking-orbs`; os estados e as frases ficam em `ai-orb-states.ts`) e `metal-prompt-bar` (com `dictation`, mostra o microfone).
+accordion (perguntas frequentes), alert-dialog, badge, breadcrumb, button, calendar, card, checkbox, command, dialog, dropdown-menu, input, input-otp, label, native-select, popover, select, separator, sheet, sonner, switch, table, tabs, textarea, tooltip. Mais `brand-mark` (o símbolo da marca desenhado peça por peça, para animar; as formas vêm da marca em `brand-mark-shape.ts`), `ai-orb` (o assistente, sobre o `brand-mark`; os estados e as frases ficam em `ai-orb-states.ts`) e `metal-prompt-bar` (com `dictation`, mostra o microfone).
 
 Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucide). Ajuste um primitivo só quando o ajuste vale para o Console inteiro.
 
@@ -91,7 +90,7 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 ### Moldura (`src/components/shell`)
 
 - **Dock** (`dock.tsx`): navegação principal, flutuante, com as áreas que a pessoa pode abrir, botão Criar, assistente e menu da conta. Posição escolhida em Aparência; no celular vira a barra de abas (`mobile-tab-bar.tsx`).
-- **Assistente:** botão com a esfera de pontos (`ai-orb`); o painel abre ao lado do conteúdo em telas a partir de 1024 px e como diálogo abaixo disso. A esfera fica parada em repouso (digitar não conta como atividade) e anima só enquanto o assistente trabalha, com um desenho para cada passo (pensando, consultando o Console, lendo o que encontrou, escrevendo a resposta, ouvindo o microfone enquanto grava). Cada resultado tem forma própria, além da cor: terminou volta ao anel, erro é o triângulo vermelho parado, cartão esperando confirmação é o quadrado âmbar (formas fixadas com `opts.shape`, para nunca congelar no meio da troca). Erro e terminou ficam até a pessoa ver o painel e somem 4 s depois; o âmbar fica até o cartão ser decidido ou vencer (15 min). A resposta aparece enquanto é escrita, e as etiquetas do que ele consultou entram conforme as ferramentas rodam; o painel segue o texto até a pessoa rolar para cima. Se a resposta não termina, o texto parcial sai e fica só o aviso em vermelho. O botão descreve o estado para leitor de tela (`aria-describedby`); no celular, a linha "Perguntar ao assistente" mostra o estado embaixo do nome. A cor vem dos tokens (`--primary`, `--warning`, `--destructive`); na linha azul do celular, `--primary-foreground`. Movimento reduzido mostra um quadro parado.
+- **Assistente:** botão com o símbolo da marca (`ai-orb`); o painel abre ao lado do conteúdo em telas a partir de 1024 px e como diálogo abaixo disso. O símbolo fica parado em repouso (digitar não conta como atividade) e anima só enquanto o assistente trabalha: pensando, consultando o Console e lendo o que encontrou fazem a luz girar pelos pixels; escrevendo a resposta acende os pixels um a um, como texto sendo digitado, com o cursor na cor do texto; ouvindo o microfone passa uma onda pelas colunas. Os resultados têm cor própria e o texto ao lado diz o que houve: terminou é o símbolo violeta parado, erro o símbolo vermelho parado, cartão esperando confirmação a onda em âmbar, que para depois de 5 s. Erro e terminou ficam até a pessoa ver o painel e somem 4 s depois; o âmbar fica até o cartão ser decidido ou vencer (15 min). A resposta aparece enquanto é escrita, e as etiquetas do que ele consultou entram conforme as ferramentas rodam; o painel segue o texto até a pessoa rolar para cima. Se a resposta não termina, o texto parcial sai e fica só o aviso em vermelho. O botão descreve o estado para leitor de tela (`aria-describedby`); no celular, a linha "Perguntar ao assistente" mostra o estado embaixo do nome. A cor vem dos tokens (`--primary`, `--warning`, `--destructive`); na linha azul do celular, `--primary-foreground`. Movimento reduzido mostra o logotipo parado.
 - `appearance-provider`, `notifications` (Toaster), `workspace-loading`, `support-trigger` (chat de suporte) e `brand`.
 
 ## Padrões de tela
@@ -112,7 +111,9 @@ Instalados pelo CLI do shadcn (`components.json`, estilo new-york, ícones Lucid
 - **Vazio:** explica quando algo vai aparecer ou oferece a ação; não repete o título.
 - **Erro e 404:** `StatusPage`. Dentro do app, embutido na área de conteúdo (o dock continua); fora, tela inteira com a marca. Registro de outra empresa responde igual a registro inexistente.
 - **Carregando:** `loading.tsx` por seção com o esqueleto da própria lista.
-- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia em cinza claro (#f3f4f6) ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do Console, centralizada na área visível acima do dock. Nos dois, o logotipo real como máscara em CSS, na cor do tema, com a faixa amarela percorrendo o símbolo. O `layout.tsx` das rotas pesadas (`BrandLoadingHold`) segura a vinheta por no mínimo 1,2 s quando ela chegou a aparecer. No tema escuro, o fundo do tema e o logotipo claro; com movimento reduzido, logotipo parado. Nunca na navegação comum.
+- **Vinheta da marca:** `BrandLoading` (`components/shell/brand-loading`) só em dois momentos: tela cheia no fundo do tema ao confirmar o acesso (login e segunda etapa) e dentro da página nas rotas pesadas (painel, financeiro, jornadas), no fundo do Console, centralizada na área visível acima do dock. Os dois usam o `brand-mark` em violeta: no acesso confirmado, o símbolo e o nome se montam (os pixels chegam e se encaixam, a metade lisa se forma); nas rotas pesadas, uma onda de luz passa pelas colunas de pixels. O `layout.tsx` das rotas pesadas (`BrandLoadingHold`) segura a vinheta por no mínimo 1,2 s quando ela chegou a aparecer. No tema escuro, o símbolo claro; com movimento reduzido, parado. Nunca na navegação comum.
+- **PDFs (orçamento e contrato):** `lib/pdf-brand.ts` dá a marca: logotipo preto no topo com um filete, Geist (sem ligaduras, para o texto copiado sair igual), cinzas da marca, situação do documento em violeta, blocos em cinza claro com raio 10 e o total em preto. O hash vai em Geist Mono.
+- **E-mail com visual (fatura):** fundo `#f6f6f6`, cartão branco com borda e raio 16, logotipo horizontal em PNG (`/brand/logo/lockup-preto.png`), rótulo em violeta, título peso 500, botão em pílula violeta e link `#5b43f0`. Fonte Geist com Arial de reserva. Os demais e-mails são texto puro.
 
 ## Escrita
 
@@ -143,5 +144,6 @@ Referência WCAG 2.2 AA e padrões da WAI-ARIA APG.
 ## Referências
 
 - shadcn.io (blocos e componentes, via MCP `shadcnio`) e ui.shadcn.com.
-- `anuntech/design-system`: voz, composição, logotipo e ilustrações. Os avatares vêm de lá; a origem de cada arquivo está em `docs/avatar-sources.json`.
+- `anuntech-brand`: tokens, fontes, logotipo e o guia da marca. Avatares: a origem de cada arquivo está em `docs/avatar-sources.json`.
+- Telas com dados fictícios para revisar o visual: `node --env-file-if-exists=.env.local scripts/design-fixtures.mjs` cria o banco local `console_design` (só no Postgres desta máquina) e a sessão em `.design-session`; `scripts/app-shots.mjs` da marca fotografa em claro, escuro e celular.
 - `/dev/preview` em desenvolvimento mostra os componentes com dados fictícios.

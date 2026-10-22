@@ -9,11 +9,12 @@ import { cn } from "cn";
  */
 
 type Tone = "default" | "critical" | "warning" | "good";
+/* Colour only when something asks for attention; a good number stays neutral. */
 const toneIcon: Record<Tone, string> = {
-  default: "bg-accent text-primary",
+  default: "bg-secondary text-foreground",
   critical: "bg-destructive-soft text-destructive",
   warning: "bg-warning-soft text-warning",
-  good: "bg-success-soft text-success",
+  good: "bg-secondary text-foreground",
 };
 
 /** One headline number with its context line; the whole tile opens the list behind it. */
@@ -41,7 +42,7 @@ export function KpiTile({
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg sm:size-8 [&_svg]:size-4", toneIcon[tone])}>{icon}</span>
       </div>
-      <p className="mt-2 truncate text-xl leading-none font-semibold tracking-[-0.02em] text-foreground tabular-nums sm:text-[1.625rem]">{value}</p>
+      <p className="mt-2 truncate text-xl leading-none font-medium tracking-[-0.025em] text-foreground tabular-nums sm:text-[1.625rem]">{value}</p>
       <div className="mt-2 flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         {delta && Number.isFinite(delta.percent) && (
           <span
