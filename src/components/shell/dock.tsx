@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@base-ui/react/tooltip";
+import { domAnimation, LazyMotion, useAnimationControls, useReducedMotion } from "motion/react";
 import {
   LayoutDashboard,
   Building2,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { useAppearance } from "@/components/shell/appearance-provider";
 import { DockAccountMenu } from "./dock-account-menu";
+import { DockIcon, type DockIconName } from "./dock-icons";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { AiOrb } from "@/components/ui/ai-orb";
@@ -35,27 +37,39 @@ export type NavigationProps = {
   /** The assistant's microphone (lib/voice). */
   voice: boolean;
 };
-const items = [
-  { href: "/painel", label: "Visão geral", short: "Início", icon: LayoutDashboard },
-  { href: "/empresas", label: "Empresas", icon: Building2, admin: true },
-  { href: "/jornadas", label: "Jornadas", icon: Route, admin: true },
-  { href: "/projetos", label: "Projetos", icon: FolderKanban },
-  { href: "/produtos", label: "Produtos e serviços", short: "Produtos", icon: Package },
+const items: {
+  href: string;
+  label: string;
+  short?: string;
+  /** The phone's tab bar keeps the plain Lucide icon. */
+  icon: LucideIcon;
+  /** The desktop dock draws the same icon with a hover animation (dock-icons.tsx). */
+  motion: DockIconName;
+  admin?: boolean;
+  area?: string;
+}[] = [
+  { href: "/painel", label: "Visão geral", short: "Início", icon: LayoutDashboard, motion: "dashboard" },
+  { href: "/empresas", label: "Empresas", icon: Building2, motion: "building", admin: true },
+  { href: "/jornadas", label: "Jornadas", icon: Route, motion: "route", admin: true },
+  { href: "/projetos", label: "Projetos", icon: FolderKanban, motion: "kanban" },
+  { href: "/produtos", label: "Produtos e serviços", short: "Produtos", icon: Package, motion: "package" },
   {
     href: "/chamados",
     label: "Chamados",
     icon: Headset,
+    motion: "headset",
     area: "support",
   },
   {
     href: "/financeiro",
     label: "Financeiro",
     icon: ReceiptText,
+    motion: "receipt",
     area: "finance",
   },
-  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
-  { href: "/orcamentos", label: "Orçamentos", icon: Calculator, area: "finance" },
-  { href: "/contratos", label: "Contratos", icon: Folders, area: "finance" },
+  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark, motion: "bookmark" },
+  { href: "/orcamentos", label: "Orçamentos", icon: Calculator, motion: "calculator", area: "finance" },
+  { href: "/contratos", label: "Contratos", icon: Folders, motion: "folders", area: "finance" },
 ];
 
 const desktopDockQuery = "(min-width: 641px)";
@@ -70,15 +84,21 @@ const getServerDesktopDock = () => false;
 function DockLink({
   href,
   label,
-  icon: Icon,
+  motion,
   active,
 }: {
   href: string;
   label: string;
-  icon: LucideIcon;
+  motion: DockIconName;
   active: boolean;
 }) {
   const { position } = useAppearance();
+  const controls = useAnimationControls();
+  const reduced = useReducedMotion();
+  // Plays once when the pointer or the keyboard arrives; leaving lets it finish on its own.
+  const play = () => {
+    if (!reduced) controls.start("animate");
+  };
   const desktop = useSyncExternalStore(subscribeDockViewport, getDesktopDock, getServerDesktopDock);
   const side = !desktop ? "top" : position === "left" ? "right" : position === "right" ? "left" : position === "top" ? "bottom" : "top";
   return (
@@ -88,8 +108,10 @@ function DockLink({
         className={styles.link}
         aria-label={label}
         aria-current={active ? "page" : undefined}
+        onPointerEnter={play}
+        onFocus={play}
       >
-        <Icon size={22} strokeWidth={1.8} aria-hidden="true" />
+        <DockIcon name={motion} controls={controls} />
       </Tooltip.Trigger>
       <Tooltip.Portal>
         <Tooltip.Positioner
@@ -202,18 +224,23 @@ export function Dock({
                 </Tooltip.Positioner>
               </Tooltip.Portal>
             </Tooltip.Root>
-            <div className={styles.routes}>
-              {visible.map((item) => (
-                <DockLink
-                  key={item.href}
-                  {...item}
-                  active={
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/")
-                  }
-                />
-              ))}
-            </div>
+            {/* Only the animation features the icons use, loaded with the dock (dock-icons.tsx uses `m`). */}
+            <LazyMotion features={domAnimation} strict>
+              <div className={styles.routes}>
+                {visible.map((item) => (
+                  <DockLink
+                    key={item.href}
+                    href={item.href}
+                    label={item.label}
+                    motion={item.motion}
+                    active={
+                      pathname === item.href ||
+                      pathname.startsWith(item.href + "/")
+                    }
+                  />
+                ))}
+              </div>
+            </LazyMotion>
             <span className={styles.divider} aria-hidden="true" />
             <DockAccountMenu key={`account:${pathname}`} name={userName} image={userImage} canManageMembers={canManageMembers} />
           </nav>

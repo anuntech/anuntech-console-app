@@ -3,7 +3,7 @@ import { companyInitials } from "@/components/console/company-mark";
 
 /*
  * A company's face in Empresas: its initials on a tile drawn like the logo,
- * the left half smooth and the right half pixels ("do bruto ao produto").
+ * the left half smooth and the right half pixels ("da planilha ao produto").
  * The pixels come from the name, so each client gets its own edge and the
  * grid stops being a row of identical lavender squares. Decorative: the name
  * beside it says who it is.

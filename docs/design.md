@@ -1,6 +1,6 @@
 # Design do Console
 
-A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "do bruto ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface com base preta, branca e cinza e o violeta da marca no botão principal, na seleção, em link, foco e na vinheta de carregamento.
+A base visual, os componentes e os padrões de tela do Console. Toda tela nova ou refeita segue este documento. A identidade vem do repositório da marca (`anuntech-brand`: tokens, Geist, logotipo e guia em `guide/index.html`); aqui está como ela se aplica ao produto. Desde 21/10/2026: logotipo "da planilha ao produto" (círculo metade liso, metade pixel; "anun" em Geist e "tech" em Geist Pixel), interface com base preta, branca e cinza e o violeta da marca no botão principal, na seleção, em link, foco e na vinheta de carregamento.
 
 ## Como trabalhamos
 
@@ -90,7 +90,7 @@ Uma curva (`--anu-motion-ease`, `ease-brand`) e três tempos: rápido 120 ms (`-
 | `AnimatedValue` | Um número que muda na tela entra deslizando; no carregamento fica parado. Nunca conta de 0 até o valor |
 | `BrandArt` | Na chegada, a metade lisa aparece e as colunas de pixels se encaixam da esquerda para a direita, uma vez |
 
-- Nada se move na navegação comum: dock, barra de abas, linhas de tabela, números financeiros, paleta de comandos e atalhos de teclado. Sem brilho passando, sem levantar cartão no hover, sem animação em loop na arte.
+- Nada se move na navegação comum: barra de abas, linhas de tabela, números financeiros, paleta de comandos e atalhos de teclado. A exceção é o ícone do dock no computador (`shell/dock-icons.tsx`, biblioteca `motion`): o mesmo desenho do Lucide toca uma animação curta uma vez quando o mouse ou o teclado chega nele, no estilo do lucide-animated, e nunca com movimento reduzido. A troca de página em si não anima. Sem brilho passando, sem levantar cartão no hover, sem animação em loop na arte.
 - Conversa (chamado e assistente): só o que chega com a tela aberta entra subindo; o que já estava ao carregar, ao reabrir o painel do assistente ou ao abrir uma conversa do histórico fica parado. Campo preenchido pelo assistente: um contorno violeta que se fecha sobre o campo em 600 ms (`assistant-filled`).
 - Gráfico do painel: as barras crescem em 200 ms, 25 ms entre meses, até 175 ms.
 - Única curva com rebote: o selo de pagamento confirmado ao vivo em `/pagar` (`PaymentArrival`, `cubic-bezier(0.34,1.36,0.64,1)`), porque é o único momento de celebração. Nenhum outro lugar usa.

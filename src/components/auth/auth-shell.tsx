@@ -67,7 +67,7 @@ export function AuthShell({
           <BrandArt name="esfera" glow className="w-full max-w-[26rem]" />
         </div>
         <div className="reveal px-12 pb-12 [--i:6]">
-          <p className="text-title text-foreground">Do bruto ao produto.</p>
+          <p className="text-title text-foreground">Da planilha ao produto.</p>
           <p className="mt-1.5 max-w-[38ch] text-sm text-pretty text-muted-foreground">
             Chamados, projetos, faturas e contratos da sua empresa com a Anuntech, num lugar só.
           </p>

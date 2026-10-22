@@ -3,7 +3,7 @@ import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import { Loader2Icon, MicIcon, SquareIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { clockLabel, joinTranscript, PRIVACY_LINE } from "@/lib/voice/voice-rules";
+import { clockLabel, joinTranscript } from "@/lib/voice/voice-rules";
 import { caretOf, mayFocus, rangeFor, setNativeValue, type Caret } from "./insert-text";
 import { useDictation } from "./use-dictation";
 
@@ -72,7 +72,6 @@ export function DictationButton({ target, maxLength }: { target: RefObject<HTMLT
         ) : (
           dictation.notice
         )}
-        {busy && <span className="mt-0.5 block">{PRIVACY_LINE}</span>}
       </p>
       {busy && (
         <Button type="button" variant="ghost" size="sm" onClick={cancel}>

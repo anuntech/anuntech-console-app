@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useChat } from "@ai-sdk/react";
@@ -23,7 +22,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MetalPromptBar } from "@/components/ui/metal-prompt-bar";
+import { MetalPromptBar, type PromptSuggestion } from "@/components/ui/metal-prompt-bar";
 import { AiOrb } from "@/components/ui/ai-orb";
 import { openSupportWidget } from "@/components/shell/support-trigger";
 import { toast } from "@/components/shell/notifications";
@@ -242,7 +241,7 @@ function suggestionsFor(admin: boolean, finance: boolean, support: boolean) {
     ];
   return [
     finance ? "Qual é o meu último boleto?" : "Como estão meus projetos?",
-    // "Abrir chamado" is already a shortcut under the box; the question finds what waits on them.
+    // "Abrir chamado" is already among the shortcuts; the question finds what waits on them.
     support ? "Tem chamado esperando minha resposta?" : "Quais produtos eu tenho?",
     finance
       ? "Tenho algum orçamento aguardando resposta?"
@@ -713,8 +712,11 @@ export function AssistantPanel({
     );
   };
 
-  // Beside the page the composer is narrower: two shortcuts fit without scrolling.
-  const chips = shortcuts.slice(0, side ? 2 : 3).map((s) => s.label);
+  // Offered only while typing, matched against the text: the questions send, the shortcuts open the form.
+  const suggestions: PromptSuggestion[] = [
+    ...suggestionsFor(admin, finance, support).map((label) => ({ label, kind: "ask" as const, onSelect: () => send(label) })),
+    ...shortcuts.map((s) => ({ label: s.label, kind: "go" as const, onSelect: () => go(s.href) })),
+  ];
   return (
     // Beside the page it isn't modal: no scrim, and the page stays clickable.
     <Dialog open={open} onOpenChange={onOpenChange} modal={!side}>
@@ -870,45 +872,7 @@ export function AssistantPanel({
                     {firstName ? `Olá, ${firstName}.` : "Olá."} Como posso
                     ajudar?
                   </p>
-                  <p className="m-0 mt-1.5 max-w-[52ch] text-sm text-pretty text-muted-foreground">
-                    Uso o seu acesso: não vejo nada que você não veria.
-                  </p>
                 </div>
-                <ul className="stagger m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
-                  {suggestionsFor(admin, finance, support).map((suggestion) => (
-                    <li key={suggestion}>
-                      <button
-                        type="button"
-                        onClick={() => send(suggestion)}
-                        className="press h-full w-full rounded-xl border bg-card px-4 py-3 text-left text-sm text-foreground hover:border-field-hover hover:bg-secondary"
-                      >
-                        {suggestion}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {shortcuts.length > chips.length && (
-                  <div>
-                    <p className="m-0 mb-2 text-caption font-medium text-muted-foreground">
-                      Mais atalhos
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {shortcuts.slice(chips.length).map((s) => (
-                        <Button
-                          key={s.href}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          asChild
-                        >
-                          <Link href={s.href} onClick={leave}>
-                            {s.label}
-                          </Link>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               <ol className="m-0 flex list-none flex-col gap-4 p-0">
@@ -991,11 +955,7 @@ export function AssistantPanel({
             busy={busy || removing !== null}
             dictation={voice}
             onDictationChange={setDictation}
-            chips={chips}
-            onChipClick={(label) => {
-              const target = shortcuts.find((s) => s.label === label);
-              if (target) go(target.href);
-            }}
+            suggestions={suggestions}
             onSubmit={send}
           />
         </div>

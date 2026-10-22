@@ -8,7 +8,6 @@ import {
   MIME_ORDER,
   MIN_AUDIO_BYTES,
   MIN_SECONDS,
-  PRIVACY_LINE,
   WARN_AT,
   WAV_RATE,
 } from "@/lib/voice/voice-rules";
@@ -260,7 +259,7 @@ function createDictation(update: (patch: Partial<State>) => void) {
     document.addEventListener("visibilitychange", onHide);
     s.cleanup.push(() => document.removeEventListener("visibilitychange", onHide));
     for (const track of stream.getAudioTracks()) track.onended = () => stopSession(s);
-    update({ phase: "recording", notice: `Gravando. ${PRIVACY_LINE} Toque em Parar quando terminar.` });
+    update({ phase: "recording", notice: "Gravando. Toque em Parar quando terminar." });
   }
 
   function start() {
@@ -327,7 +326,8 @@ function createDictation(update: (patch: Partial<State>) => void) {
       }
       release(s);
     }
-    if (!silent) update({ ...initial, notice: "Gravação descartada." });
+    // Discarding needs no message: the field simply stays as it was.
+    if (!silent) update({ ...initial });
   }
 
   return {

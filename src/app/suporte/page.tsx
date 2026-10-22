@@ -28,7 +28,7 @@ No app, abra Conta e toque em Excluir minha conta. No site, abra Minha conta. Se
 
 ## Privacidade
 
-Leia a **Política de Privacidade** em console.anuntech.com/privacidade. Pedidos sobre dados pessoais: legal@anuntech.com.
+Leia a **Política de Privacidade** em www.anuntech.com/privacy. Pedidos sobre dados pessoais: legal@anuntech.com.
 
 ## Empresa
 

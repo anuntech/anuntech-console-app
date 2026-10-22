@@ -8,6 +8,9 @@ const extra = (Constants.expoConfig?.extra ?? {}) as {
 };
 
 /** The Console this build talks to (app.config.ts). */
+/** The privacy policy is published on the institutional site. */
+export const PRIVACY_URL = "https://www.anuntech.com/privacy";
+
 export const CONSOLE_URL = (extra.consoleUrl ?? "https://console.anuntech.com").replace(/\/$/, "");
 export const APP_ENV = extra.env ?? "production";
 export const EAS_PROJECT_ID = extra.eas?.projectId ?? Constants.easConfig?.projectId;
