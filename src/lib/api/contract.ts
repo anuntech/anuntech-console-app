@@ -195,6 +195,8 @@ const taskFields = {
   /** Files sent before to POST /api/v1/anexos?para=tarefa. */
   uploadIds: z.array(z.uuid()).max(20).default([]),
 };
+/** Someone a bookmark folder is (or can be) shared with. */
+const bookmarkPerson = z.object({ id: z.string(), name: z.string(), avatar });
 const sixDigits = z.string().regex(/^\d{6}$/);
 const companyAddress = z.object({
   cep: z.string().max(9),
@@ -806,24 +808,124 @@ export const contract = {
       .output(message),
   },
   bookmarks: {
-    /** The person's folders and bookmarks (links, files and boards). */
-    list: oc.input(z.object({ folder: z.string().max(64).default("all"), search: z.string().max(160).default("") })).output(
-      z.object({
-        folders: z.array(z.object({ id: z.string(), name: z.string(), company: z.string().nullable(), count: z.number() })),
-        items: z.array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-            kind: z.enum(["link", "file", "board"]),
-            url: z.string().nullable(),
-            fileName: z.string().nullable(),
-            /** Path to download the file (or the board's picture) with the session. */
-            filePath: z.string().nullable(),
-            folderId: z.string().nullable(),
-          }),
-        ),
-      }),
-    ),
+    /**
+     * The person's folders and one page (25) of bookmarks: links, files and boards.
+     * `company` is "all" or a company id; `folder` is "all", "root" (Sem pasta) or a
+     * folder id, and falls back to "all" when that folder is not visible (see `folder`).
+     */
+    list: oc
+      .input(
+        z.object({
+          company: z.string().max(64).default("all"),
+          folder: z.string().max(64).default("all"),
+          search: z.string().max(160).default(""),
+          page: z.number().int().min(1).max(10_000).default(1),
+        }),
+      )
+      .output(
+        z.object({
+          folders: z.array(
+            z.object({
+              id: z.string(),
+              name: z.string(),
+              companyId: z.string().nullable(),
+              company: z.string().nullable(),
+              count: z.number(),
+              /** "company": the whole company sees it; "people": the owner and `sharedWith`. */
+              visibility: z.enum(["company", "people"]),
+              ownerId: z.string(),
+              owner: z.string(),
+              sharedWith: z.array(bookmarkPerson),
+              /** The viewer owns it: renames, shares and deletes it. */
+              manages: z.boolean(),
+            }),
+          ),
+          items: z.array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              kind: z.enum(["link", "file", "board"]),
+              url: z.string().nullable(),
+              fileName: z.string().nullable(),
+              /** Bytes of the saved file; null for links and boards. */
+              fileSize: z.number().nullable(),
+              /** Path to download the file (or the board's picture) with the session. */
+              filePath: z.string().nullable(),
+              /** A board with a picture to show. */
+              hasPreview: z.boolean(),
+              folderId: z.string().nullable(),
+              companyId: z.string().nullable(),
+              createdAt: z.string(),
+              updatedAt: z.string(),
+              /** Who saved it or the owner of its folder: edits, moves and deletes it. */
+              editable: z.boolean(),
+            }),
+          ),
+          /** The folder actually shown. */
+          folder: z.string(),
+          /** Bookmarks outside any folder, in the companies shown. */
+          rootCount: z.number(),
+          /** What the folder and the search leave. */
+          total: z.number(),
+          page: z.number(),
+          pageCount: z.number(),
+          /** Where the person can save bookmarks and folders. */
+          companies: z.array(z.object({ id: z.string(), name: z.string() })),
+        }),
+      ),
+    /** A link or a blank board (drawn in the Console). A file goes to POST /api/v1/bookmarks/arquivo. */
+    create: oc
+      .input(
+        z.object({
+          companyId: z.union([z.uuid(), z.literal("")]).default(""),
+          folderId: z.union([z.uuid(), z.literal("")]).default(""),
+          title: z.string().max(400),
+          url: z.string().max(2048).default(""),
+          kind: z.enum(["link", "board"]).default("link"),
+        }),
+      )
+      .output(z.object({ message: z.string(), id: z.string() })),
+    /** Title, link and folder (who saved it or the folder's owner). A file or a board keeps its content. */
+    update: oc
+      .input(
+        z.object({
+          id: z.uuid(),
+          title: z.string().max(400),
+          url: z.string().max(2048).default(""),
+          folderId: z.union([z.uuid(), z.literal("")]).default(""),
+        }),
+      )
+      .output(message),
+    /** Another folder, or "" for Sem pasta. */
+    move: oc.input(z.object({ id: z.uuid(), folderId: z.union([z.uuid(), z.literal("")]) })).output(message),
+    remove: oc.input(z.object({ id: z.uuid() })).output(message),
+    createFolder: oc
+      .input(
+        z.object({
+          companyId: z.uuid(),
+          name: z.string().max(200),
+          visibility: z.enum(["company", "people"]).default("company"),
+        }),
+      )
+      .output(z.object({ message: z.string(), id: z.string() })),
+    /** Only the owner. */
+    renameFolder: oc.input(z.object({ id: z.uuid(), name: z.string().max(200) })).output(message),
+    /** Only the owner: the whole company, or chosen people (up to 50). */
+    shareFolder: oc
+      .input(
+        z.object({
+          id: z.uuid(),
+          visibility: z.enum(["company", "people"]),
+          userIds: z.array(z.string().max(128)).max(100).default([]),
+        }),
+      )
+      .output(message),
+    /** Only the owner; the bookmarks inside go to Sem pasta. */
+    deleteFolder: oc.input(z.object({ id: z.uuid() })).output(message),
+    /** People the folder can be shared with, by name (the owner only). */
+    searchPeople: oc
+      .input(z.object({ folderId: z.uuid(), query: z.string().max(80) }))
+      .output(z.object({ people: z.array(bookmarkPerson) })),
   },
   overview: {
     /** The start screen: what waits for the person and what is due. */

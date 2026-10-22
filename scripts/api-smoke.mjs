@@ -15,6 +15,7 @@ import { helpChecks } from "./api-smoke-help.mjs";
 import { financeChecks } from "./api-smoke-finance.mjs";
 import { contractsChecks } from "./api-smoke-contracts.mjs";
 import { projectsChecks } from "./api-smoke-projects.mjs";
+import { bookmarksChecks } from "./api-smoke-bookmarks.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -1085,6 +1086,8 @@ try {
   await contractsChecks({ db, rpc, ok, marker, emailSignIn, staff, base, mailFile: join(dir, "mail.jsonl") });
   // Projetos: filtros, tarefas, comentários, anexos e atividade (scripts/api-smoke-projects.mjs).
   await projectsChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Bookmarks no celular (scripts/api-smoke-bookmarks.mjs).
+  await bookmarksChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);
