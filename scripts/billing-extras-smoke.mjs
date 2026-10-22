@@ -23,7 +23,7 @@ export async function runBillingExtrasTests({ database: db, ids, people, request
     [late, ids.a, `Late QA ${marker}`, offset(-30), randomUUID(), randomUUID().replaceAll("-", "")],
   );
   let page = await request("/financeiro/atrasos", "admin");
-  ok(page.text.includes(`Late QA ${marker}`) && page.text.includes("Copiar texto") && page.text.includes("lembretes automáticos encerrados"), "A fila de atrasos mostra o cliente com o texto pronto");
+  ok(page.text.includes(`Late QA ${marker}`) && page.text.includes("Copiar texto") && page.text.includes("Lembretes automáticos encerrados"), "A fila de atrasos mostra o cliente com o texto pronto");
   const clientPage = await request("/financeiro/atrasos", "manager");
   ok(!clientPage.text.includes(`Late QA ${marker}`), "Cliente não vê a fila de atrasos");
   await submitForm("/financeiro/atrasos", "admin", "manager", { action: "registerCollectionContact" }, { companyId: ids.a, note: "Paga na sexta", promiseDate: offset(3) });
