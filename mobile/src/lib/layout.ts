@@ -4,13 +4,24 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { space } from "./theme";
 
 /**
- * Room the tab bar takes at the bottom. On iOS 26 the bar floats over the
- * content, so lists and the reply box end with this much space or their last
- * line sits under the menu. Android's bar sits below the content.
+ * Room at the end of a scrolling screen. On iOS the scroll view already stops
+ * above the floating tab bar (`contentInsetAdjustmentBehavior="automatic"`),
+ * so it only needs a little air; adding the bar again left a blank band.
+ * Android's bar sits below the content, but the system bar does not.
  */
 export function useTabBarSpace() {
   const insets = useSafeAreaInsets();
-  return insets.bottom + (Platform.OS === "ios" ? 72 : space.lg);
+  return Platform.OS === "ios" ? space.lg : insets.bottom + space.lg;
+}
+
+/**
+ * Room under a box pinned to the bottom (the reply box, the closed notice):
+ * the safe area already includes the floating tab bar on iOS, so this keeps
+ * the box just above it.
+ */
+export function useBottomBarSpace() {
+  const insets = useSafeAreaInsets();
+  return insets.bottom + (Platform.OS === "ios" ? space.md : space.xs);
 }
 
 /** Whether the keyboard is up (the tab bar is hidden behind it then). */

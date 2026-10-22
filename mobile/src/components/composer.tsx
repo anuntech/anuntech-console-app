@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { SymbolView } from "expo-symbols";
 import { haptic } from "@/lib/haptics";
-import { useKeyboardVisible, useTabBarSpace } from "@/lib/layout";
+import { useKeyboardVisible, useBottomBarSpace } from "@/lib/layout";
 import { popSpring } from "@/lib/motion";
 import { fonts, raised, rounded, usePalette } from "@/lib/theme";
 import { Notice } from "./surface";
@@ -39,7 +39,7 @@ export function Composer({
   maxLength?: number;
 }) {
   const palette = usePalette();
-  const tabBar = useTabBarSpace();
+  const tabBar = useBottomBarSpace();
   const typing = useKeyboardVisible();
   const ready = !!value.trim() && !busy;
   const stop = busy && !!onStop;
@@ -50,7 +50,7 @@ export function Composer({
   }, [active, scale]);
   const pop = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: typing ? 8 : tabBar - 12, gap: 8 }}>
+    <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: typing ? 8 : tabBar, gap: 8 }}>
       {error ? <Notice kind="error">{error}</Notice> : null}
       <View
         style={{

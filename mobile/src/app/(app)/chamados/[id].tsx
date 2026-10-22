@@ -14,7 +14,7 @@ import { api, errorMessage } from "@/lib/api";
 import { openAttachment } from "@/lib/files";
 import { fileSize, when } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
-import { useKeyboardVisible, useTabBarSpace } from "@/lib/layout";
+import { useKeyboardVisible, useBottomBarSpace } from "@/lib/layout";
 import { enterUp } from "@/lib/motion";
 import { ticketLook } from "@/lib/status";
 import { fonts, rounded, space, usePalette } from "@/lib/theme";
@@ -132,7 +132,7 @@ export default function Ticket() {
   const queryClient = useQueryClient();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // The closed notice sits where the composer would: above the floating tab bar.
-  const tabBar = useTabBarSpace();
+  const tabBar = useBottomBarSpace();
   const typing = useKeyboardVisible();
   const [body, setBody] = useState("");
   const ticket = useQuery({ queryKey: ["ticket", id], queryFn: () => api.tickets.get({ id }) });
@@ -259,7 +259,7 @@ export default function Ticket() {
             sendTestID="send-reply"
           />
         ) : (
-          <View style={{ paddingHorizontal: 12, paddingTop: space.sm, paddingBottom: typing ? space.sm : tabBar - 12, gap: space.sm }}>
+          <View style={{ paddingHorizontal: 12, paddingTop: space.sm, paddingBottom: typing ? space.sm : tabBar, gap: space.sm }}>
             <Notice kind="info">O chamado está encerrado. Abra um novo chamado para continuar o atendimento.</Notice>
             <Button title="Abrir chamado" variant="secondary" size="small" icon="square.and.pencil" onPress={() => router.push("/chamados/novo")} />
           </View>
