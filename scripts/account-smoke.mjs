@@ -440,6 +440,10 @@ try {
     !accountPage.text.includes("Adicionar e-mail"),
     "Account offers replacement instead of additional emails",
   );
+  ok(
+    accountPage.status === 200 && accountPage.text.includes("nos últimos 12 meses") && accountPage.text.includes('role="grid"'),
+    "Account shows the person's activity of the last 12 months",
+  );
 
   proof = await begin("client", address("expired"));
   await db.query(
