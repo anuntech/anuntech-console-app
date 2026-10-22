@@ -43,22 +43,22 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 2 — Financeiro (Administrador)
 
-- [ ] **F1** Cartões de total com contagem e o cartão "Pagas"; contagem no título.
-- [ ] **F2** Período: Todo, Este mês, Mês passado, Próximos 30 dias, Este ano.
-- [ ] **F3** Busca por descrição e empresa.
-- [ ] **F4** Dias de atraso na linha e no detalhe.
-- [ ] **F5** Marca de recorrência (mensal/anual) na linha e no detalhe.
-- [ ] **F6** Copiar e compartilhar o link de pagamento.
-- [ ] **F7** Próximas cobranças (valor, vencimento, "Boleto e Pix chegam até…").
-- [ ] **F8** Detalhe: vencimento do boleto quando difere ("Boleto e Pix válidos até…").
-- [ ] **F9** Detalhe: pagador com CPF/CNPJ.
-- [ ] **F10** Detalhe: próxima cobrança da recorrência ou o período já emitido.
-- [ ] **F11** Detalhe: condições (desconto até o vencimento, multa e juros).
-- [ ] **F12** Detalhe: nota fiscal (emitida com link, em andamento, ainda não solicitada).
-- [ ] **F13** Detalhe: "O Inter ainda está preparando o boleto e o Pix" quando faltam.
-- [ ] **F14** Detalhe: atualizar sozinho enquanto em aberto (consulta periódica, ao voltar ao app e puxar para atualizar), com aviso de "Pagamento confirmado".
-- [ ] **F15** Boleto PDF pela sessão (`/api/boletos/<id>`) quando o link público estiver desligado.
-- [ ] **F16** Detalhe: "Criada em" e "Última consulta ao banco".
+- [x] **F1** Cartões de total com contagem e o cartão "Pagas"; contagem no título.
+- [x] **F2** Período: Todo, Este mês, Mês passado, Próximos 30 dias, Este ano.
+- [x] **F3** Busca por descrição e empresa.
+- [x] **F4** Dias de atraso na linha e no detalhe.
+- [x] **F5** Marca de recorrência (mensal/anual) na linha e no detalhe.
+- [x] **F6** Copiar e compartilhar o link de pagamento.
+- [x] **F7** Próximas cobranças (valor, vencimento, "Boleto e Pix chegam até…").
+- [x] **F8** Detalhe: vencimento do boleto quando difere ("Boleto e Pix válidos até…").
+- [x] **F9** Detalhe: pagador com CPF/CNPJ.
+- [x] **F10** Detalhe: próxima cobrança da recorrência ou o período já emitido.
+- [x] **F11** Detalhe: condições (desconto até o vencimento, multa e juros).
+- [x] **F12** Detalhe: nota fiscal (emitida com link, em andamento, ainda não solicitada).
+- [x] **F13** Detalhe: "O Inter ainda está preparando o boleto e o Pix" quando faltam.
+- [x] **F14** Detalhe: atualizar sozinho enquanto em aberto (consulta periódica, ao voltar ao app e puxar para atualizar), com aviso de "Pagamento confirmado".
+- [x] **F15** Boleto PDF pela sessão (`/api/boletos/<id>`) quando o link público estiver desligado.
+- [x] **F16** Detalhe: "Criada em" e "Última consulta ao banco".
 - ⚪ Recibo e cartão: não existem no produto. QR Code do Pix: serve para pagar de outro aparelho; no celular, copiar e colar.
 
 ## Frente 3 — Contratos e orçamentos (Administrador)
