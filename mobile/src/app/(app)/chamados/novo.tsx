@@ -22,10 +22,10 @@ type Block = "company" | "kind" | "impact" | "fields" | "subject" | "body";
 /** Each kind of request with its tile, so the five read at a glance. */
 const kindLook: Record<Kind, { icon: SFSymbol; color: keyof typeof tile }> = {
   problem: { icon: "exclamationmark.triangle.fill", color: "red" },
-  question: { icon: "questionmark.circle.fill", color: "blue" },
+  question: { icon: "questionmark.circle.fill", color: "violet" },
   change: { icon: "slider.horizontal.3", color: "teal" },
   access: { icon: "key.fill", color: "gray" },
-  new_project: { icon: "sparkles", color: "navy" },
+  new_project: { icon: "sparkles", color: "ink" },
 };
 
 /** The trailing check of the chosen row (never color alone). */

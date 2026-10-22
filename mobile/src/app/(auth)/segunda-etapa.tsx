@@ -63,7 +63,7 @@ export default function SecondStep() {
     <Screen>
       <View style={{ gap: space.sm, marginTop: space.xl }}>
         <View style={{ marginBottom: space.sm }}>
-          <IconTile icon="lock.shield.fill" color="navy" size={56} />
+          <IconTile icon="lock.shield.fill" color="violet" size={56} />
         </View>
         <Text variant="largeTitle" accessibilityRole="header">
           Confirme seu acesso

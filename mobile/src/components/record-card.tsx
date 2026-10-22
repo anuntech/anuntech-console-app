@@ -12,7 +12,7 @@ import { IconTile } from "./tile";
 export const recordLooks: Record<"contract" | "quote" | "project", { icon: SFSymbol; color: keyof typeof tile }> = {
   contract: { icon: "doc.text.fill", color: "teal" },
   quote: { icon: "list.bullet.rectangle.portrait.fill", color: "amber" },
-  project: { icon: "square.grid.2x2.fill", color: "blue" },
+  project: { icon: "square.grid.2x2.fill", color: "violet" },
 };
 
 /**

@@ -80,7 +80,7 @@ function PushCard({ onEnable, onDismiss }: { onEnable: () => void; onDismiss: ()
   const palette = usePalette();
   return (
     <Card style={{ flexDirection: "row", alignItems: "flex-start" }}>
-      <IconTile icon="bell.badge.fill" color="blue" />
+      <IconTile icon="bell.badge.fill" color="violet" />
       <View style={{ flex: 1, gap: space.md }}>
         <Text variant="headline">Receba um aviso quando a equipe responder</Text>
         <Button size="small" title="Ativar avisos" onPress={onEnable} />
@@ -93,7 +93,7 @@ function PushCard({ onEnable, onDismiss }: { onEnable: () => void; onDismiss: ()
 }
 
 /**
- * The navy card at the top with what needs the person: tickets waiting for
+ * The dark card at the top with what needs the person: tickets waiting for
  * their answer and what there is to pay. Each half opens its tab.
  */
 function AttentionCard({ waiting, toPay }: { waiting: TicketRow[]; toPay: InvoiceRow[] }) {
@@ -120,7 +120,7 @@ function AttentionCard({ waiting, toPay }: { waiting: TicketRow[]; toPay: Invoic
               {waiting.length}
             </Text>
             <View
-              style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: palette.yellow, borderWidth: 1, borderColor: palette.navy }}
+              style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: palette.brand }}
             />
             <Text variant="subhead" style={{ flex: 1, color: palette.heroMuted }}>
               {plural(waiting.length, "chamado precisa da sua resposta", "chamados precisam da sua resposta")}
@@ -291,7 +291,7 @@ export default function Home() {
               />
             ) : null}
             <ListRow
-              leading={<IconTile icon="bookmark.fill" color="navy" glyph={palette.yellow} />}
+              leading={<IconTile icon="bookmark.fill" color="ink" />}
               title="Bookmarks"
               subtitle="Links e arquivos"
               onPress={() => router.push("/bookmarks")}

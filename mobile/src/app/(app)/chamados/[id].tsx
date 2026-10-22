@@ -54,9 +54,9 @@ function Monogram() {
   return (
     <View
       accessible={false}
-      style={{ width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, backgroundColor: palette.navy, alignItems: "center", justifyContent: "center" }}
+      style={{ width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, backgroundColor: palette.brand, alignItems: "center", justifyContent: "center" }}
     >
-      <Text maxFontSizeMultiplier={1} style={{ fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: palette.yellow }}>
+      <Text maxFontSizeMultiplier={1} style={{ fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: palette.onBrand }}>
         A
       </Text>
     </View>
