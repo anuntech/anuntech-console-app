@@ -8,6 +8,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
+import { settingsChecks } from "./api-smoke-settings.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -120,6 +121,7 @@ try {
   await makePerson("member", address("member"), companies.a);
   await makePerson("outsider", address("outsider"), companies.b, "member");
   await makePerson("guarded", address("guarded"), companies.a);
+  await makePerson("profile", address("profile"), companies.a, "member");
   await db.query(
     "update console_user set phone_number='+5511988880001',phone_number_verified=true where id=$1",
     [people.guarded.id],
@@ -138,11 +140,14 @@ try {
         CONSOLE_ADMIN_EMAIL: owner,
         BETTER_AUTH_URL: base,
         // The AI Gateway mock goes last so it wraps otp-mock's fetch (which refuses anything outside this Mac).
-        NODE_OPTIONS: `--require=${process.cwd()}/scripts/otp-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
+        // Blob is in memory (blob-mock answers @vercel/blob's undici calls), for the profile photo.
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/blob-mock.cjs --require=${process.cwd()}/scripts/otp-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
         AI_GATEWAY_API_KEY: "test",
         CONSOLE_TEST_ASSISTANT_FILE: join(dir, "ai.jsonl"),
         CONSOLE_TEST_MODELS_FILE: `${process.cwd()}/scripts/fixtures/gateway-models.json`,
         CONSOLE_TEST_OTP_FILE: capture,
+        // Invites and resends are read back by the settings checks.
+        CONSOLE_TEST_MAIL_FILE: join(dir, "mail.jsonl"),
         RESEND_API_KEY: "test",
         EMAIL_FROM: "Console <test@example.invalid>",
         FLW_SYNOVA: "test",
@@ -237,6 +242,256 @@ try {
     r.status === 200 && r.body.staff && r.body.owner && r.body.companies.length === 0,
     "The API ignores the assisted-access cookie",
   );
+
+  // Minha conta and Segurança: the web's rules and words, through the app's API.
+  const tinyPng = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const photo = (cookie, body, type = "image/png", headers = {}) =>
+    fetch(`${base}/api/v1/conta/foto`, {
+      method: "POST",
+      headers: { ...(type ? { "Content-Type": type } : {}), ...(cookie ? { Cookie: cookie } : {}), ...headers },
+      body,
+    });
+  const blobLog = () => {
+    try {
+      return readFileSync(join(dir, "ai.jsonl"), "utf8").trim().split("\n").filter(Boolean).map(JSON.parse).filter((e) => e.blob);
+    } catch {
+      return [];
+    }
+  };
+  const imageOf = async (id) => (await db.query("select image from console_user where id=$1", [id])).rows[0]?.image;
+  const catalog = /^\/brand\/avatars\/avatar-\d{2}\.svg$/;
+  let refused = true;
+  for (const [path, input] of [
+    ["profile.rename", { name: "Sem sessão" }],
+    ["profile.avatars", undefined],
+    ["profile.setAvatar", { image: "/brand/avatars/avatar-01.svg" }],
+    ["profile.removePhoto", undefined],
+    ["profile.startEmailChange", { email: address("nobody") }],
+    ["profile.confirmEmailChange", { challengeId: randomUUID(), sourceCode: "123456", targetCode: "123456" }],
+    ["security.overview", undefined],
+  ])
+  {
+    const status = (await rpc(path, input)).status;
+    if (status !== 401) console.error(`  ${path} answered ${status} without a session`);
+    refused &&= status === 401;
+  }
+  ok(refused, "Profile and security procedures need a session");
+  r = await photo(undefined, tinyPng);
+  ok(r.status === 401 && /no-store/.test(r.headers.get("cache-control") || ""), "The app's photo upload needs a session");
+  r = await emailSignIn(people.profile.email, { ...app, "User-Agent": "AnuntechApp/1.0.0 (Android 15; Pixel 9)" });
+  const profileOld = r.cookie;
+  r = await emailSignIn(people.profile.email, { ...app, "User-Agent": "AnuntechApp/1.0.0 (iPhone; iOS 18.4)" });
+  let profile = r.cookie;
+  ok(r.status === 200 && profile !== profileOld, "The app signs in twice with its own user agent");
+  ok(
+    (await photo(profile, tinyPng, "image/png", { "Sec-Fetch-Site": "cross-site" })).status === 403,
+    "A browser on another site never uploads a photo",
+  );
+
+  r = await rpc("me.get", undefined, profile);
+  ok(
+    r.status === 200 &&
+      r.body.avatar?.kind === "initials" &&
+      r.body.avatar.path === null &&
+      r.body.twoFactorEnabled === false &&
+      r.body.twoStepChannel === "whatsapp" &&
+      r.body.recentSignIn === true &&
+      r.body.managedCompanyId === null,
+    "me.get brings the avatar, the two-step state and a recent sign-in",
+  );
+  r = await rpc("me.get", undefined, member);
+  ok(r.status === 200 && r.body.managedCompanyId === companies.a, "me.get names the one company an Administrador manages");
+  r = await rpc("me.get", undefined, staff);
+  ok(r.status === 200 && r.body.managedCompanyId === null, "The team manages no single company in me.get");
+  r = await rpc("me.get", undefined, pending);
+  ok(r.status === 200 && r.body.twoFactorEnabled === true, "me.get shows two-step verification on");
+
+  // Name.
+  r = await rpc("profile.rename", { name: " A " }, profile);
+  ok(r.status === 400 && r.body?.message === "Informe um nome entre 2 e 100 caracteres.", "profile.rename refuses a name under 2 characters");
+  r = await rpc("profile.rename", { name: "x".repeat(101) }, profile);
+  ok(r.status === 400 && r.body?.message === "Informe um nome entre 2 e 100 caracteres.", "profile.rename refuses a name over 100 characters");
+  r = await rpc("profile.rename", { name: "  API Perfil Renomeado  " }, profile);
+  ok(
+    r.status === 200 &&
+      r.body.message === "Nome atualizado." &&
+      (await db.query("select name from console_user where id=$1", [people.profile.id])).rows[0]?.name === "API Perfil Renomeado",
+    "profile.rename saves the trimmed name",
+  );
+
+  // Illustrations.
+  r = await rpc("profile.avatars", undefined, profile);
+  ok(
+    r.status === 200 &&
+      r.body.avatars.length === 89 &&
+      r.body.avatars.every((a) => catalog.test(a.image) && a.path === a.image && /^#[0-9A-F]{6}$/i.test(a.color)),
+    "profile.avatars lists the catalog with each background",
+  );
+  refused = true;
+  for (const image of ["/brand/avatars/avatar-90.svg", "/brand/avatars/../x.svg", "https://evil.invalid/a.png", "profile-avatars/x.webp"])
+    refused &&=
+      (r = await rpc("profile.setAvatar", { image }, profile)).status === 400 && r.body?.message === "Selecione um avatar válido.";
+  ok(refused && (await imageOf(people.profile.id)) === null, "profile.setAvatar takes only the catalog's illustrations");
+  r = await rpc("profile.setAvatar", { image: "/brand/avatars/avatar-05.svg" }, profile);
+  ok(
+    r.status === 200 &&
+      r.body.message === "Avatar atualizado." &&
+      r.body.avatar.kind === "illustration" &&
+      r.body.avatar.path === "/brand/avatars/avatar-05.svg" &&
+      /^#[0-9A-F]{6}$/i.test(r.body.avatar.color) &&
+      (await imageOf(people.profile.id)) === "/brand/avatars/avatar-05.svg",
+    "profile.setAvatar picks an illustration",
+  );
+
+  // Uploaded photo.
+  r = await photo(profile, tinyPng, "image/gif");
+  ok(r.status === 415 && (await r.json()).error === "Use uma imagem PNG, JPEG ou WebP.", "The photo route refuses another type");
+  r = await photo(profile, Buffer.from("not an image at all"), "image/png");
+  ok(r.status === 422 && (await r.json()).error === "O arquivo não é uma imagem válida.", "The photo route refuses a file that is not the image it says");
+  r = await photo(profile, Buffer.alloc(0));
+  ok(r.status === 400 && (await r.json()).error === "Selecione uma foto para enviar.", "The photo route refuses an empty upload");
+  r = await photo(profile, Buffer.alloc(20 * 1024 * 1024 + 1));
+  ok(r.status === 413 && (await r.json()).error === "A foto deve ter até 20 MB.", "The photo route refuses more than 20 MB");
+  ok(
+    (await imageOf(people.profile.id)) === "/brand/avatars/avatar-05.svg",
+    "A refused photo leaves the picture as it was",
+  );
+  r = await photo(profile, tinyPng);
+  const body = await r.json();
+  const uploaded = await imageOf(people.profile.id);
+  const photoPath = body.avatar?.path;
+  ok(
+    r.status === 200 &&
+      /no-store/.test(r.headers.get("cache-control") || "") &&
+      body.message === "Foto de perfil atualizada." &&
+      body.avatar.kind === "photo" &&
+      body.avatar.color === null &&
+      /^\/api\/conta\/foto\?v=[a-f0-9-]{36}\.webp$/.test(photoPath) &&
+      /^profile-avatars\/[a-f0-9]{64}\/[a-f0-9-]{36}\.webp$/.test(uploaded || "") &&
+      uploaded.endsWith(photoPath.slice(photoPath.indexOf("=") + 1)),
+    "The app uploads a photo by its session, without Origin",
+  );
+  r = await fetch(`${base}${photoPath}`, { headers: { Cookie: profile } });
+  ok(r.status === 200 && r.headers.get("content-type") === "image/webp", "The app reads its photo with the session cookie");
+  r = await rpc("me.get", undefined, profile);
+  ok(r.status === 200 && r.body.avatar.kind === "photo" && r.body.avatar.path === photoPath, "me.get shows the uploaded photo by its private route");
+  r = await fetch(`${base}/api/conta/foto`, { method: "POST", headers: { Cookie: profile, "Content-Type": "image/png" }, body: tinyPng });
+  ok(r.status === 403, "The web's photo route still takes only the Console's own pages");
+  r = await rpc("profile.removePhoto", undefined, profile);
+  const removedImage = await imageOf(people.profile.id);
+  ok(
+    r.status === 200 &&
+      r.body.message === "Foto removida." &&
+      r.body.avatar.kind === "illustration" &&
+      catalog.test(r.body.avatar.path) &&
+      removedImage === r.body.avatar.path &&
+      blobLog().some((e) => e.blob === "delete" && e.pathname === uploaded),
+    "profile.removePhoto goes back to an illustration and deletes the stored photo",
+  );
+
+  // Security overview.
+  await db.query("delete from console_session where user_id=$1 and user_agent like '%Android%'", [people.profile.id]);
+  r = await rpc("security.overview", undefined, profile);
+  const [here, ended] = [r.body?.sessions?.[0], r.body?.sessions?.find((s) => s.status === "ended")];
+  ok(
+    r.status === 200 &&
+      r.body.twoFactorEnabled === false &&
+      r.body.channel === "whatsapp" &&
+      r.body.phone === null &&
+      here?.status === "current" &&
+      here.statusLabel === "Esta sessão" &&
+      here.device === "App Anuntech · iPhone" &&
+      !!here.expiresAt,
+    "security.overview shows this session as the app on an iPhone",
+  );
+  ok(
+    ended?.statusLabel === "Encerrada" && ended.device === "App Anuntech · Android" && ended.expiresAt === null,
+    "security.overview keeps an ended session from the sign-in record",
+  );
+  ok(
+    r.body.sessions.every((s) => !("token" in s) && !("ipAddress" in s) && !("ip" in s)),
+    "security.overview never shows a token or an IP",
+  );
+  r = await rpc("security.overview", undefined, pending);
+  ok(
+    r.status === 200 && r.body.twoFactorEnabled === true && r.body.phone === "+5511988880001",
+    "security.overview shows two-step verification and the verified WhatsApp",
+  );
+
+  // Main e-mail.
+  const newEmail = address("profile-new");
+  await limits();
+  r = await rpc("profile.startEmailChange", { email: address("guarded-new") }, pending);
+  ok(
+    r.status === 400 && r.body?.message === "Desative a verificação em duas etapas antes de alterar os contatos de acesso.",
+    "profile.startEmailChange refuses while two-step verification is on",
+  );
+  r = await rpc("profile.startEmailChange", { email: "não é e-mail" }, profile);
+  ok(r.status === 400 && r.body?.message === "Informe um e-mail válido.", "profile.startEmailChange refuses an invalid address");
+  r = await rpc("profile.startEmailChange", { email: people.profile.email.toUpperCase() }, profile);
+  ok(r.status === 400 && r.body?.message === "Este já é seu e-mail principal.", "profile.startEmailChange refuses the current address");
+  r = await rpc("profile.startEmailChange", { email: people.member.email }, profile);
+  ok(
+    r.status === 400 && r.body?.message === "Este e-mail não está disponível para esta conta.",
+    "profile.startEmailChange refuses another account's address",
+  );
+  await db.query("update console_session set created_at=now()-interval '11 minutes' where user_id=$1", [people.profile.id]);
+  r = await rpc("profile.startEmailChange", { email: newEmail }, profile);
+  const stale = await rpc("me.get", undefined, profile);
+  ok(
+    r.status === 401 &&
+      r.body?.message === "Entre novamente para alterar os dados de acesso da sua conta." &&
+      stale.status === 200 &&
+      stale.body.recentSignIn === false,
+    "profile.startEmailChange needs a sign-in less than 10 minutes old",
+  );
+  await db.query("update console_session set created_at=now() where user_id=$1", [people.profile.id]);
+  await limits();
+  r = await rpc("profile.startEmailChange", { email: newEmail }, profile);
+  const sourceCode = messages().filter((m) => m.to === people.profile.email).at(-1)?.code;
+  const targetCode = messages().filter((m) => m.to === newEmail).at(-1)?.code;
+  const emailChallenge = r.body?.challengeId;
+  ok(
+    r.status === 200 && !!emailChallenge && r.body.email === newEmail && !!r.body.message && !!sourceCode && !!targetCode,
+    "profile.startEmailChange sends a code to each address",
+  );
+  const wrong = String((Number(targetCode) + 1) % 1e6).padStart(6, "0");
+  r = await rpc("profile.confirmEmailChange", { challengeId: emailChallenge, sourceCode, targetCode: wrong }, profile);
+  ok(
+    r.status === 400 && r.body?.message === "Confira os dois códigos recebidos. Eles valem por 5 minutos.",
+    "profile.confirmEmailChange refuses a wrong code",
+  );
+  const memberFresh = (await emailSignIn(people.member.email)).cookie;
+  r = await rpc("profile.confirmEmailChange", { challengeId: emailChallenge, sourceCode, targetCode }, memberFresh);
+  ok(
+    r.status === 400 && r.body?.message === "Esta solicitação não pertence à sua sessão.",
+    "Another person's session cannot confirm the change",
+  );
+  r = await rpc("profile.confirmEmailChange", { challengeId: emailChallenge, sourceCode, targetCode }, profile);
+  const changed = (await db.query("select email from console_user where id=$1", [people.profile.id])).rows[0];
+  const audited = await db.query(
+    "select 1 from console_audit_events where actor_id=$1 and action='account.email.primary_changed'",
+    [people.profile.id],
+  );
+  ok(
+    r.status === 200 &&
+      r.body.message === "E-mail principal atualizado. Entre novamente com o novo endereço." &&
+      changed?.email === newEmail &&
+      audited.rowCount === 1,
+    "profile.confirmEmailChange moves the main e-mail and records it",
+  );
+  ok(
+    (await rpc("me.get", undefined, profile)).status === 401 &&
+      Number((await db.query("select count(*) from console_session where user_id=$1", [people.profile.id])).rows[0].count) === 0,
+    "Confirming the new e-mail ends every session, this one too",
+  );
+  r = await emailSignIn(newEmail);
+  profile = r.cookie;
+  r = await rpc("me.get", undefined, profile);
+  ok(r.status === 200 && r.body.email === newEmail, "The app signs in again with the new address");
 
   // Tickets: the same rules as /chamados, through the app's API.
   r = await emailSignIn(people.outsider.email);
@@ -523,6 +778,8 @@ try {
     (await rpc("account.requestDeletion", { channel: "email" }, staff)).status === 400,
     "The Console owner cannot delete the account from the app either",
   );
+  // Dados da empresa, Membros e Notificações (scripts/api-smoke-settings.mjs).
+  await settingsChecks({ db, rpc, ok, marker, emailSignIn, staff, mailFile: join(dir, "mail.jsonl") });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

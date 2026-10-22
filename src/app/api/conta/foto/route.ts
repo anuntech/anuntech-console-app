@@ -1,21 +1,20 @@
-import { and, eq, gt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getAccountSession } from "@/lib/account/account-session";
 import { db } from "@/lib/db";
-import { user, session } from "@/db/schema";
+import { user } from "@/db/schema";
 import {
   MAX_AVATAR_BYTES,
   ProfileAvatarError,
-  deleteProfileAvatar,
   isOwnedProfileAvatar,
-  normalizeProfileAvatar,
   readAvatarBytes,
   readProfileAvatar,
-  storeProfileAvatar,
 } from "@/lib/account/profile-avatar";
-
-import { isCatalogAvatar } from "@/lib/account/avatar-catalog";
-import { randomProfileAvatar } from "@/lib/account/default-avatar";
+import {
+  chooseCatalogAvatar,
+  removeProfilePhoto,
+  saveProfilePhoto,
+} from "@/lib/account/profile-avatar-change";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -38,51 +37,6 @@ function sameOrigin(request: Request) {
     );
   } catch {
     return false;
-  }
-}
-
-type AccountSession = NonNullable<
-  Awaited<ReturnType<typeof getAccountSession>>
->;
-
-async function replaceAvatar(actor: AccountSession, image: string | null) {
-  return db.transaction(async (tx) => {
-    const [current] = await tx
-      .select({ image: user.image, emailVerified: user.emailVerified })
-      .from(user)
-      .where(eq(user.id, actor.user.id))
-      .for("update");
-    const [activeSession] = await tx
-      .select({ id: session.id })
-      .from(session)
-      .where(
-        and(
-          eq(session.id, actor.session.id),
-          eq(session.userId, actor.user.id),
-          gt(session.expiresAt, new Date()),
-        ),
-      )
-      .limit(1);
-    if (!current?.emailVerified || !activeSession)
-      throw new ProfileAvatarError(
-        "Entre novamente para alterar sua foto.",
-        401,
-      );
-    await tx
-      .update(user)
-      .set({ image, updatedAt: new Date() })
-      .where(eq(user.id, actor.user.id));
-    return current.image;
-  });
-}
-
-async function cleanup(image: string | null, userId: string) {
-  if (!image) return;
-  try {
-    await deleteProfileAvatar(image, userId);
-  } catch {
-    // Storage cleanup must never roll back the account's committed reference.
-    console.warn("profile_avatar_cleanup_failed");
   }
 }
 
@@ -120,23 +74,17 @@ export async function POST(request: Request) {
   if (!actor) return fail("Entre para alterar sua foto.", 401);
   const length = Number(request.headers.get("content-length") || 0);
   if (length > MAX_AVATAR_BYTES) return fail("A foto deve ter até 2 MB.", 413);
-  let uploaded: string | null = null;
-  let saved = false;
   try {
     const bytes = await readAvatarBytes(request.body);
-    const image = await normalizeProfileAvatar(
+    const uploaded = await saveProfilePhoto(
+      actor,
       bytes,
       request.headers.get("content-type") || "",
     );
-    uploaded = await storeProfileAvatar(actor.user.id, image);
-    const previous = await replaceAvatar(actor, uploaded);
-    saved = true;
-    await cleanup(previous, actor.user.id);
     revalidatePath("/conta");
     revalidatePath("/", "layout");
     return Response.json({ image: uploaded }, { headers: privateHeaders });
   } catch (error) {
-    if (uploaded && !saved) await cleanup(uploaded, actor.user.id);
     if (error instanceof ProfileAvatarError)
       return fail(error.message, error.status);
     return fail("Não foi possível salvar a foto. Tente novamente.", 503);
@@ -148,9 +96,7 @@ export async function DELETE(request: Request) {
   const actor = await getAccountSession();
   if (!actor) return fail("Entre para alterar sua foto.", 401);
   try {
-    const image = randomProfileAvatar();
-    const previous = await replaceAvatar(actor, image);
-    await cleanup(previous, actor.user.id);
+    const image = await removeProfilePhoto(actor);
     revalidatePath("/conta");
     revalidatePath("/", "layout");
     return Response.json({ image }, { headers: privateHeaders });
@@ -173,13 +119,10 @@ export async function PATCH(request: Request) {
     } catch {
       return fail("Selecione um avatar válido.", 400);
     }
-    if (!isCatalogAvatar(payload?.image))
-      return fail("Selecione um avatar válido.", 400);
-    const previous = await replaceAvatar(actor, payload.image);
-    await cleanup(previous, actor.user.id);
+    const image = await chooseCatalogAvatar(actor, payload?.image);
     revalidatePath("/conta");
     revalidatePath("/", "layout");
-    return Response.json({ image: payload.image }, { headers: privateHeaders });
+    return Response.json({ image }, { headers: privateHeaders });
   } catch (error) {
     if (error instanceof ProfileAvatarError)
       return fail(error.message, error.status);

@@ -111,6 +111,7 @@ export function CodeField({
   invalid,
   error,
   autoFocus = true,
+  testID = "code",
 }: {
   value: string;
   onChange: (code: string) => void;
@@ -118,6 +119,8 @@ export function CodeField({
   invalid?: boolean;
   error?: string;
   autoFocus?: boolean;
+  /** For the e2e tests; a screen with two codes names each. */
+  testID?: string;
 }) {
   const palette = usePalette();
   const [focused, setFocused] = useState(autoFocus);
@@ -157,7 +160,7 @@ export function CodeField({
           );
         })}
         <TextInput
-          testID="code"
+          testID={testID}
           value={value}
           onChangeText={(text) => onChange(text.replace(/\D/g, "").slice(0, LENGTH))}
           keyboardType="number-pad"

@@ -4,12 +4,12 @@ import type { ContractRouterClient } from "@orpc/contract";
 import type { Contract } from "@console/contract";
 import { QueryClient } from "@tanstack/react-query";
 import { authClient } from "./auth";
-import { CONSOLE_URL } from "./config";
+import { CONSOLE_URL, USER_AGENT } from "./config";
 
-/** The signed-in person's session, as the Console expects it from the app. */
+/** The signed-in person's session, as the Console expects it from the app (and who is asking). */
 export async function sessionHeaders(): Promise<Record<string, string>> {
   const cookie = await authClient.getCookie();
-  return cookie ? { Cookie: cookie } : {};
+  return { "User-Agent": USER_AGENT, ...(cookie ? { Cookie: cookie } : {}) };
 }
 
 const link = new RPCLink({

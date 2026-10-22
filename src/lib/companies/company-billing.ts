@@ -13,11 +13,17 @@ export const companyAddress = payerAddress
   });
 export type CompanyAddress = z.infer<typeof companyAddress>;
 
-export function companyBillingInput(form: FormData) {
+export type CompanyAddressFields = Partial<Record<keyof typeof companyAddress.shape, string>>;
+
+/**
+ * The address as typed, from the web form or the app: every field blank is
+ * no address; anything else must be complete.
+ */
+export function parseCompanyAddress(fields: CompanyAddressFields | null | undefined): CompanyAddress | null {
   const raw = Object.fromEntries(
     Object.keys(companyAddress.shape).map((key) => [
       key,
-      String(form.get(key) ?? "").trim(),
+      String(fields?.[key as keyof CompanyAddressFields] ?? "").trim(),
     ]),
   );
   const hasAddress = Object.values(raw).some(Boolean);
@@ -31,8 +37,14 @@ export function companyBillingInput(form: FormData) {
           "Complete o endereço do cliente: logradouro, número, bairro, cidade, UF e CEP válido. O código IBGE, se informado, deve ter 7 dígitos.",
       },
     ]);
+  return parsed?.success ? parsed.data : null;
+}
+
+export function companyBillingInput(form: FormData) {
   return {
-    billingAddress: parsed?.success ? parsed.data : null,
+    billingAddress: parseCompanyAddress(
+      Object.fromEntries(Object.keys(companyAddress.shape).map((key) => [key, String(form.get(key) ?? "")])),
+    ),
     autoIssueNfse: form.get("autoIssueNfse") === "yes",
   };
 }

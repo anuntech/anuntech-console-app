@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
 import {
   ImageError,
@@ -7,8 +7,14 @@ import {
   readImageBytes,
   type ImageFailure,
 } from "../images/normalize-image";
+import { avatarPrefix, isOwnedProfileAvatar } from "./profile-avatar-path";
 
+export { isOwnedProfileAvatar };
+
+/** The stored photo, and what the web accepts (the browser reduces it to 512 px first). */
 export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+/** What the app may send: a phone photo as taken, reduced here to the same 2 MB WebP. */
+export const MAX_APP_AVATAR_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 export class ProfileAvatarError extends Error {
   constructor(
@@ -32,51 +38,58 @@ const avatarMessages: Record<ImageFailure, string> = {
   output_too_large: "Não foi possível reduzir esta foto.",
 };
 
-function asAvatarError(error: unknown): never {
+/** The size limit, in the person's words (2 MB on the web, 20 MB from the app). */
+export const avatarTooLarge = (maxBytes: number) =>
+  maxBytes === MAX_AVATAR_BYTES
+    ? avatarMessages.too_large
+    : `A foto deve ter até ${Math.floor(maxBytes / (1024 * 1024))} MB.`;
+
+function asAvatarError(error: unknown, maxBytes = MAX_AVATAR_BYTES): never {
   if (error instanceof ImageError)
-    throw new ProfileAvatarError(avatarMessages[error.reason], error.status);
+    throw new ProfileAvatarError(
+      error.reason === "too_large"
+        ? avatarTooLarge(maxBytes)
+        : avatarMessages[error.reason],
+      error.status,
+    );
   throw error;
 }
 
 /** Enforces the byte limit even for chunked requests without Content-Length. */
 export async function readAvatarBytes(
   stream: ReadableStream<Uint8Array> | null,
+  maxBytes = MAX_AVATAR_BYTES,
 ): Promise<Buffer> {
   try {
-    return await readImageBytes(stream, MAX_AVATAR_BYTES);
+    return await readImageBytes(stream, maxBytes);
   } catch (error) {
-    return asAvatarError(error);
+    return asAvatarError(error, maxBytes);
   }
 }
 
+/**
+ * Any accepted photo becomes the same 512 px WebP of at most 2 MB. `maxInput`
+ * only lets a larger original in (the app's 20 MB); the output limit stays.
+ */
 export async function normalizeProfileAvatar(
   bytes: Buffer,
   contentType: string,
+  maxInput = MAX_AVATAR_BYTES,
 ): Promise<Buffer> {
+  let result: Buffer;
   try {
-    return await normalizeImage(bytes, contentType, {
+    result = await normalizeImage(bytes, contentType, {
       size: 512,
       fit: "cover",
       quality: 78,
-      maxBytes: MAX_AVATAR_BYTES,
+      maxBytes: maxInput,
     });
   } catch (error) {
-    return asAvatarError(error);
+    return asAvatarError(error, maxInput);
   }
-}
-
-function avatarPrefix(userId: string) {
-  return `profile-avatars/${createHash("sha256").update(userId).digest("hex")}/`;
-}
-
-export function isOwnedProfileAvatar(
-  image: string | null | undefined,
-  userId: string,
-): image is string {
-  if (!image?.startsWith(avatarPrefix(userId))) return false;
-  return /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.webp$/.test(
-    image.slice(avatarPrefix(userId).length),
-  );
+  if (result.length > MAX_AVATAR_BYTES)
+    throw new ProfileAvatarError(avatarMessages.output_too_large, 422);
+  return result;
 }
 
 export async function storeProfileAvatar(userId: string, image: Buffer) {

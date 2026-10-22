@@ -10,6 +10,8 @@ import { Button } from "@/components/button";
 import { CodeField, Field } from "@/components/field";
 import { Segmented } from "@/components/segmented";
 import { authClient, normalizePhone } from "@/lib/auth";
+import { useCooldown } from "@/lib/cooldown";
+import { clearSignInNotice, peekSignInNotice } from "@/lib/sign-in-notice";
 import { radius, rounded, space, usePalette } from "@/lib/theme";
 
 type Mode = "email" | "whatsapp";
@@ -27,17 +29,6 @@ const draft: { mode: Mode; destination: string; sent: boolean; sentAt: number } 
 /** A code lives 5 minutes; after that the step starts over. */
 const draftSent = () => draft.sent && Date.now() - draft.sentAt < 5 * 60_000;
 
-/** One minute between code requests, as on the web. */
-function useCooldown() {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    if (!seconds) return;
-    const timer = setTimeout(() => setSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearTimeout(timer);
-  }, [seconds]);
-  return [seconds, () => setSeconds(60)] as const;
-}
-
 /**
  * Sign-in: e-mail or WhatsApp, then the 6-digit code. The same messages and
  * limits as the web (components/auth/login-form.tsx); no Google in the app.
@@ -45,9 +36,12 @@ function useCooldown() {
 export default function SignIn() {
   const palette = usePalette();
   const destinationRef = useRef<ComponentRef<typeof TextInput>>(null);
-  const [mode, setMode] = useState<Mode>(draft.mode);
-  const [destination, setDestination] = useState(draft.destination);
-  const [sent, setSent] = useState(draftSent);
+  // Why the person is here again (the main e-mail changed): shown until a code is asked for.
+  const [notice] = useState(peekSignInNotice);
+  useEffect(() => clearSignInNotice(), []);
+  const [mode, setMode] = useState<Mode>(notice?.email ? "email" : draft.mode);
+  const [destination, setDestination] = useState(notice?.email ?? draft.destination);
+  const [sent, setSent] = useState(() => !notice && draftSent());
   useEffect(() => {
     Object.assign(draft, { mode, destination, sent });
   }, [mode, destination, sent]);
@@ -251,6 +245,7 @@ export default function SignIn() {
           )}
           {error ? <Notice kind="error">{error}</Notice> : null}
           {message ? <Notice kind="info">{message}</Notice> : null}
+          {notice && !sent && !error && !message ? <Notice kind="success">{notice.message}</Notice> : null}
           <View style={{ gap: space.md }}>
             <Button
               title={busy ? "Aguarde…" : sent ? "Entrar" : seconds ? `Aguarde ${seconds}s para pedir outro código` : "Receber código"}

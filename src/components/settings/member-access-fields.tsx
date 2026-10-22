@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProductIcon } from "@/components/console/product-icon";
 import { engagementLabels } from "@/lib/format";
+import { scopeSummary } from "@/lib/access/scope-summary";
 
 /** A product, service or project of the company, as the picker lists it. */
 export type ScopeEngagement = {
@@ -37,12 +38,8 @@ const groups = [
   { label: "Produtos e serviços", kinds: ["product", "service"] },
 ] as const;
 
-/** How a Membro's access reads in a table cell: "Tudo" or "3 itens". */
-export function scopeSummary(scope: MemberScope | undefined) {
-  if (!scope || scope.access === "all") return "Tudo da empresa";
-  const n = scope.ids.length;
-  return n === 0 ? "Nada escolhido" : n === 1 ? "1 item" : `${n} itens`;
-}
+// The wording lives in lib, where the app's API reads it too.
+export { scopeSummary };
 
 /**
  * "O que esta pessoa vê": everything of the company, or only the products,
