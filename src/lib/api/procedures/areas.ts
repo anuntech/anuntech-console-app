@@ -20,7 +20,6 @@ import { listQuotes } from "../../quotes/quote-list";
 import { findQuote } from "../../quotes/quote-access";
 import { quoteExpired, quoteNumberLabel, quoteStatusLabels, quoteTotals } from "../../quotes/quote-model";
 import { answerQuoteAs } from "../../quotes/quote-answer";
-import { bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "../../bookmarks/bookmarks";
 import { api } from "../server";
 import { guard, missing } from "../access";
 import { answer, refuse } from "../managed-company";
@@ -253,38 +252,5 @@ export const quotes = {
       if (!(await findQuote(context.actor, input.id))) throw missing();
       const evidence = decisionEvidence(context.headers, context.session);
       return answer(await answerQuoteAs(context.actor, input, evidence));
-    }),
-};
-
-export const bookmarks = {
-  list: api.bookmarks.list
-    // foldersFor and bookmarksFor keep each person to their companies and to the folders shared with them.
-    .use(guard({ self: true }))
-    .handler(async ({ input, context }) => {
-      const scope = scopeOf(context.actor);
-      const query = bookmarkQuery({ pasta: input.folder, q: input.search }, scope);
-      const folders = await foldersFor(scope, query.company);
-      const { items } = await bookmarksFor(
-        scope,
-        folders.map((f) => f.id),
-        query,
-        { page: 1, pageSize: 100 },
-      );
-      return {
-        folders: folders.map((f) => ({ id: f.id, name: f.name, company: f.company, count: f.count })),
-        items: items.map((item) => {
-          const kind = item.board ? ("board" as const) : item.url ? ("link" as const) : ("file" as const);
-          return {
-            id: item.id,
-            title: item.title,
-            kind,
-            url: item.url,
-            fileName: item.fileName,
-            filePath:
-              kind === "file" ? `/api/bookmarks/${item.id}` : kind === "board" && item.preview ? `/api/bookmarks/${item.id}/preview` : null,
-            folderId: item.folderId,
-          };
-        }),
-      };
     }),
 };
