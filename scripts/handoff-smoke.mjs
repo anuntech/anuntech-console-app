@@ -86,6 +86,9 @@ export async function runHandoffTests({ database: db, ids, people, request, subm
     "Contrato sai preenchido com o escopo, a stack e o prazo do orçamento, uma vez só",
   );
   const contract = linked[0];
+  // An accepted proposal that a contract came from keeps its version: edits go to a copy.
+  await submitForm(quotePath, "admin", "admin", { action: "revertQuote" }, { id: quote.id });
+  ok((await one("select status from console_quotes where id=$1", [quote.id])).status === "accepted", "Orçamento aceito com contrato não volta para rascunho");
 
   // Entrada prepared from the proposal, once; cancelling the draft lets it be prepared again.
   const upfrontForm = await request(`/financeiro/nova?orcamento=${quote.id}&parte=entrada`, "admin");
@@ -185,6 +188,39 @@ export async function runHandoffTests({ database: db, ids, people, request, subm
       (await one("select status from console_quotes where id=$1", [lonelyQuote.id]))?.status === "sent",
     "A pessoa indicada vira Administrador e o orçamento sai",
   );
+
+  // A new version, like a contract before signature: a declined or an accepted proposal with nothing made
+  // from it reopens with the same number; the answer goes to the history and the next send asks again.
+  for (const decision of ["decline", "accept"]) {
+    const versionTitle = `Versão ${decision} ${marker}`;
+    await submitForm("/orcamentos/novo", "admin", "admin", { action: "createQuote" }, {
+      companyId: ids.a,
+      title: versionTitle,
+      validUntil: "",
+      content: JSON.stringify(content),
+    });
+    const draft = await one("select * from console_quotes where title=$1", [versionTitle]);
+    const path = `/orcamentos/${draft.id}`;
+    await submitForm(path, "admin", "admin", { action: "sendQuote" }, { id: draft.id });
+    await submitForm(path, "admin", "finance", { action: "answerQuote" }, { id: draft.id, decision, consent: "on", note: "Primeira resposta" });
+    const answered = await one("select * from console_quotes where id=$1", [draft.id]);
+    await submitForm(path, "admin", "admin", { action: "revertQuote" }, { id: draft.id });
+    const reopened = await one("select * from console_quotes where id=$1", [draft.id]);
+    const history = await one("select details from console_audit_events where entity_id=$1 and action='quote.reverted' order by created_at desc limit 1", [draft.id]);
+    ok(
+      answered.status === (decision === "accept" ? "accepted" : "declined") &&
+        reopened.status === "draft" &&
+        reopened.seq === answered.seq &&
+        reopened.decided_at === null &&
+        history?.details?.answer?.status === answered.status &&
+        history.details.answer.note === "Primeira resposta" &&
+        history.details.answer.hash === answered.document_hash,
+      `Orçamento ${decision === "accept" ? "aceito sem contrato" : "recusado"} ganha nova versão e guarda a resposta no histórico`,
+    );
+    await submitForm(path, "admin", "admin", { action: "sendQuote" }, { id: draft.id });
+    const resent = await one("select status, published_version from console_quotes where id=$1", [draft.id]);
+    ok(resent.status === "sent" && resent.published_version === answered.published_version + 1, "O novo envio vira a versão seguinte e espera nova resposta");
+  }
 
   // Clean what the global cleanup cannot reach: templates and conditions tied to contracts.
   await db.query("delete from console_service_terms where contract_id = any($1)", [[licence, contract.id]]);

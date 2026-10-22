@@ -245,7 +245,8 @@ const stepInput = z.object({
   url: z.string().trim().max(500).default(""),
   value: z.string().trim().max(200, "Use até 200 caracteres.").default(""),
   scheduledAt: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Confira a data.")]).default(""),
-  assigneeId: z.string().trim().max(64).default(""),
+  // Optional: the web form no longer asks; a missing field keeps what was saved.
+  assigneeId: z.string().trim().max(64).optional(),
 });
 
 /** A step's state, link, value, date and note. The data's own steps only take "Não se aplica". */
@@ -280,7 +281,7 @@ export async function saveJourneyStep(_: ActionState, form: FormData): Promise<A
       value: input.value || null,
       // Noon in São Paulo: the day stays the same in any time zone the page is read in.
       scheduledAt: input.scheduledAt ? new Date(`${input.scheduledAt}T12:00:00-03:00`) : null,
-      assigneeId: assignee?.id ?? null,
+      assigneeId: input.assigneeId === undefined ? (existing?.assigneeId ?? null) : (assignee?.id ?? null),
       doneBy: input.status === "done" ? (becameDone ? actor.user.id : (existing?.doneBy ?? actor.user.id)) : null,
       doneAt: input.status === "done" ? (becameDone ? now : (existing?.doneAt ?? now)) : null,
       updatedAt: now,

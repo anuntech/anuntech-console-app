@@ -121,7 +121,7 @@ test("skipping needs no data, but data that shows a step done wins over the skip
 
 test("the next step skips the setup lane while the main flow has something to do", () => {
   const facts = { ...emptyFacts(), company: { ...company, managerSignedIn: true, terms: true }, quote: acceptedQuote };
-  const resolved = resolveJourney(facts, [row("reuniao-briefing", { status: "done" })], null, j);
+  const resolved = resolveJourney(facts, [], null, j);
   assert.notEqual(resolved.next?.def.stage, "setup");
   assert.equal(resolved.next?.def.key, "briefing");
 });
@@ -193,7 +193,7 @@ test("only plain https links are kept: no credentials, no other schemes", () => 
 test("while the proposal waits for the client, the journey stays in Proposta; hosting waits for the acceptance", () => {
   const facts = { ...emptyFacts(), company: { ...company, managerSignedIn: true }, quote: { ...acceptedQuote, status: "sent" as const, decidedAt: null } };
   const briefing = journeyBriefingSchema.parse({ objetivo: "App", funcionalidades: ["Login"] });
-  const resolved = resolveJourney(facts, [row("reuniao-briefing", { status: "done" })], briefing, j);
+  const resolved = resolveJourney(facts, [], briefing, j);
   assert.equal(step(resolved, "hospedagem").status, "waiting");
   assert.notEqual(resolved.next?.def.stage, "entrega");
   assert.equal(currentStage(resolved), "proposta");
