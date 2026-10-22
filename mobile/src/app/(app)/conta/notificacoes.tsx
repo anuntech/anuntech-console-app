@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/button";
@@ -73,6 +73,16 @@ function Notifications() {
         {topics.map((topic) => (
           <TopicForm key={topic.topic} topic={topic} />
         ))}
+        {query.data ? (
+          <Section footer="O que saiu por e-mail e WhatsApp, com a situação de cada envio.">
+            <ListRow
+              testID="row-notice-history"
+              title="Histórico de envios"
+              leading={<IconTile icon="clock.arrow.circlepath" color="gray" />}
+              onPress={() => router.push("/conta/envios" as never)}
+            />
+          </Section>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
