@@ -1419,6 +1419,53 @@ try {
       companyState.document === companyInput.document,
       "Documento incompleto e alteração por cliente são bloqueados no servidor",
     );
+    // Several finance contacts: the team's form saves them as the billing recipients, the main ones first.
+    const financeKey = `${ids.a}:billing`;
+    const financeBefore = (
+      await database.query("select * from console_notification_preferences where key=$1", [financeKey])
+    ).rows[0];
+    await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
+      ...companyInput,
+      financeContacts: "1",
+      financeEmails: ["contas.qa@exemplo.com.br", "CONTAS.QA@exemplo.com.br", ""],
+      financePhones: ["(11) 98888-7777"],
+    });
+    const financeSaved = (
+      await database.query("select emails, phones from console_notification_preferences where key=$1", [financeKey])
+    ).rows[0];
+    companyState = (await database.query("select * from console_companies where id=$1", [ids.a])).rows[0];
+    ok(
+      financeSaved?.emails?.length === 2 &&
+        financeSaved.emails[0] === companyState.billing_email &&
+        financeSaved.emails[1] === "contas.qa@exemplo.com.br" &&
+        financeSaved.phones?.length === 2 &&
+        financeSaved.phones[0] === companyState.phone &&
+        financeSaved.phones[1] === "11988887777",
+      "O cadastro guarda vários e-mails e telefones do financeiro como destinatários da cobrança",
+    );
+    const financePage = await request(`/empresas/${ids.a}`, "admin");
+    ok(
+      financePage.text.includes("E-mails do financeiro") && financePage.text.includes("contas.qa@exemplo.com.br"),
+      "A empresa mostra todos os contatos do financeiro",
+    );
+    const tooMany = await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "updateCompany" }, {
+      ...companyInput,
+      financeContacts: "1",
+      financeEmails: Array.from({ length: 10 }, (_, i) => `extra${i}.qa@exemplo.com.br`),
+    });
+    ok(
+      tooMany.status === 200 &&
+        (await database.query("select emails from console_notification_preferences where key=$1", [financeKey])).rows[0]
+          ?.emails?.length === 2,
+      "Mais de 10 contatos do financeiro é recusado sem salvar",
+    );
+    // Back to how the company was, for the billing tests ahead.
+    if (financeBefore)
+      await database.query(
+        "update console_notification_preferences set emails=$2, phones=$3, email=$4, phone=$5 where key=$1",
+        [financeKey, JSON.stringify(financeBefore.emails), JSON.stringify(financeBefore.phones), financeBefore.email, financeBefore.phone],
+      );
+    else await database.query("delete from console_notification_preferences where key=$1", [financeKey]);
     const archiveData = { id: ids.a, archived: "yes" };
     const relations = async () =>
       (

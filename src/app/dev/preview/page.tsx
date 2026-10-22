@@ -214,6 +214,7 @@ export default async function Preview({
       autoIssueNfse: true,
       archived: false,
       createdAt: "2026-03-12",
+      finance: { emails: ["financeiro@exemplo.com.br", "contas@exemplo.com.br"], phones: ["11987654321"] },
     },
     members: [
       {
