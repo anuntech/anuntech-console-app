@@ -890,7 +890,7 @@ try {
       r.body.phases[0].name === "Descoberta" &&
       r.body.phases[0].hoursMax === 20 &&
       r.body.phases[0].tasks.length === 1 &&
-      r.body.phases[0].tasks[0] === "Reunião de descoberta" &&
+      r.body.phases[0].tasks[0]?.title === "Reunião de descoberta" &&
       r.body.notes === "Estimativa de esforço." &&
       r.body.upfrontPercent === 40 &&
       r.body.documentHash === hashOf(quoteFixtures[0][2]) &&
