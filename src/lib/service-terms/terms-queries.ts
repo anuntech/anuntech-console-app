@@ -23,7 +23,7 @@ export async function synovaWithoutTerms() {
 /** Synova conditions prepared as drafts and not confirmed yet: the list to check one by one. */
 export async function synovaDraftsToConfirm() {
   return db
-    .select({ companyId: serviceTerms.companyId, company: companies.name })
+    .select({ companyId: serviceTerms.companyId, company: companies.name, document: companies.document })
     .from(serviceTerms)
     .innerJoin(companies, eq(companies.id, serviceTerms.companyId))
     .where(and(eq(serviceTerms.active, true), eq(serviceTerms.preset, "synova"), isNull(serviceTerms.verifiedAt), eq(companies.archived, false)))

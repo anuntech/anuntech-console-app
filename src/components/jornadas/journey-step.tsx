@@ -130,6 +130,8 @@ export function JourneyStep({
   const auto = def.source === "auto";
   const fields = def.fields ?? [];
   const assignee = staff.find((person) => person.id === row?.assigneeId) ?? null;
+  // The client step's detail is the company's name, which the page header already shows.
+  const detail = def.key === "cadastro" && step.status === "done" ? null : step.detail;
   const panelId = `passo-${def.key.replace(/[^a-z0-9-]/gi, "")}-painel`;
   const useNote = (text: string) => {
     if (!note.current) return;
@@ -153,12 +155,13 @@ export function JourneyStep({
             {!def.required && !step.extra && <span className="text-caption text-muted-foreground">opcional</span>}
             {step.extra && <span className="rounded-full bg-secondary px-1.5 py-px text-caption text-secondary-foreground">acrescentado</span>}
           </div>
-          {(step.detail || assignee) && (
+          {(detail || assignee) && (
             <p className="m-0 mt-0.5 text-xs break-words text-muted-foreground">
-              {step.detail}
-              {step.detail && assignee ? " · " : ""}
+              {detail}
+              {detail && assignee ? " · " : ""}
               {assignee ? `Com ${assignee.name || assignee.email}` : ""}
-              {step.by === "data" && step.status !== "waiting" ? <span className="ml-1.5 text-caption text-muted-foreground">· pelo Console</span> : null}
+              {/* Who ticked a finished step is history; "pelo Console" matters while the step is still open. */}
+              {step.by === "data" && step.status !== "waiting" && step.status !== "done" ? <span className="ml-1.5 text-caption text-muted-foreground">· pelo Console</span> : null}
             </p>
           )}
           {step.warning && (

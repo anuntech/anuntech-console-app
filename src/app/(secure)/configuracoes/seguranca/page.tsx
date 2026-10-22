@@ -6,7 +6,6 @@ export default function Page() {
     <SettingsShell
       section="security"
       title="Segurança"
-      description="Proteção da sua conta e onde ela está aberta."
     >
       <SecuritySection />
     </SettingsShell>

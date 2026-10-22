@@ -1,6 +1,6 @@
 import "server-only";
 import { desc } from "drizzle-orm";
-import { CheckCircle2Icon, FileTextIcon, TriangleAlertIcon } from "lucide-react";
+import { FileTextIcon, TriangleAlertIcon } from "lucide-react";
 import { db } from "@/lib/db";
 import { assistantDocuments, user } from "@/db/schema";
 import { requireAdmin } from "@/lib/access/access";
@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, SectionTitle } from "@/components/console/page-header";
 import { ConfirmAction, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { FileRow } from "@/components/console/file-chip";
+import { Disclosure } from "@/components/console/disclosure";
 
 export async function AssistantSection() {
   await requireAdmin();
@@ -40,27 +41,24 @@ export async function AssistantSection() {
         <CardHeader>
           <SectionTitle
             title="Modelo e instruções"
-            description="O assistente fala pelo AI Gateway da Vercel, só com provedores que não guardam nem treinam com os dados. As regras básicas (usar só o acesso da pessoa, não inventar, não criar cobranças) já estão no código; aqui você acrescenta o jeito da Anuntech."
+            description="As regras básicas já estão no código: usar só o acesso da pessoa, não inventar, não criar cobranças. Aqui entra o jeito da Anuntech."
           />
         </CardHeader>
         <ServerForm action={saveAssistantSettings} className="contents">
           <CardContent className="flex flex-col gap-5">
             <FormError />
-            <p
-              role="status"
-              className={
-                config.gatewayConfigured
-                  ? "m-0 flex items-center gap-2 text-sm text-success"
-                  : "m-0 flex items-start gap-2 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
-              }
-            >
-              {config.gatewayConfigured ? <CheckCircle2Icon className="size-4 shrink-0" /> : <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />}
-              <span>
-                {config.gatewayConfigured
-                  ? "AI Gateway configurado neste ambiente."
-                  : "O AI Gateway não está configurado neste ambiente: falta AI_GATEWAY_API_KEY ou o token OIDC da Vercel. Até lá o assistente abre, mas avisa que está desligado."}
-              </span>
-            </p>
+            {/* Only the exception: a configured gateway is the normal case (Integrações shows it too). */}
+            {!config.gatewayConfigured && (
+              <p
+                role="status"
+                className="m-0 flex items-start gap-2 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning"
+              >
+                <TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  O AI Gateway não está configurado neste ambiente: falta AI_GATEWAY_API_KEY ou o token OIDC da Vercel. Até lá o assistente abre, mas avisa que está desligado.
+                </span>
+              </p>
+            )}
             <div>
               <Label htmlFor="assistant-model" className="mb-1.5">
                 Modelo
@@ -72,7 +70,7 @@ export async function AssistantSection() {
               )}
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {models.length
-                  ? `Lista ao vivo do AI Gateway, só modelos que aceitam ferramentas e têm um provedor que não guarda os dados, com o preço por milhão de tokens (entrada / saída). Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`
+                  ? `Só modelos que aceitam ferramentas, com um provedor que não guarda nem treina com os dados. Preço por milhão de tokens (entrada / saída). Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`
                   : `Não deu para carregar a lista do AI Gateway agora. Digite o id como aparece em vercel.com/ai-gateway/models; precisa aceitar ferramentas. Em branco, usa ${DEFAULT_ASSISTANT_MODEL}.`}
               </p>
             </div>
@@ -102,7 +100,7 @@ export async function AssistantSection() {
         <CardHeader>
           <SectionTitle
             title="Base de conhecimento"
-            description={`Textos que o assistente lê para responder sobre a Anuntech: quem somos, produtos, políticas, perguntas frequentes. Até 30 documentos de ${limitLabel(KNOWLEDGE_DOCUMENT.maxBytes)}, em ${KNOWLEDGE_DOCUMENT.acceptLabel}.`}
+            description={`O assistente lê estes textos para responder sobre a Anuntech. Até 30 documentos de ${limitLabel(KNOWLEDGE_DOCUMENT.maxBytes)}, em ${KNOWLEDGE_DOCUMENT.acceptLabel}.`}
             action={<NewKnowledgeDocument />}
           />
         </CardHeader>
@@ -151,35 +149,43 @@ export async function AssistantSection() {
       <Card>
         <CardHeader>
           <SectionTitle
-            title={`Ferramentas (${assistantTools.length})`}
-            description="Cada uma é uma ação do Console que o assistente pode chamar, sempre com as permissões da pessoa logada; o que altera dados passa pela checagem de confirmação e fica no histórico como se ela mesma tivesse feito. A cada mensagem, o Jev lê que áreas ela toca e o modelo recebe só as ferramentas dessas áreas, além das listagens e da navegação. Emitir cobranças, enviar orçamentos e contratos e remover acessos continuam só na tela."
+            title="Ferramentas"
+            description="Ações do Console que o assistente pode chamar, sempre com as permissões da pessoa. O que altera dados pede confirmação e fica no histórico em nome dela. Emitir cobranças, enviar orçamentos e contratos e remover acessos continuam só na tela."
           />
         </CardHeader>
-        <CardContent className="grid gap-6 sm:grid-cols-2">
-          {(
-            [
-              ["Consultas", assistantTools.filter((t) => !t.write)],
-              ["Ações", assistantTools.filter((t) => t.write)],
-            ] as const
-          ).map(([title, tools]) => (
-            <div key={title}>
-              <p className="m-0 mb-2 text-caption font-medium text-muted-foreground">
-                {title} · {tools.length}
-              </p>
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {tools.map((t) => (
-                  <li key={t.name} className="text-sm">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <code className="rounded bg-secondary px-1 py-0.5 text-[12px]">{t.name}</code>
-                      {t.staffOnly && <span className="rounded-full bg-accent px-1.5 py-px text-[10px] font-medium text-primary">equipe</span>}
-                      {t.clientOnly && <span className="rounded-full bg-secondary px-1.5 py-px text-[10px] font-medium text-muted-foreground">clientes</span>}
-                    </span>
-                    <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{t.description}</span>
-                  </li>
-                ))}
-              </ul>
+        <CardContent>
+          {/* 56 names with a paragraph each: a reference, opened on demand. */}
+          <Disclosure summary={`Ver as ${assistantTools.length} ferramentas`}>
+            <p className="m-0 mb-5 text-xs leading-5 text-muted-foreground">
+              A cada mensagem, o Jev lê que áreas ela toca e o modelo recebe só as ferramentas dessas áreas, além das listagens e da navegação.
+            </p>
+            <div className="grid gap-6 sm:grid-cols-2">
+              {(
+                [
+                  ["Consultas", assistantTools.filter((t) => !t.write)],
+                  ["Ações", assistantTools.filter((t) => t.write)],
+                ] as const
+              ).map(([title, tools]) => (
+                <div key={title}>
+                  <p className="m-0 mb-2 text-caption font-medium text-muted-foreground">
+                    {title} · {tools.length}
+                  </p>
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    {tools.map((t) => (
+                      <li key={t.name} className="text-sm">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <code className="rounded bg-secondary px-1 py-0.5 text-[12px]">{t.name}</code>
+                          {t.staffOnly && <span className="rounded-full bg-accent px-1.5 py-px text-[10px] font-medium text-primary">equipe</span>}
+                          {t.clientOnly && <span className="rounded-full bg-secondary px-1.5 py-px text-[10px] font-medium text-muted-foreground">clientes</span>}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{t.description}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
-          ))}
+          </Disclosure>
         </CardContent>
       </Card>
     </>

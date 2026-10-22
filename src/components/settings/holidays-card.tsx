@@ -18,7 +18,7 @@ export function HolidaysCard({ holidays }: { holidays: LocalHolidays }) {
       <CardHeader>
         <SectionTitle
           title="Feriados da sede"
-          description="Os prazos contam dias úteis sem os feriados nacionais e os da cidade da sede. Os nacionais e a Sexta-feira Santa já entram sozinhos."
+          description="Os prazos contam só dias úteis. Os feriados nacionais e a Sexta-feira Santa já entram sozinhos."
         />
       </CardHeader>
       <ServerForm action={saveHolidays} className="contents">

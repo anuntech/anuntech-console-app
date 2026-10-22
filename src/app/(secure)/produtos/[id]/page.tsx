@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { catalogItems, companies, engagements, subscriptions } from "@/db/schema";
 import { productNextDueDate } from "@/lib/billing/product-due";
-import { canSeeEngagement, canSeeMoney, getActor } from "@/lib/access/access";
+import { allowedIds, canSeeEngagement, canSeeMoney, getActor } from "@/lib/access/access";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { catalogIconSrc } from "@/lib/catalog/catalog-icons";
 import { engagementLinks } from "@/lib/record-links";
 import { ServiceDetail } from "@/components/produtos/service-detail";
@@ -18,6 +19,7 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
     .select({
       engagement: engagements,
       company: companies.name,
+      companyDocument: companies.document,
       item: catalogItems,
       nextDueDate: productNextDueDate(),
       subscriptionInterval: subscriptions.interval,
@@ -44,7 +46,7 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
           status: row.engagement.status,
           description: row.engagement.description,
           companyId: row.engagement.companyId,
-          company: row.company,
+          company: companyDisplayName(row.company, row.companyDocument),
           icon: catalogIconSrc(row.item?.id, row.item?.icon),
           // Only where the viewer sees money; a Membro gets no billing at all.
           billing: money
@@ -62,7 +64,8 @@ export default async function Engagement({ params }: { params: Promise<{ id: str
           expectedResults: row.item?.expectedResults ?? null,
           deadlines: row.item?.deadlines ?? null,
         },
-        viewer: { admin: actor.admin },
+        // A client names the company only when they see more than one: otherwise it is their own.
+        viewer: { admin: actor.admin, showCompany: actor.admin || new Set(allowedIds(actor, "overview")).size > 1 },
       }}
     />
   );

@@ -66,6 +66,7 @@ import {
   type InvoiceStatusFilter,
   type InvoiceTableStatus,
 } from "@/lib/billing/invoice-table";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { InvoiceStatusBadge } from "./invoice-badges";
 import { InvoiceSheet, type InvoiceEditMode } from "./invoice-sheet";
 
@@ -73,7 +74,10 @@ export type InvoiceRow = {
   id: string;
   description: string;
   companyId: string;
+  /** Razão social, as stored; the list shows its display name. */
   company: string;
+  /** The company's CNPJ/CPF, so a MEI's number can come off its name on screen. */
+  companyDocument?: string | null;
   amountCents: number;
   status: InvoiceTableStatus;
   display: InvoiceDisplayStatus;
@@ -93,13 +97,9 @@ export type InvoiceRow = {
   terms: ChargeTerms;
 };
 
-export const billingTypeLabel = (
-  recurring: boolean,
-  interval: "monthly" | "yearly" | null,
-) =>
-  recurring
-    ? `Recorrente · ${interval === "yearly" ? "Anual" : "Mensal"}`
-    : "Cobrança única";
+/** "Recorrência mensal": said beside a recurring charge; a one-off charge says nothing. */
+export const recurrenceLabel = (interval: "monthly" | "yearly" | null) =>
+  `Recorrência ${interval === "yearly" ? "anual" : "mensal"}`;
 
 /**
  * Deleting an invoice for good: a draft that never reached the bank, or a
@@ -171,6 +171,7 @@ function InvoiceActions({
   const [cancelling, setCancelling] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const deletable = admin && !!invoice.deletable;
+  const company = companyDisplayName(invoice.company, invoice.companyDocument);
   return (
     <RowActions
       label={invoice.description}
@@ -184,7 +185,7 @@ function InvoiceActions({
                 action={cancelDraft}
                 fields={{ id: invoice.id }}
                 title="Cancelar este rascunho?"
-                description={`A cobrança de ${currency(invoice.amountCents)} para ${invoice.company} não será emitida.`}
+                description={`A cobrança de ${currency(invoice.amountCents)} para ${company} não será emitida.`}
                 confirmLabel="Cancelar rascunho"
                 destructive
               />
@@ -192,7 +193,7 @@ function InvoiceActions({
             {deletable && (
               <DeleteInvoiceDialog
                 invoice={invoice}
-                company={invoice.company}
+                company={company}
                 recurring={invoice.recurring}
                 open={deleting}
                 onOpenChange={setDeleting}
@@ -279,7 +280,7 @@ export function InvoicesTable({
   today: string;
   admin: boolean;
   showCompany: boolean;
-  companyFilter?: { id: string; name: string } | null;
+  companyFilter?: { id: string; name: string; document?: string | null } | null;
   /** The page's own buttons, at the right end of the toolbar. */
   actions?: ReactNode;
 }) {
@@ -324,7 +325,7 @@ export function InvoicesTable({
             {companyFilter && (
               <FilterChip
                 icon={<Building2Icon />}
-                label={companyFilter.name}
+                label={companyDisplayName(companyFilter.name, companyFilter.document)}
                 removeHref={href({ company: "", page: 1 })}
               />
             )}
@@ -436,20 +437,27 @@ export function InvoicesTable({
                               {dateLabel(invoice.dueDate)}
                             </span>
                           </span>
-                          <span className="hidden min-w-0 items-center gap-1 md:flex">
-                            {invoice.recurring && (
-                              <Repeat2Icon className="size-3 shrink-0" aria-hidden="true" />
-                            )}
-                            <span className="truncate">
-                              {companyInSubtitle && `${invoice.company} · `}
-                              {billingTypeLabel(invoice.recurring, invoice.interval)}
+                          {/* A one-off charge is the usual case: only a recurrence is said. */}
+                          {(invoice.recurring || companyInSubtitle) && (
+                            <span className="hidden min-w-0 items-center gap-1 md:flex">
+                              {invoice.recurring && (
+                                <Repeat2Icon className="size-3 shrink-0" aria-hidden="true" />
+                              )}
+                              <span className="truncate">
+                                {[
+                                  companyInSubtitle && companyDisplayName(invoice.company, invoice.companyDocument),
+                                  invoice.recurring && recurrenceLabel(invoice.interval),
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
                             </span>
-                          </span>
+                          )}
                         </>
                       }
                     />
                     {companyColumn && (
-                      <CompanyCell>{invoice.company}</CompanyCell>
+                      <CompanyCell>{companyDisplayName(invoice.company, invoice.companyDocument)}</CompanyCell>
                     )}
                     <TableCell>
                       <InvoiceStatusBadge status={invoice.display} />

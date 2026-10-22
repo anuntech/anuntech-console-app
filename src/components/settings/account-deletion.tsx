@@ -46,7 +46,7 @@ export function AccountDeletion({
       <p className="max-w-prose text-sm text-muted-foreground">
         {owner
           ? "A conta do proprietário do Console não pode ser excluída. Transfira a administração antes."
-          : "Seus dados pessoais são apagados e você perde o acesso a todas as empresas. Não dá para desfazer."}
+          : "Seus dados pessoais são apagados e você perde o acesso a todas as empresas. O que você registrou fica com o autor “Conta excluída”. Não dá para desfazer."}
       </p>
       <Button
         variant="outline"

@@ -13,7 +13,6 @@ import { TwoStepSettings } from "./two-step-settings";
 
 const statusLabel: Record<string, string> = {
   current: "Esta sessão",
-  active: "Ativa",
   expired: "Expirada",
   ended: "Encerrada",
 };
@@ -33,7 +32,7 @@ export async function SecuritySection() {
         <CardHeader>
           <SectionTitle
             title="Sessões recentes"
-            description="Onde sua conta esteve aberta. Sessões antigas expiram sozinhas."
+            description="Sessões antigas expiram sozinhas."
           />
         </CardHeader>
         <CardContent className="px-0">
@@ -56,18 +55,17 @@ export async function SecuritySection() {
                       ` · ativa até ${dateTimeLabel(entry.expiresAt)}`}
                   </span>
                 </span>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-xs font-medium",
-                    entry.status === "current"
-                      ? "bg-accent text-primary"
-                      : entry.status === "active"
-                        ? "bg-success-soft text-success"
-                        : "bg-secondary text-muted-foreground",
-                  )}
-                >
-                  {statusLabel[entry.status] ?? entry.status}
-                </span>
+                {/* "ativa até" already says an open session is active: only this one and the closed ones get a badge. */}
+                {entry.status !== "active" && (
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium",
+                      entry.status === "current" ? "bg-accent text-primary" : "bg-secondary text-muted-foreground",
+                    )}
+                  >
+                    {statusLabel[entry.status] ?? entry.status}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

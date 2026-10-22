@@ -50,5 +50,7 @@ next-env.d.ts
 # Certificados e chaves privados locais
 certificates/
 
-# Sessão local de design (scripts/design-fixtures.mjs)
+# Sessões e ids locais de design (scripts/design-fixtures.mjs)
 .design-session
+.design-session-client
+.design-ids.json

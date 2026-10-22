@@ -89,7 +89,8 @@ export default async function Quote({ params }: { params: Promise<{ id: string }
           hash: v.hash,
           current: q.status !== "draft" && v.hash === q.documentHash,
         })),
-        viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email },
+        // A client with a single company is not named back to itself.
+        viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email, companies: actor.admin ? 0 : actor.grants.length },
         events: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString() })),
         handoff,
         journey: actor.admin ? ((await db.select({ id: journeys.id }).from(journeys).where(eq(journeys.quoteId, q.id)))[0] ?? null) : undefined,

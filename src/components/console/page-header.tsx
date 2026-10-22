@@ -7,14 +7,19 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
 /**
  * The one page header used by every redesigned screen: optional breadcrumb
- * trail, title with an optional count, one-line description, actions on the
- * right. Keeping the grammar identical across screens is the point.
+ * trail, title with an optional count, one line of facts (`meta`), one-line
+ * description, actions on the right. Keeping the grammar identical across
+ * screens is the point.
+ *
+ * One fact, one place: the breadcrumb shows only the way back (parents with a
+ * link); a last crumb without `href` is the current page, which the h1
+ * already names, so it is not drawn. `meta` drops empty items, so a missing
+ * value leaves no gap or dangling separator.
  *
  * It rises into place when the page arrives (bridging the loading skeleton);
  * it persists across filter and page changes, so it does not replay.
@@ -23,15 +28,23 @@ export function PageHeader({
   crumbs,
   title,
   count,
+  meta,
   description,
   actions,
   leading,
   actionsInline = false,
   className,
 }: {
+  /** Parents only. A trailing crumb without `href` (the page itself) is dropped: the h1 names it. */
   crumbs?: { label: string; href?: string }[];
   title: ReactNode;
   count?: number;
+  /**
+   * Short facts under the title, in this order: status badge, the record it
+   * belongs to (company or project link), one key value. Falsy items are
+   * skipped. Each fact appears here or in the page body, never both.
+   */
+  meta?: ReactNode[];
   description?: ReactNode;
   actions?: ReactNode;
   /** Identity slot rendered before the title (avatar, status). */
@@ -40,12 +53,14 @@ export function PageHeader({
   actionsInline?: boolean;
   className?: string;
 }) {
+  const trail = crumbs?.at(-1)?.href ? crumbs : crumbs?.slice(0, -1);
+  const facts = meta?.filter((item) => item !== null && item !== undefined && item !== false && item !== "");
   return (
     <header className={cn("reveal mb-7 flex flex-col gap-4", className)}>
-      {crumbs && crumbs.length > 0 && (
+      {trail && trail.length > 0 && (
         <Breadcrumb>
           <BreadcrumbList className="text-xs">
-            {crumbs.map((crumb, index) => (
+            {trail.map((crumb, index) => (
               <Fragment key={`${crumb.label}-${index}`}>
                 {index > 0 && <BreadcrumbSeparator />}
                 <BreadcrumbItem>
@@ -54,8 +69,8 @@ export function PageHeader({
                       <Link href={crumb.href}>{crumb.label}</Link>
                     </BreadcrumbLink>
                   ) : (
-                    // The full title is the h1 below; on a phone the trail stays on one line.
-                    <BreadcrumbPage className="max-w-[24ch] truncate sm:max-w-[48ch]">{crumb.label}</BreadcrumbPage>
+                    // A parent without its own page (a group); on a phone the trail stays on one line.
+                    <span className="max-w-[24ch] truncate sm:max-w-[48ch]">{crumb.label}</span>
                   )}
                 </BreadcrumbItem>
               </Fragment>
@@ -80,6 +95,14 @@ export function PageHeader({
                 </span>
               )}
             </h1>
+            {facts && facts.length > 0 && (
+              // Spaced, not dotted: a dot left at the end of a wrapped line dangles.
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                {facts.map((fact, index) => (
+                  <Fragment key={index}>{fact}</Fragment>
+                ))}
+              </div>
+            )}
             {description && (
               <p className="mt-1 max-w-[70ch] text-sm text-muted-foreground">
                 {description}

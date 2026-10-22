@@ -23,8 +23,9 @@ import {
 } from "./settings-nav";
 
 /**
- * Every settings page shares this frame: a breadcrumb back to the account,
- * the section title with the section's create action on the right, the
+ * Every settings page shares this frame: a breadcrumb back to the account
+ * (except on the account itself), the section title with the section's
+ * create action on the right, the
  * rail of categories the viewer may open, and the section's cards. Sections
  * guard their own data access.
  */
@@ -37,6 +38,7 @@ export async function SettingsShell({
 }: {
   section: SettingsSection;
   title: string;
+  /** Only a rule or consequence the cards do not already say. */
   description?: ReactNode;
   /** The section's create button, beside the title like every list page. */
   actions?: ReactNode;
@@ -139,7 +141,8 @@ export async function SettingsShell({
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Configurações", href: "/conta" }, { label: title }]}
+        // "Configurações" opens Minha conta: on that page the crumb would point at itself.
+        crumbs={section === "account" ? undefined : [{ label: "Configurações", href: "/conta" }]}
         title={title}
         description={description}
         actions={actions}

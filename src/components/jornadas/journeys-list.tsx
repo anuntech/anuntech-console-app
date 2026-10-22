@@ -56,6 +56,11 @@ export function JourneysList({
     return query ? `/jornadas?${query}` : "/jornadas";
   };
   const filtered = !!search || status !== "active";
+  // The filter already names the situation; when the list mixes them, only the exceptions (paused, done, lost) get a badge.
+  const showStatus = (row: JourneyListRow) => status === "all" && row.status !== "active";
+  // "Portal do paciente da Clínica Vida Plena" already says who it is for.
+  const fold = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt-BR");
+  const whoLine = (row: JourneyListRow) => (!row.lead && fold(row.title).includes(fold(row.who)) ? undefined : row.who);
   return (
     <ListCard
       fill
@@ -88,12 +93,12 @@ export function JourneysList({
               key={row.id}
               href={`/jornadas/${row.id}`}
               // The client's own tile, as in Empresas; a lead has no company yet.
-              leading={row.lead ? <CardTile><UserRoundIcon /></CardTile> : <CompanyTile name={row.who} />}
+              leading={row.lead ? <CardTile><UserRoundIcon /></CardTile> : <CompanyTile name={row.tile ?? row.who} />}
               title={row.title}
-              subtitle={row.who}
+              subtitle={whoLine(row)}
               footer={
                 <>
-                  <JourneyStatusBadge status={row.status} />
+                  {showStatus(row) && <JourneyStatusBadge status={row.status} />}
                   <Stalled row={row} />
                   <time dateTime={row.updatedAt} title={dateTimeLabel(row.updatedAt)} className="ml-auto shrink-0">
                     {relativeLabel(row.updatedAt, now)}
@@ -130,10 +135,10 @@ export function JourneysList({
           <TableBody>
             {rows.map((row) => (
               <LinkRow key={row.id} href={`/jornadas/${row.id}`}>
-                <PrimaryCell href={`/jornadas/${row.id}`} title={row.title} subtitle={row.who} />
+                <PrimaryCell href={`/jornadas/${row.id}`} title={row.title} subtitle={whoLine(row)} />
                 <TableCell className="hidden md:table-cell">
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <JourneyStatusBadge status={row.status} />
+                    {showStatus(row) && <JourneyStatusBadge status={row.status} />}
                     <span className="text-sm text-foreground">{row.stage}</span>
                     <Stalled row={row} />
                   </span>

@@ -80,7 +80,7 @@ export async function onboardingMissing(companyId: string): Promise<OnboardingSt
     !facts.billingReady && { key: "billing", label: "Completar o cadastro para cobrar (documento e endereço)", href: `${page}?editar=1` },
     !facts.manager && { key: "manager", label: "Convidar o Administrador do cliente", href: `${page}#pessoas` },
     facts.manager && !facts.managerSignedIn && { key: "manager-login", label: "O Administrador ainda não entrou: confira o e-mail ou reenvie o convite", href: `${page}#pessoas` },
-    !facts.billingContacts && { key: "billing-contacts", label: "O cliente ainda não escolheu quem recebe os avisos de cobrança (Notificações, no Console dele)" },
+    !facts.billingContacts && { key: "billing-contacts", label: "Ninguém recebe os avisos de cobrança. O cliente escolhe em Notificações." },
     !item && { key: "engagement", label: "Vincular o produto, serviço ou projeto", href: `/produtos/novo?companyId=${companyId}` },
     !contract && { key: "contract", label: "Contrato assinado no Console", href: `/contratos/novo?companyId=${companyId}` },
     contract && contract.status !== "signed" && { key: "contract", label: "Contrato enviado, esperando a assinatura", href: `/contratos/${contract.id}` },

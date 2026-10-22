@@ -8,7 +8,10 @@ export type ContractRow = {
   parentId: string | null;
   parentTitle: string | null;
   companyId: string;
+  /** Razão social, as stored; lists show its display name. */
   company: string;
+  /** CNPJ/CPF, so a MEI's number can come off its name on screen. */
+  companyDocument?: string | null;
   engagement: string | null;
   status: ContractStatus;
   startsAt: string | null;

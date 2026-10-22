@@ -21,6 +21,7 @@ import {
   Trash2Icon,
   UserRoundIcon,
 } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -52,7 +53,6 @@ import {
 import {
   PageHeader,
   SectionTitle,
-  EmptyState,
 } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
 import { FormField } from "@/components/console/form-field";
@@ -66,11 +66,12 @@ import {
 import { RoleSelect } from "@/components/settings/member-actions";
 import { EngagementScopeField, scopeSummary, type MemberScope, type ScopeEngagement } from "@/components/settings/member-access-fields";
 import { CompanySheet } from "./company-sheet";
-import { StatusDot } from "./companies-table";
 import { CompanyTile } from "./company-tile";
 import { DeleteCompanyDialog } from "./delete-company-dialog";
 import type { CompanyFormValues } from "./company-form";
-import { formatDocument, formatPhone } from "@/lib/companies/company-input";
+import { formatDocument, formatPhone, onlyDigits } from "@/lib/companies/company-input";
+import { companyDisplayName } from "@/lib/companies/display-name";
+import { Disclosure } from "@/components/console/disclosure";
 import { addressLabel } from "@/lib/companies/company-billing";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -143,7 +144,7 @@ function RelationRow({
   href: string;
   icon: ReactNode;
   label: string;
-  value: ReactNode;
+  value: number;
   hint?: ReactNode;
 }) {
   return (
@@ -162,7 +163,7 @@ function RelationRow({
           <span className="block text-xs text-muted-foreground">{hint}</span>
         )}
       </span>
-      <span className="text-sm font-medium tabular-nums text-foreground">
+      <span className={cn("text-sm font-medium tabular-nums", value ? "text-foreground" : "text-muted-foreground")}>
         {value}
       </span>
       <ChevronRightIcon className="size-4 text-muted-foreground/60 group-hover:text-primary" />
@@ -203,8 +204,8 @@ function GrantAccessDialog({
           <DialogHeader>
             <DialogTitle>Liberar acesso</DialogTitle>
             <DialogDescription>
-              A pessoa entra com esse e-mail (código ou Google) e recebe um
-              convite. Vale só para {companyName}.
+              A pessoa recebe um convite e entra com esse e-mail (código ou
+              Google). Vale só para {companyName}.
             </DialogDescription>
           </DialogHeader>
           <FormError />
@@ -366,6 +367,47 @@ function MemberMenu({
   );
 }
 
+type HistoryItem = { id: string; action: string; createdAt: string; times: number };
+
+/** Events of the same kind on the same day, as one line (newest first, as they arrive). */
+function groupEvents(events: CompanyDetailData["events"]) {
+  const items: HistoryItem[] = [];
+  const byKey = new Map<string, HistoryItem>();
+  for (const event of events) {
+    const key = `${dateLabel(event.createdAt)}|${event.action}`;
+    const same = byKey.get(key);
+    if (same) same.times += 1;
+    else {
+      const item = { ...event, times: 1 };
+      byKey.set(key, item);
+      items.push(item);
+    }
+  }
+  return items;
+}
+
+function HistoryList({ items }: { items: HistoryItem[] }) {
+  return (
+    <ol className="relative m-0 flex list-none flex-col gap-4 border-l border-border p-0 pl-5">
+      {items.map((event) => (
+        <li key={event.id} className="relative text-sm">
+          <span
+            aria-hidden="true"
+            className="absolute top-1.5 -left-[25px] size-2.5 rounded-full border-2 border-card bg-primary/70"
+          />
+          <span className="block text-foreground">
+            {auditLabels[event.action] || "Registro atualizado"}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            <time dateTime={event.createdAt}>{dateLabel(event.createdAt)}</time>
+            {event.times > 1 && `, ${event.times} vezes`}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function CompanyDetail({
   data,
   editorOpen = false,
@@ -403,28 +445,20 @@ export function CompanyDetail({
     setTimeout(() => setConfirm(which), 0);
   // The page is staff-only; the rule decides whether the company can go.
   const deletable = canDeleteCompany(deleteLinks);
+  // The name people read; the razão social and the document stay in Cadastro, once.
+  const displayName = companyDisplayName(company.name, company.document);
+  const person = onlyDigits(company.document).length === 11;
+  // Events of the same kind on the same day read as one line ("Tarefa criada", 6 vezes).
+  const history = groupEvents(events);
 
   return (
     <>
       <PageHeader
-        crumbs={[
-          { label: "Empresas", href: "/empresas" },
-          { label: company.name },
-        ]}
-        leading={
-<CompanyTile name={company.name} size="lg" />
-        }
-        title={company.name}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {/* Spaced, not dotted: a dot left at the end of a wrapped line dangles. */}
-            <span className="tabular-nums">
-              {formatDocument(company.document)}
-            </span>
-            <StatusDot archived={company.archived} />
-            <span>Cliente desde {dateLabel(company.createdAt)}</span>
-          </span>
-        }
+        crumbs={[{ label: "Empresas", href: "/empresas" }]}
+        leading={<CompanyTile name={company.name} size="lg" />}
+        title={displayName}
+        // Archived is said once, by the notice below with its "Restaurar"; an active client needs no badge.
+        meta={[<span key="since">Cliente desde {dateLabel(company.createdAt)}</span>]}
         actionsInline
         actions={
           <>
@@ -490,15 +524,12 @@ export function CompanyDetail({
 
       {company.archived && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning">
-          <span>
-            Cliente arquivado. Ele não aparece na lista de ativos, mas
-            histórico, acessos e cobranças continuam aqui.
-          </span>
+          <span>Cliente arquivado. Histórico, acessos e cobranças continuam aqui.</span>
           <ConfirmAction
             action={setCompanyArchived}
             fields={{ id: company.id, archived: "no" }}
             title="Restaurar cliente?"
-            description={`${company.name} volta para a lista de clientes ativos.`}
+            description={`${displayName} volta para a lista de clientes ativos.`}
             confirmLabel="Restaurar"
           >
             <Button size="sm" variant="outline">
@@ -515,7 +546,6 @@ export function CompanyDetail({
             <CardHeader>
               <SectionTitle
                 title="Cadastro"
-                description="Dados usados em cobranças, contratos e notas fiscais."
                 action={
                   <Button
                     size="sm"
@@ -528,40 +558,35 @@ export function CompanyDetail({
                 }
               />
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-5">
+              {/* The registry data, as documents carry it: the only place for the full name and the document. */}
               <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-                <Fact label="Razão social">{company.name}</Fact>
-                <Fact label="CNPJ">
+                <Fact label={person ? "Nome" : "Razão social"}>{company.name}</Fact>
+                <Fact label={person ? "CPF" : "CNPJ"}>
                   <span className="tabular-nums">
                     {formatDocument(company.document)}
                   </span>
                 </Fact>
                 <Fact label="E-mail financeiro">{company.billingEmail}</Fact>
                 <Fact label="Telefone">
-                  {company.phone ? (
-                    formatPhone(company.phone)
-                  ) : (
-                    <span className="text-muted-foreground">Não informado</span>
-                  )}
+                  {company.phone && formatPhone(company.phone)}
                 </Fact>
                 <Fact label="Endereço de cobrança" className="sm:col-span-2">
-                  {company.billingAddress ? (
-                    addressLabel(company.billingAddress)
-                  ) : (
-                    <span className="text-muted-foreground">
-                      Ainda não cadastrado. Sem ele, não dá para emitir cobranças
-                      e notas.
-                    </span>
-                  )}
+                  {company.billingAddress && addressLabel(company.billingAddress)}
                 </Fact>
+                {/* Off is the default; only the exception is worth a line. */}
                 <Fact label="Nota fiscal automática">
-                  {company.autoIssueNfse ? (
-                    <Badge variant="secondary">Ativada</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">Desativada</span>
-                  )}
+                  {company.autoIssueNfse && "Ativada"}
                 </Fact>
               </dl>
+              {!company.billingAddress && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-edge bg-warning-soft px-3 py-2.5 text-sm text-warning">
+                  <span>Falta o endereço de cobrança. Sem ele, a cobrança e a nota não saem.</span>
+                  <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                    Cadastrar endereço
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -571,16 +596,17 @@ export function CompanyDetail({
                 title={
                   <span className="flex items-center gap-2">
                     Pessoas com acesso
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium tabular-nums text-secondary-foreground">
-                      {members.length}
-                    </span>
+                    {members.length > 0 && (
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium tabular-nums text-secondary-foreground">
+                        {members.length}
+                      </span>
+                    )}
                   </span>
                 }
-                description="Quem entra no Console em nome desta empresa."
                 action={
                   <GrantAccessDialog
                     companyId={company.id}
-                    companyName={company.name}
+                    companyName={displayName}
                     engagements={data.scopeEngagements}
                   />
                 }
@@ -592,8 +618,7 @@ export function CompanyDetail({
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="pl-6">Pessoa</TableHead>
-                      <TableHead>Permissão</TableHead>
-                      <TableHead>Situação</TableHead>
+                      <TableHead className="hidden md:table-cell">Permissão</TableHead>
                       <TableHead className="w-12 pr-4">
                         <span className="sr-only">Ações</span>
                       </TableHead>
@@ -602,9 +627,10 @@ export function CompanyDetail({
                   <TableBody>
                     {members.map((member) => (
                       <TableRow key={member.id}>
-                        <TableCell className="pl-6">
-                          <span className="flex items-center gap-3">
-                            <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                        {/* max-w-0 + w-full: the name and e-mail truncate instead of pushing the menu off a phone. */}
+                        <TableCell className="w-full max-w-0 min-w-40 pl-6">
+                          <span className="flex min-w-0 items-center gap-3">
+                            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
                               <UserRoundIcon className="size-4" />
                             </span>
                             <span className="min-w-0">
@@ -616,10 +642,21 @@ export function CompanyDetail({
                                   {member.email}
                                 </span>
                               )}
+                              {/* Signed in is the normal state; only the one still waiting is said. */}
+                              {!member.verified && (
+                                <span className="block text-xs font-medium text-warning">
+                                  Aguardando primeiro acesso
+                                </span>
+                              )}
+                              {/* Phones have no Permissão column: the role rides under the person. */}
+                              <span className="block truncate text-xs text-muted-foreground md:hidden">
+                                {roleLabels[member.role] || member.role}
+                                {member.role === "member" && member.scope?.access === "selected" && ` · Vê: ${scopeSummary(member.scope)}`}
+                              </span>
                             </span>
                           </span>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           <span className="flex flex-col items-start gap-1">
                             <Badge
                               variant={
@@ -630,21 +667,16 @@ export function CompanyDetail({
                             >
                               {roleLabels[member.role] || member.role}
                             </Badge>
-                            {member.role === "member" && member.scope && (
+                            {member.role === "member" && member.scope?.access === "selected" && (
                               <span className="text-xs text-muted-foreground">{`Vê: ${scopeSummary(member.scope)}`}</span>
                             )}
                           </span>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {member.verified
-                            ? "Ativo"
-                            : "Aguardando primeiro acesso"}
                         </TableCell>
                         <TableCell className="pr-4 text-right">
                           <MemberMenu
                             member={member}
                             companyId={company.id}
-                            companyName={company.name}
+                            companyName={displayName}
                             engagements={data.scopeEngagements}
                           />
                         </TableCell>
@@ -652,13 +684,15 @@ export function CompanyDetail({
                     ))}
                   </TableBody>
                 </Table>
+              ) : company.archived ? (
+                <p className="m-0 px-6 text-sm text-muted-foreground">Ninguém tem acesso.</p>
               ) : (
-                <EmptyState
-                  icon={<UserRoundIcon />}
-                  title="Próximo passo: convide o Administrador"
-                  description="Só o Administrador assina contratos, responde orçamentos e vê as faturas. Libere o e-mail que ele usa; o convite sai automaticamente."
-                  className="py-10"
-                />
+                <div className="px-6 text-sm">
+                  <p className="m-0 font-medium text-foreground">Convide o Administrador</p>
+                  <p className="m-0 mt-0.5 max-w-[60ch] text-muted-foreground">
+                    Só ele assina contratos, responde orçamentos e vê as faturas. O convite sai quando você libera o e-mail.
+                  </p>
+                </div>
               )}
               {members.length > 0 && !members.some((member) => member.role === "manager") && (
                 <p className="mx-6 mt-3 mb-0 rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-xs text-warning">
@@ -668,51 +702,28 @@ export function CompanyDetail({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <SectionTitle
-                title="Histórico"
-                description="Últimas alterações registradas neste cadastro."
-              />
-            </CardHeader>
-            <CardContent>
-              {events.length ? (
-                <ol className="relative flex flex-col gap-4 border-l border-border pl-5">
-                  {events.map((event) => (
-                    <li key={event.id} className="relative text-sm">
-                      <span
-                        aria-hidden="true"
-                        className="absolute top-1.5 -left-[25px] size-2.5 rounded-full border-2 border-card bg-primary/70"
-                      />
-                      <span className="block text-foreground">
-                        {auditLabels[event.action] || "Registro atualizado"}
-                      </span>
-                      <time
-                        dateTime={event.createdAt}
-                        className="text-xs text-muted-foreground"
-                      >
-                        {dateLabel(event.createdAt)}
-                      </time>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma alteração registrada.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          {history.length > 0 && (
+            <Card>
+              <CardHeader>
+                <SectionTitle title="Histórico" />
+              </CardHeader>
+              <CardContent>
+                <HistoryList items={history.slice(0, 5)} />
+                {history.length > 5 && (
+                  <Disclosure summary={`Ver todos (${history.length})`} className="mt-4">
+                    <HistoryList items={history.slice(5)} />
+                  </Disclosure>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">
           {termsCard}
           <Card variant="quiet">
             <CardHeader>
-              <SectionTitle
-                title="Relacionamento"
-                description="O que está em andamento com este cliente."
-              />
+              <SectionTitle title="Relacionamento" />
             </CardHeader>
             <CardContent className="flex flex-col">
               <RelationRow
@@ -767,7 +778,7 @@ export function CompanyDetail({
         action={startAssistedSession}
         fields={{ companyId: company.id }}
         title="Entrar como esta empresa?"
-        description={`Você passa a ver e usar o Console exatamente como ${company.name}, com acesso completo. Suas telas de administrador ficam ocultas até você sair do modo assistido.`}
+        description={`Você passa a ver e usar o Console exatamente como ${displayName}, com acesso completo. Suas telas de administrador ficam ocultas até você sair do modo assistido.`}
         confirmLabel="Entrar como esta empresa"
       />
       <ConfirmDialog
@@ -778,8 +789,8 @@ export function CompanyDetail({
         title={company.archived ? "Restaurar cliente?" : "Arquivar cliente?"}
         description={
           company.archived
-            ? `${company.name} volta para a lista de clientes ativos.`
-            : `${company.name} sai da lista de ativos. O histórico fica guardado e você pode restaurar o cliente depois.`
+            ? `${displayName} volta para a lista de clientes ativos.`
+            : `${displayName} sai da lista de ativos. O histórico fica guardado e dá para restaurar depois.`
         }
         confirmLabel={company.archived ? "Restaurar" : "Arquivar"}
         destructive={!company.archived}

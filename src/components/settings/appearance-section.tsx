@@ -52,7 +52,7 @@ export function AppearanceSection() {
     <>
       <Card>
         <CardHeader>
-          <SectionTitle title="Tema" description="Claro, escuro ou o que o sistema usar." />
+          <SectionTitle title="Tema" />
         </CardHeader>
         <CardContent>
           <fieldset className="grid grid-cols-3 gap-2 sm:max-w-md">
@@ -76,10 +76,7 @@ export function AppearanceSection() {
       </Card>
       <Card>
         <CardHeader>
-          <SectionTitle
-            title="Posição do menu"
-            description="Onde o menu do Console fica na tela."
-          />
+          <SectionTitle title="Posição do menu" />
         </CardHeader>
         <CardContent>
           <fieldset className="grid grid-cols-2 gap-2 sm:max-w-md sm:grid-cols-4">

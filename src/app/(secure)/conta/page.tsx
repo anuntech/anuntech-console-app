@@ -11,7 +11,6 @@ export default function AccountPage() {
     <SettingsShell
       section="account"
       title="Minha conta"
-      description="Seu perfil e os contatos usados para entrar."
     >
       <AccountSection />
     </SettingsShell>

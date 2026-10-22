@@ -256,15 +256,17 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
         </Note>
       )}
 
-      <p className="m-0 text-xs leading-5 text-muted-foreground">
-        Tarefa de projeto em andamento? Comente na própria tarefa. O que você pedir por WhatsApp ou telefone, a equipe registra num
-        chamado.{" "}
-        {/* A new tab: this form keeps no draft. */}
-        <Link href="/ajuda/tipos-de-chamado" target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
-          Qual tipo escolher
-          <span className="sr-only"> (abre em nova aba)</span>
-        </Link>
-      </p>
+      {/* The team records requests from outside the Console with "Recebido por"; these tips are the client's. */}
+      {!staff && (
+        <p className="m-0 text-xs leading-5 text-muted-foreground">
+          Tarefa de projeto em andamento? Comente na própria tarefa.{" "}
+          {/* A new tab: this form keeps no draft. */}
+          <Link href="/ajuda/tipos-de-chamado" target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
+            Qual tipo escolher
+            <span className="sr-only"> (abre em nova aba)</span>
+          </Link>
+        </p>
+      )}
     </>
   );
 }

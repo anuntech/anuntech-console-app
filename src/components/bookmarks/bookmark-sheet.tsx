@@ -71,16 +71,17 @@ export function BookmarkSheet({
         onOpenChange={(open) => !open && onClose()}
         size="md"
         title={item ? "Editar bookmark" : kind === "board" ? "Nova lousa" : "Novo bookmark"}
+        // Only what the fields do not say: a new board opens right away; a file or a drawing is not edited here.
         description={
           !item
             ? kind === "board"
-              ? "Um quadro em branco para desenhar e anotar. Ele abre em seguida."
-              : `Um link ou um arquivo de até ${fileLimit}.`
+              ? "A lousa abre em seguida."
+              : undefined
             : itemKind === "file"
-              ? "Mude o título ou a pasta; o arquivo fica como está."
+              ? "O arquivo fica como está."
               : itemKind === "board"
-                ? "Mude o título ou a pasta; o desenho fica como está."
-                : "Mude o título, o link ou a pasta."
+                ? "O desenho fica como está."
+                : undefined
         }
         action={item ? updateBookmark : saveBookmark}
         onSuccess={onClose}
@@ -192,12 +193,7 @@ function BookmarkFields({
               </li>
             </FileChips>
           </div>
-        ) : itemKind === "board" ? (
-          <p className="flex items-center gap-2 rounded-lg border bg-field px-3 py-2.5 text-sm text-muted-foreground">
-            <PresentationIcon aria-hidden="true" className="size-4 shrink-0" />
-            Lousa desenhada no Console.
-          </p>
-        ) : (
+        ) : itemKind === "board" ? null : (
           linkField
         )
       ) : (

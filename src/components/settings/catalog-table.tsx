@@ -34,12 +34,16 @@ const intervalLabel = { monthly: "por mês", yearly: "por ano" } as const;
 
 const pill = "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap";
 
-/** Situation of a record that can be switched off (catalog items, contract templates). */
-export function ActiveStatus({ active }: { active: boolean }) {
+/**
+ * A record that was switched off (catalog items, contract templates), in
+ * front of its subtitle. Active is the normal case and gets no badge, so the
+ * list has no Situação column of identical "Ativo" pills.
+ */
+export function DisabledBadge() {
   return (
-    <span className={cn(pill, active ? "bg-success-soft text-success" : "bg-secondary text-muted-foreground")}>
-      <span aria-hidden="true" className={cn("size-1.5 rounded-full", active ? "bg-success" : "bg-muted-foreground/50")} />
-      {active ? "Ativo" : "Desativado"}
+    <span className={cn(pill, "mr-1.5 bg-secondary py-px align-middle text-muted-foreground")}>
+      <span aria-hidden="true" className="size-1.5 rounded-full bg-muted-foreground/50" />
+      Desativado
     </span>
   );
 }
@@ -79,7 +83,6 @@ export function CatalogTable({ rows, iconAi = false }: { rows: CatalogRow[]; ico
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="pl-4">Item</TableHead>
-                <TableHead>Situação</TableHead>
                 <TableHead className="hidden text-right md:table-cell">Valor</TableHead>
                 <TableHead className="w-12 pr-3">
                   <span className="sr-only">Ações</span>
@@ -92,17 +95,19 @@ export function CatalogTable({ rows, iconAi = false }: { rows: CatalogRow[]; ico
                   <PrimaryCell
                     onOpen={() => edit(row)}
                     title={row.name}
-                    subtitle={[
-                      row.kind === "product" ? "Produto" : "Serviço",
-                      row.kind === "product" && row.url ? row.url.replace(/^https?:\/\//, "") : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    subtitle={
+                      <>
+                        {!row.active && <DisabledBadge />}
+                        {[
+                          row.kind === "product" ? "Produto" : "Serviço",
+                          row.kind === "product" && row.url ? row.url.replace(/^https?:\/\//, "") : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </>
+                    }
                     leading={<ProductIcon src={catalogIconSrc(row.id, row.icon)} name={row.name} size={32} />}
                   />
-                  <TableCell>
-                    <ActiveStatus active={row.active} />
-                  </TableCell>
                   <TableCell className="hidden text-right whitespace-nowrap tabular-nums md:table-cell">
                     {row.defaultAmountCents != null ? (
                       <>

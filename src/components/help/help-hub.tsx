@@ -29,7 +29,16 @@ export function AdminOnly({ className = "" }: { className?: string }) {
   );
 }
 
-function ArticleRow({ article, showCategory = false }: { article: HelpArticle; showCategory?: boolean }) {
+function ArticleRow({
+  article,
+  showCategory = false,
+  markAdmin = false,
+}: {
+  article: HelpArticle;
+  showCategory?: boolean;
+  /** Only a Membro needs to know an article is the Administrador's; whoever administers already is. */
+  markAdmin?: boolean;
+}) {
   return (
     <li>
       <Link
@@ -40,7 +49,7 @@ function ArticleRow({ article, showCategory = false }: { article: HelpArticle; s
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-sm font-medium text-foreground group-hover:text-primary">{article.title}</span>
-            {article.audience === "administrador" && <AdminOnly />}
+            {markAdmin && article.audience === "administrador" && <AdminOnly />}
             {article.video && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary">
                 <PlayIcon aria-hidden="true" className="size-3 fill-current" />
@@ -78,7 +87,6 @@ export function NotFoundHelp({ viewer }: { viewer: HelpViewer }) {
     <Card className="gap-4 px-5 py-5 sm:px-6">
       <div>
         <h2 className="m-0 text-body font-medium text-foreground">Não encontrou o que procurava?</h2>
-        <p className="m-0 mt-1 text-sm text-muted-foreground">O assistente responde na hora, e a equipe da Anuntech pelo chamado ou pelo chat.</p>
       </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={openAssistant}>
@@ -135,7 +143,8 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
           right (a spreadsheet becoming a system) over the pixel field. */}
       <section className="relative isolate grid items-start gap-x-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]">
         <div className="flex min-w-0 flex-col">
-          <PageHeader className="mb-5" title="Ajuda" description="Tudo o que dá para fazer no Console, passo a passo, com as regras e os tutoriais em vídeo." />
+          {/* No description: the search, the videos and the subjects below already say what is here. */}
+          <PageHeader className="mb-5" title="Ajuda" />
           <div className="reveal flex flex-col gap-2 [--i:1]">
             <SearchField
               value={query}
@@ -145,11 +154,12 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
               className="max-w-2xl [&_input]:h-11 [&_input]:rounded-xl [&_input]:text-base"
             />
             <p className="m-0 text-xs text-muted-foreground" aria-live="polite">
-              {query.trim() ? (results.length ? `${results.length} ${results.length === 1 ? "artigo encontrado" : "artigos encontrados"}` : "Nenhum artigo encontrado") : `${articles.length} artigos sobre tudo o que dá para fazer no Console.`}
+              {query.trim() && results.length > 0 && `${results.length} ${results.length === 1 ? "artigo encontrado" : "artigos encontrados"}`}
             </p>
           </div>
         </div>
-        <div className="relative hidden px-4 py-6 lg:block">
+        {/* pr-12: the art's glow reaches past it; the extra room keeps it inside the page (no sideways scroll at 1440px). */}
+        <div className="relative hidden py-6 pr-12 pl-4 lg:block">
           <span aria-hidden="true" className="pixel-field pointer-events-none absolute inset-0 -z-10 [--pixel-from:55%_45%] [--pixel-strength:5.5%]" />
           <BrandArt name="planilha" glow className="w-full" />
         </div>
@@ -169,7 +179,7 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
             <Card className="py-2">
               <ul className="m-0 flex list-none flex-col p-1">
                 {results.map(({ article }) => (
-                  <ArticleRow key={article.slug} article={article} showCategory />
+                  <ArticleRow key={article.slug} article={article} showCategory markAdmin={!viewer.staff && !viewer.manager} />
                 ))}
               </ul>
             </Card>
@@ -219,12 +229,10 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
                 if (!items.length) return null;
                 return (
                   <Card key={category.id} id={category.id} className="mb-4 scroll-mt-6 break-inside-avoid gap-3 px-2 py-4">
-                    <div className="flex items-start gap-3 px-3">
+                    <div className="flex items-center gap-3 px-3">
                       <CategoryTile id={category.id} />
-                      <div className="min-w-0">
-                        <h3 className="m-0 text-body font-medium text-foreground">{category.title}</h3>
-                        <p className="m-0 text-xs leading-5 text-muted-foreground">{category.description}</p>
-                      </div>
+                      {/* The articles below are the description: a line restating them would be read twice. */}
+                      <h3 className="m-0 min-w-0 text-body font-medium text-foreground">{category.title}</h3>
                     </div>
                     <ul className="m-0 flex list-none flex-col p-0">
                       {items.map((article) => (

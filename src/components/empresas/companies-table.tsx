@@ -55,7 +55,8 @@ import {
   type CompanyQuery,
   type CompanyStatusFilter,
 } from "@/lib/companies/company-table";
-import { formatDocument, formatPhone } from "@/lib/companies/company-input";
+import { formatDocument, formatPhone, onlyDigits } from "@/lib/companies/company-input";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import type { CompanyAddress } from "@/lib/companies/company-billing";
 import { canDeleteCompany, type CompanyLinks } from "@/lib/deletion-rules";
 import { CompanySheet } from "./company-sheet";
@@ -113,9 +114,10 @@ function CompanyActions({
     setTimeout(() => setConfirm(which), 0);
   // The list is staff-only; the rule decides whether the company can go.
   const deletable = canDeleteCompany(company.links);
+  const name = companyDisplayName(company.name, company.document);
   return (
     <RowActions
-      label={company.name}
+      label={name}
       extra={
         <>
           <ConfirmDialog
@@ -124,7 +126,7 @@ function CompanyActions({
             action={startAssistedSession}
             fields={{ companyId: company.id }}
             title="Entrar como esta empresa?"
-            description={`Você passa a ver e usar o Console exatamente como ${company.name}, com acesso completo. Suas telas de administrador ficam ocultas até você sair do modo assistido.`}
+            description={`Você passa a ver e usar o Console exatamente como ${name}, com acesso completo. Suas telas de administrador ficam ocultas até você sair do modo assistido.`}
             confirmLabel="Entrar como esta empresa"
           />
           {company.archived && (
@@ -134,7 +136,7 @@ function CompanyActions({
               action={setCompanyArchived}
               fields={{ id: company.id, archived: "no" }}
               title="Restaurar cliente?"
-              description={`${company.name} volta para a lista de clientes ativos.`}
+              description={`${name} volta para a lista de clientes ativos.`}
               confirmLabel="Restaurar"
             />
           )}
@@ -225,6 +227,12 @@ export function CompaniesTable({
   const go = (patch: Partial<CompanyQuery>) =>
     router.push(href(patch), { scroll: false });
   const filtered = !!query.search || query.status !== "active";
+  // A list filtered by status says it in the filter; rows name it only when both kinds are mixed, and only the exception.
+  const archivedMark = (company: CompanyRow) => query.status === "all" && company.archived;
+  // The document stays in Cadastro; it comes back on a row only when the search was for a number.
+  const byNumber = onlyDigits(query.search).length >= 3;
+  const documentLine = (company: CompanyRow) =>
+    byNumber ? <span className="tabular-nums">{formatDocument(company.document)}</span> : undefined;
 
   return (
     <>
@@ -278,25 +286,27 @@ export function CompaniesTable({
                 key={company.id}
                 href={`/empresas/${company.id}`}
                 leading={<CompanyTile name={company.name} />}
-                title={company.name}
-                subtitle={<span className="tabular-nums">{formatDocument(company.document)}</span>}
+                title={companyDisplayName(company.name, company.document)}
+                subtitle={documentLine(company)}
                 actions={<CompanyActions company={company} onEdit={setEditing} />}
                 footer={
-                  <>
-                    <StatusDot archived={company.archived} />
-                    {company.openTickets > 0 && (
-                      <span className="ml-auto shrink-0 rounded-md bg-warning-soft px-2 py-0.5 font-medium text-warning tabular-nums">
-                        {company.openTickets} {company.openTickets === 1 ? "chamado aberto" : "chamados abertos"}
-                      </span>
-                    )}
-                  </>
+                  archivedMark(company) || company.openTickets > 0 ? (
+                    <>
+                      {archivedMark(company) && <StatusDot archived />}
+                      {company.openTickets > 0 && (
+                        <span className="ml-auto shrink-0 rounded-md bg-warning-soft px-2 py-0.5 font-medium text-warning tabular-nums">
+                          {company.openTickets} {company.openTickets === 1 ? "chamado aberto" : "chamados abertos"}
+                        </span>
+                      )}
+                    </>
+                  ) : undefined
                 }
               >
                 <div className="min-w-0">
                   <span className="block truncate text-foreground">{company.billingEmail}</span>
                   {/* The dot opens the next item, so a wrapped line never ends on one. */}
                   <span className="flex flex-wrap gap-x-1.5 text-muted-foreground tabular-nums [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
-                    <span>{company.phone ? formatPhone(company.phone) : "Sem telefone"}</span>
+                    {company.phone && <span>{formatPhone(company.phone)}</span>}
                     <span>
                       <PeopleLabel people={company.people} inCard />
                     </span>
@@ -310,7 +320,6 @@ export function CompaniesTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="pl-4">Empresa</TableHead>
-                <TableHead>Situação</TableHead>
                 <TableHead className="hidden md:table-cell">Contato financeiro</TableHead>
                 <TableHead className="hidden md:table-cell">Acesso</TableHead>
                 <TableHead className="hidden md:table-cell">Chamados</TableHead>
@@ -325,35 +334,28 @@ export function CompaniesTable({
                   <PrimaryCell
                     href={`/empresas/${company.id}`}
                     leading={<CompanyTile name={company.name} size="sm" />}
-                    title={company.name}
-                    subtitle={
-                      <span className="tabular-nums">
-                        {formatDocument(company.document)}
-                      </span>
-                    }
+                    title={companyDisplayName(company.name, company.document)}
+                    subtitle={archivedMark(company) ? <StatusDot archived /> : documentLine(company)}
                   />
-                  <TableCell>
-                    <StatusDot archived={company.archived} />
-                  </TableCell>
                   <TableCell className="hidden max-w-[18rem] md:table-cell">
                     <span className="block truncate text-foreground">
                       {company.billingEmail}
                     </span>
-                    <span className="block text-xs text-muted-foreground tabular-nums">
-                      {company.phone ? formatPhone(company.phone) : "Sem telefone"}
-                    </span>
+                    {company.phone && (
+                      <span className="block text-xs text-muted-foreground tabular-nums">
+                        {formatPhone(company.phone)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground tabular-nums md:table-cell">
                     <PeopleLabel people={company.people} />
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {company.openTickets ? (
+                    {company.openTickets > 0 && (
                       <span className="inline-flex items-center gap-1.5 rounded-md bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning tabular-nums">
                         {company.openTickets}{" "}
                         {company.openTickets === 1 ? "aberto" : "abertos"}
                       </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <CompanyActions company={company} onEdit={setEditing} />

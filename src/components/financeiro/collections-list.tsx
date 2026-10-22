@@ -17,6 +17,7 @@ import { currency, dateLabel, dateTimeLabel } from "@/lib/format";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
 import { SuspensionStageBadge, useSuspension } from "@/components/produtos/suspension";
 import type { SuspensionView } from "@/lib/suspensions/suspension-view";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 /** An overdue client's product, to suspend from here (lib/suspensions). */
 export type CollectionProduct = { id: string; name: string; status: string; companyId: string; appPage: string | null; suspension?: SuspensionView };
@@ -32,7 +33,7 @@ function ContactDialog({ item, open, onOpenChange }: { item: CollectionCase; ope
           <input type="hidden" name="companyId" value={item.companyId} />
           <DialogHeader>
             <DialogTitle>Registrar contato</DialogTitle>
-            <DialogDescription>{item.company}</DialogDescription>
+            <DialogDescription>{companyDisplayName(item.company, item.companyDocument)}</DialogDescription>
           </DialogHeader>
           <FormError />
           <FormField label="O que foi combinado" htmlFor={`note-${item.companyId}`}>
@@ -55,7 +56,7 @@ function ContactDialog({ item, open, onOpenChange }: { item: CollectionCase; ope
   );
 }
 
-type Marked = { id: string; description: string; company: string; amountCents: number; dueDate: string };
+type Marked = { id: string; description: string; company: string; companyDocument: string; amountCents: number; dueDate: string };
 
 /** One card per overdue client: what is owed, what the contract allows, what was agreed, and a text to adapt. */
 export function CollectionsList({
@@ -114,7 +115,7 @@ export function CollectionsList({
                     <Link href={`/financeiro/${invoice.id}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 px-6 py-2.5 text-sm transition-colors hover:bg-accent">
                       <span className="min-w-0">
                         <span className="block text-foreground">{invoice.description}</span>
-                        <span className="block text-xs text-muted-foreground">{invoice.company}</span>
+                        <span className="block text-xs text-muted-foreground">{companyDisplayName(invoice.company, invoice.companyDocument)}</span>
                       </span>
                       <span className="flex gap-x-3 text-muted-foreground tabular-nums">
                         <span className="font-medium text-foreground">{currency(invoice.amountCents)}</span>
@@ -153,7 +154,7 @@ function CaseCards({
           <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <Link href={`/empresas/${item.companyId}`} className="text-body font-medium text-foreground transition-colors hover:text-primary">
-                {item.company}
+                {companyDisplayName(item.company, item.companyDocument)}
               </Link>
               {/* Separate items, not "a · b": a wrapped line never starts with a dot. */}
               <p className="m-0 mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
@@ -180,7 +181,8 @@ function CaseCards({
                     {invoice.description}
                   </Link>
                   <span className="flex gap-x-3 text-muted-foreground tabular-nums">
-                    <span className="text-foreground">{currency(invoice.amountCents)}</span>
+                    {/* With one invoice its value is the total above. */}
+                    {item.invoices.length > 1 && <span className="text-foreground">{currency(invoice.amountCents)}</span>}
                     <span>venceu em {dateLabel(invoice.dueDate)}</span>
                   </span>
                 </li>

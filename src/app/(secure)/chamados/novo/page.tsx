@@ -14,13 +14,14 @@ export default async function NewTicket({
   searchParams: NewTicketSearchParams;
 }) {
   const context = await newTicketContext(searchParams);
+  // No description: the form's first question asks what the person needs, and the
+  // "App ou projeto novo" option already says the team prepares a quote.
   const quote = context.kind === "new_project";
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Chamados", href: "/chamados" }, { label: quote ? "Pedir orçamento" : "Novo" }]}
+        crumbs={[{ label: "Chamados", href: "/chamados" }]}
         title={quote ? "Pedir orçamento" : "Novo chamado"}
-        description={quote ? "Conte o que você precisa. A equipe conversa com você e prepara um orçamento." : "Como podemos ajudar?"}
       />
       <NewTicketForm context={context} />
     </>

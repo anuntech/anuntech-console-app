@@ -37,7 +37,8 @@ export function QuoteDocument({ data, className }: { data: QuoteDocumentData; cl
     <article className={cn("flex flex-col gap-8", className)}>
       <header>
         <Eyebrow>Backlog técnico · Proposta comercial</Eyebrow>
-        <h1 className="m-0 mt-2 text-2xl font-semibold tracking-tight text-foreground">{data.title}</h1>
+        {/* The page header holds the screen's h1; the proposal keeps its title as the document's own heading. */}
+        <h2 className="m-0 mt-2 text-2xl font-semibold tracking-tight text-foreground">{data.title}</h2>
         <p className="m-0 mt-1 text-sm text-muted-foreground">
           Orçamento nº {data.number} · {data.companyName} · {formatDocument(data.companyDocument)}
         </p>

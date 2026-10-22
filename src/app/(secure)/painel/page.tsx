@@ -51,6 +51,7 @@ import { ClientDashboard } from "@/components/painel/client-dashboard";
 import { Money, MoneyScope } from "@/components/console/money";
 import { MoneyToggle } from "@/components/console/money-toggle";
 import { moneyHidden } from "@/lib/money-visibility-server";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 export const metadata: Metadata = {
   title: "Visão geral",
@@ -182,13 +183,13 @@ export default async function Dashboard() {
       .where(and(eq(contracts.status, "signed"), gte(contracts.endsAt, today), lte(contracts.endsAt, addDays(today, EXPIRY_WARNING_DAYS)))),
     db.select({ n: count() }).from(companies).where(eq(companies.archived, false)),
     db
-      .select({ ticket: tickets, company: companies.name })
+      .select({ ticket: tickets, company: companies.name, document: companies.document })
       .from(tickets)
       .innerJoin(companies, eq(companies.id, tickets.companyId))
       .orderBy(desc(tickets.updatedAt))
       .limit(5),
     db
-      .select({ invoice: invoices, company: companies.name, subscriptionStatus: subscriptions.status, expired: sql<boolean>`${expiredDebtCondition}` })
+      .select({ invoice: invoices, company: companies.name, document: companies.document, subscriptionStatus: subscriptions.status, expired: sql<boolean>`${expiredDebtCondition}` })
       .from(invoices)
       .innerJoin(companies, eq(companies.id, invoices.companyId))
       .leftJoin(subscriptions, eq(subscriptions.id, invoices.subscriptionId))
@@ -203,6 +204,7 @@ export default async function Dashboard() {
         email: actorUser.email,
         // A deleted company's events keep its name in the details.
         where: sql<string | null>`coalesce(${companies.name}, ${auditEvents.details}->>'company')`,
+        document: companies.document,
       })
       .from(auditEvents)
       .leftJoin(actorUser, eq(actorUser.id, auditEvents.actorId))
@@ -305,7 +307,7 @@ export default async function Dashboard() {
       icon: <AlertTriangleIcon />,
       tone: "critical" as const,
       title: "Recorrências que precisam de você",
-      detail: "Pausadas, com cadastro incompleto ou com a emissão falhando; o motivo está em Próximas cobranças",
+      detail: "Pausadas, com cadastro incompleto ou com erro na emissão",
       count: pausedRecurrences.n + failing.length,
       href: "/financeiro",
     },
@@ -332,19 +334,12 @@ export default async function Dashboard() {
       icon: <AlertTriangleIcon />,
       tone: "warning" as const,
       title: "Cobrança de quem encerrou",
-      detail: leaving.length === 1 ? `${leaving[0].company}: ${leaving[0].reason}` : "Serviço concluído ou contrato vencido com a recorrência ativa",
+      detail: leaving.length === 1 ? `${companyDisplayName(leaving[0].company, leaving[0].companyDocument)}: ${leaving[0].reason}` : "Serviço concluído ou contrato vencido com a recorrência ativa",
       count: leaving.length,
       href: "/financeiro",
     },
-    overdue.n > 0 && {
-      key: "overdue",
-      icon: <AlertTriangleIcon />,
-      tone: "critical" as const,
-      title: "Faturas vencidas",
-      detail: <><Money cents={cents(overdue.total)} /> em atraso</>,
-      count: overdue.n,
-      href: "/financeiro?status=overdue",
-    },
+    // Overdue invoices and tickets waiting for the team have their own tiles above
+    // (Em atraso, Chamados em andamento), with the same numbers and links: not repeated here.
     ticketsDue.n > 0 && {
       key: "tickets-due",
       icon: <ClockIcon />,
@@ -353,15 +348,6 @@ export default async function Dashboard() {
       detail: ticketsDue.late ? `${plural(ticketsDue.late, "já atrasado", "já atrasados")}` : "Vencem na próxima hora útil",
       count: ticketsDue.n,
       href: "/chamados?status=active",
-    },
-    ticketsWaitingTeam.n > 0 && {
-      key: "tickets",
-      icon: <HeadsetIcon />,
-      tone: "warning" as const,
-      title: "Chamados aguardando a equipe",
-      detail: ticketsWaitingTeam.oldest ? `O mais antigo, ${relativeLabel(ticketsWaitingTeam.oldest, now)}` : undefined,
-      count: ticketsWaitingTeam.n,
-      href: "/chamados?status=open",
     },
     quotesSent.n > 0 && {
       key: "quotes",
@@ -482,7 +468,7 @@ export default async function Dashboard() {
     key: "fiscal-queue",
     icon: <ReceiptTextIcon />,
     title: "Notas fiscais a emitir",
-    detail: "Faturas pagas de clientes com nota automática; a emissão pela Focus espera os parâmetros da contabilidade",
+    detail: "Faturas pagas com nota automática; a Focus espera os parâmetros da contabilidade",
     href: "/financeiro?status=paid",
   });
   followItem(["stalled-invites"], {
@@ -611,7 +597,7 @@ export default async function Dashboard() {
     id: event.id,
     what: auditLabels[event.action] ?? event.action,
     who: event.who || event.email || "Sistema",
-    where: event.where,
+    where: event.where && companyDisplayName(event.where, event.document),
     at: event.at.toISOString(),
     relative: relativeLabel(event.at, now),
   }));
@@ -698,7 +684,11 @@ export default async function Dashboard() {
           value={ticketsActive.n}
           icon={<HeadsetIcon />}
           tone={ticketsWaitingTeam.n > 0 ? "warning" : "default"}
-          detail={ticketsWaitingTeam.n > 0 ? `${plural(ticketsWaitingTeam.n, "aguardando", "aguardando")} a equipe` : "Nenhum aguardando a equipe"}
+          detail={
+            ticketsWaitingTeam.n > 0
+              ? `${ticketsWaitingTeam.n} aguardando a equipe${ticketsWaitingTeam.oldest ? `, o mais antigo ${relativeLabel(ticketsWaitingTeam.oldest, now)}` : ""}`
+              : "Nenhum aguardando a equipe"
+          }
           href="/chamados"
         />
       </div>
@@ -707,10 +697,8 @@ export default async function Dashboard() {
       <div className="mb-6 grid gap-6 lg:grid-cols-3">
         <Card className="min-w-0 gap-4 py-5 lg:col-span-2">
           <CardHeader>
-            <SectionTitle
-              title="Faturamento"
-              action={<SeeAll href="/financeiro" area="financeiro" />}
-            />
+            {/* No link of its own: the tiles above and "Últimas faturas" already open Financeiro. */}
+            <SectionTitle title="Faturamento" />
           </CardHeader>
           <CardContent>
             <BillingChart months={chart} />
@@ -718,19 +706,8 @@ export default async function Dashboard() {
         </Card>
         <Card className="min-w-0 gap-4 py-5">
           <CardHeader>
-            <SectionTitle
-              title={
-                <span className="flex items-center gap-2">
-                  Precisa de atenção
-                  {attention.length > 0 && (
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground tabular-nums">
-                      {attention.length}
-                      <span className="sr-only"> {attention.length === 1 ? "assunto" : "assuntos"}</span>
-                    </span>
-                  )}
-                </span>
-              }
-            />
+            {/* No count beside the title: a long list ends in "Ver todos (n)". */}
+            <SectionTitle title="Precisa de atenção" />
           </CardHeader>
           <CardContent className="px-0">
             <AttentionList items={attention} />
@@ -747,8 +724,8 @@ export default async function Dashboard() {
           <CardContent className="px-0">
             {recentTickets.length ? (
               <ul className="divide-y border-t">
-                {recentTickets.map(({ ticket, company }) => (
-                  <RecentRow key={ticket.id} href={`/chamados/${ticket.id}`} title={ticket.subject} detail={company} status={<TicketStatusBadge status={ticket.status} />} />
+                {recentTickets.map(({ ticket, company, document }) => (
+                  <RecentRow key={ticket.id} href={`/chamados/${ticket.id}`} title={ticket.subject} detail={companyDisplayName(company, document)} status={<TicketStatusBadge status={ticket.status} />} />
                 ))}
               </ul>
             ) : (
@@ -763,12 +740,12 @@ export default async function Dashboard() {
           <CardContent className="px-0">
             {recentInvoices.length ? (
               <ul className="divide-y border-t">
-                {recentInvoices.map(({ invoice, company, subscriptionStatus, expired }) => (
+                {recentInvoices.map(({ invoice, company, document, subscriptionStatus, expired }) => (
                   <RecentRow
                     key={invoice.id}
                     href={`/financeiro/${invoice.id}`}
                     title={<span className="tabular-nums"><Money cents={invoice.amountCents} /></span>}
-                    detail={`${company} · ${dateLabel(invoice.dueDate)}`}
+                    detail={`${companyDisplayName(company, document)} · ${dateLabel(invoice.dueDate)}`}
                     status={
                       <InvoiceStatusBadge
                         status={invoiceDisplayStatus({ status: invoice.status, dueDate: invoice.dueDate, scheduled: subscriptionStatus === "active", expired }, today)}

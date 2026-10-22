@@ -47,6 +47,7 @@ import {
 } from "@/lib/contracts/contract-table";
 import { ContractStatusBadge } from "./contract-badges";
 import type { ContractRow } from "./contract-row";
+import { companyDisplayName } from "@/lib/companies/display-name";
 
 export type { ContractRow } from "./contract-row";
 
@@ -58,10 +59,25 @@ type Party = ContractRow["signedBy"][number];
  */
 type ListedContract = ContractRow & { signatures?: number; amendments?: number };
 
-/** "Aditivo de …" for amendments, otherwise the company (clients with several) and the project. */
+/** Whether the title already names the product or project ("Licença de uso do Synova"). */
+function titleNames(title: string, name: string) {
+  const lower = (text: string) => text.toLocaleLowerCase("pt-BR");
+  const tail = lower(title.split("·").pop() ?? "").trim();
+  return lower(title).includes(lower(name)) || (!!tail && lower(name).startsWith(tail));
+}
+
+/** "Aditivo de …" for amendments, otherwise the company (lists that span several) and the project the title does not name. */
 function subtitle(row: ContractRow, companyInSubtitle: boolean) {
-  if (row.kind === "amendment") return row.parentTitle ? `Aditivo de ${row.parentTitle}` : "Aditivo";
-  return [companyInSubtitle ? row.company : null, row.engagement].filter(Boolean).join(" · ") || "Contrato";
+  const company = companyInSubtitle ? companyDisplayName(row.company, row.companyDocument) : null;
+  if (row.kind === "amendment") return [company, row.parentTitle ? `Aditivo de ${row.parentTitle}` : "Aditivo"].filter(Boolean).join(" · ");
+  return (
+    [
+      company,
+      row.engagement && !titleNames(row.title, row.engagement) ? row.engagement : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || undefined
+  );
 }
 
 function Term({ row, today }: { row: ContractRow; today: string }) {
@@ -82,11 +98,12 @@ function Term({ row, today }: { row: ContractRow; today: string }) {
       </>
     );
   if (row.startsAt) return <span className="text-foreground">a partir de {dateLabel(row.startsAt)}</span>;
-  return <span className="text-muted-foreground">—</span>;
+  return null;
 }
 
+/** Who signed, while the signatures are being collected; signed or not sent, the badge says it all. */
 function Signatures({ row }: { row: ContractRow }) {
-  if (row.status === "draft" || row.status === "cancelled") return <span className="text-xs text-muted-foreground">—</span>;
+  if (row.status !== "sent") return null;
   return (
     <span className="flex items-center gap-2 text-xs">
       {(["client", "anuntech"] as const).map((party) => {
@@ -207,7 +224,7 @@ export function ContractsTable({
   showCompany: boolean;
   /** Staff only: signed contracts about to end or past their end date. */
   alerts?: { expiring: number; expired: number };
-  companyFilter?: { id: string; name: string } | null;
+  companyFilter?: { id: string; name: string; document?: string | null } | null;
   /** ISO instant the page was rendered at, so relative times hydrate equal. */
   now: string;
   /** São Paulo civil date, for the validity warnings. */
@@ -245,7 +262,7 @@ export function ContractsTable({
           {companyFilter && (
             <FilterChip
               icon={<Building2Icon />}
-              label={companyFilter.name}
+              label={companyDisplayName(companyFilter.name, companyFilter.document)}
               removeHref={href({ company: "", page: 1 })}
             />
           )}
@@ -319,11 +336,13 @@ export function ContractsTable({
                 </>
               }
             >
-              <div className="tabular-nums">
-                <span className="block text-muted-foreground">Vigência</span>
-                <Term row={row} today={today} />
-              </div>
-              {row.status !== "draft" && row.status !== "cancelled" &&
+              {(row.startsAt || row.endsAt) && (
+                <div className="tabular-nums">
+                  <span className="block text-muted-foreground">Vigência</span>
+                  <Term row={row} today={today} />
+                </div>
+              )}
+              {row.status === "sent" &&
                 (admin ? (
                   <Signatures row={row} />
                 ) : (
@@ -364,7 +383,7 @@ export function ContractsTable({
                   subtitle={subtitle(row, !admin && spansCompanies)}
                 />
                 {companyColumn && (
-                  <CompanyCell>{row.company}</CompanyCell>
+                  <CompanyCell>{companyDisplayName(row.company, row.companyDocument)}</CompanyCell>
                 )}
                 <TableCell>
                   <ContractStatusBadge status={row.status} />

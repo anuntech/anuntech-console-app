@@ -403,10 +403,13 @@ export function ProductsList({
     [
       (inCard || !admin) && spansCompanies ? row.company : "",
       row.kind === "service" ? "Serviço" : "Produto",
-      row.kind === "product" ? (row.url ? hostOf(row.url) : "Sem link cadastrado") : "",
+      // A missing link is said where it matters: the menu's "Sem link cadastrado".
+      row.kind === "product" && row.url ? hostOf(row.url) : "",
     ]
       .filter(Boolean)
       .join(" · ");
+  // Active is the normal state: the column exists only when some row is an exception.
+  const statusColumn = rows.some((row) => row.status !== "active" || row.suspension);
   const menu = (row: ProductRow) => {
     const { consolePage, link } = destinationOf(row);
     return (
@@ -527,7 +530,7 @@ export function ProductsList({
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Produto ou serviço</TableHead>
               {companyColumn && <TableHead className="hidden md:table-cell">Empresa</TableHead>}
-              <TableHead>Situação</TableHead>
+              {statusColumn && <TableHead>Situação</TableHead>}
               {showMoney && (
                 <>
                   <TableHead className="hidden text-right md:table-cell">Valor</TableHead>
@@ -554,12 +557,14 @@ export function ProductsList({
                     subtitle={subtitle(row)}
                   />
                   {companyColumn && <CompanyCell>{row.company}</CompanyCell>}
-                  <TableCell>
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <EngagementStatusBadge status={row.status} />
-                      <SuspensionStageBadge suspension={row.suspension} />
-                    </span>
-                  </TableCell>
+                  {statusColumn && (
+                    <TableCell>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        {row.status !== "active" && <EngagementStatusBadge status={row.status} />}
+                        <SuspensionStageBadge suspension={row.suspension} />
+                      </span>
+                    </TableCell>
+                  )}
                   {showMoney && (
                     <>
                       <TableCell className="hidden text-right whitespace-nowrap tabular-nums md:table-cell">

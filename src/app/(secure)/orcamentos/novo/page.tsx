@@ -10,7 +10,7 @@ export default async function NewQuote({ searchParams }: { searchParams: NewQuot
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Orçamentos", href: "/orcamentos" }, { label: "Novo" }]}
+        crumbs={[{ label: "Orçamentos", href: "/orcamentos" }]}
         title="Novo orçamento"
         description="Nasce como rascunho; em seguida você monta fases, horas e valores."
       />

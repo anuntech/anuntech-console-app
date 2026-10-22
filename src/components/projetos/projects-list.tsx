@@ -55,6 +55,7 @@ import {
   type ProjectStatusFilter,
 } from "@/lib/projects/project-table";
 import { canDeleteEngagement, type EngagementLinks } from "@/lib/deletion-rules";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { EngagementStatusBadge } from "./project-badges";
 import { useEngagementStatus, type EngagementStatus } from "./engagement-status";
 import { ProjectSheet, type ProjectFormValues } from "./project-form";
@@ -67,7 +68,10 @@ export type ProjectRow = {
   /** Whole text: the edit sheet opens with it. */
   description: string | null;
   companyId: string;
+  /** Razão social, as stored; the list shows its display name. */
   company: string;
+  /** The company's CNPJ or CPF, when the loader sends it: lets a MEI's name drop its number. */
+  companyDocument?: string | null;
   tasks: { total: number; done: number };
   /** ISO instant of the last change on the board (or the project's creation). */
   updatedAt: string;
@@ -204,9 +208,9 @@ export function ProjectsList({
   admin: boolean;
   /** False when everything belongs to the viewer's single company. */
   showCompany: boolean;
-  companyFilter?: { id: string; name: string } | null;
+  companyFilter?: { id: string; name: string; document?: string | null } | null;
   /** Companies whose name matches the search, offered as a one-click filter. */
-  companyShortcuts?: { id: string; name: string }[];
+  companyShortcuts?: { id: string; name: string; document?: string | null }[];
   /** The page's own buttons, at the right end of the toolbar. */
   actions?: ReactNode;
   /** List or grid, as the viewer last chose (the page reads it from a cookie). */
@@ -220,13 +224,17 @@ export function ProjectsList({
   const href = (patch: Partial<ProjectListQuery>) => projectListHref({ ...query, ...patch });
   const go = (patch: Partial<ProjectListQuery>) => router.push(href(patch), { scroll: false });
   const filtered = !!query.search || !!query.company || query.status !== "active";
+  // A list filtered by one situation does not repeat it on every row: only "Todas as situações" shows it,
+  // and then only the exception (Ativo is the normal state, as in Empresas and Produtos).
+  const statusShown = query.status === "all";
+  const companyOf = (row: ProjectRow) => companyDisplayName(row.company, row.companyDocument);
   // Staff get the company as its own column while the list spans companies; a
   // client with several companies keeps it in the subtitle.
   const companyColumn = admin && showCompany && !query.company;
   // A card has no company column: it names the company while the list spans several.
   const companyInCard = showCompany && !query.company;
   const subtitle = (row: ProjectRow) =>
-    [!admin && showCompany && !query.company ? row.company : "", firstLine(row.description) || "Sem descrição"]
+    [!admin && showCompany && !query.company ? companyOf(row) : "", firstLine(row.description)]
       .filter(Boolean)
       .join(" · ");
   const edit = (row: ProjectRow) =>
@@ -253,7 +261,7 @@ export function ProjectsList({
           {companyFilter && (
             <FilterChip
               icon={<Building2Icon />}
-              label={companyFilter.name}
+              label={companyDisplayName(companyFilter.name, companyFilter.document)}
               removeHref={href({ company: "", page: 1 })}
             />
           )}
@@ -283,7 +291,7 @@ export function ProjectsList({
                   className="inline-flex h-7 items-center gap-1.5 rounded-full border bg-background px-2.5 font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-accent"
                 >
                   <Building2Icon className="size-3.5 text-muted-foreground" />
-                  {company.name}
+                  {companyDisplayName(company.name, company.document)}
                 </Link>
               ))}
             </div>
@@ -313,18 +321,18 @@ export function ProjectsList({
                 </CardTile>
               }
               title={row.name}
-              subtitle={companyInCard ? row.company : undefined}
+              subtitle={companyInCard ? companyOf(row) : undefined}
               actions={<ProjectRowActions row={row} admin={admin} onEdit={edit} onStatus={change} />}
               footer={
                 <>
-                  <EngagementStatusBadge status={row.status} />
+                  {statusShown && row.status !== "active" && <EngagementStatusBadge status={row.status} />}
                   <time dateTime={row.updatedAt} title={dateTimeLabel(row.updatedAt)} className="ml-auto shrink-0">
                     {relativeLabel(row.updatedAt, now)}
                   </time>
                 </>
               }
             >
-              <p className="m-0 line-clamp-2 text-muted-foreground">{row.description?.trim() || "Sem descrição"}</p>
+              {row.description?.trim() && <p className="m-0 line-clamp-2 text-muted-foreground">{row.description.trim()}</p>}
               <TaskProgress {...row.tasks} wide />
             </GridCard>
           ))}
@@ -335,7 +343,7 @@ export function ProjectsList({
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Projeto</TableHead>
               {companyColumn && <TableHead className="hidden md:table-cell">Empresa</TableHead>}
-              <TableHead>Situação</TableHead>
+              {statusShown && <TableHead>Situação</TableHead>}
               <TableHead className="hidden md:table-cell">Progresso</TableHead>
               <TableHead className="hidden md:table-cell">Atualizado</TableHead>
               <TableHead className="w-12 pr-3">
@@ -348,11 +356,13 @@ export function ProjectsList({
               <LinkRow key={row.id} href={`/projetos/${row.id}`}>
                 <PrimaryCell href={`/projetos/${row.id}`} title={row.name} subtitle={subtitle(row)} />
                 {companyColumn && (
-                  <CompanyCell>{row.company}</CompanyCell>
+                  <CompanyCell>{companyOf(row)}</CompanyCell>
                 )}
-                <TableCell>
-                  <EngagementStatusBadge status={row.status} />
-                </TableCell>
+                {statusShown && (
+                  <TableCell>
+                    {row.status !== "active" && <EngagementStatusBadge status={row.status} />}
+                  </TableCell>
+                )}
                 <TableCell className="hidden md:table-cell">
                   <TaskProgress {...row.tasks} />
                 </TableCell>
@@ -375,7 +385,7 @@ export function ProjectsList({
               ? "Tente outro termo ou mude os filtros."
               : admin
                 ? "Crie um projeto para um cliente e organize as tarefas no quadro."
-                : "Os projetos aparecem aqui quando um trabalho com a Anuntech começa, depois do orçamento aceito. Precisa de um app ou sistema novo? Peça um orçamento."
+                : "Um projeto aparece aqui quando o trabalho começa, depois do orçamento aceito."
           }
           action={
             filtered ? (

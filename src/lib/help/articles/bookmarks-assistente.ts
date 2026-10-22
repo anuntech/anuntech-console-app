@@ -233,7 +233,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Ao abrir uma pasta, o cabeçalho mostra quem a vê: “Todos da empresa”, “Só você” ou o nome de quem criou a pasta e o número de pessoas escolhidas, como “Só Marina e 3 pessoas”. Na coluna da esquerda, uma pasta “Só pessoas escolhidas” aparece com o ícone de pessoas.",
+            text: "Ao abrir uma pasta “Só pessoas escolhidas”, o cabeçalho mostra quem a vê: “Só você” ou o nome de quem criou a pasta e o número de pessoas escolhidas, como “Só Marina e 3 pessoas”. Uma pasta aberta a toda a empresa não traz essa linha. Na coluna da esquerda, uma pasta “Só pessoas escolhidas” aparece com o ícone de pessoas.",
           },
           {
             kind: "p",

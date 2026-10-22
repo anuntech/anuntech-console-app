@@ -213,8 +213,8 @@ export function PaymentView({
             )}
             {payable && lateFees && (
               <p className={cn("mt-3 text-xs", display === "overdue" ? "text-destructive" : "text-muted-foreground")}>
-                {display === "overdue" ? "Vencida: " : "Após o vencimento: "}
-                {lateFees}, calculados pelo banco no pagamento.
+                {/* Overdue is the badge and the red date; the line only says what it costs. */}
+                {display === "overdue" ? `${lateFees[0].toLocaleUpperCase("pt-BR")}${lateFees.slice(1)}` : `Após o vencimento: ${lateFees}`}, calculados pelo banco no pagamento.
               </p>
             )}
             <dl className="mt-6 grid gap-3 border-t pt-5 text-sm">
@@ -238,23 +238,11 @@ export function PaymentView({
                   <dd className="font-medium text-foreground tabular-nums">{dateLabel(i.bankDueDate)}</dd>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted-foreground">Emissor</dt>
-                <dd className="font-medium text-foreground">Anuntech</dd>
-              </div>
             </dl>
-            {/* Paid says it once, on the right. */}
-            {!paid && (
+            {/* Paid, cancelled, expired or replaced: the panel on the right says it once. */}
+            {display === "overdue" && (
               <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-                {cancelled
-                  ? i.closure === "expired"
-                    ? "O prazo do boleto e do Pix acabou sem pagamento."
-                    : i.closure === "replaced"
-                      ? "Esta cobrança foi substituída por uma nova."
-                      : "Esta cobrança foi cancelada pela Anuntech."
-                  : display === "overdue"
-                    ? "O vencimento passou, mas o boleto e o Pix continuam válidos para pagamento."
-                    : "Confira os dados e escolha como prefere pagar."}
+                O boleto e o Pix continuam válidos para pagamento.
               </p>
             )}
           </div>

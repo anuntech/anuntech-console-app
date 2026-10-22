@@ -17,6 +17,7 @@ import {
   noticeKindLabel,
 } from "@/lib/billing/billing-notice-rules";
 import { dateTimeLabel } from "@/lib/format";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { ListCard } from "@/components/console/list-view";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { NoticeStatusBadge } from "@/components/financeiro/invoice-badges";
@@ -75,6 +76,7 @@ export default async function BillingDeliveries() {
     .select({
       notice: billingNotices,
       company: companies.name,
+      document: companies.document,
       description: invoices.description,
     })
     .from(billingNotices)
@@ -87,7 +89,7 @@ export default async function BillingDeliveries() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Financeiro", href: "/financeiro" }, { label: "Envios" }]}
+        crumbs={[{ label: "Financeiro", href: "/financeiro" }]}
         title="Envios de cobrança"
         count={rows.length}
         className="mb-4"
@@ -124,7 +126,7 @@ export default async function BillingDeliveries() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(({ notice, company, description }) => (
+              {rows.map(({ notice, company, document, description }) => (
                 <TableRow key={notice.id}>
                   <TableCell className="max-w-[24rem] py-3 pl-4">
                     <Link
@@ -132,7 +134,7 @@ export default async function BillingDeliveries() {
                       className="group block min-w-0"
                     >
                       <span className="block truncate font-medium text-foreground group-hover:text-primary">
-                        {company}
+                        {companyDisplayName(company, document)}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {description}

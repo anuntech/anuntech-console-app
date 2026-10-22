@@ -14,10 +14,8 @@ export function TicketFollowCard({ ticketId, followUp }: { ticketId: string; fol
   return (
     <Card variant="quiet">
       <CardHeader>
-        <SectionTitle
-          title="Acompanhamento"
-          description={followUp.waiting ? "O chamado espera o cliente. Lembre ou resolva por falta de resposta." : "Chamado terminado sem horas registradas, numa empresa com banco de horas."}
-        />
+        {/* The status says it waits on the client and the Horas card says none were logged: the buttons are enough. */}
+        <SectionTitle title="Acompanhamento" />
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
         {followUp.waiting && (

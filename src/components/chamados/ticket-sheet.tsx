@@ -21,7 +21,6 @@ export function TicketSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={context.kind === "new_project" ? "Pedir orçamento" : "Novo chamado"}
-      description={context.kind === "new_project" ? "Conte o que você precisa. A equipe conversa com você e prepara um orçamento." : "Como podemos ajudar?"}
       action={createTicket}
       prepare={uploads}
       submitLabel={context.kind === "new_project" ? "Enviar pedido" : "Abrir chamado"}

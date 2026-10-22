@@ -18,9 +18,8 @@ export default function NotFound() {
     <StatusPage
       layout="inline"
       art="busca"
-      eyebrow="Erro 404"
       title="Não encontramos esta página"
-      description="O endereço pode estar errado, o registro pode ter sido excluído ou o seu acesso não inclui a empresa dele. Se você acha que deveria ver, fale com quem administra a sua empresa no Console."
+      description="O endereço pode estar errado, o registro pode ter sido excluído ou não fazer parte do seu acesso. Para pedir acesso, fale com o Administrador da sua empresa."
       actions={
         <>
           <Button asChild>

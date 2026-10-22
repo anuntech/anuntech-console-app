@@ -45,6 +45,7 @@ export async function listProjects(actor: Actor, input: ProjectQuery) {
         description: engagements.description,
         companyId: engagements.companyId,
         company: companies.name,
+        companyDocument: companies.document,
         createdAt: engagements.createdAt,
       })
       .from(engagements)
@@ -56,7 +57,7 @@ export async function listProjects(actor: Actor, input: ProjectQuery) {
       .offset(offsetOf(paging)),
     query.company
       ? db
-          .select({ id: companies.id, name: companies.name })
+          .select({ id: companies.id, name: companies.name, document: companies.document })
           .from(companies)
           .where(eq(companies.id, query.company))
           .then((found) => found[0] ?? null)
@@ -64,7 +65,7 @@ export async function listProjects(actor: Actor, input: ProjectQuery) {
     // The companies behind every match (not only this page), for the "Só desta empresa" shortcuts.
     query.search && !query.company && showCompany
       ? db
-          .selectDistinct({ id: companies.id, name: companies.name })
+          .selectDistinct({ id: companies.id, name: companies.name, document: companies.document })
           .from(engagements)
           .innerJoin(companies, eq(companies.id, engagements.companyId))
           .where(where)

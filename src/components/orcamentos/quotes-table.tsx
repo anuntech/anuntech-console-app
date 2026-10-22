@@ -28,6 +28,7 @@ import { currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format"
 import { hoursLabel, quoteExpired, quoteFilterLabels, quoteListHref, type QuoteStatusFilter } from "@/lib/quotes/quote-model";
 import { QUOTE_NOUN, quoteFiltersFor, type QuoteTableQuery } from "@/lib/quotes/quote-table";
 import { QuoteStatusBadge, validityText } from "./quote-badges";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import type { QuoteRow } from "./quote-row";
 
 const hidePhone = "hidden md:table-cell";
@@ -131,7 +132,7 @@ export function QuotesTable({
   admin: boolean;
   /** A client of more than one company, who needs the company named on each row. */
   multiCompany: boolean;
-  companyFilter?: { id: string; name: string } | null;
+  companyFilter?: { id: string; name: string; document?: string | null } | null;
   /** ISO instant the page was rendered at, so relative times hydrate equal. */
   now: string;
   /** São Paulo civil date, for validity. */
@@ -164,7 +165,7 @@ export function QuotesTable({
           {companyFilter && (
             <FilterChip
               icon={<Building2Icon />}
-              label={companyFilter.name}
+              label={companyDisplayName(companyFilter.name, companyFilter.document)}
               removeHref={href({ company: "", page: 1 })}
             />
           )}
@@ -221,28 +222,29 @@ export function QuotesTable({
                     subtitle={
                       <span className="tabular-nums">
                         nº {row.number} · {hoursLabel(row.hoursMin, row.hoursMax)}
-                        {companyInSubtitle && ` · ${row.company}`}
+                        {companyInSubtitle && ` · ${companyDisplayName(row.company, row.companyDocument)}`}
                       </span>
                     }
                   />
                   {companyColumn && (
-                    <CompanyCell>{row.company}</CompanyCell>
+                    <CompanyCell>{companyDisplayName(row.company, row.companyDocument)}</CompanyCell>
                   )}
                   <TableCell>
                     <QuoteStatusBadge status={row.status} validUntil={row.validUntil} today={today} />
                   </TableCell>
                   <TableCell className={cn(hidePhone, "text-right font-medium text-foreground tabular-nums")}>
-                    {currency(row.totalCents)}
+                    {/* A draft still without phases has no value yet: R$ 0,00 would read as a free proposal. */}
+                    {(row.status !== "draft" || row.totalCents > 0) && currency(row.totalCents)}
                   </TableCell>
                   <TableCell className={cn(hidePhone, "tabular-nums")}>
-                    {row.validUntil ? (
-                      <>
+                    {/* Validity counts only before an answer; after it, the badge says what happened.
+                        Waiting for an answer: how long it still holds (the date on hover); otherwise the date. */}
+                    {row.validUntil && (row.status === "draft" || row.status === "sent") &&
+                      (validity ? (
+                        <span className="font-medium text-warning" title={`Válido até ${dateLabel(row.validUntil)}`}>{validity}</span>
+                      ) : (
                         <span className={expired ? "text-destructive" : "text-foreground"}>{dateLabel(row.validUntil)}</span>
-                        {validity && <span className="block text-xs font-medium text-warning">{validity}</span>}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                      ))}
                   </TableCell>
                   <TableCell className={cn(hidePhone, "text-muted-foreground tabular-nums")}>
                     <time dateTime={row.updatedAt} title={dateTimeLabel(row.updatedAt)}>

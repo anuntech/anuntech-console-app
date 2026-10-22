@@ -104,11 +104,6 @@ export function ProjectSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={editing ? "Editar projeto" : "Novo projeto"}
-      description={
-        editing
-          ? "Nome e descrição."
-          : "O projeto fica vinculado à empresa e ganha um quadro de tarefas."
-      }
       action={editing ? updateProject : createEngagement}
       formKey={values?.id ?? "new"}
       submitLabel={editing ? "Salvar" : "Criar projeto"}

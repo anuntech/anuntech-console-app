@@ -3,7 +3,6 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
-  AlertTriangleIcon,
   BanIcon,
   BookmarkIcon,
   ExternalLinkIcon,
@@ -40,7 +39,8 @@ import { bankCard, type BankCard } from "@/lib/service-terms/hours-bank";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { InvoiceStatusBadge } from "@/components/financeiro/invoice-badges";
 import { EngagementStatusBadge } from "@/components/projetos/project-badges";
-import { AttentionList, KpiTile, type AttentionItem } from "@/components/painel/dashboard-parts";
+import { AttentionList, type AttentionItem } from "@/components/painel/dashboard-parts";
+import { companyDisplayName } from "@/lib/companies/display-name";
 import { Money, MoneyScope } from "@/components/console/money";
 import { MoneyToggle } from "@/components/console/money-toggle";
 import { moneyHidden } from "@/lib/money-visibility-server";
@@ -49,9 +49,13 @@ import { moneyHidden } from "@/lib/money-visibility-server";
  * The client's Painel: what they have with Anuntech and what needs them,
  * as widgets. No revenue panorama; money shows only as what is left to pay.
  * Staff see it too by entering a company ("Entrar como esta empresa").
+ *
+ * One fact, one place: each widget is the only place for what it lists (no
+ * tiles above repeating its count), "Precisa de atenção" holds only what no
+ * widget already shows (an overdue invoice has its row and "Pagar" in A pagar;
+ * the hours bank warns in its own card) and is left out when empty.
  */
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const TZ = "America/Sao_Paulo";
 
 function greeting(now: Date) {
@@ -88,7 +92,7 @@ function Widget({
   className,
 }: {
   title: string;
-  description?: string;
+  description?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -188,19 +192,17 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   const [
     openInvoices,
     [dueTotals],
-    [ticketsActive],
     [ticketsWaiting],
     [quotesToAnswer],
     [contractsToSign],
     projects,
     products,
-    [productCount],
     recentTickets,
     folders,
   ] = await Promise.all([
     canFinance
       ? db
-          .select({ invoice: invoices, company: companies.name })
+          .select({ invoice: invoices, company: companies.name, document: companies.document })
           .from(invoices)
           .innerJoin(companies, eq(companies.id, invoices.companyId))
           .where(and(inArray(invoices.companyId, financeIds), eq(invoices.status, "issued")))
@@ -218,9 +220,6 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           .from(invoices)
           .where(and(inArray(invoices.companyId, financeIds), eq(invoices.status, "issued")))
       : [{ n: 0, total: "0", overdueN: 0, overdueTotal: "0" }],
-    canSupport
-      ? db.select({ n: count() }).from(tickets).where(and(ticketScope(), inArray(tickets.status, ["open", "in_progress", "waiting_customer"])))
-      : [{ n: 0 }],
     canSupport
       ? db.select({ n: count() }).from(tickets).where(and(ticketScope(), eq(tickets.status, "waiting_customer")))
       : [{ n: 0 }],
@@ -245,7 +244,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           )
       : [{ n: 0 }],
     db
-      .select({ id: engagements.id, name: engagements.name, status: engagements.status, company: companies.name })
+      .select({ id: engagements.id, name: engagements.name, status: engagements.status, company: companies.name, document: companies.document })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
       .where(and(workScope(), eq(engagements.kind, "project"), inArray(engagements.status, ["active", "paused"])))
@@ -258,6 +257,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         kind: engagements.kind,
         url: engagements.url,
         company: companies.name,
+        document: companies.document,
         catalogItemId: engagements.catalogItemId,
         icon: catalogItems.icon,
         status: engagements.status,
@@ -269,13 +269,9 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
       .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), inArray(engagements.status, ["active", "suspended"])))
       .orderBy(desc(sql`${engagements.status} = 'suspended'`), asc(engagements.name))
       .limit(5),
-    db
-      .select({ n: count() })
-      .from(engagements)
-      .where(and(workScope(), inArray(engagements.kind, ["product", "service"]), inArray(engagements.status, ["active", "suspended"]))),
     canSupport
       ? db
-          .select({ ticket: tickets, company: companies.name })
+          .select({ ticket: tickets, company: companies.name, document: companies.document })
           .from(tickets)
           .innerJoin(companies, eq(companies.id, tickets.companyId))
           .where(ticketScope())
@@ -297,27 +293,11 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         .where(inArray(tasks.engagementId, projects.map((p) => p.id)))
         .groupBy(tasks.engagementId)
     : [];
-  const [projectTotals] = await db
-    .select({
-      n: sql<number>`count(distinct ${engagements.id})::int`,
-      openTasks: sql<number>`count(${tasks.id}) filter (where ${tasks.status} <> 'done')::int`,
-    })
-    .from(engagements)
-    .leftJoin(tasks, eq(tasks.engagementId, engagements.id))
-    .where(and(workScope(), eq(engagements.kind, "project"), eq(engagements.status, "active")));
   const bookmarkPage = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: "", company: "all" }, { page: 1, pageSize: 5 });
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
 
+  // An overdue invoice is not listed here: A pagar shows it first, marked Vencida, with "Pagar".
   const candidates: (AttentionItem | false)[] = [
-    dueTotals.overdueN > 0 && {
-      key: "overdue",
-      icon: <AlertTriangleIcon />,
-      tone: "critical" as const,
-      title: "Faturas vencidas para pagar",
-      detail: <><Money cents={Number(dueTotals.overdueTotal)} /> em atraso</>,
-      count: dueTotals.overdueN,
-      href: "/financeiro?status=overdue",
-    },
     ticketsWaiting.n > 0 && {
       key: "tickets",
       icon: <HeadsetIcon />,
@@ -362,7 +342,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   const banks = (
     await Promise.all(
       actor.grants.map((g) =>
-        bankCard(g.company.id, g.company.name, { client: true, now, engagements: g.engagements === "all" ? undefined : g.engagements }),
+        bankCard(g.company.id, g.company.name, { client: true, now, engagements: g.engagements === "all" ? undefined : g.engagements }, g.company.document),
       ),
     )
   ).filter((b): b is BankCard => !!b);
@@ -372,19 +352,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         .from(tickets)
         .where(and(inArray(tickets.companyId, financeIds), eq(tickets.estimateStatus, "proposed")))
     : [{ n: 0 }];
-  for (const bank of banks) {
-    const percent = bank.includedMinutes ? Math.round((bank.usedMinutes / bank.includedMinutes) * 100) : 0;
-    if (percent < bank.alertPercent) continue;
-    attention.push({
-      key: `bank-${bank.companyId}`,
-      icon: <Clock3Icon />,
-      tone: "warning",
-      title: banks.length > 1 ? `Banco de horas de ${bank.companyName} em ${percent}%` : `Banco de horas em ${percent}%`,
-      detail: "Fora defeito crítico, nada passa do banco sem a aprovação de um Administrador",
-      count: Math.round(bank.usedMinutes / 60),
-      href: `#banco-de-horas-${bank.companyId}`,
-    });
-  }
+  // A bank past its alert says so in its own card, at the top of the page (bar in amber and the rule).
   if (estimates.n > 0)
     attention.push({ key: "estimates", icon: <Clock3Icon />, title: "Estimativas de melhoria para aprovar", count: estimates.n, href: "/chamados" });
   // Deliveries waiting for the Administrador's test: approve or point out a problem on each card.
@@ -410,7 +378,6 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
   // Only someone who sees money gets the eye; a Membro has no values to hide.
   const valuesHidden = canFinance && (await moneyHidden());
   const dateLine = new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(now);
-  const next = openInvoices[0]?.invoice;
 
   return (
     <MoneyScope hidden={valuesHidden}>
@@ -440,53 +407,18 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         </div>
       ))}
 
-      {/* the tiles arrive one after another, once, as the page opens */}
-      <div className="stagger mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* One grid, most pressing first: widgets with nothing to say are left out and the rest close the gap. */}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         {canFinance && (
-          <KpiTile
-            label="A pagar"
-            value={<Money cents={Number(dueTotals.total)} />}
-            icon={<WalletIcon />}
-            tone={dueTotals.overdueN > 0 ? "critical" : "default"}
-            detail={
-              dueTotals.n
-                ? dueTotals.overdueN > 0
-                  ? `${plural(dueTotals.overdueN, "vencida", "vencidas")} · ${plural(dueTotals.n, "fatura", "faturas")}`
-                  : `Próxima em ${dateLabel(next!.dueDate)}`
-                : nextCharge
-                  ? <>Próxima: <Money cents={nextCharge.amountCents} /> em {dateLabel(nextCharge.dueDate)}</>
-                  : "Nada em aberto"
-            }
-            // The list's "Em aberto" leaves out overdue invoices; those are the urgent ones.
-            href={dueTotals.overdueN > 0 ? "/financeiro?status=overdue" : dueTotals.n ? "/financeiro?status=issued" : "/financeiro"}
-          />
-        )}
-        {canSupport && (
-          <KpiTile
-            label="Chamados em andamento"
-            value={ticketsActive.n}
-            icon={<HeadsetIcon />}
-            tone={ticketsWaiting.n > 0 ? "warning" : "default"}
-            detail={ticketsWaiting.n > 0 ? `${plural(ticketsWaiting.n, "esperando", "esperando")} você` : "Nada esperando você"}
-            href="/chamados"
-          />
-        )}
-        <KpiTile
-          label="Projetos ativos"
-          value={projectTotals.n}
-          icon={<FolderKanbanIcon />}
-          detail={projectTotals.openTasks ? plural(projectTotals.openTasks, "tarefa em aberto", "tarefas em aberto") : "Nenhuma tarefa em aberto"}
-          href="/projetos"
-        />
-        <KpiTile label="Produtos e serviços" value={productCount.n} icon={<PackageIcon />} detail="Contratados com a Anuntech" href="/produtos" />
-      </div>
-
-      <div className="mb-6 grid items-start gap-6 lg:grid-cols-2">
-        {canFinance && (
-          <Widget title="A pagar" action={<SeeAll href="/financeiro" area="faturas" />}>
+          <Widget
+            title="A pagar"
+            // The total only when it sums several rows; a single invoice shows its own value.
+            description={dueTotals.n > 1 ? <><Money cents={Number(dueTotals.total)} /> em {dueTotals.n} faturas</> : undefined}
+            action={<SeeAll href="/financeiro" area="faturas" />}
+          >
             {openInvoices.length ? (
               <ul className="divide-y border-t">
-                {openInvoices.map(({ invoice, company }) => {
+                {openInvoices.map(({ invoice, company, document }) => {
                   const payable = invoice.publicEnabled && invoice.publicId;
                   const late = invoice.dueDate < today;
                   return (
@@ -497,16 +429,21 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                         <span className="block truncate text-xs text-muted-foreground">
                           {/* on phones the amount and the status ride in this line */}
                           <span className="tabular-nums sm:hidden"><Money cents={invoice.amountCents} /> · </span>
-                          {manyCompanies ? `${company} · ` : ""}
+                          {manyCompanies ? `${companyDisplayName(company, document)} · ` : ""}
                           <span className={late ? "text-destructive sm:text-muted-foreground" : undefined}>
-                            {late ? "venceu" : "vence"} {dateLabel(invoice.dueDate)}
+                            {/* From sm up the Vencida badge says it; on phones the badge is hidden and the verb says it. */}
+                            {late ? <span className="sm:hidden">venceu </span> : "vence "}
+                            {dateLabel(invoice.dueDate)}
                           </span>
                         </span>
                       </Link>
                       <span className="hidden text-sm font-medium text-foreground tabular-nums sm:block"><Money cents={invoice.amountCents} /></span>
-                      <span className="hidden sm:contents">
-                        <InvoiceStatusBadge status={late ? "overdue" : "issued"} />
-                      </span>
+                      {/* Every row here is open; only an overdue one says so. */}
+                      {late && (
+                        <span className="hidden sm:contents">
+                          <InvoiceStatusBadge status="overdue" />
+                        </span>
+                      )}
                       {payable && (
                         <Button size="sm" asChild>
                           <Link href={`/pagar/${invoice.publicId}`}>Pagar</Link>
@@ -530,12 +467,11 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             )}
           </Widget>
         )}
-        <Widget title="Precisa de atenção" className={canFinance ? "min-w-0" : "min-w-0 lg:col-span-2"}>
-          <AttentionList items={attention} />
-        </Widget>
-      </div>
-
-      <div className="mb-6 grid items-start gap-6 lg:grid-cols-2">
+        {attention.length > 0 && (
+          <Widget title="Precisa de atenção">
+            <AttentionList items={attention} />
+          </Widget>
+        )}
         <Widget title="Projetos" action={<SeeAll href="/projetos" area="projetos" />}>
           {projects.length ? (
             <ul className="divide-y border-t">
@@ -561,7 +497,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                             {total ? `${done}/${total} tarefas` : "Sem tarefas"}
                           </span>
                         </span>
-                        {manyCompanies && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{project.company}</span>}
+                        {manyCompanies && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{companyDisplayName(project.company, project.document)}</span>}
                       </span>
                     </Link>
                   </li>
@@ -586,7 +522,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
                     external={!!link}
                     leading={<ProductIcon src={catalogIconSrc(product.catalogItemId, product.icon)} name={product.name} size={32} />}
                     title={product.name}
-                    detail={[product.status === "suspended" ? "Suspenso" : null, product.kind === "product" ? "Produto" : "Serviço", manyCompanies ? product.company : null].filter(Boolean).join(" · ")}
+                    detail={[product.status === "suspended" ? "Suspenso" : null, product.kind === "product" ? "Produto" : "Serviço", manyCompanies ? companyDisplayName(product.company, product.document) : null].filter(Boolean).join(" · ")}
                   />
                 );
               })}
@@ -595,20 +531,17 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             <EmptyState icon={<PackageIcon />} title="Nenhum produto ou serviço ativo" description="Os produtos e serviços contratados aparecem aqui." className="py-10" />
           )}
         </Widget>
-      </div>
-
-      <div className="grid items-start gap-6 lg:grid-cols-2">
         {canSupport && (
           <Widget title="Últimos chamados" action={<SeeAll href="/chamados" area="chamados" />}>
             {recentTickets.length ? (
               <ul className="divide-y border-t">
-                {recentTickets.map(({ ticket, company }) => (
+                {recentTickets.map(({ ticket, company, document }) => (
                   <Row
                     key={ticket.id}
                     href={`/chamados/${ticket.id}`}
                     leading={<Tile icon={<HeadsetIcon />} />}
                     title={ticket.subject}
-                    detail={manyCompanies ? company : undefined}
+                    detail={manyCompanies ? companyDisplayName(company, document) : undefined}
                     trailing={<TicketStatusBadge status={ticket.status} client />}
                   />
                 ))}
