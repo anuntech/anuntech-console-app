@@ -1381,3 +1381,54 @@ export const pushDevices = pgTable(
     index("console_push_devices_user_idx").on(t.userId),
   ],
 );
+
+/** What the phone shows: minimal text (no amounts, no company) and where a tap opens. */
+export type PushPayload = { title: string; body: string; data: { url: string } };
+/**
+ * One push per event and phone, written in the transaction of the change
+ * (push-queue.ts) and sent by push-sender.ts: the attempt is saved before the
+ * POST to Expo, and the receipt is checked later. Push only informs.
+ */
+export const pushNotices = pgTable(
+  "console_push_notices",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    /** The audit event id, or a fixed key such as invoice.overdue:<id>:overdue_5. */
+    eventKey: text("event_key").notNull(),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => pushDevices.id, { onDelete: "cascade" }),
+    topic: text("topic", { enum: ["tickets", "billing", "contracts", "quotes", "projects"] }).notNull(),
+    entityType: text("entity_type", { enum: ["ticket", "invoice", "contract", "quote", "task"] }).notNull(),
+    entityId: text("entity_id").notNull(),
+    /** Who sees it: the ticket's scope, or the company's Administradores. */
+    audience: text("audience", { enum: ["ticket", "managers"] }).notNull(),
+    payload: jsonb("payload").$type<PushPayload>().notNull(),
+    status: text("status", {
+      enum: ["pending", "sending", "accepted", "delivered", "failed", "cancelled", "uncertain", "expired"],
+    })
+      .notNull()
+      .default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    /** Expo's ticket id, used to fetch the receipt. */
+    providerId: text("provider_id"),
+    providerStatus: text("provider_status"),
+    error: text("error"),
+    receiptCheckedAt: timestamp("receipt_checked_at", { withTimezone: true }),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("console_push_notices_event_device_unique").on(t.eventKey, t.deviceId),
+    index("console_push_notices_pending_idx").on(t.status, t.nextAttemptAt),
+    index("console_push_notices_company_idx").on(t.companyId),
+  ],
+);

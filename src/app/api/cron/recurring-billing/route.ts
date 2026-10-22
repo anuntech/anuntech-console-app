@@ -9,6 +9,7 @@ import {
 } from "@/lib/billing/billing-notices";
 import { revalidatePath } from "next/cache";
 import { trackedCron } from "@/lib/ops/cron-health";
+import { queueOverduePushes } from "@/lib/notifications/push-queue";
 export const maxDuration = 300;
 async function run(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -31,6 +32,10 @@ async function run(request: Request) {
     const result = await processSubscriptions();
     console.log(`[recurring-billing] ${JSON.stringify(result)}`);
     await queueBillingReminders();
+    // "Fatura em atraso" on the app, once per invoice; a failure never holds the billing notices.
+    await queueOverduePushes().catch((error) =>
+      console.warn("[recurring-billing] overdue pushes failed", error instanceof Error ? error.message : error),
+    );
     await processBillingNotices(deadline);
     await checkBillingDeliveries(deadline + 30000);
     await checkOpsDeliveries(deadline + 50000);

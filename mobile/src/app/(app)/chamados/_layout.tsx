@@ -1,6 +1,9 @@
 import { Stack, router } from "expo-router";
 import { HeaderIconButton, useStackOptions } from "@/lib/stack";
 
+
+// A screen opened from a notification still has its list behind it for "back".
+export const unstable_settings = { initialRouteName: "index" };
 export default function TicketsLayout() {
   const stack = useStackOptions();
   return (

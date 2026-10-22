@@ -1,6 +1,5 @@
 "use server";
 import { and, asc, eq, inArray, isNull, max, sql } from "drizzle-orm";
-import { sendOpsMail } from "../notifications/ops-alerts";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -13,14 +12,17 @@ import {
   taskComments,
   tasks,
 } from "@/db/schema";
-import { getActor, canAccess, canSeeEngagement } from "../access/access";
+import { getActor, canSeeEngagement } from "../access/access";
 import type { ActionState } from "../action-state";
 import { logDatabaseFault } from "../action-errors";
+import { refreshBoard as refresh, STEP, taskFailure as failure } from "./task-common";
+import { reviewTaskAs, taskReviewInput, type TaskReview } from "./task-review";
 import { db } from "../db";
 import { assigneeAllowed } from "./tasks";
 import { moneyToCents } from "../access/permissions";
 import { prepareTicketFiles, takeTicketUploads } from "../tickets/ticket-files";
 import { DOCUMENT_ATTACHMENTS } from "../tickets/attachment-rules";
+import { enqueueReviewPush, schedulePushNotices } from "../notifications/push-queue";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -30,21 +32,6 @@ import {
 
 const id = z.string().uuid();
 const blocked = { error: "Você não tem permissão para fazer isso." };
-const failure = (error: unknown): ActionState => ({
-  error:
-    error instanceof z.ZodError
-      ? error.issues[0].message
-      : error instanceof Error && !logDatabaseFault("tasks", error) && /etiqueta|estimativa|pessoa/i.test(error.message)
-        ? error.message
-        : "Não foi possível salvar. Confira os dados e tente novamente.",
-});
-function refresh(engagementId: string) {
-  revalidatePath(`/projetos/${engagementId}`);
-  revalidatePath("/projetos");
-  revalidatePath("/produtos");
-}
-/** Spaced positions let a card slot between two others without renumbering. */
-const STEP = 1024;
 
 /** Anyone who sees the project (its company and, for a Membro with a selection, the project itself) works on its board. */
 async function projectFor(engagementId: string) {
@@ -193,9 +180,12 @@ export async function createTask(
         entityId: row.id,
         details: { engagementId: project.id, title: input.title },
       });
+      if (input.status === "review")
+        await enqueueReviewPush(tx, { id: row.id, companyId: project.companyId, engagementId: project.id }, actor.user.id);
       return { success: actor.admin ? "Tarefa criada." : "Pedido criado no Backlog. A equipe confirma se ele faz parte do combinado." };
     });
     if (result.success) refresh(project.id);
+    if (result.success && input.status === "review") schedulePushNotices();
     return result;
   } catch (error) {
     return failure(error);
@@ -296,6 +286,8 @@ export async function updateTask(
         entityId: input.id,
         details: { engagementId: project.id, status: input.status },
       });
+      if (input.status === "review" && current.status !== "review")
+        await enqueueReviewPush(tx, { id: input.id, companyId: project.companyId, engagementId: project.id }, actor.user.id);
       // Same removal and audit trail as removeTaskFile, one event per file.
       if (removing.length) {
         const removed = await tx
@@ -316,6 +308,7 @@ export async function updateTask(
       return { success: "Tarefa atualizada." };
     });
     if (result.success) refresh(project.id);
+    if (result.success && input.status === "review" && current.status !== "review") schedulePushNotices();
     return result;
   } catch (error) {
     return failure(error);
@@ -419,8 +412,11 @@ export async function moveTask(input: {
           entityId: taskId,
           details: { engagementId: project.id, from: current.status, to: status },
         });
+      if (status === "review" && current.status !== "review")
+        await enqueueReviewPush(tx, { id: taskId, companyId: project.companyId, engagementId: project.id }, actor.user.id);
     });
     refresh(project.id);
+    if (status === "review" && current.status !== "review") schedulePushNotices();
     return { success: "" };
   } catch {
     return { error: "Não foi possível mover a tarefa. Recarregue a página e tente de novo." };
@@ -459,72 +455,18 @@ function statusSideEffects(admin: boolean, current: typeof tasks.$inferSelect, n
 }
 
 /**
- * The client's answer to a delivery in Revisão: approve it (the task is
- * done, with who and when on record) or report a problem (it goes back to
- * the team with the report as a comment). Administradores answer for the
- * company, as with quotes and contracts.
+ * The client's answer to a delivery in Revisão (the rules and side effects
+ * are in reviewTaskAs, shared with the app's projects.reviewTask).
  */
 export async function reviewTask(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  let input: TaskReview;
   try {
-    const input = z
-      .object({
-        id,
-        decision: z.enum(["approve", "problem"]),
-        note: z.string().trim().max(5000, "Use até 5 mil caracteres.").default(""),
-      })
-      .parse(Object.fromEntries(form));
-    const [current] = await db.select().from(tasks).where(eq(tasks.id, input.id));
-    if (!current) return blocked;
-    const context = await projectFor(current.engagementId);
-    if (!context) return blocked;
-    const { actor, project } = context;
-    if (!actor.admin && !canAccess(actor, project.companyId, "finance"))
-      return { error: "Só um Administrador da empresa aprova entregas." };
-    if (current.status !== "review") return { error: "Esta tarefa não está mais em Revisão." };
-    if (input.decision === "problem" && !input.note) return { error: "Conte o que não funcionou como esperado." };
-    await db.transaction(async (tx) => {
-      const status: TaskStatus = input.decision === "approve" ? "done" : "in_progress";
-      const [{ last }] = await tx
-        .select({ last: max(tasks.position) })
-        .from(tasks)
-        .where(and(eq(tasks.engagementId, project.id), eq(tasks.status, status)));
-      const now = new Date();
-      await tx
-        .update(tasks)
-        .set({
-          status,
-          position: (last ?? 0) + STEP,
-          reviewSince: null,
-          approvedBy: input.decision === "approve" ? actor.user.id : null,
-          approvedAt: input.decision === "approve" ? now : null,
-          updatedAt: now,
-        })
-        .where(eq(tasks.id, current.id));
-      if (input.note)
-        await tx.insert(taskComments).values({
-          taskId: current.id,
-          authorId: actor.user.id,
-          body: input.decision === "approve" ? input.note : `Encontrei um problema: ${input.note}`,
-        });
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: project.companyId,
-        action: input.decision === "approve" ? "task.approved" : "task.review_failed",
-        entityId: current.id,
-        details: { engagementId: project.id },
-      });
-    });
-    refresh(project.id);
-    // A problem in a delivery reaches the team now, not at the next look at the board.
-    if (input.decision === "problem")
-      await sendOpsMail(
-        `[Console] Problema apontado numa entrega: ${current.title}`,
-        `${actor.user.name || actor.user.email} apontou um problema em "${current.title}" (${project.name}).\n\n${input.note}\n\nO cartão voltou para Em andamento: ${process.env.BETTER_AUTH_URL || "https://console.anuntech.com"}/projetos/${project.id}\n\nConsole da Anuntech`,
-      ).catch(() => undefined);
-    return { success: input.decision === "approve" ? "Entrega aprovada." : "Problema enviado à equipe." };
+    input = taskReviewInput.parse(Object.fromEntries(form));
   } catch (error) {
     return failure(error);
   }
+  return reviewTaskAs(actor, input);
 }
 
 export async function deleteTask(

@@ -10,7 +10,7 @@
 //   Metro, no build, no cable; the phone just needs the same Wi-Fi)
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, watchFile, writeFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import pg from "pg";
 
@@ -136,17 +136,22 @@ if (fresh) {
       "insert into console_tasks(id,engagement_id,company_id,title,status,priority,created_by) values($1,$2,$3,$4,$5,$6,$7)",
       [randomUUID(), product, company, title, status, priority, team],
     );
+  // The hash signing and answering check (src/lib/document-hash.ts): SHA-256 of the publication with sorted keys.
+  const canonical = (v) => (Array.isArray(v) ? v.map(canonical) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, canonical(v[k])])) : v);
+  const hash = (publication) => createHash("sha256").update(JSON.stringify(canonical(publication))).digest("hex");
   const contractBody =
     "# 1. Objeto\n\nManutenção mensal do site institucional da Empresa Demonstração.\n\n# 2. Preço\n\nR$ 1.890,00 por mês, com vencimento todo dia 10.\n\n# 3. Vigência\n\nDoze meses a partir da assinatura.";
+  const contract = { title: "Contrato de manutenção do site", body: contractBody, companyName: "Empresa Demonstração", companyDocument: "00000000000191" };
   await db.query(
-    "insert into console_contracts(id,company_id,title,body,author_id,status,published_at,published_version,publication,document_hash) values($1,$2,'Contrato de manutenção do site',$3,$4,'sent',now(),1,$5,'demo-contract')",
-    [randomUUID(), company, contractBody, team, JSON.stringify({ title: "Contrato de manutenção do site", body: contractBody, companyName: "Empresa Demonstração", companyDocument: "00000000000191" })],
+    "insert into console_contracts(id,company_id,title,body,author_id,status,published_at,published_version,publication,document_hash) values($1,$2,'Contrato de manutenção do site',$3,$4,'sent',now(),1,$5,$6)",
+    [randomUUID(), company, contractBody, team, JSON.stringify(contract), hash(contract)],
   );
   const quote = { summary: "Uma loja virtual ligada ao site.", stack: [], phases: [{ name: "Loja virtual", description: "Catálogo, carrinho e Pix.", hoursMin: 60, hoursMax: 80, tasks: [] }], hourlyRateCents: 15000, discountCents: 0, upfrontPercent: 50, notes: "" };
+  const proposal = { ...quote, number: `${new Date().getFullYear()}-001`, title: "Loja virtual", companyName: "Empresa Demonstração", companyDocument: "00000000000191", validUntil: month(1) };
   await db.query(
     `insert into console_quotes(id,company_id,year,seq,title,content,author_id,status,published_version,valid_until,published_at,publication,document_hash)
-     values($1,$2,extract(year from now())::int,1,'Loja virtual',$3,$4,'sent',1,$5,now(),$6,'demo-quote')`,
-    [randomUUID(), company, JSON.stringify(quote), team, month(1), JSON.stringify({ ...quote, number: `${new Date().getFullYear()}-001`, title: "Loja virtual", companyName: "Empresa Demonstração", companyDocument: "00000000000191", validUntil: month(1) })],
+     values($1,$2,extract(year from now())::int,1,'Loja virtual',$3,$4,'sent',1,$5,now(),$6,$7)`,
+    [randomUUID(), company, JSON.stringify(quote), team, month(1), JSON.stringify(proposal), hash(proposal)],
   );
   const folder = randomUUID();
   await db.query("insert into console_bookmark_folders(id,company_id,owner_id,name) values($1,$2,$3,'Acessos do site')", [folder, company, team]);

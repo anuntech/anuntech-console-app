@@ -1,12 +1,9 @@
 "use server";
-import { createHash } from "node:crypto";
-import { and, asc, count, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
-import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
+import { and, count, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { getActor, canAccess, answersForClient, ASSISTED_DECISION, type Actor } from "../access/access";
-import { auth } from "../auth/auth";
+import { getActor } from "../access/access";
+import { requestEvidence, type DecisionEvidence } from "../access/client-decision";
 import {
   accountEmails,
   auditEvents,
@@ -27,15 +24,14 @@ import {
   type ContractPublication,
 } from "@/db/schema";
 import type { ActionState } from "../action-state";
-import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
+import { contractFailure as failure, refreshContracts as refresh } from "./contract-common";
+import { contractHash as hashOf } from "./contract-hash";
+import { signContractAs } from "./contract-sign";
 import { addressLabel } from "../companies/company-billing";
 import { formatDocument } from "../companies/company-input";
-import { contractPdf } from "./contract-pdf";
 import { deliverContractNotice } from "./contract-mail";
-import { sendOpsMail } from "../notifications/ops-alerts";
+import { enqueuePush, schedulePushNotices } from "../notifications/push-queue";
 import { inviteManagerOnSend } from "../access/invite-manager";
-import { deliverContractSigned } from "../automations/client-automations";
-import { after } from "next/server";
 import { fillContractTemplate, pendingContractVariables } from "./contract-templates";
 import { applyContractFields, contractFields } from "./contract-fields";
 import { quoteContractValues } from "../quotes/quote-handoff";
@@ -63,62 +59,6 @@ const term = z
     message: "O fim da vigência precisa vir depois do início.",
     path: ["endsAt"],
   });
-const failure = (e: unknown): ActionState => {
-  // A database refusal never reaches the screen as is: its message carries the SQL and every value sent.
-  const fault = logDatabaseFault("contracts", e);
-  // The same party signing the same version twice: the check under the contract's lock answers first;
-  // the index is what still holds if that check ever goes.
-  if (fault?.code === "23505" && fault.constraint === SIGNATURE_PER_VERSION)
-    return { error: "Esta parte já assinou esta versão do contrato." };
-  if (fault) return { error: DATABASE_FAILURE };
-  return {
-    error:
-      e instanceof z.ZodError
-        ? e.issues[0].message
-        : e instanceof Error && e.message === "stale"
-          ? "O contrato mudou em outra aba. Atualize a página antes de continuar."
-          : e instanceof Error && e.message
-            ? e.message
-            : "Não foi possível salvar o contrato. Confira os dados e tente novamente.",
-  };
-};
-/** The unique index that holds one signature per party and version (drizzle/0042). */
-const SIGNATURE_PER_VERSION = "console_contract_signature_version_party_unique";
-function refresh(contractId?: string, parentId?: string | null) {
-  revalidatePath("/contratos");
-  revalidatePath("/configuracoes/contratos");
-  if (contractId) revalidatePath(`/contratos/${contractId}`);
-  if (parentId) revalidatePath(`/contratos/${parentId}`);
-}
-/**
- * SHA-256 of the frozen text. Keys are sorted first: JSONB gives them back
- * in its own order, so the hash must not depend on insertion order.
- */
-const sha256 = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const canonical = (value: unknown): unknown =>
-  Array.isArray(value)
-    ? value.map(canonical)
-    : value && typeof value === "object"
-      ? Object.fromEntries(
-          Object.keys(value as Record<string, unknown>)
-            .sort()
-            .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
-        )
-      : value;
-const hashOf = (publication: ContractPublication) => sha256(canonical(publication));
-/** Contracts sent before the canonical hash were hashed in insertion order. */
-const LEGACY_ORDERS: (keyof ContractPublication)[][] = [
-  ["title", "body", "companyName", "companyDocument", "kind", "parentTitle", "parentHash", "startsAt", "endsAt"],
-  ["title", "body", "companyName", "companyDocument"],
-];
-function hashMatches(publication: ContractPublication, documentHash: string) {
-  if (hashOf(publication) === documentHash) return true;
-  return LEGACY_ORDERS.some((order) => {
-    const ordered: Record<string, unknown> = {};
-    for (const key of order) if (key in publication) ordered[key] = publication[key];
-    return Object.keys(ordered).length === Object.keys(publication).length && sha256(ordered) === documentHash;
-  });
-}
 
 /* ---------- templates (staff) ---------- */
 
@@ -592,6 +532,14 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
         action: "contract.sent",
         details: { hash: documentHash, version },
       });
+      // The Administradores' phones: they are the ones who sign.
+      await enqueuePush(tx, {
+        event: "contract.sent",
+        eventKey: `contract.sent:${c.id}:${version}`,
+        companyId: c.companyId,
+        entityId: c.id,
+        actorId: actor.user.id,
+      });
       return { ...c, version, companyName: company.name, answered: c.status === "in_review" ? answered : 0 };
     });
     const url = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${sent.id}`;
@@ -615,6 +563,7 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
       }
     }
     refresh(sent.id, sent.parentId);
+    schedulePushNotices();
     const noun = sent.kind === "amendment" ? "Aditivo" : "Contrato";
     return {
       success:
@@ -680,154 +629,24 @@ export async function revertContract(_: ActionState, form: FormData): Promise<Ac
   }
 }
 
-/** Which side of the table the viewer sits on, for this contract. */
-function partyFor(actor: Actor, companyId: string): "anuntech" | "client" | null {
-  if (actor.admin) return "anuntech";
-  return answersForClient(actor, companyId) ? "client" : null;
-}
-
 /**
- * Records the viewer's signature with the evidence behind it. When both
- * parties have signed the current version, the contract closes and the
- * final PDF is stored. A signed amendment that carries new dates moves
- * the original contract's validity, so the alerts follow the amendment.
+ * Records the viewer's signature (the rules, evidence and side effects are
+ * in signContractAs, shared with the app's contracts.sign). The evidence is
+ * this request's IP and user agent and when its session was opened.
  */
 export async function signContract(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
+  let contractId: string;
+  let evidence: DecisionEvidence;
   try {
-    const contractId = id.parse(form.get("id"));
-    if (form.get("consent") !== "on" && form.get("consent") !== "yes")
-      return { error: "Marque que leu e concorda com o contrato para assinar." };
-    const [c] = await db.select().from(contracts).where(eq(contracts.id, contractId));
-    if (!c || !canAccess(actor, c.companyId, "finance")) return blocked;
-    if (actor.assisting) return { error: ASSISTED_DECISION };
-    const party = partyFor(actor, c.companyId);
-    if (!party) return { error: "Só um Administrador da empresa pode assinar." };
-    if (c.status !== "sent" || !c.publication || !c.documentHash)
-      return { error: "Este contrato não está aguardando assinatura." };
-    if (!hashMatches(c.publication, c.documentHash))
-      return { error: "O texto do contrato não confere com o registro. Peça um novo envio." };
-    const [session, requestHeaders] = await Promise.all([
-      auth.api.getSession({ headers: await headers() }),
-      headers(),
-    ]);
-    const ip =
-      requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      requestHeaders.get("x-real-ip") ||
-      null;
-    const closed = await db.transaction(async (tx) => {
-      // Signing, going back to draft and a review round all lock the contract: two signatures at once
-      // see each other (so the second one closes it), and the version checked above is still the one sent.
-      const [locked] = await tx
-        .select({ status: contracts.status, documentHash: contracts.documentHash })
-        .from(contracts)
-        .where(eq(contracts.id, c.id))
-        .for("update");
-      if (locked?.status !== "sent" || locked.documentHash !== c.documentHash) throw Error("stale");
-      const current = and(eq(contractSignatures.contractId, c.id), eq(contractSignatures.documentHash, c.documentHash!));
-      const [existing] = await tx
-        .select({ id: contractSignatures.id })
-        .from(contractSignatures)
-        .where(and(current, eq(contractSignatures.party, party)));
-      if (existing) throw Error("Esta parte já assinou esta versão do contrato.");
-      await tx.insert(contractSignatures).values({
-        contractId: c.id,
-        party,
-        userId: actor.user.id,
-        // A person who never set a name still signs identifiably, by the e-mail they logged in with.
-        name: actor.user.name || actor.user.email,
-        email: actor.user.email,
-        documentHash: c.documentHash!,
-        ip,
-        userAgent: requestHeaders.get("user-agent")?.slice(0, 500) ?? null,
-        method: "otp_session",
-        sessionStartedAt: session ? new Date(session.session.createdAt) : null,
-      });
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: c.companyId,
-        entityId: c.id,
-        action: "contract.signed",
-        details: { party, ip, version: c.publishedVersion },
-      });
-      // Signing settles it: change requests the client wrote but never sent go away.
-      if (party === "client")
-        await tx
-          .delete(contractChangeRequests)
-          .where(and(eq(contractChangeRequests.contractId, c.id), eq(contractChangeRequests.status, "draft")));
-      const signatures = await tx
-        .select()
-        .from(contractSignatures)
-        .where(current)
-        .orderBy(asc(contractSignatures.signedAt));
-      const complete = ["client", "anuntech"].every((p) => signatures.some((s) => s.party === p));
-      if (!complete) return false;
-      const pdf = await contractPdf({
-        ...c.publication!,
-        id: c.id,
-        status: "signed",
-        date: new Date(),
-        hash: c.documentHash!,
-        signatures: signatures.map((s) => ({
-          party: s.party,
-          name: s.name,
-          email: s.email,
-          signedAt: s.signedAt,
-          ip: s.ip,
-          method: s.method,
-        })),
-      });
-      await tx
-        .update(contracts)
-        .set({ status: "signed", signedAt: new Date(), signedPdf: pdf, updatedAt: new Date() })
-        .where(eq(contracts.id, c.id));
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: c.companyId,
-        entityId: c.id,
-        action: "contract.completed",
-      });
-      if (c.kind === "amendment" && c.parentId && (c.startsAt || c.endsAt)) {
-        await tx
-          .update(contracts)
-          .set({
-            ...(c.startsAt ? { startsAt: c.startsAt } : {}),
-            ...(c.endsAt ? { endsAt: c.endsAt, expiryNoticeSentAt: null, expiredNoticeSentAt: null } : {}),
-            updatedAt: new Date(),
-          })
-          .where(eq(contracts.id, c.parentId));
-        await tx.insert(auditEvents).values({
-          actorId: actor.user.id,
-          companyId: c.companyId,
-          entityId: c.parentId,
-          action: "contract.term_amended",
-          details: { amendmentId: c.id, startsAt: c.startsAt, endsAt: c.endsAt },
-        });
-      }
-      return true;
-    });
-    refresh(c.id, c.parentId);
-    const noun = c.kind === "amendment" ? "Aditivo" : "Contrato";
-    // Both sides signed: the client gets the final PDF's link and the next steps (Configurações → Automações).
-    if (closed) after(() => deliverContractSigned(c.id).catch(() => undefined));
-    // The client signed first: the team hears it now, so the contract closes the same day.
-    if (!closed && party === "client") {
-      const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, c.companyId));
-      await sendOpsMail(
-        `[Console] ${noun} assinado pelo cliente: falta a Anuntech · ${company?.name ?? ""}`,
-        `${actor.user.name || actor.user.email} assinou "${c.title}" por ${company?.name ?? "o cliente"} em ${longDateLabel(new Date())}.\n\nFalta a assinatura da Anuntech. Assine pelo Console: ${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${c.id}\n\nConsole da Anuntech`,
-      );
-    }
-    return {
-      success: closed
-        ? `${noun} assinado pelas duas partes. O PDF final já está disponível.`
-        : party === "client"
-          ? "Sua assinatura foi registrada. Falta a assinatura da Anuntech."
-          : "Sua assinatura foi registrada. Falta a assinatura do cliente.",
-    };
+    contractId = id.parse(form.get("id"));
+    evidence = await requestEvidence();
   } catch (e) {
     return failure(e);
   }
+  const consent = form.get("consent") === "on" || form.get("consent") === "yes";
+  const result = await signContractAs(actor, { id: contractId, consent }, evidence);
+  return "error" in result ? { error: result.error } : { success: result.success };
 }
 
 /** A draft or a sent contract can be withdrawn; signed ones stay as they are. */

@@ -2,13 +2,14 @@
 // them: no browser, no Origin, the session cookie set by hand and the app's
 // scheme in expo-origin. Runs in a disposable database (test-isolated).
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
 import { settingsChecks } from "./api-smoke-settings.mjs";
+import { pushChecks } from "./api-smoke-push.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -108,6 +109,14 @@ async function emailSignIn(email, headers = app) {
   return auth("/sign-in/email-otp", { email, otp: code }, undefined, headers);
 }
 const token = (n) => `ExponentPushToken[api${n}${marker.slice(0, 12)}]`;
+// The Console's document hash (lib/document-hash.ts): SHA-256 of the JSON with the keys sorted.
+const canonicalJson = (value) =>
+  Array.isArray(value)
+    ? value.map(canonicalJson)
+    : value && typeof value === "object"
+      ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalJson(value[key])]))
+      : value;
+const hashOf = (value) => createHash("sha256").update(JSON.stringify(canonicalJson(value))).digest("hex");
 const device = async (value) =>
   (await db.query("select * from console_push_devices where token=$1", [value])).rows[0];
 
@@ -141,13 +150,16 @@ try {
         BETTER_AUTH_URL: base,
         // The AI Gateway mock goes last so it wraps otp-mock's fetch (which refuses anything outside this Mac).
         // Blob is in memory (blob-mock answers @vercel/blob's undici calls), for the profile photo.
-        NODE_OPTIONS: `--require=${process.cwd()}/scripts/blob-mock.cjs --require=${process.cwd()}/scripts/otp-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/blob-mock.cjs --require=${process.cwd()}/scripts/otp-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs --require=${process.cwd()}/scripts/push-mock.cjs`,
         AI_GATEWAY_API_KEY: "test",
         CONSOLE_TEST_ASSISTANT_FILE: join(dir, "ai.jsonl"),
         CONSOLE_TEST_MODELS_FILE: `${process.cwd()}/scripts/fixtures/gateway-models.json`,
         CONSOLE_TEST_OTP_FILE: capture,
         // Invites and resends are read back by the settings checks.
         CONSOLE_TEST_MAIL_FILE: join(dir, "mail.jsonl"),
+        // Expo push is answered by push-mock (last, so it wraps the others' fetch) and logged here.
+        CONSOLE_TEST_PUSH_FILE: join(dir, "push.jsonl"),
+        CRON_SECRET: "test-cron-secret",
         RESEND_API_KEY: "test",
         EMAIL_FROM: "Console <test@example.invalid>",
         FLW_SYNOVA: "test",
@@ -662,6 +674,279 @@ try {
   r = await rpc("quotes.get", { id: quoteSent }, member);
   ok(r.status === 200 && r.body.number === "2097-001" && r.body.hoursMin === 10 && r.body.pdfPath === `/api/orcamentos/${quoteSent}/pdf`, "A quote opens with its figures and PDF");
   ok((await rpc("quotes.get", { id: quoteSent }, outsiderEarly)).status === 404, "A Membro opens no quote");
+
+  // Deciding from the app: signing a contract, answering a quote, reviewing a delivery. The web's
+  // rules, messages and evidence; the person's own session (opened with a code) is the proof.
+  await makePerson("viewer", address("viewer"), companies.a, "member");
+  const viewer = (await emailSignIn(people.viewer.email)).cookie;
+  const phone = { "User-Agent": "AnuntechApp/1.0.0 (iPhone; iOS 18.4)", "x-forwarded-for": "198.51.100.23, 10.0.0.1" };
+  const mails = () => {
+    try {
+      return readFileSync(join(dir, "mail.jsonl"), "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
+    } catch {
+      return [];
+    }
+  };
+  const taskA2 = randomUUID(), taskB = randomUUID();
+  await db.query(
+    "insert into console_tasks(id,engagement_id,company_id,title,status,created_by,review_since) values($1,$2,$3,'Formulário de contato','review',$4,now()),($5,$6,$7,'Entrega de outra empresa','review',$4,now())",
+    [taskA2, projectA, companies.a, people.owner.id, taskB, projectB, companies.b],
+  );
+  const signable = randomUUID(), foreignContract = randomUUID();
+  const contractText = (key) => ({
+    title: "Contrato de suporte",
+    body: "CLÁUSULA 1 — OBJETO\n1.1. Suporte mensal ao site.",
+    companyName: `API ${key} ${marker}`,
+    companyDocument: "12345678000190",
+    kind: "contract",
+    version: 1,
+  });
+  for (const [id, company, key] of [[signable, companies.a, "a"], [foreignContract, companies.b, "b"]]) {
+    const publication = contractText(key);
+    await db.query(
+      "insert into console_contracts(id,company_id,title,body,author_id,status,published_at,published_version,publication,document_hash) values($1,$2,'Contrato de suporte',$3,$4,'sent',now(),1,$5,$6)",
+      [id, company, publication.body, people.owner.id, JSON.stringify(publication), hashOf(publication)],
+    );
+  }
+  const quoteAccept = randomUUID(), quoteDecline = randomUUID(), quoteLapsed = randomUUID(), foreignQuote = randomUUID();
+  const proposal = (number, title, validUntil) => ({
+    number,
+    title,
+    companyName: "A",
+    companyDocument: "0",
+    validUntil,
+    version: 1,
+    summary: "Um site novo para a empresa.",
+    stack: ["Next.js"],
+    phases: [{ name: "Descoberta", description: "Entender o negócio.", hoursMin: 10, hoursMax: 20, tasks: [{ title: "Reunião de descoberta", description: "" }] }],
+    hourlyRateCents: 15000,
+    discountCents: 0,
+    upfrontPercent: 40,
+    notes: "Estimativa de esforço.",
+  });
+  const quoteFixtures = [
+    [quoteAccept, companies.a, proposal("2098-001", "Site do app", "2099-01-01")],
+    [quoteDecline, companies.a, proposal("2098-002", "Loja do app", "2099-01-01")],
+    [quoteLapsed, companies.a, proposal("2098-003", "Proposta vencida", "2020-01-01")],
+    [foreignQuote, companies.b, proposal("2098-004", "Outra empresa", "2099-01-01")],
+  ];
+  const firstSeq = Math.floor(Math.random() * 1e6);
+  for (const [index, [id, company, publication]] of quoteFixtures.entries()) {
+    const { title, validUntil } = publication;
+    // What the editor saved: the publication without what names it.
+    const content = Object.fromEntries(
+      ["summary", "stack", "phases", "hourlyRateCents", "discountCents", "upfrontPercent", "notes"].map((key) => [key, publication[key]]),
+    );
+    await db.query(
+      `insert into console_quotes(id,company_id,year,seq,title,content,author_id,status,published_version,valid_until,published_at,publication,document_hash)
+       values($1,$2,2098,$3,$4,$5,$6,'sent',1,$7,now(),$8,$9)`,
+      [id, company, firstSeq + index, title, JSON.stringify(content), people.owner.id, validUntil, JSON.stringify(publication), hashOf(publication)],
+    );
+  }
+
+  // Deliveries in Revisão.
+  const canReview = async (cookie) => (await rpc("projects.get", { id: projectA }, cookie)).body?.canReview;
+  ok(
+    (await canReview(member)) === true && (await canReview(viewer)) === false && (await canReview(staff)) === false,
+    "projects.get: only the company's Administrador reviews deliveries",
+  );
+  const taskRow = async (id) => (await db.query("select * from console_tasks where id=$1", [id])).rows[0];
+  const onlyAdministrators = "Só um Administrador da empresa aprova entregas.";
+  r = await rpc("projects.reviewTask", { id: taskA, decision: "approve" }, viewer);
+  ok(
+    r.status === 400 && r.body?.message === onlyAdministrators && (await taskRow(taskA)).status === "review",
+    "projects.reviewTask: a Membro cannot approve a delivery",
+  );
+  r = await rpc("projects.reviewTask", { id: taskA, decision: "approve" }, staff);
+  ok(
+    r.status === 400 && r.body?.message === onlyAdministrators && (await taskRow(taskA)).status === "review",
+    "projects.reviewTask: the team cannot approve a delivery for the client",
+  );
+  ok(
+    (await rpc("projects.reviewTask", { id: taskB, decision: "approve" }, member)).status === 404 &&
+      (await rpc("projects.reviewTask", { id: randomUUID(), decision: "approve" }, member)).status === 404 &&
+      (await taskRow(taskB)).status === "review",
+    "projects.reviewTask: another company's delivery answers 404",
+  );
+  r = await rpc("projects.reviewTask", { id: taskA, decision: "approve" }, member);
+  let reviewed = await taskRow(taskA);
+  ok(
+    r.status === 200 &&
+      r.body.message === "Entrega aprovada." &&
+      reviewed.status === "done" &&
+      reviewed.approved_by === people.member.id &&
+      !!reviewed.approved_at &&
+      (await db.query("select 1 from console_audit_events where entity_id=$1 and action='task.approved' and actor_id=$2", [taskA, people.member.id])).rowCount === 1,
+    "projects.reviewTask: the Administrador approves a delivery from the app",
+  );
+  r = await rpc("projects.reviewTask", { id: taskA, decision: "approve" }, member);
+  ok(r.status === 400 && r.body?.message === "Esta tarefa não está mais em Revisão.", "projects.reviewTask: an approved delivery takes no second answer");
+  const noNote = [
+    await rpc("projects.reviewTask", { id: taskA2, decision: "problem" }, member),
+    await rpc("projects.reviewTask", { id: taskA2, decision: "problem", note: "   " }, member),
+  ];
+  ok(
+    noNote.every((res) => res.status === 400 && res.body?.message === "Conte o que não funcionou como esperado.") && (await taskRow(taskA2)).status === "review",
+    "projects.reviewTask: sending a delivery back needs a note",
+  );
+  r = await rpc("projects.reviewTask", { id: taskA2, decision: "problem", note: "O formulário não envia." }, member);
+  reviewed = await taskRow(taskA2);
+  const problemComment = (await db.query("select body from console_task_comments where task_id=$1", [taskA2])).rows[0];
+  ok(
+    r.status === 200 &&
+      r.body.message === "Problema enviado à equipe." &&
+      reviewed.status === "in_progress" &&
+      !reviewed.approved_by &&
+      problemComment?.body === "Encontrei um problema: O formulário não envia." &&
+      mails().some((m) => m.to === owner && m.subject === "[Console] Problema apontado numa entrega: Formulário de contato"),
+    "projects.reviewTask: the Administrador sends a delivery back with a note, and the team hears it",
+  );
+
+  // Contracts and quotes: who may decide.
+  ok(
+    (await rpc("contracts.sign", { id: signable, consent: true }, viewer)).status === 404 &&
+      (await rpc("quotes.answer", { id: quoteAccept, decision: "accept", consent: true }, viewer)).status === 404,
+    "contracts.sign and quotes.answer: a Membro neither signs nor answers",
+  );
+  ok(
+    (await rpc("contracts.sign", { id: foreignContract, consent: true }, member)).status === 404 &&
+      (await rpc("quotes.answer", { id: foreignQuote, decision: "accept", consent: true }, member)).status === 404 &&
+      (await rpc("contracts.sign", { id: contractDraft, consent: true }, member)).status === 404,
+    "contracts.sign and quotes.answer: another company's contract or quote, or a draft, answers 404",
+  );
+
+  // Signing.
+  const signableHash = hashOf(contractText("a"));
+  r = await rpc("contracts.get", { id: signable }, member);
+  const staffContract = await rpc("contracts.get", { id: signable }, staff);
+  ok(
+    r.status === 200 &&
+      r.body.documentHash === signableHash &&
+      r.body.version === 1 &&
+      r.body.companyDocument === companies.a.replaceAll("-", "").slice(0, 14) &&
+      r.body.party === "client" &&
+      r.body.canSign === true &&
+      staffContract.body?.party === "anuntech" &&
+      staffContract.body.canSign === true,
+    "contracts.get: a contract waiting for signatures shows its hash, version and who signs it",
+  );
+  ok((await rpc("contracts.sign", { id: signable, consent: false }, member)).status === 400, "contracts.sign: signing needs the consent");
+  r = await rpc("contracts.sign", { id: signable, consent: true }, member, phone);
+  const [signature] = (await db.query("select * from console_contract_signatures where contract_id=$1", [signable])).rows;
+  ok(
+    r.status === 200 &&
+      r.body.message === "Sua assinatura foi registrada. Falta a assinatura da Anuntech." &&
+      r.body.signed === false &&
+      signature?.party === "client" &&
+      signature.user_id === people.member.id &&
+      signature.document_hash === signableHash &&
+      signature.method === "otp_session" &&
+      signature.user_agent === phone["User-Agent"] &&
+      signature.ip === "198.51.100.23" &&
+      !!signature.session_started_at,
+    "contracts.sign: the Administrador signs with the session, the IP and the app's user agent on record",
+  );
+  ok(
+    mails().some((m) => m.to === owner && m.subject.startsWith("[Console] Contrato assinado pelo cliente: falta a Anuntech")),
+    "contracts.sign: the team hears the client signed",
+  );
+  r = await rpc("contracts.sign", { id: signable, consent: true }, member, phone);
+  ok(
+    r.status === 400 &&
+      r.body?.message === "Esta parte já assinou esta versão do contrato." &&
+      (await rpc("contracts.get", { id: signable }, member)).body?.canSign === false &&
+      (await db.query("select 1 from console_contract_signatures where contract_id=$1", [signable])).rowCount === 1,
+    "contracts.sign: the same side cannot sign the same version twice",
+  );
+  r = await rpc("contracts.sign", { id: signable, consent: true }, staff);
+  const closedContract = (await db.query("select status, signed_pdf is not null as pdf from console_contracts where id=$1", [signable])).rows[0];
+  ok(
+    r.status === 200 &&
+      r.body.signed === true &&
+      r.body.message === "Contrato assinado pelas duas partes. O PDF final já está disponível." &&
+      closedContract?.status === "signed" &&
+      closedContract.pdf === true,
+    "contracts.sign: the second side's signature closes the contract with the final PDF",
+  );
+  // The client's notice goes out after the response (after()); wait for it before cleaning up.
+  let notified = false;
+  for (let i = 0; i < 50 && !notified; i++) {
+    notified = (await db.query("select 1 from console_audit_events where entity_id=$1 and action='contract.signed_notice_sent'", [signable])).rowCount > 0;
+    if (!notified) await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  ok(
+    notified && mails().some((m) => m.to === people.member.email && m.subject === "Contrato assinado: Contrato de suporte"),
+    "contracts.sign: closing the contract sends the client the final PDF's notice",
+  );
+
+  // Answering quotes.
+  r = await rpc("quotes.get", { id: quoteAccept }, member);
+  const staffQuote = await rpc("quotes.get", { id: quoteAccept }, staff);
+  ok(
+    r.status === 200 &&
+      r.body.summary === "Um site novo para a empresa." &&
+      r.body.phases.length === 1 &&
+      r.body.phases[0].name === "Descoberta" &&
+      r.body.phases[0].hoursMax === 20 &&
+      r.body.phases[0].tasks.length === 1 &&
+      r.body.phases[0].tasks[0] === "Reunião de descoberta" &&
+      r.body.notes === "Estimativa de esforço." &&
+      r.body.upfrontPercent === 40 &&
+      r.body.documentHash === hashOf(quoteFixtures[0][2]) &&
+      r.body.version === 1 &&
+      r.body.expired === false &&
+      r.body.canAnswer === true &&
+      staffQuote.body?.canAnswer === false,
+    "quotes.get: a quote waiting for an answer brings the proposal as it was sent",
+  );
+  r = await rpc("quotes.get", { id: quoteLapsed }, member);
+  const lapsed = await rpc("quotes.answer", { id: quoteLapsed, decision: "accept", consent: true }, member);
+  ok(
+    r.body?.expired === true &&
+      r.body.canAnswer === false &&
+      lapsed.status === 400 &&
+      lapsed.body?.message === "Este orçamento expirou. Peça à Anuntech uma nova versão com validade atualizada.",
+    "quotes.answer: an expired quote cannot be accepted",
+  );
+  const quoteRow = async (id) => (await db.query("select * from console_quotes where id=$1", [id])).rows[0];
+  r = await rpc("quotes.answer", { id: quoteAccept, decision: "accept" }, member, phone);
+  ok(
+    r.status === 400 && r.body?.message === "Marque que leu e concorda com a proposta para aceitar." && (await quoteRow(quoteAccept)).status === "sent",
+    "quotes.answer: accepting needs the consent",
+  );
+  r = await rpc("quotes.answer", { id: quoteAccept, decision: "accept", consent: true }, member, phone);
+  const accepted = await quoteRow(quoteAccept);
+  const acceptance = (await db.query("select details from console_audit_events where entity_id=$1 and action='quote.accepted'", [quoteAccept])).rows[0]?.details;
+  ok(
+    r.status === 200 &&
+      r.body.message === "Orçamento aceito. A Anuntech já foi avisada e entra em contato para os próximos passos." &&
+      accepted.status === "accepted" &&
+      accepted.decided_party === "client" &&
+      accepted.decided_by === people.member.id &&
+      accepted.decided_ip === "198.51.100.23" &&
+      acceptance?.party === "client" &&
+      acceptance.ip === "198.51.100.23" &&
+      !!acceptance.sessionStartedAt &&
+      mails().some((m) => m.to === owner && m.subject === "Orçamento 2098-001 aceito: Site do app"),
+    "quotes.answer: the Administrador accepts with consent, and the decision is on record",
+  );
+  r = await rpc("quotes.answer", { id: quoteAccept, decision: "decline" }, member);
+  ok(
+    r.status === 400 &&
+      r.body?.message === "Este orçamento não está aguardando resposta." &&
+      (await rpc("quotes.get", { id: quoteAccept }, member)).body?.canAnswer === false,
+    "quotes.answer: an answered quote takes no second answer",
+  );
+  r = await rpc("quotes.answer", { id: quoteDecline, decision: "decline", note: "  Fora do orçamento deste ano.  " }, member, phone);
+  const declined = await quoteRow(quoteDecline);
+  ok(
+    r.status === 200 &&
+      r.body.message === "Resposta registrada. Obrigado por avisar." &&
+      declined.status === "declined" &&
+      declined.decided_party === "client" &&
+      declined.decision_note === "Fora do orçamento deste ano.",
+    "quotes.answer: the Administrador declines another quote with a note",
+  );
   const folderA = randomUUID(), linkA = randomUUID(), linkB = randomUUID();
   await db.query("insert into console_bookmark_folders(id,company_id,owner_id,name) values($1,$2,$3,'Acessos')", [folderA, companies.a, people.owner.id]);
   await db.query(
@@ -675,9 +960,12 @@ try {
   );
   await db.query("delete from console_bookmarks where id=any($1::text[])", [[linkA, linkB]]);
   await db.query("delete from console_bookmark_folders where id=$1", [folderA]);
-  await db.query("delete from console_quotes where id=$1", [quoteSent]);
-  await db.query("delete from console_contracts where id=any($1::text[])", [[contractSent, contractDraft]]);
-  await db.query("delete from console_tasks where id=$1", [taskA]);
+  await db.query("delete from console_quotes where id=any($1::text[])", [[quoteSent, quoteAccept, quoteDecline, quoteLapsed, foreignQuote]]);
+  await db.query("delete from console_contract_signatures where contract_id=$1", [signable]);
+  await db.query("delete from console_automation_events where entity_id=$1", [signable]);
+  await db.query("delete from console_contracts where id=any($1::text[])", [[contractSent, contractDraft, signable, foreignContract]]);
+  await db.query("delete from console_task_comments where task_id=$1", [taskA2]);
+  await db.query("delete from console_tasks where id=any($1::text[])", [[taskA, taskA2, taskB]]);
   await db.query("delete from console_engagements where id=any($1::text[])", [[projectA, projectB]]);
 
   // The assistant, through the app's routes: same turn, history and cards as the web.
@@ -780,6 +1068,8 @@ try {
   );
   // Dados da empresa, Membros e Notificações (scripts/api-smoke-settings.mjs).
   await settingsChecks({ db, rpc, ok, marker, emailSignIn, staff, mailFile: join(dir, "mail.jsonl") });
+  // Notificações no celular (scripts/api-smoke-push.mjs).
+  await pushChecks({ db, rpc, ok, marker, emailSignIn, staff, base, pushFile: join(dir, "push.jsonl"), cronSecret: "test-cron-secret" });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

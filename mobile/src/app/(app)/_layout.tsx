@@ -1,12 +1,17 @@
 import { Platform } from "react-native";
 import { NativeTabs } from "expo-router/native-tabs";
 import { useQuery } from "@tanstack/react-query";
-// Shows notifications that arrive with the app open. Permission is asked from Início's card, not on launch.
-import "@/lib/push";
 import { api } from "@/lib/api";
-import { AppLock } from "@/lib/lock";
+import { AppLock, useUnlocked } from "@/lib/lock";
+import { useNotificationTaps } from "@/lib/push";
 import { usePalette } from "@/lib/theme";
 import { useMe } from "@/lib/me";
+
+/** A tapped notification opens its record here: signed in, and once past the lock. */
+function NotificationTaps() {
+  useNotificationTaps(useUnlocked());
+  return null;
+}
 
 /** Signed in: the tabs, behind the Face ID lock when the person turned it on. */
 export default function AppLayout() {
@@ -64,6 +69,7 @@ export default function AppLayout() {
           />
         </NativeTabs.Trigger>
       </NativeTabs>
+      <NotificationTaps />
     </AppLock>
   );
 }

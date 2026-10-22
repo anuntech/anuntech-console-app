@@ -38,6 +38,7 @@ import {
   scheduleTicketNotices,
 } from "./tickets/ticket-notifications";
 import { dueLabel, priorityLabels, ticketLabels } from "./format";
+import { enqueuePush, schedulePushNotices } from "./notifications/push-queue";
 import { loadCalendar } from "./service-terms/terms";
 import { pauseToAdd, ticketDues, visibleToClient } from "./service-terms/ticket-clock";
 import { addBusinessMinutes } from "./service-terms/business-calendar";
@@ -438,11 +439,24 @@ export async function updateTicket(
               .join("\n")
           : input.notice || null,
       );
+      // The client's phones hear when the team needs them and when the ticket is resolved.
+      const resolved = row.status === "resolved" && previous.status !== row.status;
+      if (asking || resolved)
+        await enqueuePush(tx, {
+          event: asking ? "ticket.waiting" : "ticket.resolved",
+          eventKey: event.id,
+          companyId: row.companyId,
+          entityId: row.id,
+          engagementId: row.engagementId,
+          authorId: row.authorId,
+          actorId: actor.user.id,
+        });
     });
     if (failed) return { error: failed };
     revalidatePath(`/chamados/${input.ticketId}`);
     refresh();
     scheduleTicketNotices();
+    schedulePushNotices();
     return { success: "Chamado atualizado." };
   } catch (e) {
     return failure(e);

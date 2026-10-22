@@ -3,6 +3,7 @@ import { processTicketNotices } from "@/lib/tickets/ticket-notifications";
 import { remindFirstResponses } from "@/lib/tickets/ticket-watch";
 import { runFrequentAutomations } from "@/lib/automations/client-automations";
 import { trackedCron } from "@/lib/ops/cron-health";
+import { checkPushReceipts, processPushNotices } from "@/lib/notifications/push-sender";
 export const maxDuration = 60;
 async function run(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -25,7 +26,16 @@ async function run(request: Request) {
     console.warn("[ticket-notifications] automations failed", error instanceof Error ? error.message : error);
     return {};
   });
-  return Response.json({ ...result, ...reminders, ...notices }, { headers: { "Cache-Control": "no-store" } });
+  // Pushes to the native app that after() did not finish, then Expo's receipts.
+  const push = await processPushNotices(Date.now() + 15000).catch((error) => {
+    console.warn("[ticket-notifications] push failed", error instanceof Error ? error.message : error);
+    return {};
+  });
+  const receipts = await checkPushReceipts().catch((error) => {
+    console.warn("[ticket-notifications] push receipts failed", error instanceof Error ? error.message : error);
+    return {};
+  });
+  return Response.json({ ...result, ...reminders, ...notices, ...push, ...receipts }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export const GET = trackedCron("ticket-notifications", run);

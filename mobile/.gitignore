@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# App Store listing: holds the reviewer sign-in, never committed.
+store.config.json

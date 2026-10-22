@@ -1,25 +1,22 @@
 "use server";
-import { createHash } from "node:crypto";
 import { and, eq, isNotNull, max, or, sql } from "drizzle-orm";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "../db";
-import { getActor, canAccess, answersForClient, ASSISTED_DECISION, type Actor } from "../access/access";
-import { auth } from "../auth/auth";
+import { getActor } from "../access/access";
+import { requestEvidence, type DecisionEvidence } from "../access/client-decision";
 import { accountEmails, auditEvents, companies, engagements, memberships, quoteVersions, quotes, tasks, tickets, user } from "@/db/schema";
 import type { ActionState } from "../action-state";
-import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
+import { consoleUrl, quoteFailure as failure, refreshQuotes as refresh } from "./quote-common";
+import { answerQuoteAs, quoteNoteField, type QuoteAnswer } from "./quote-answer";
+import { documentHash as hashOf } from "../document-hash";
 import { saoPauloDate } from "../dates";
-import { currency, longDateLabel } from "../format";
-import { sendOpsMail } from "../notifications/ops-alerts";
-import { billingProblemsLabel, billingReadiness } from "../billing/billing-readiness";
 import { deliverQuoteNotice } from "./quote-mail";
+import { enqueuePush, schedulePushNotices } from "../notifications/push-queue";
 import { quoteBoardTasks } from "./quote-handoff";
 import { inviteManagerOnSend } from "../access/invite-manager";
 import {
   quoteContentSchema,
-  quoteExpired,
   quoteNumberLabel,
   quoteTotals,
   type QuoteContent,
@@ -42,36 +39,6 @@ const contentField = z
     }
   })
   .pipe(quoteContentSchema);
-const noteField = z.string().trim().max(1000, "A observação pode ter até mil caracteres.").default("");
-
-const failure = (e: unknown): ActionState => ({
-  error: logDatabaseFault("quotes", e)
-    ? DATABASE_FAILURE
-    : e instanceof z.ZodError
-      ? e.issues[0].message
-      : e instanceof Error && e.message === "stale"
-        ? "O orçamento mudou em outra aba. Atualize a página antes de continuar."
-        : e instanceof Error && e.message
-          ? e.message
-          : "Não foi possível salvar o orçamento. Confira os dados e tente novamente.",
-});
-function refresh(quoteId?: string) {
-  revalidatePath("/orcamentos");
-  if (quoteId) revalidatePath(`/orcamentos/${quoteId}`);
-}
-/** SHA-256 of the frozen proposal; keys sorted so JSONB's own order never matters. */
-const sha256 = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const canonical = (value: unknown): unknown =>
-  Array.isArray(value)
-    ? value.map(canonical)
-    : value && typeof value === "object"
-      ? Object.fromEntries(
-          Object.keys(value as Record<string, unknown>)
-            .sort()
-            .map((key) => [key, canonical((value as Record<string, unknown>)[key])]),
-        )
-      : value;
-const hashOf = (publication: QuotePublication) => sha256(canonical(publication));
 
 function quoteFields(form: FormData) {
   return {
@@ -81,8 +48,6 @@ function quoteFields(form: FormData) {
   };
 }
 
-const consoleUrl = () => process.env.BETTER_AUTH_URL || "http://localhost:3100";
-
 /** Active managers of the company: the people who can answer a proposal. */
 async function companyManagers(companyId: string) {
   return db
@@ -91,11 +56,6 @@ async function companyManagers(companyId: string) {
     .leftJoin(accountEmails, and(eq(accountEmails.email, memberships.email), isNotNull(accountEmails.verifiedAt)))
     .leftJoin(user, or(eq(user.email, memberships.email), eq(user.id, accountEmails.userId)))
     .where(and(eq(memberships.companyId, companyId), eq(memberships.active, true), eq(memberships.role, "manager")));
-}
-
-function partyFor(actor: Actor, companyId: string): "anuntech" | "client" | null {
-  if (actor.admin) return "anuntech";
-  return answersForClient(actor, companyId) ? "client" : null;
 }
 
 /* ---------- drafting (staff) ---------- */
@@ -290,6 +250,14 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
         action: "quote.sent",
         details: { hash: documentHash, version },
       });
+      // The Administradores' phones: they are the ones who answer a proposal.
+      await enqueuePush(tx, {
+        event: "quote.sent",
+        eventKey: `quote.sent:${q.id}:${version}`,
+        companyId: q.companyId,
+        entityId: q.id,
+        actorId: actor.user.id,
+      });
       return { ...q, publication, version, companyName: company.name };
     });
     const url = `${consoleUrl()}/orcamentos/${sent.id}`;
@@ -314,6 +282,7 @@ export async function sendQuote(_: ActionState, form: FormData): Promise<ActionS
       }
     }
     refresh(sent.id);
+    schedulePushNotices();
     return {
       success:
         (notified
@@ -373,90 +342,26 @@ export async function cancelQuote(_: ActionState, form: FormData): Promise<Actio
 /* ---------- the answer ---------- */
 
 /**
- * Records the client's answer with the evidence behind it. A manager of the
- * company answers for the client; Anuntech can record an answer received
- * outside the Console, and the record says so. Nothing else happens here:
- * contract, products and billing are created by hand from the accepted
- * proposal.
+ * Records the client's answer (the rules, evidence and side effects are in
+ * answerQuoteAs, shared with the app's quotes.answer). The evidence is this
+ * request's IP and when its session was opened.
  */
 export async function answerQuote(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
+  let input: QuoteAnswer;
+  let evidence: DecisionEvidence;
   try {
-    const quoteId = id.parse(form.get("id"));
-    const decision = z.enum(["accept", "decline"]).parse(form.get("decision"));
-    const note = noteField.parse(form.get("note") ?? "");
-    const [q] = await db.select().from(quotes).where(eq(quotes.id, quoteId));
-    if (!q || !canAccess(actor, q.companyId, "finance")) return blocked;
-    if (actor.assisting) return { error: ASSISTED_DECISION };
-    const party = partyFor(actor, q.companyId);
-    if (!party) return { error: "Só um Administrador da empresa pode responder ao orçamento." };
-    if (q.status !== "sent" || !q.publication || !q.documentHash) return { error: "Este orçamento não está aguardando resposta." };
-    if (quoteExpired(q.status, q.validUntil, saoPauloDate()))
-      return {
-        error:
-          party === "client"
-            ? "Este orçamento expirou. Peça à Anuntech uma nova versão com validade atualizada."
-            : "O orçamento expirou. Volte para rascunho, ajuste a validade e envie de novo.",
-      };
-    if (hashOf(q.publication) !== q.documentHash) return { error: "O conteúdo não confere com o registro. Peça um novo envio." };
-    if (decision === "accept" && party === "client" && form.get("consent") !== "on" && form.get("consent") !== "yes")
-      return { error: "Marque que leu e concorda com a proposta para aceitar." };
-    const requestHeaders = await headers();
-    const session = party === "client" ? await auth.api.getSession({ headers: requestHeaders }) : null;
-    const ip = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || requestHeaders.get("x-real-ip") || null;
-    const status = decision === "accept" ? "accepted" : "declined";
-    await db.transaction(async (tx) => {
-      const [current] = await tx.select({ status: quotes.status }).from(quotes).where(eq(quotes.id, q.id)).for("update");
-      if (current?.status !== "sent") throw Error("Este orçamento já foi respondido.");
-      await tx
-        .update(quotes)
-        .set({
-          status,
-          decidedAt: new Date(),
-          decidedBy: actor.user.id,
-          decidedParty: party,
-          decidedName: actor.user.name || actor.user.email,
-          decidedEmail: actor.user.email,
-          decidedIp: party === "client" ? ip : null,
-          decisionNote: note || null,
-          revision: q.revision + 1,
-          updatedAt: new Date(),
-        })
-        .where(eq(quotes.id, q.id));
-      await tx.insert(auditEvents).values({
-        actorId: actor.user.id,
-        companyId: q.companyId,
-        entityId: q.id,
-        action: `quote.${status}`,
-        details: { party, ip, version: q.publishedVersion, sessionStartedAt: session ? new Date(session.session.createdAt) : null },
-      });
-    });
-    const totals = quoteTotals(q.publication);
-    // The down payment cannot go out without a full billing address: the team hears it now, not on the day.
-    const [payer] = status === "accepted" ? await db.select().from(companies).where(eq(companies.id, q.companyId)) : [];
-    const problems = payer ? billingReadiness(payer) : [];
-    const billingNote = problems.length
-      ? `\n\nAtenção: ${billingProblemsLabel(problems)} no cadastro. Sem isso, a entrada e as cobranças deste cliente não saem no Inter. Corrija em ${consoleUrl()}/empresas/${q.companyId}?editar=1`
-      : "";
-    const who = party === "client" ? `${actor.user.name || actor.user.email} (${q.publication.companyName})` : `${actor.user.name || actor.user.email}, pela Anuntech, a pedido do cliente`;
-    await sendOpsMail(
-      `Orçamento ${q.publication.number} ${status === "accepted" ? "aceito" : "recusado"}: ${q.title}`,
-      `${status === "accepted" ? "Aceito" : "Recusado"} por ${who} em ${longDateLabel(new Date())}.\n\nCliente: ${q.publication.companyName}\nValor: ${currency(totals.totalCents)}${note ? `\nObservação: ${note}` : ""}\n\n${status === "accepted" ? "Os próximos passos estão no orçamento, já preenchidos: contrato, projeto com o quadro das fases e as cobranças de entrada e saldo. Cada um nasce como rascunho para você conferir." : ""}${billingNote}\n\nAbrir no Console: ${consoleUrl()}/orcamentos/${q.id}`,
-    );
-    refresh(q.id);
-    return {
-      success:
-        status === "accepted"
-          ? party === "client"
-            ? "Orçamento aceito. A Anuntech já foi avisada e entra em contato para os próximos passos."
-            : "Aceite registrado."
-          : party === "client"
-            ? "Resposta registrada. Obrigado por avisar."
-            : "Recusa registrada.",
+    input = {
+      id: id.parse(form.get("id")),
+      decision: z.enum(["accept", "decline"]).parse(form.get("decision")),
+      note: quoteNoteField.parse(form.get("note") ?? ""),
+      consent: form.get("consent") === "on" || form.get("consent") === "yes",
     };
+    evidence = await requestEvidence();
   } catch (e) {
     return failure(e);
   }
+  return answerQuoteAs(actor, input, evidence);
 }
 
 /**
