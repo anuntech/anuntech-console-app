@@ -90,6 +90,29 @@ const ticketEntry = z.discriminatedUnion("kind", [
   }),
 ]);
 
+/** A person's picture: an illustration of the catalog, an uploaded photo (path served with the session) or initials. */
+const avatar = z.object({
+  kind: z.enum(["illustration", "photo", "initials"]),
+  /** Path on the Console: /brand/avatars/<n>.svg, /api/conta/foto?v=… or /api/pessoas/<id>/foto?v=… */
+  path: z.string().nullable(),
+  /** Background of an illustration. */
+  color: z.string().nullable(),
+});
+const message = z.object({ message: z.string() });
+const sixDigits = z.string().regex(/^\d{6}$/);
+const companyAddress = z.object({
+  cep: z.string().max(9),
+  endereco: z.string().max(100),
+  numero: z.string().max(10),
+  complemento: z.string().max(30),
+  bairro: z.string().max(60),
+  cidade: z.string().max(60),
+  uf: z.string().max(2),
+  codigoMunicipio: z.string().max(7),
+});
+const memberScope = z.object({ access: z.enum(["all", "selected"]), ids: z.array(z.uuid()).max(500) });
+const noticeTopic = z.enum(["billing", "tickets"]);
+
 export const contract = {
   me: {
     /** Who is signed in and the companies they reach. */
@@ -100,6 +123,14 @@ export const contract = {
         email: z.string(),
         image: z.string().nullable(),
         phone: z.string().nullable(),
+        avatar,
+        /** Two-step verification on: e-mail and WhatsApp are locked until it is turned off. */
+        twoFactorEnabled: z.boolean(),
+        twoStepChannel: z.enum(["email", "whatsapp"]),
+        /** Signed in less than 10 minutes ago: contact changes are allowed. */
+        recentSignIn: z.boolean(),
+        /** Manages exactly one company: Dados da empresa, Membros and Notificações apply to it. */
+        managedCompanyId: z.string().nullable(),
         staff: z.boolean(),
         owner: z.boolean(),
         companies: z.array(
@@ -321,6 +352,134 @@ export const contract = {
       .output(done),
     /** Signing out: this phone stops receiving them. */
     unregister: oc.input(z.object({ token: pushToken })).output(done),
+  },
+  profile: {
+    /** Changes the person's name (2 to 100 characters). */
+    rename: oc.input(z.object({ name: z.string().max(200) })).output(message),
+    /** The illustrations a person can pick. */
+    avatars: oc.input(empty).output(z.object({ avatars: z.array(z.object({ image: z.string(), path: z.string(), color: z.string() })) })),
+    /** Picks an illustration of the catalog. A photo is sent to POST /api/v1/conta/foto. */
+    setAvatar: oc.input(z.object({ image: z.string().max(200) })).output(z.object({ avatar, message: z.string() })),
+    /** Removes the uploaded photo: the profile goes back to an illustration. */
+    removePhoto: oc.input(empty).output(z.object({ avatar, message: z.string() })),
+    /** Starts moving the main e-mail: a code to the current address and one to the new. */
+    startEmailChange: oc
+      .input(z.object({ email: z.string().max(254) }))
+      .output(z.object({ challengeId: z.string(), email: z.string(), message: z.string() })),
+    /** Confirms both codes; every session ends, the app signs in again with the new address. */
+    confirmEmailChange: oc
+      .input(z.object({ challengeId: z.uuid(), sourceCode: sixDigits, targetCode: sixDigits }))
+      .output(message),
+  },
+  security: {
+    /** Two-step state and where the account has been open. Changes go through /api/auth/security/*. */
+    overview: oc.input(empty).output(
+      z.object({
+        twoFactorEnabled: z.boolean(),
+        channel: z.enum(["email", "whatsapp"]),
+        phone: z.string().nullable(),
+        sessions: z.array(
+          z.object({
+            id: z.string(),
+            device: z.string(),
+            createdAt: z.string(),
+            expiresAt: z.string().nullable(),
+            status: z.enum(["current", "active", "expired", "ended"]),
+            statusLabel: z.string(),
+          }),
+        ),
+      }),
+    ),
+  },
+  company: {
+    /** The company the person manages (Administradores). */
+    get: oc.input(empty).output(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        document: z.string(),
+        billingEmail: z.string(),
+        phone: z.string(),
+        address: companyAddress.nullable(),
+      }),
+    ),
+    update: oc
+      .input(
+        z.object({
+          name: z.string().max(200),
+          document: z.string().max(20),
+          billingEmail: z.string().max(254),
+          phone: z.string().max(30),
+          address: companyAddress.nullable(),
+        }),
+      )
+      .output(message),
+    /** Fills the address from a CEP (20 a hour). */
+    lookupCep: oc
+      .input(z.object({ cep: z.string().regex(/^\d{8}$/) }))
+      .output(z.object({ endereco: z.string(), bairro: z.string(), cidade: z.string(), uf: z.string(), codigoMunicipio: z.string() })),
+  },
+  members: {
+    /** Who enters the Console for the company, their role and what each Membro sees. */
+    list: oc.input(empty).output(
+      z.object({
+        people: z.array(
+          z.object({
+            key: z.string(),
+            memberId: z.string(),
+            name: z.string().nullable(),
+            email: z.string(),
+            avatar,
+            self: z.boolean(),
+            pending: z.boolean(),
+            role: z.enum(["manager", "member"]),
+            roleLabel: z.string(),
+            statusLabel: z.string(),
+            scope: memberScope,
+            scopeLabel: z.string(),
+          }),
+        ),
+        /** What a Membro can be given to see: the company's products, services and projects. */
+        choices: z.array(z.object({ id: z.string(), name: z.string(), kindLabel: z.string() })),
+      }),
+    ),
+    /** Invites a person, or changes their role or what they see (same rules as the web). */
+    save: oc
+      .input(z.object({ email: z.string().max(254), role: z.enum(["manager", "member"]), scope: memberScope.optional() }))
+      .output(message),
+    /** Removes the access (or cancels the invite). */
+    revoke: oc.input(z.object({ memberId: z.uuid() })).output(message),
+    /** Sends the invite again (once a week). */
+    resendInvite: oc.input(z.object({ memberId: z.uuid() })).output(message),
+  },
+  notifications: {
+    /** Who receives the company's notices, per subject, by e-mail and WhatsApp. */
+    get: oc.input(empty).output(
+      z.object({
+        topics: z.array(
+          z.object({
+            topic: noticeTopic,
+            title: z.string(),
+            description: z.string(),
+            emails: z.array(z.string()),
+            phones: z.array(z.string()),
+            emailEnabled: z.boolean(),
+            whatsappEnabled: z.boolean(),
+          }),
+        ),
+      }),
+    ),
+    save: oc
+      .input(
+        z.object({
+          topic: noticeTopic,
+          emails: z.array(z.string().max(254)).max(10),
+          phones: z.array(z.string().max(30)).max(10),
+          emailEnabled: z.boolean(),
+          whatsappEnabled: z.boolean(),
+        }),
+      )
+      .output(message),
   },
 };
 export type Contract = typeof contract;

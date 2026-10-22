@@ -1,9 +1,10 @@
-import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { radius, space, usePalette } from "@/lib/theme";
+import { invoiceLook } from "@/lib/status";
+import { fonts, usePalette } from "@/lib/theme";
 import { dueLine, money } from "@/lib/format";
+import { ListRow } from "./list-row";
 import { Text } from "./text";
-import { InvoiceBadge } from "./invoice-badge";
+import { StatusTile, toneColors } from "./tile";
 
 export type InvoiceRow = {
   id: string;
@@ -15,36 +16,39 @@ export type InvoiceRow = {
   dueDate: string;
 };
 
-/** One invoice in a list; tapping opens it. */
+/**
+ * One invoice as a grouped-list row: status tile, description, the status and
+ * due date under it, the amount at the end (red when overdue). Tapping opens it.
+ * The caller draws the group (a Section, or `groupedItem` in a FlatList).
+ */
 export function InvoiceCard({ invoice, showCompany }: { invoice: InvoiceRow; showCompany?: boolean }) {
   const palette = usePalette();
+  const look = invoiceLook[invoice.display] ?? invoiceLook.issued;
+  const overdue = invoice.display === "overdue";
+  const due = dueLine(invoice.display, invoice.dueDate);
+  const amount = money(invoice.amountCents);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${invoice.description}, ${money(invoice.amountCents)}, ${invoice.statusLabel}`}
-      onPress={() => router.push({ pathname: "/financeiro/[id]", params: { id: invoice.id } })}
-      style={({ pressed }) => ({
-        backgroundColor: palette.card,
-        borderRadius: radius.xl,
-        borderWidth: 1,
-        borderColor: palette.border,
-        padding: space.lg,
-        gap: space.sm,
-        opacity: pressed ? 0.8 : 1,
-      })}
-    >
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: space.sm }}>
-        <InvoiceBadge display={invoice.display} label={invoice.statusLabel} />
-        <Text variant="label" style={{ fontVariant: ["tabular-nums"] }}>
-          {money(invoice.amountCents)}
+    <ListRow
+      leading={<StatusTile icon={look.icon} tone={look.tone} />}
+      title={
+        <Text variant="headline" numberOfLines={2}>
+          {invoice.description}
         </Text>
-      </View>
-      <Text variant="label" numberOfLines={2} style={{ fontSize: 16, lineHeight: 22 }}>
-        {invoice.description}
-      </Text>
-      <Text variant="caption" tone="muted">
-        {[showCompany ? invoice.company : null, dueLine(invoice.display, invoice.dueDate)].filter(Boolean).join(" · ")}
-      </Text>
-    </Pressable>
+      }
+      subtitle={
+        <Text variant="subhead" tone={overdue ? "destructive" : "muted"} numberOfLines={2}>
+          <Text variant="subhead" style={{ fontFamily: fonts.semibold, color: toneColors(palette, look.tone).fg }}>
+            {invoice.statusLabel}
+          </Text>
+          {` · ${due}`}
+        </Text>
+      }
+      meta={showCompany ? invoice.company : undefined}
+      value={amount}
+      money
+      valueTone={overdue ? "destructive" : "foreground"}
+      accessibilityLabel={[invoice.statusLabel, invoice.description, amount, due, invoice.company].join(". ")}
+      onPress={() => router.push({ pathname: "/financeiro/[id]", params: { id: invoice.id } })}
+    />
   );
 }

@@ -5,6 +5,7 @@ import { Notice, Screen } from "@/components/surface";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
 import { CodeField } from "@/components/field";
+import { IconTile } from "@/components/tile";
 import { authClient, securityChallenge } from "@/lib/auth";
 import { space } from "@/lib/theme";
 
@@ -60,8 +61,11 @@ export default function SecondStep() {
 
   return (
     <Screen>
-      <View style={{ gap: space.md, marginTop: space.block * 2 }}>
-        <Text variant="title" accessibilityRole="header">
+      <View style={{ gap: space.sm, marginTop: space.xl }}>
+        <View style={{ marginBottom: space.sm }}>
+          <IconTile icon="lock.shield.fill" color="violet" size={56} />
+        </View>
+        <Text variant="largeTitle" accessibilityRole="header">
           Confirme seu acesso
         </Text>
         <Text tone="muted">
@@ -85,6 +89,7 @@ export default function SecondStep() {
         {challenge && (
           <Button
             title={sent ? "Confirmar" : "Enviar código"}
+            icon={sent ? undefined : challenge.channel === "email" ? "envelope.fill" : "message.fill"}
             busy={busy}
             disabled={sent && code.length !== 6}
             onPress={() => void (sent ? verify() : send())}
@@ -92,7 +97,7 @@ export default function SecondStep() {
         )}
         <Button
           title="Voltar para a entrada"
-          variant="ghost"
+          variant="plain"
           disabled={busy}
           onPress={() => {
             void authClient.$fetch("/security/cancel", { method: "POST", body: {} }).catch(() => undefined);

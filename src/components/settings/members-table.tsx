@@ -24,6 +24,8 @@ import { scopeSummary, type MemberScope, type ScopeEngagement } from "./member-a
 export type Person = {
   key: string;
   memberId: string;
+  /** The person's account, once there is one (the app's API draws their photo by it). */
+  userId?: string | null;
   name: string | null;
   email: string;
   image: string | null;

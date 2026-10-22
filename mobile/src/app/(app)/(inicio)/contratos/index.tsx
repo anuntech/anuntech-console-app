@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { PagedList } from "@/components/paged-list";
-import { RecordCard, Tag } from "@/components/record-card";
+import { RecordRow } from "@/components/record-card";
 import { api } from "@/lib/api";
 import { when } from "@/lib/format";
 import { contractTone } from "@/lib/tones";
@@ -11,11 +11,16 @@ export default function Contracts() {
     <PagedList
       queryKey={["contracts"]}
       load={(page) => api.contracts.list({ page })}
-      empty="Nenhum contrato por aqui."
+      empty={{
+        icon: "doc.text",
+        title: "Nenhum contrato ainda",
+        text: "Quando a Anuntech enviar um contrato para sua empresa, ele aparece aqui para você ler e assinar.",
+      }}
       render={(c, showCompany) => (
-        <RecordCard
+        <RecordRow
+          kind="contract"
           title={c.title}
-          tag={<Tag label={c.statusLabel} tone={contractTone(c.status)} />}
+          status={{ label: c.statusLabel, tone: contractTone(c.status) }}
           details={[c.kindLabel, showCompany ? c.company : null, `Atualizado em ${when(c.updatedAt)}`]
             .filter(Boolean)
             .join(" · ")}

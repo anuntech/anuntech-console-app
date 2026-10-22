@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import Constants from "expo-constants";
 
 const extra = (Constants.expoConfig?.extra ?? {}) as {
@@ -10,6 +11,17 @@ const extra = (Constants.expoConfig?.extra ?? {}) as {
 export const CONSOLE_URL = (extra.consoleUrl ?? "https://console.anuntech.com").replace(/\/$/, "");
 export const APP_ENV = extra.env ?? "production";
 export const EAS_PROJECT_ID = extra.eas?.projectId ?? Constants.easConfig?.projectId;
+/**
+ * How the app introduces itself to the Console: "AnuntechApp/1.1.0 (iPhone; iOS 26.0)"
+ * or "(Android 16)". The Console's session list shows it as "App Anuntech · iPhone".
+ */
+export const USER_AGENT = `AnuntechApp/${Constants.expoConfig?.version ?? "0"} (${
+  Platform.OS === "ios"
+    ? `iPhone; iOS ${Platform.Version}`
+    : Platform.OS === "android"
+      ? `Android ${Platform.constants.Release}`
+      : Platform.OS
+})`;
 /** Profile pictures and illustrated avatars are paths on the Console. */
 export const imageUrl = (image: string | null | undefined) =>
   !image ? null : image.startsWith("/") ? `${CONSOLE_URL}${image}` : image;

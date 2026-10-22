@@ -1,25 +1,45 @@
 import { Text as NativeText, type TextProps } from "react-native";
 import { fonts, usePalette } from "@/lib/theme";
 
-type Variant = "title" | "heading" | "body" | "label" | "caption";
-const sizes: Record<Variant, { fontSize: number; lineHeight: number; font: keyof typeof fonts; tracking?: number }> = {
-  title: { fontSize: 28, lineHeight: 34, font: "semibold", tracking: -0.5 },
-  heading: { fontSize: 18, lineHeight: 24, font: "semibold", tracking: -0.2 },
-  body: { fontSize: 16, lineHeight: 24, font: "regular" },
-  label: { fontSize: 14, lineHeight: 20, font: "semibold" },
-  caption: { fontSize: 13, lineHeight: 18, font: "regular" },
+export type Variant =
+  | "display"
+  | "largeTitle"
+  | "title"
+  | "heading"
+  | "headline"
+  | "body"
+  | "money"
+  | "subhead"
+  | "label"
+  | "caption"
+  | "micro";
+
+type Size = { fontSize: number; lineHeight: number; font: keyof typeof fonts; tracking?: number; max: number; tabular?: boolean };
+
+/** The type scale, all Geist: big things semibold (600), rows medium (500), reading regular. */
+const sizes: Record<Variant, Size> = {
+  display: { fontSize: 40, lineHeight: 46, font: "bold", tracking: -1, max: 1.5, tabular: true },
+  largeTitle: { fontSize: 34, lineHeight: 41, font: "bold", tracking: -0.6, max: 1.5 },
+  title: { fontSize: 28, lineHeight: 34, font: "bold", tracking: -0.5, max: 1.5 },
+  heading: { fontSize: 20, lineHeight: 26, font: "semibold", tracking: -0.3, max: 1.5 },
+  headline: { fontSize: 17, lineHeight: 22, font: "semibold", tracking: -0.2, max: 2 },
+  body: { fontSize: 17, lineHeight: 24, font: "regular", max: 2 },
+  money: { fontSize: 17, lineHeight: 22, font: "bold", tracking: -0.2, max: 2, tabular: true },
+  subhead: { fontSize: 15, lineHeight: 20, font: "regular", max: 2 },
+  label: { fontSize: 15, lineHeight: 20, font: "semibold", max: 2 },
+  caption: { fontSize: 13, lineHeight: 18, font: "regular", max: 2 },
+  micro: { fontSize: 12, lineHeight: 16, font: "semibold", tracking: 0.1, max: 2 },
 };
 
-/** Sofia in the Console's sizes; text scales with the system setting. */
+export type Tone = "foreground" | "muted" | "primary" | "destructive" | "inverse" | "success" | "warning";
+
+/** Geist in the Console's sizes; text scales with the system setting, up to a cap per size. */
 export function Text({
   variant = "body",
   tone = "foreground",
   style,
   ...props
-}: TextProps & {
-  variant?: Variant;
-  tone?: "foreground" | "muted" | "primary" | "destructive" | "inverse";
-}) {
+}: TextProps & { variant?: Variant; tone?: Tone }) {
   const palette = usePalette();
   const size = sizes[variant];
   const color = {
@@ -28,10 +48,12 @@ export function Text({
     primary: palette.primary,
     destructive: palette.destructive,
     inverse: palette.primaryForeground,
+    success: palette.success,
+    warning: palette.warning,
   }[tone];
   return (
     <NativeText
-      maxFontSizeMultiplier={1.6}
+      maxFontSizeMultiplier={size.max}
       style={[
         {
           fontFamily: fonts[size.font],
@@ -39,6 +61,7 @@ export function Text({
           lineHeight: size.lineHeight,
           letterSpacing: size.tracking ?? 0,
           color,
+          ...(size.tabular ? { fontVariant: ["tabular-nums"] as const } : {}),
         },
         style,
       ]}

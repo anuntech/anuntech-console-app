@@ -1,14 +1,7 @@
 import { Stack } from "expo-router";
-import { usePalette } from "@/lib/theme";
+import { useStackOptions } from "@/lib/stack";
 
 export default function AuthLayout() {
-  const palette = usePalette();
-  return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: palette.background },
-      }}
-    />
-  );
+  const options = useStackOptions();
+  return <Stack screenOptions={{ ...options, headerShown: false }} />;
 }

@@ -1,77 +1,74 @@
 import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
-import { radius, space, usePalette } from "@/lib/theme";
+import { View } from "react-native";
+import type { SFSymbol } from "expo-symbols";
+import type { ToneName } from "@/lib/status";
+import type { tile } from "@/lib/theme";
+import { ListRow } from "./list-row";
+import { Pill } from "./pill";
 import { Text } from "./text";
+import { IconTile } from "./tile";
 
-/** A tappable card for a record in a list: a tag, a title, details and an optional corner value. */
-export function RecordCard({
+/** Each kind of record keeps one symbol and one tile color everywhere (Início shortcuts, lists). */
+export const recordLooks: Record<"contract" | "quote" | "project", { icon: SFSymbol; color: keyof typeof tile }> = {
+  contract: { icon: "doc.text.fill", color: "teal" },
+  quote: { icon: "list.bullet.rectangle.portrait.fill", color: "amber" },
+  project: { icon: "square.grid.2x2.fill", color: "violet" },
+};
+
+/**
+ * A contract, quote or project in a grouped list: its tile, the title, the
+ * details, the situation as a pill and, for quotes, the amount at the end.
+ */
+export function RecordRow({
+  kind,
   title,
-  tag,
-  corner,
   details,
+  status,
+  value,
+  note,
   onPress,
   children,
 }: {
+  kind: keyof typeof recordLooks;
   title: string;
-  tag?: ReactNode;
-  corner?: string;
   details?: string;
+  status?: { label: string; tone: ToneName };
+  /** Money shown at the end of the row. */
+  value?: string;
+  /** A last line under the pill, read with the row (a project's progress in words). */
+  note?: string;
   onPress: () => void;
+  /** Something drawn under the pill (a project's progress bar); VoiceOver reads `note` instead. */
   children?: ReactNode;
 }) {
-  const palette = usePalette();
+  const look = recordLooks[kind];
+  const extra = status || children || note;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={[title, details].filter(Boolean).join(", ")}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        backgroundColor: palette.card,
-        borderRadius: radius.xl,
-        borderWidth: 1,
-        borderColor: palette.border,
-        padding: space.lg,
-        gap: space.sm,
-        opacity: pressed ? 0.8 : 1,
-      })}
-    >
-      {tag || corner ? (
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: space.sm }}>
-          <View style={{ flexShrink: 1 }}>{tag}</View>
-          {corner ? (
-            <Text variant="label" style={{ fontVariant: ["tabular-nums"] }}>
-              {corner}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-      <Text variant="label" numberOfLines={2} style={{ fontSize: 16, lineHeight: 22 }}>
-        {title}
-      </Text>
-      {details ? (
-        <Text variant="caption" tone="muted" numberOfLines={2}>
-          {details}
+    <ListRow
+      leading={<IconTile icon={look.icon} color={look.color} />}
+      title={
+        <Text variant="headline" numberOfLines={2}>
+          {title}
         </Text>
-      ) : null}
-      {children}
-    </Pressable>
-  );
-}
-
-/** A neutral pill for a situation the app has no special color for. */
-export function Tag({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "good" | "attention" | "info" }) {
-  const palette = usePalette();
-  const colors = {
-    neutral: { bg: palette.secondary, fg: palette.muted },
-    good: { bg: palette.successSoft, fg: palette.success },
-    attention: { bg: palette.warningSoft, fg: palette.warning },
-    info: { bg: palette.accent, fg: palette.primary },
-  }[tone];
-  return (
-    <View style={{ alignSelf: "flex-start", backgroundColor: colors.bg, borderRadius: radius.xl, paddingHorizontal: space.sm, paddingVertical: 2 }}>
-      <Text variant="caption" style={{ color: colors.fg }}>
-        {label}
-      </Text>
-    </View>
+      }
+      subtitle={details}
+      meta={
+        extra ? (
+          <View style={{ marginTop: 6, gap: 8 }}>
+            {status ? <Pill label={status.label} tone={status.tone} /> : null}
+            {children}
+            {note ? (
+              <Text variant="caption" tone="muted">
+                {note}
+              </Text>
+            ) : null}
+          </View>
+        ) : undefined
+      }
+      value={value}
+      money={!!value}
+      onPress={onPress}
+      accessibilityLabel={[title, status?.label, details, note, value].filter(Boolean).join(", ")}
+    />
   );
 }

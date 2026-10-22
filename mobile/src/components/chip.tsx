@@ -1,38 +1,50 @@
-import { Pressable } from "react-native";
-import { radius, space, usePalette } from "@/lib/theme";
+import { Pressable, View } from "react-native";
+import { SymbolView } from "expo-symbols";
+import { haptic } from "@/lib/haptics";
+import { rounded, usePalette } from "@/lib/theme";
 import { Text } from "./text";
 
-/** One choice among a few (filters, kinds): selected is filled. */
+/** One option of a scrollable set (folders, companies): selected is filled, with a check. */
 export function Chip({
   label,
   selected,
   onPress,
+  group,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
+  /** Read by VoiceOver as the hint: what the set is. */
+  group?: string;
 }) {
   const palette = usePalette();
   return (
     <Pressable
-      accessibilityRole="radio"
+      accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={label}
-      onPress={onPress}
+      accessibilityHint={group}
+      hitSlop={{ top: 4, bottom: 4 }}
+      onPress={() => {
+        haptic.select();
+        onPress();
+      }}
       style={({ pressed }) => ({
         minHeight: 36,
-        paddingHorizontal: space.md,
-        borderRadius: radius.xl,
-        borderWidth: 1,
-        borderColor: selected ? palette.primary : palette.border,
-        backgroundColor: selected ? palette.accent : palette.card,
+        paddingHorizontal: 14,
+        ...rounded(999),
+        borderWidth: selected ? 0 : 1,
+        borderColor: palette.border,
+        backgroundColor: selected ? palette.primary : pressed ? palette.fill : palette.card,
         justifyContent: "center",
-        opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Text variant="label" tone={selected ? "primary" : "foreground"}>
-        {label}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        {selected ? <SymbolView name="checkmark" size={12} weight="bold" tintColor={palette.primaryForeground} accessible={false} /> : null}
+        <Text variant="label" style={{ color: selected ? palette.primaryForeground : palette.foreground }}>
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
 }

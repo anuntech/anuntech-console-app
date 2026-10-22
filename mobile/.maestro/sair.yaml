@@ -1,12 +1,16 @@
 appId: com.anuntech.console.development
 ---
-# A aba Conta pela posição: o título "Conta" da tela também casa com o texto.
+# A aba Conta pela posição (a última de cinco): o título "Conta" da tela também casa com o texto.
 - tapOn:
-    point: "60%,94%"
+    point: "87%,94%"
 - extendedWaitUntil:
     visible: "Excluir minha conta"
     timeout: 20000
 - tapOn: "Sair"
+# Sair pede confirmação.
+- tapOn:
+    text: "Sair"
+    index: 0
 - extendedWaitUntil:
     visible: "Entre no Console"
     timeout: 20000

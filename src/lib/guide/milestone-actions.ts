@@ -1,9 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { getActor, canAccess } from "../access/access";
+import { getActor } from "../access/access";
 import { GUIDE_VERSION } from "./guide-content";
-import { milestoneKeys, recordMilestone } from "./milestones";
+import { recordMilestone } from "./milestones";
+import { markCompanyStep } from "./mark-step";
 
 /** Reading "Como trabalhamos" counts once per version; it never stands for accepting any term. */
 export async function markGuideRead() {
@@ -15,9 +15,6 @@ export async function markGuideRead() {
 /** A first step done by hand, or the card hidden, for one company the person belongs to. */
 export async function markFirstStep(companyId: string, key: string) {
   const actor = await getActor();
-  const input = z.object({ companyId: z.string().uuid(), key: z.enum(milestoneKeys) }).parse({ companyId, key });
-  if (!canAccess(actor, input.companyId, "overview")) return;
-  // Reviewing who has access is due again every 6 months, so its date follows the latest review.
-  await recordMilestone(actor.user.id, input.key, input.companyId, input.key === "members_reviewed");
+  if (!(await markCompanyStep(actor, companyId, key))) return;
   revalidatePath("/painel");
 }

@@ -1,28 +1,60 @@
-import { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { useRef, useState, type ComponentRef } from "react";
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
+import { useReducedMotion } from "react-native-reanimated";
 import { router } from "expo-router";
+import { SymbolView, type SFSymbol } from "expo-symbols";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Text } from "@/components/text";
 import { Button } from "@/components/button";
-import { Chip } from "@/components/chip";
 import { Field } from "@/components/field";
+import { ListRow } from "@/components/list-row";
+import { Section } from "@/components/section";
+import { SkeletonRows, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";
+import { IconTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
-import { space } from "@/lib/theme";
+import { haptic } from "@/lib/haptics";
+import { space, usePalette, type tile } from "@/lib/theme";
 
 type Kind = "problem" | "question" | "change" | "access" | "new_project";
 type Impact = "down" | "workaround" | "other";
+type Block = "company" | "kind" | "impact" | "fields" | "subject" | "body";
+
+/** Each kind of request with its tile, so the five read at a glance. */
+const kindLook: Record<Kind, { icon: SFSymbol; color: keyof typeof tile }> = {
+  problem: { icon: "exclamationmark.triangle.fill", color: "red" },
+  question: { icon: "questionmark.circle.fill", color: "violet" },
+  change: { icon: "slider.horizontal.3", color: "teal" },
+  access: { icon: "key.fill", color: "gray" },
+  new_project: { icon: "sparkles", color: "ink" },
+};
+
+/** The trailing check of the chosen row (never color alone). */
+function Check() {
+  const palette = usePalette();
+  return <SymbolView name="checkmark" size={17} weight="semibold" tintColor={palette.primary} accessible={false} />;
+}
+
+/** "a, b e c" */
+function list(items: string[]) {
+  return items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} e ${items[items.length - 1]}`;
+}
 
 /** Opening a ticket (tickets.create), with the same choices as the web form. */
 export default function NewTicket() {
   const queryClient = useQueryClient();
+  const reduceMotion = useReducedMotion();
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  // Where each block sits in the scroll, to bring the first missing one into view.
+  const positions = useRef<Partial<Record<Block, number>>>({});
   const choices = useQuery({ queryKey: ["ticket-choices"], queryFn: () => api.tickets.choices({}) });
+  const loading = useDelayed(choices.isPending);
   const [picked, setCompany] = useState<string>();
   const [engagementId, setEngagement] = useState("");
   const [kind, setKind] = useState<Kind>();
   const [impact, setImpact] = useState<Impact>();
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [tried, setTried] = useState(false);
   const companies = choices.data?.companies ?? [];
   // With one company there is nothing to pick.
   const companyId = picked ?? (companies.length === 1 ? companies[0].id : undefined);
@@ -38,98 +70,164 @@ export default function NewTicket() {
         body: body.trim(),
       }),
     onSuccess: async ({ id }) => {
+      haptic.success();
       await queryClient.invalidateQueries({ queryKey: ["tickets"] });
       router.replace({ pathname: "/chamados/[id]", params: { id } });
     },
+    onError: () => haptic.error(),
   });
-  const hint = choices.data?.kinds.find((k) => k.value === kind)?.hint;
-  const ready =
-    !!companyId && !!kind && (kind !== "problem" || !!impact) && !!subject.trim() && !!body.trim();
+  const missing: Block[] = [
+    ...(!companyId ? (["company"] as const) : []),
+    ...(!kind ? (["kind"] as const) : []),
+    ...(kind === "problem" && !impact ? (["impact"] as const) : []),
+    ...(!subject.trim() ? (["subject"] as const) : []),
+    ...(!body.trim() ? (["body"] as const) : []),
+  ];
+  const ready = missing.length === 0;
+  const pick = [
+    ...(companies.length > 1 ? ["a empresa"] : []),
+    "o tipo",
+    ...(kind === "problem" ? ["o impacto"] : []),
+  ];
+  const warning = `Escolha ${list(pick)}${pick.length > 1 ? "," : ""} e preencha assunto e descrição.`;
+  const submit = () => {
+    if (ready) return create.mutate();
+    setTried(true);
+    const where = positions.current;
+    const block = missing[0];
+    // The two fields sit inside the padded block, so their offsets add to its own.
+    const y = block === "subject" || block === "body" ? (where.fields ?? 0) + (where[block] ?? 0) : where[block];
+    if (y !== undefined) scroll.current?.scrollTo({ y: Math.max(0, y - space.lg), animated: !reduceMotion });
+  };
+  const choose = (apply: () => void) => () => {
+    haptic.select();
+    apply();
+  };
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView
+        ref={scroll}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: space.lg, gap: space.form, paddingBottom: space.block * 2 }}
+        keyboardDismissMode="interactive"
+        contentContainerStyle={{ paddingTop: space.sm, gap: space.block, paddingBottom: space.xxl }}
       >
-        {choices.isPending && <ActivityIndicator accessibilityLabel="Carregando" />}
-        {choices.error && <Notice kind="error">{errorMessage(choices.error)}</Notice>}
+        {loading && <SkeletonRows count={5} />}
+        {choices.error && (
+          <View style={{ paddingHorizontal: space.gutter }}>
+            <Notice kind="error">{errorMessage(choices.error)}</Notice>
+          </View>
+        )}
         {choices.data && (
           <>
             {companies.length > 1 && (
-              <View style={{ gap: space.sm }}>
-                <Text variant="label">Empresa</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+              <View onLayout={(e) => (positions.current.company = e.nativeEvent.layout.y)}>
+                <Section header="Empresa" inset={space.gutter} indent={space.lg}>
                   {companies.map((c) => (
-                    <Chip
+                    <ListRow
                       key={c.id}
-                      label={c.name}
-                      selected={companyId === c.id}
-                      onPress={() => {
+                      title={c.name}
+                      trailing={companyId === c.id ? <Check /> : "none"}
+                      accessibilityLabel={companyId === c.id ? `${c.name}, selecionada` : c.name}
+                      accessibilityHint="Empresa"
+                      onPress={choose(() => {
                         setCompany(c.id);
-                        setEngagement("");
-                      }}
+                        if (c.id !== companyId) setEngagement("");
+                      })}
                     />
                   ))}
-                </View>
+                </Section>
+              </View>
+            )}
+            <View onLayout={(e) => (positions.current.kind = e.nativeEvent.layout.y)}>
+              <Section header="O que você precisa?" inset={space.gutter}>
+                {choices.data.kinds.map((k) => {
+                  const look = kindLook[k.value as Kind] ?? kindLook.question;
+                  const selected = kind === k.value;
+                  return (
+                    <ListRow
+                      key={k.value}
+                      leading={<IconTile icon={look.icon} color={look.color} />}
+                      title={k.label}
+                      subtitle={k.hint}
+                      trailing={selected ? <Check /> : "none"}
+                      accessibilityLabel={[k.label, k.hint, selected ? "selecionado" : null].filter(Boolean).join(", ")}
+                      accessibilityHint="O que você precisa?"
+                      onPress={choose(() => setKind(k.value as Kind))}
+                    />
+                  );
+                })}
+              </Section>
+            </View>
+            {kind === "problem" && (
+              <View onLayout={(e) => (positions.current.impact = e.nativeEvent.layout.y)}>
+                <Section header="Qual o impacto?" inset={space.gutter} indent={space.lg}>
+                  {choices.data.impacts.map((i) => (
+                    <ListRow
+                      key={i.value}
+                      title={i.label}
+                      trailing={impact === i.value ? <Check /> : "none"}
+                      accessibilityLabel={impact === i.value ? `${i.label}, selecionado` : i.label}
+                      accessibilityHint="Qual o impacto?"
+                      onPress={choose(() => setImpact(i.value as Impact))}
+                    />
+                  ))}
+                </Section>
               </View>
             )}
             {products.length > 0 && (
-              <View style={{ gap: space.sm }}>
-                <Text variant="label">Produto ou serviço (opcional)</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
-                  {products.map((e) => (
-                    <Chip
-                      key={e.id}
-                      label={e.name}
-                      selected={engagementId === e.id}
-                      onPress={() => setEngagement(engagementId === e.id ? "" : e.id)}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-            <View style={{ gap: space.sm }}>
-              <Text variant="label">O que você precisa?</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
-                {choices.data.kinds.map((k) => (
-                  <Chip key={k.value} label={k.label} selected={kind === k.value} onPress={() => setKind(k.value as Kind)} />
+              <Section header="Produto ou serviço · opcional" inset={space.gutter}>
+                {products.map((e) => (
+                  <ListRow
+                    key={e.id}
+                    leading={<IconTile icon="globe" color="gray" />}
+                    title={e.name}
+                    trailing={engagementId === e.id ? <Check /> : "none"}
+                    accessibilityLabel={engagementId === e.id ? `${e.name}, selecionado` : e.name}
+                    accessibilityHint="Produto ou serviço, opcional. Toque de novo para desmarcar."
+                    onPress={choose(() => setEngagement(engagementId === e.id ? "" : e.id))}
+                  />
                 ))}
-              </View>
-              {hint ? (
-                <Text variant="caption" tone="muted">
-                  {hint}
-                </Text>
-              ) : null}
-            </View>
-            {kind === "problem" && (
-              <View style={{ gap: space.sm }}>
-                <Text variant="label">Qual o impacto?</Text>
-                <View style={{ gap: space.sm }}>
-                  {choices.data.impacts.map((i) => (
-                    <Chip key={i.value} label={i.label} selected={impact === i.value} onPress={() => setImpact(i.value as Impact)} />
-                  ))}
-                </View>
-              </View>
+              </Section>
             )}
-            <Field label="Assunto" testID="subject" value={subject} onChangeText={setSubject} maxLength={160} />
-            <Field
-              label="Descrição"
-              testID="body"
-              value={body}
-              onChangeText={setBody}
-              maxLength={10000}
-              multiline
-              style={{ minHeight: 140, paddingTop: space.md, textAlignVertical: "top" }}
-            />
-            {create.error ? <Notice kind="error">{errorMessage(create.error)}</Notice> : null}
-            <Button
-              title={create.isPending ? "Abrindo…" : "Abrir chamado"}
-              testID="create-ticket"
-              busy={create.isPending}
-              disabled={!ready}
-              onPress={() => create.mutate()}
-            />
+            <View onLayout={(e) => (positions.current.fields = e.nativeEvent.layout.y)} style={{ paddingHorizontal: space.gutter, gap: space.form }}>
+              <View onLayout={(e) => (positions.current.subject = e.nativeEvent.layout.y)}>
+                <Field
+                  label="Assunto"
+                  testID="subject"
+                  placeholder="Ex.: Formulário de contato não envia"
+                  value={subject}
+                  onChangeText={setSubject}
+                  maxLength={160}
+                  invalid={tried && !subject.trim()}
+                />
+              </View>
+              <View onLayout={(e) => (positions.current.body = e.nativeEvent.layout.y)}>
+                <Field
+                  label="Descrição"
+                  testID="body"
+                  placeholder="O que aconteceu, onde e desde quando"
+                  hint="A equipe responde por aqui e no seu WhatsApp."
+                  value={body}
+                  onChangeText={setBody}
+                  maxLength={10000}
+                  multiline
+                  invalid={tried && !body.trim()}
+                  style={{ minHeight: 140, paddingTop: space.md, textAlignVertical: "top" }}
+                />
+              </View>
+            </View>
+            <View style={{ paddingHorizontal: space.gutter, gap: space.md }}>
+              {tried && !ready ? <Notice kind="warning">{warning}</Notice> : null}
+              {create.error ? <Notice kind="error">{errorMessage(create.error)}</Notice> : null}
+              <Button
+                title={create.isPending ? "Abrindo…" : "Abrir chamado"}
+                icon="paperplane.fill"
+                testID="create-ticket"
+                busy={create.isPending}
+                onPress={submit}
+              />
+            </View>
           </>
         )}
       </ScrollView>

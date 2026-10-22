@@ -1,22 +1,26 @@
 import { Stack } from "expo-router";
-import { fonts, usePalette } from "@/lib/theme";
+import { useStackOptions } from "@/lib/stack";
+import { usePalette } from "@/lib/theme";
 
-/** The conversation and the list of earlier ones. */
+/** The conversation, the list of earlier ones, and the consent asked before the first message. */
 export default function AssistantLayout() {
+  const options = useStackOptions();
   const palette = usePalette();
   return (
-    <Stack
-      screenOptions={{
-        headerTitleStyle: { fontFamily: fonts.semibold, color: palette.foreground },
-        headerTintColor: palette.primary,
-        headerShadowVisible: false,
-        headerStyle: { backgroundColor: palette.background },
-        contentStyle: { backgroundColor: palette.background },
-        headerBackTitle: "Voltar",
-      }}
-    >
+    <Stack screenOptions={options}>
       <Stack.Screen name="index" options={{ title: "Assistente" }} />
       <Stack.Screen name="conversas" options={{ title: "Conversas" }} />
+      <Stack.Screen
+        name="consentimento"
+        options={{
+          presentation: "formSheet",
+          headerShown: false,
+          sheetAllowedDetents: [0.6],
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 24,
+          contentStyle: { backgroundColor: palette.card },
+        }}
+      />
     </Stack>
   );
 }
