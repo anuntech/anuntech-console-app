@@ -1,14 +1,12 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getActor } from "../access/access";
-import { GUIDE_VERSION } from "./guide-content";
-import { recordMilestone } from "./milestones";
+import { markGuideReadAs } from "./guide-terms";
 import { markCompanyStep } from "./mark-step";
 
 /** Reading "Como trabalhamos" counts once per version; it never stands for accepting any term. */
 export async function markGuideRead() {
-  const actor = await getActor();
-  await recordMilestone(actor.user.id, `guide_read_v${GUIDE_VERSION}`);
+  await markGuideReadAs(await getActor());
   revalidatePath("/painel");
 }
 

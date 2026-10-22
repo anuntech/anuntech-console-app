@@ -14,6 +14,7 @@ import { HELP_ARTICLES as articles } from "@/lib/help/articles";
 import { HELP_CATEGORIES, categoryOf, type HelpArticle } from "@/lib/help/help-model";
 import { searchHelp } from "@/lib/help/help-search";
 import { TUTORIALS } from "@/lib/help/tutorials";
+import { TOP_QUESTIONS } from "@/lib/help/help-view";
 import { HelpFaqList } from "./help-content";
 import { CategoryTile } from "./help-icons";
 import { durationLabel } from "./tutorial-player";
@@ -67,20 +68,6 @@ function ArticleRow({
     </li>
   );
 }
-
-/** The questions people ask most, picked by article (the first question of each). */
-const TOP_QUESTIONS = [
-  "entrar",
-  "abrir-um-chamado",
-  "situacoes-do-chamado",
-  "prazos-de-atendimento",
-  "pagar-uma-fatura",
-  "membro-ou-administrador",
-  "assinar-um-contrato",
-  "responder-um-orcamento",
-  "notificacoes",
-  "quadro-do-projeto",
-];
 
 export function NotFoundHelp({ viewer }: { viewer: HelpViewer }) {
   return (
