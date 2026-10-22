@@ -577,8 +577,8 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "steps",
             items: [
-              "Abra o assistente. Numa conversa nova, ele cumprimenta você pelo nome, pergunta como pode ajudar e mostra sugestões.",
-              "Toque numa sugestão, que é enviada na hora, ou escreva no campo “Pergunte ou peça algo…”. Se preferir, use o microfone para [falar em vez de escrever](/ajuda/falar-em-vez-de-escrever).",
+              "Abra o assistente. Numa conversa nova, ele cumprimenta você pelo nome e pergunta como pode ajudar.",
+              "Escreva no campo “Pergunte ou peça algo…”. Enquanto você digita, aparecem perguntas e atalhos parecidos: toque num deles, ou use as setas e Enter, para enviar a pergunta ou abrir o formulário. Se preferir, use o microfone para [falar em vez de escrever](/ajuda/falar-em-vez-de-escrever).",
               "Envie com Enter ou com a seta. Shift+Enter quebra a linha.",
               "A resposta aparece enquanto ele escreve. Enquanto ele trabalha, aparece há quanto tempo ele está na resposta, e as etiquetas com ✓ acima dela mostram, conforme acontecem, o que ele consultou ou fez, como “Consultei as faturas”.",
               "Os links da resposta abrem a tela certa do Console.",
@@ -833,16 +833,16 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             kind: "steps",
             items: [
               "Deixe o cursor onde o texto deve entrar e toque em “Falar”.",
-              "Na primeira vez, o navegador pede para usar o microfone, e a tela mostra “Permita o uso do microfone.”. Permita.",
-              "Fale. A tela mostra “Gravando” e o tempo, com o aviso “O áudio vai para um serviço de transcrição e não fica guardado.”.",
-              "Toque em “Parar” (o quadrado). Aparece “Transcrevendo…”.",
-              "O texto entra onde estava o cursor, com o aviso “Texto inserido. Revise antes de enviar.”.",
+              "Na primeira vez, o navegador pede para usar o microfone. Permita.",
+              "Fale. No assistente, os pontinhos ao lado do botão se mexem com a sua voz; nos chamados, a tela mostra “Gravando” e o tempo.",
+              "Toque em “Parar” (o quadrado). O áudio vira texto em alguns segundos.",
+              "O texto entra onde estava o cursor.",
               "Revise e envie você mesmo. Nada é enviado sozinho.",
             ],
           },
           {
             kind: "p",
-            text: "Para desistir no meio, toque em “Cancelar gravação” ou aperte Esc. Aparece “Gravação descartada.” e nada é transcrito.",
+            text: "Para desistir no meio, toque no × (no assistente) ou em “Cancelar gravação” (nos chamados), ou aperte Esc. Nada é transcrito.",
           },
         ],
       },

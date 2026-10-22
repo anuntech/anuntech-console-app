@@ -180,8 +180,5 @@ export function joinTranscript(value: string, start: number, end: number, insert
   return { value: next, caret: before.length + lead.length + piece.length + trail.length, truncated };
 }
 
-/** Shown while the microphone is open: where the audio goes. */
-export const PRIVACY_LINE = "O áudio vai para um serviço de transcrição e não fica guardado.";
-
 /** "0:07", "1:42": the recording timer. */
 export const clockLabel = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
