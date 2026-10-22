@@ -150,7 +150,8 @@ export async function contractsChecks({ db, rpc, ok, marker, emailSignIn, staff,
     // The detail: blocks with their index, what changed, the rounds, versions and amendments.
     r = await rpc("contracts.get", { id: reviewed }, admin);
     const blocks = r.body?.blocks ?? [];
-    const clause = (n) => blocks.find((b) => b.number === n);
+    // The block in the text shown; a removed one keeps its number but has no index.
+    const clause = (n) => blocks.find((b) => b.number === n && b.index !== null);
     ok(
       r.status === 200 &&
         blocks.filter((b) => b.index !== null).every((b, i) => b.index === i) &&
