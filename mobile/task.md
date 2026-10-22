@@ -82,17 +82,17 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 4 — Projetos
 
-- [ ] **P1** Lista: filtro de situação (Ativos, Pausados, Concluídos, Todas) — hoje pausados e concluídos não aparecem — e busca.
-- [ ] **P2** Cartão: prioridade, etiquetas, estimativa, anexos, atraso e o selo "Pedido do cliente".
-- [ ] **P3** Busca e filtros do quadro (pessoa, etiqueta, prioridade).
-- [ ] **P4** **Detalhe da tarefa**: descrição completa, criador, atualizada há, prioridade, responsáveis, prazo, estimativa, etiquetas, coluna.
-- [ ] **P5** Comentários: ler, escrever (com arquivos), editar e apagar os próprios.
-- [ ] **P6** Anexos da tarefa: ver, baixar, anexar e remover (quem anexou ou o criador).
-- [ ] **P7** **Criar pedido** (o cliente cria no Backlog como "pedido").
-- [ ] **P8** Editar tarefa e mudar a coluna, com as regras do cliente (não conclui, não põe em Revisão, não tira de Revisão nem de Concluído).
-- [ ] **P9** Excluir tarefa (quem criou).
-- [ ] **P10** Atividade do projeto.
-- [ ] **P11** "Sobre este projeto" com o texto de como o quadro funciona.
+- [x] **P1** Lista: filtro de situação (Ativos, Pausados, Concluídos, Todas) — hoje pausados e concluídos não aparecem — e busca.
+- [x] **P2** Cartão: prioridade, etiquetas, estimativa, anexos, atraso e o selo "Pedido do cliente".
+- [x] **P3** Busca e filtros do quadro (pessoa, etiqueta, prioridade).
+- [x] **P4** **Detalhe da tarefa**: descrição completa, criador, atualizada há, prioridade, responsáveis, prazo, estimativa, etiquetas, coluna.
+- [x] **P5** Comentários: ler, escrever (com arquivos), editar e apagar os próprios.
+- [x] **P6** Anexos da tarefa: ver, baixar, anexar e remover (quem anexou ou o criador).
+- [x] **P7** **Criar pedido** (o cliente cria no Backlog como "pedido").
+- [x] **P8** Editar tarefa e mudar a coluna, com as regras do cliente (não conclui, não põe em Revisão, não tira de Revisão nem de Concluído).
+- [x] **P9** Excluir tarefa (quem criou).
+- [x] **P10** Atividade do projeto.
+- [x] **P11** "Sobre este projeto" com o texto de como o quadro funciona.
 - ⚪ Arrastar cartões entre colunas: no celular, a coluna muda no detalhe da tarefa.
 
 ## Frente 5 — Bookmarks

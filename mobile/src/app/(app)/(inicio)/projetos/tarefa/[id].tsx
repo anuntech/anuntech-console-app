@@ -247,6 +247,8 @@ export default function Task() {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
       queryClient.invalidateQueries({ queryKey: ["projects"] }),
       queryClient.invalidateQueries({ queryKey: ["project-activity", projectId] }),
+      // An approved or returned delivery leaves Início's "Precisa de atenção".
+      queryClient.invalidateQueries({ queryKey: ["overview"] }),
     ]);
   };
   const said = async (text: string) => {
