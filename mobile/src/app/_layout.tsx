@@ -43,6 +43,8 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Protected guard={!!session}>
             <Stack.Screen name="(app)" />
+            {/* Ajuda and Como trabalhamos, over the tabs: any tab opens them (lib/help-link.ts). */}
+            <Stack.Screen name="(ajuda)" />
           </Stack.Protected>
           <Stack.Protected guard={!session}>
             <Stack.Screen name="(auth)" />

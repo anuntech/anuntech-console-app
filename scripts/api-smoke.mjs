@@ -11,6 +11,7 @@ import pg from "pg";
 import { settingsChecks } from "./api-smoke-settings.mjs";
 import { pushChecks } from "./api-smoke-push.mjs";
 import { ticketsChecks } from "./api-smoke-tickets.mjs";
+import { helpChecks } from "./api-smoke-help.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -1073,6 +1074,8 @@ try {
   await pushChecks({ db, rpc, ok, marker, emailSignIn, staff, base, pushFile: join(dir, "push.jsonl"), cronSecret: "test-cron-secret" });
   // Chamados: anexos, detalhes, estimativa e o formulário (scripts/api-smoke-tickets.mjs).
   await ticketsChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Ajuda, Como trabalhamos e Primeiros passos (scripts/api-smoke-help.mjs).
+  await helpChecks({ db, rpc, ok, marker, emailSignIn, staff });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

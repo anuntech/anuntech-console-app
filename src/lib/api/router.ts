@@ -13,6 +13,7 @@ import { company } from "./procedures/company";
 import { members } from "./procedures/members";
 import { notifications } from "./procedures/notifications";
 import { help } from "./procedures/help";
+import { guide } from "./procedures/guide";
 
-export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, overview, devices, profile, security, company, members, notifications, help });
+export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, overview, devices, profile, security, company, members, notifications, help, guide });
 export type Router = typeof router;

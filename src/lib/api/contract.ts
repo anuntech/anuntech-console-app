@@ -120,6 +120,24 @@ const companyAddress = z.object({
 const memberScope = z.object({ access: z.enum(["all", "selected"]), ids: z.array(z.uuid()).max(500) });
 const noticeTopic = z.enum(["billing", "tickets"]);
 
+const helpBlock = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("p"), text: z.string() }),
+  z.object({ kind: z.literal("list"), items: z.array(z.string()) }),
+  z.object({ kind: z.literal("steps"), items: z.array(z.string()) }),
+  z.object({ kind: z.literal("pairs"), items: z.array(z.object({ term: z.string(), text: z.string() })) }),
+  z.object({ kind: z.literal("note"), tone: z.enum(["info", "attention"]), text: z.string() }),
+]);
+/** An article in a list. `adminOnly`: marked "Administrador" for a Membro (only the Administrador does it). */
+const helpStub = z.object({
+  slug: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  category: z.string(),
+  adminOnly: z.boolean(),
+  video: z.boolean(),
+});
+const firstStepKey = z.enum(["guide_read", "first_steps_hidden", "notices_reviewed", "members_reviewed"]);
+
 export const contract = {
   me: {
     /** Who is signed in and the companies they reach. */
@@ -583,15 +601,95 @@ export const contract = {
       .output(message),
   },
   help: {
+    /** Ajuda: the tutorials, the subjects with their articles and the common questions. Texts may hold [rótulo](/caminho) links. */
+    home: oc.input(empty).output(
+      z.object({
+        tutorials: z.array(z.object({ id: z.string(), title: z.string(), description: z.string(), duration: z.number(), slug: z.string() })),
+        categories: z.array(z.object({ id: z.string(), title: z.string(), description: z.string(), articles: z.array(helpStub) })),
+        faq: z.array(z.object({ q: z.string(), a: z.string(), slug: z.string() })),
+        canOpenTicket: z.boolean(),
+      }),
+    ),
+    /** One article. An unknown slug answers NOT_FOUND. */
+    get: oc.input(z.object({ slug: z.string().max(120) })).output(
+      z.object({
+        slug: z.string(),
+        title: z.string(),
+        summary: z.string(),
+        category: z.object({ id: z.string(), title: z.string() }),
+        adminOnly: z.boolean(),
+        /** A Membro reading an Administrador's article: the web's notice goes above it. */
+        readsAsMember: z.boolean(),
+        sections: z.array(z.object({ title: z.string(), blocks: z.array(helpBlock) })),
+        faq: z.array(z.object({ q: z.string(), a: z.string() })),
+        /** Where to do it, as Console paths ("Ir para Financeiro"). */
+        actions: z.array(z.object({ label: z.string(), href: z.string() })),
+        updatedAt: z.string(),
+        /** The video: `src` is a path on the Console (/ajuda/videos/…), served without a session. */
+        tutorial: z
+          .object({
+            id: z.string(),
+            title: z.string(),
+            description: z.string(),
+            src: z.string(),
+            duration: z.number(),
+            chapters: z.array(z.object({ title: z.string(), hint: z.string(), start: z.number() })),
+            transcript: z.array(z.object({ at: z.number(), text: z.string() })),
+          })
+          .nullable(),
+        related: z.array(helpStub),
+        /** The rest of the same subject ("Mais em …"). */
+        siblings: z.array(helpStub),
+        canOpenTicket: z.boolean(),
+      }),
+    ),
     /**
-     * Articles of the Ajuda for a query, best first (lib/help/help-search.ts).
-     * `for: "ticket"` and `"question"` are the new-ticket form's "Talvez isto
-     * responda" (2 or 3 strong matches, after 4 letters); "search" is the
-     * Ajuda's search box.
+     * The help search (no accents, prefixes, synonyms), best first
+     * (lib/help/help-search.ts). `for: "ticket"` and `"question"` are the
+     * new-ticket form's "Talvez isto responda" (2 or 3 strong matches, after
+     * 4 letters); "search" is the Ajuda's search box.
      */
     search: oc
       .input(z.object({ q: z.string().max(400), for: z.enum(["search", "ticket", "question"]).default("search") }))
       .output(z.array(z.object({ slug: z.string(), title: z.string(), summary: z.string() }))),
+  },
+  guide: {
+    /** Como trabalhamos: the guide's sections and, per company, the deadlines and what its contract asks. */
+    get: oc.input(empty).output(
+      z.object({
+        sections: z.array(z.object({ id: z.string(), title: z.string(), lead: z.string(), blocks: z.array(helpBlock) })),
+        terms: z.array(
+          z.object({
+            company: z.string(),
+            items: z.array(
+              z.object({
+                title: z.string(),
+                promises: z.array(z.object({ text: z.string() })),
+                asks: z.array(z.object({ text: z.string() })),
+              }),
+            ),
+          }),
+        ),
+        staff: z.boolean(),
+      }),
+    ),
+    /** Reading the guide (once per version); it never stands for accepting any term. */
+    markRead: oc.input(empty).output(done),
+    /** Primeiros passos for the first company; null when everything is done or the card was hidden. Hrefs are Console paths. */
+    firstSteps: oc.input(empty).output(
+      z.object({
+        steps: z
+          .object({
+            companyId: z.string(),
+            /** Only steps that come back by themselves (billing address, the 6-month review): they cannot be hidden. */
+            forced: z.boolean(),
+            steps: z.array(z.object({ key: z.string(), title: z.string(), href: z.string(), done: z.boolean() })),
+          })
+          .nullable(),
+      }),
+    ),
+    /** A first step done by hand, or the card hidden (`first_steps_hidden`), for one of the person's companies. */
+    markStep: oc.input(z.object({ companyId: z.uuid(), key: firstStepKey })).output(done),
   },
 };
 export type Contract = typeof contract;
