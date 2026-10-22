@@ -12,6 +12,7 @@ import {
   ThumbsDownIcon,
   ThumbsUpIcon,
   Trash2Icon,
+  MailIcon,
   PencilIcon,
   XCircleIcon,
   RouteIcon,
@@ -44,7 +45,7 @@ import { FormField } from "@/components/console/form-field";
 import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
 import { ConfirmDialog, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
-import { answerQuote, cancelQuote, duplicateQuote, revertQuote, sendQuote } from "@/lib/quotes/quote-actions";
+import { answerQuote, cancelQuote, duplicateQuote, resendQuote, revertQuote, sendQuote } from "@/lib/quotes/quote-actions";
 import { deleteQuote } from "@/lib/quotes/quote-deletion";
 import { canDeleteQuote, quoteDecisionNotice } from "@/lib/deletion-rules";
 import { auditLabels, currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
@@ -160,6 +161,7 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
   const [deleting, setDeleting] = useState(false);
   // "Editar" on an answered or cancelled proposal: the original stays, a copy opens for editing.
   const [editCopy, setEditCopy] = useState(false);
+  const [resending, setResending] = useState(false);
   const [declining, setDeclining] = useState(false);
   const [recording, setRecording] = useState<"accept" | "decline" | null>(null);
   const [consent, setConsent] = useState(false);
@@ -256,6 +258,12 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                   )}
                   {q.status === "sent" && (
                     <>
+                      {!expired && (
+                        <DropdownMenuItem onSelect={menu(() => setResending(true))}>
+                          <MailIcon />
+                          Reenviar e-mail
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onSelect={menu(() => setRecording("accept"))}>
                         <ThumbsUpIcon />
@@ -544,6 +552,15 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         description="Ele deixa de aparecer para o cliente. O número não é reaproveitado."
         confirmLabel="Cancelar orçamento"
         destructive
+      />
+      <ConfirmDialog
+        open={resending}
+        onOpenChange={setResending}
+        action={resendQuote}
+        fields={{ id: q.id }}
+        title="Reenviar o aviso por e-mail?"
+        description="Os Administradores da empresa recebem de novo o e-mail com o link para ver e responder. A proposta não muda."
+        confirmLabel="Reenviar"
       />
       <ConfirmDialog
         open={editCopy}

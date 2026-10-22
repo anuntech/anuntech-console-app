@@ -13,6 +13,7 @@ import {
   MoreHorizontalIcon,
   SendIcon,
   Trash2Icon,
+  MailIcon,
   Undo2Icon,
   XCircleIcon,
 } from "lucide-react";
@@ -52,6 +53,7 @@ import {
 } from "@/components/console/server-form";
 import {
   cancelContract,
+  resendContract,
   revertContract,
   saveContract,
   sendContract,
@@ -214,6 +216,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
   const [cancelling, setCancelling] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [reverting, setReverting] = useState(false);
+  const [resending, setResending] = useState(false);
   const [editingTerm, setEditingTerm] = useState(false);
   const [consent, setConsent] = useState(false);
   const signed = (party: "client" | "anuntech") => signatures.find((s) => s.party === party);
@@ -330,6 +333,12 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                     <DropdownMenuItem onSelect={() => setTimeout(() => setEditingTerm(true), 0)}>
                       <CalendarRangeIcon />
                       Editar vigência
+                    </DropdownMenuItem>
+                  )}
+                  {c.status === "sent" && !signed("client") && (
+                    <DropdownMenuItem onSelect={() => setTimeout(() => setResending(true), 0)}>
+                      <MailIcon />
+                      Reenviar e-mail
                     </DropdownMenuItem>
                   )}
                   {c.status === "sent" && (
@@ -753,6 +762,15 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
         confirmLabel="Enviar"
       />
       {clientReview.dialogs}
+      <ConfirmDialog
+        open={resending}
+        onOpenChange={setResending}
+        action={resendContract}
+        fields={{ id: c.id }}
+        title="Reenviar o aviso por e-mail?"
+        description="Os Administradores da empresa recebem de novo o e-mail com o link para ler e assinar. O texto e as assinaturas não mudam."
+        confirmLabel="Reenviar"
+      />
       <ConfirmDialog
         open={reverting}
         onOpenChange={setReverting}

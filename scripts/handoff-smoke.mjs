@@ -202,6 +202,16 @@ export async function runHandoffTests({ database: db, ids, people, request, subm
     const draft = await one("select * from console_quotes where title=$1", [versionTitle]);
     const path = `/orcamentos/${draft.id}`;
     await submitForm(path, "admin", "admin", { action: "sendQuote" }, { id: draft.id });
+    if (decision === "decline") {
+      // Resending the answer e-mail: not right after the send, again a few minutes later.
+      const resent = async () =>
+        (await one("select count(*)::int as n from console_audit_events where entity_id=$1 and action='quote.notice_resent'", [draft.id])).n;
+      await submitForm(path, "admin", "admin", { action: "resendQuote" }, { id: draft.id });
+      ok((await resent()) === 0, "Reenvio do e-mail logo depois do envio do orçamento é recusado");
+      await db.query("update console_audit_events set created_at = now() - interval '10 minutes' where entity_id=$1 and action='quote.sent'", [draft.id]);
+      await submitForm(path, "admin", "admin", { action: "resendQuote" }, { id: draft.id });
+      ok((await resent()) === 1, "A equipe reenvia o e-mail do orçamento minutos depois");
+    }
     await submitForm(path, "admin", "finance", { action: "answerQuote" }, { id: draft.id, decision, consent: "on", note: "Primeira resposta" });
     const answered = await one("select * from console_quotes where id=$1", [draft.id]);
     await submitForm(path, "admin", "admin", { action: "revertQuote" }, { id: draft.id });
