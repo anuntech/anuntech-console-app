@@ -10,11 +10,18 @@ const done = z.object({ ok: z.literal(true) });
 const ticketId = z.object({ id: z.uuid() });
 const status = z.enum(["open", "in_progress", "waiting_customer", "resolved", "closed"]);
 const option = z.object({ value: z.string(), label: z.string(), hint: z.string().optional() });
+const priority = z.enum(["normal", "high", "critical"]);
+/** The files staged by POST /api/v1/anexos for this send (the web's limit: 5). */
+const uploadIds = z.array(z.uuid()).max(5).default([]);
+const ticketKind = z.enum(["problem", "question", "change", "access", "new_project"]);
+const ticketImpact = z.enum(["down", "workaround", "other"]);
 const ticketRow = z.object({
   id: z.string(),
   subject: z.string(),
   status,
   statusLabel: z.string(),
+  /** Alta and Crítica get a mark in the row, as on the web. */
+  priority,
   kindLabel: z.string().nullable(),
   company: z.string(),
   engagement: z.string().nullable(),
@@ -188,40 +195,95 @@ export const contract = {
         subject: z.string(),
         status,
         statusLabel: z.string(),
+        priority,
+        priorityLabel: z.string(),
         kindLabel: z.string().nullable(),
+        /** How badly a problem hurts, in the client's words. */
+        impactLabel: z.string().nullable(),
+        companyId: z.string(),
         company: z.string(),
         engagement: z.string().nullable(),
         author: z.string(),
+        /** E-mail of who opened it; null when it was the team ("Equipe Anuntech"). */
+        authorEmail: z.string().nullable(),
         assigneeName: z.string().nullable(),
         waitingFor: z.string().nullable(),
         createdAt: z.string(),
+        /** Última atividade. */
+        updatedAt: z.string(),
         canReply: z.boolean(),
+        /** Prazos, only when the company's conditions are published (the web's card, in words). */
+        clock: z
+          .object({
+            label: z.string(),
+            /** "Respondido em 2 horas úteis", "Até amanhã, 10h" or "Sem prazo". */
+            firstResponse: z.string(),
+            /** When it was answered, "21/10/2026 às 10:00". */
+            firstResponseAt: z.string().nullable(),
+            /** "Até sex 24/10, 18h"; null once resolved or without a goal. */
+            resolution: z.string().nullable(),
+            /** "Prazo pausado desde 21/10/2026 às 10:00." */
+            paused: z.string().nullable(),
+          })
+          .nullable(),
+        /** An improvement's estimate in hours of the bank (SUP 5.1); canApprove for the company's Administrador. */
+        estimate: z
+          .object({
+            minutes: z.number(),
+            /** "1,5 h" */
+            amount: z.string(),
+            status: z.enum(["proposed", "approved", "declined"]),
+            canApprove: z.boolean(),
+          })
+          .nullable(),
         entries: z.array(ticketEntry),
       }),
     ),
-    /** A written reply (attachments stay on the web for now). */
+    /** A reply with text, files or both (files from POST /api/v1/anexos). */
     reply: oc
-      .input(z.object({ id: z.uuid(), body: z.string().trim().min(1).max(10000) }))
+      .input(z.object({ id: z.uuid(), body: z.string().trim().max(10000).default(""), uploadIds }))
       .output(z.object({ ok: z.literal(true), message: z.string() })),
+    /** The company's Administrador approves or declines an improvement's estimate, the one they saw (`minutes`). */
+    decideEstimate: oc
+      .input(z.object({ id: z.uuid(), decision: z.enum(["approve", "decline"]), minutes: z.number().int().min(1) }))
+      .output(z.object({ message: z.string(), status: z.enum(["approved", "declined"]) })),
     /** What opening a ticket offers: companies, their products and services, kinds and impacts. */
     choices: oc.input(empty).output(
       z.object({
         companies: z.array(z.object({ id: z.string(), name: z.string() })),
         engagements: z.array(z.object({ id: z.string(), name: z.string(), companyId: z.string() })),
-        kinds: z.array(option),
+        kinds: z.array(option.extend({ placeholder: z.string() })),
         impacts: z.array(option),
       }),
     ),
+    /** "O que esperar", the line outside business hours and the guidance for a change, for what the form has so far. */
+    preview: oc
+      .input(
+        z.object({
+          companyId: z.uuid(),
+          engagementId: z.union([z.uuid(), z.literal("")]).default(""),
+          kind: ticketKind,
+          impact: ticketImpact.optional(),
+        }),
+      )
+      .output(
+        z.object({
+          expect: z.object({ lines: z.array(z.string()), dated: z.boolean() }),
+          outOfHours: z.string().nullable(),
+          changeGuidance: z.string().nullable(),
+        }),
+      ),
     /** Opens a ticket with the first message. */
     create: oc
       .input(
         z.object({
           companyId: z.uuid(),
           engagementId: z.union([z.uuid(), z.literal("")]).default(""),
-          kind: z.enum(["problem", "question", "change", "access", "new_project"]),
-          impact: z.enum(["down", "workaround", "other"]).optional(),
+          kind: ticketKind,
+          impact: ticketImpact.optional(),
           subject: z.string().trim().min(1).max(160),
           body: z.string().trim().min(1).max(10000),
+          uploadIds,
         }),
       )
       .output(z.object({ id: z.string() })),
@@ -519,6 +581,17 @@ export const contract = {
         }),
       )
       .output(message),
+  },
+  help: {
+    /**
+     * Articles of the Ajuda for a query, best first (lib/help/help-search.ts).
+     * `for: "ticket"` and `"question"` are the new-ticket form's "Talvez isto
+     * responda" (2 or 3 strong matches, after 4 letters); "search" is the
+     * Ajuda's search box.
+     */
+    search: oc
+      .input(z.object({ q: z.string().max(400), for: z.enum(["search", "ticket", "question"]).default("search") }))
+      .output(z.array(z.object({ slug: z.string(), title: z.string(), summary: z.string() }))),
   },
 };
 export type Contract = typeof contract;
