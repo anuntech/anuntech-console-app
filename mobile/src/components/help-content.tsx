@@ -59,7 +59,7 @@ export function HelpText({
 }) {
   const parts = splitLinks(text);
   return (
-    <Text variant={variant} tone={tone} selectable style={variant === "body" ? { lineHeight: 25 } : undefined}>
+    <Text variant={variant} tone={tone} style={variant === "body" ? { lineHeight: 25 } : undefined}>
       {parts.map((part, i) =>
         "text" in part ? (
           part.text
