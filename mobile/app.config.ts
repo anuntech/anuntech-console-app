@@ -60,6 +60,14 @@ const config: ExpoConfig = {
     "expo-router",
     "expo-secure-store",
     [
+      "expo-image-picker",
+      {
+        photosPermission: "O Console usa suas fotos só quando você escolhe uma para o seu perfil.",
+        cameraPermission: "O Console usa a câmera só quando você tira uma foto para o seu perfil.",
+        microphonePermission: false,
+      },
+    ],
+    [
       "expo-splash-screen",
       {
         // Same violet and symbol size as the opening animation (src/components/opening.tsx).

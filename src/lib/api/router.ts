@@ -7,6 +7,11 @@ import { tickets } from "./procedures/tickets";
 import { finance } from "./procedures/finance";
 import { overview } from "./procedures/overview";
 import { bookmarks, contracts, projects, quotes } from "./procedures/areas";
+import { profile } from "./procedures/profile";
+import { security } from "./procedures/security";
+import { company } from "./procedures/company";
+import { members } from "./procedures/members";
+import { notifications } from "./procedures/notifications";
 
-export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, overview, devices });
+export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, overview, devices, profile, security, company, members, notifications });
 export type Router = typeof router;
