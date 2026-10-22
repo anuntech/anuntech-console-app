@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { desc, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { auditEvents, journeys, quoteVersions } from "@/db/schema";
+import { auditEvents, journeys } from "@/db/schema";
 import { BOARD_LIMIT, quoteBoardTasks } from "@/lib/quotes/quote-handoff";
 import { quoteLinks } from "@/lib/quotes/quote-links";
 import { managerInvite } from "@/lib/access/invite-manager";
 import { getActor } from "@/lib/access/access";
-import { findQuote } from "@/lib/quotes/quote-access";
+import { findQuote, quoteVersionList } from "@/lib/quotes/quote-access";
 import { saoPauloDate } from "@/lib/dates";
 import { hasPermission } from "@/lib/access/permissions";
 import { quoteNumberLabel } from "@/lib/quotes/quote-model";
@@ -24,11 +24,7 @@ export default async function Quote({ params }: { params: Promise<{ id: string }
   if (!row) notFound();
   const q = row.quote;
   const [versions, events] = await Promise.all([
-    db
-      .select({ version: quoteVersions.version, sentAt: quoteVersions.sentAt, hash: quoteVersions.documentHash })
-      .from(quoteVersions)
-      .where(eq(quoteVersions.quoteId, id))
-      .orderBy(desc(quoteVersions.version)),
+    quoteVersionList(q),
     actor.admin
       ? db
           .select({ id: auditEvents.id, action: auditEvents.action, createdAt: auditEvents.createdAt })
@@ -83,12 +79,7 @@ export default async function Quote({ params }: { params: Promise<{ id: string }
           createdAt: q.createdAt.toISOString(),
           updatedAt: q.updatedAt.toISOString(),
         },
-        versions: versions.map((v) => ({
-          version: v.version,
-          sentAt: v.sentAt.toISOString(),
-          hash: v.hash,
-          current: q.status !== "draft" && v.hash === q.documentHash,
-        })),
+        versions,
         // A client with a single company is not named back to itself.
         viewer: { admin: actor.admin, party, name: actor.user.name || actor.user.email, companies: actor.admin ? 0 : actor.grants.length },
         events: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString() })),

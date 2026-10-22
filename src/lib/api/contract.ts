@@ -65,6 +65,33 @@ const documentRow = z.object({
   statusLabel: z.string(),
   updatedAt: z.string(),
 });
+const party = z.enum(["client", "anuntech"]);
+const contractKind = z.enum(["contract", "amendment"]);
+const contractTerm = z.object({
+  state: z.enum(["none", "upcoming", "active", "expiring", "expired"]),
+  /** "Vence em 12 dias", "Vencido há 3 dias", "Começa em 5 dias"; null when there is nothing to say. */
+  label: z.string().nullable(),
+});
+const changeRequest = z.object({
+  id: z.string(),
+  version: z.number(),
+  blockIndex: z.number(),
+  /** "Cláusula 3.2", "Contratante", "Parágrafo", and the text it had when asked. */
+  label: z.string(),
+  excerpt: z.string(),
+  comment: z.string(),
+  proposedText: z.string().nullable(),
+  status: z.enum(["draft", "pending", "accepted", "declined"]),
+  statusLabel: z.string(),
+  /** The proposed text went into the next version. */
+  applied: z.boolean(),
+  /** Anuntech's answer. */
+  response: z.string().nullable(),
+  author: z.string(),
+  createdAt: z.string(),
+  submittedAt: z.string().nullable(),
+  decidedAt: z.string().nullable(),
+});
 const ticketEntry = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("message"),
@@ -277,62 +304,200 @@ export const contract = {
       .output(message),
   },
   contracts: {
-    /** Contracts of the person's finance companies (Administradores and the team). */
-    list: oc.input(page).output(z.object({ rows: z.array(documentRow.extend({ kindLabel: z.string() })), ...paged })),
-    /** The text that went out, who signed it and the PDF. */
+    /** Contracts of the person's finance companies (Administradores and the team), by situation and a search on title and company. */
+    list: oc
+      .input(
+        page.extend({
+          status: z.enum(["all", "sent", "in_review", "signed"]).default("all"),
+          search: z.string().max(160).default(""),
+        }),
+      )
+      .output(
+        z.object({
+          rows: z.array(
+            documentRow.extend({
+              kind: contractKind,
+              kindLabel: z.string(),
+              /** The contract an amendment changes ("Aditivo de …"). */
+              parentTitle: z.string().nullable(),
+              /** Who signed the version on screen, while signatures are collected. */
+              signedBy: z.array(party),
+              startsAt: z.string().nullable(),
+              endsAt: z.string().nullable(),
+              /** A signed contract near or past its end ("Vence em 12 dias", "Vencido há 3 dias"); null otherwise. */
+              term: contractTerm.nullable(),
+            }),
+          ),
+          ...paged,
+        }),
+      ),
+    /** The text that went out, who signed it, the PDF, the review rounds, versions and amendments. */
     get: oc.input(z.object({ id: z.uuid() })).output(
       documentRow.extend({
+        kind: contractKind,
         kindLabel: z.string(),
         engagement: z.string().nullable(),
         body: z.string(),
         startsAt: z.string().nullable(),
         endsAt: z.string().nullable(),
+        /** Where a signed contract stands against its dates (starts, expiring, expired). */
+        term: contractTerm.nullable(),
         signatures: z.array(z.object({ party: z.string(), name: z.string(), signedAt: z.string() })),
         /** Path of the PDF on the Console; the app sends its session cookie. */
         pdfPath: z.string(),
         /** SHA-256 of the text that went out (null for a draft) and its version. */
         documentHash: z.string().nullable(),
         version: z.number().nullable(),
+        /** When this version was sent, and the template it came from. */
+        sentAt: z.string().nullable(),
+        template: z.string().nullable(),
         /** The client company's CPF or CNPJ, digits only, as the signature block shows it. */
         companyDocument: z.string().nullable(),
         /** The viewer's side: a client Administrador signs for the company, the team for Anuntech. */
         party: z.enum(["client", "anuntech"]).nullable(),
         canSign: z.boolean(),
+        /**
+         * The text as blocks: `index` is what a change request names (null for
+         * a block the new version removed), `change` marks what changed since
+         * `previousVersion`.
+         */
+        blocks: z.array(
+          z.object({
+            index: z.number().nullable(),
+            type: z.enum(["title", "heading", "party", "clause", "paragraph"]),
+            number: z.string().nullable(),
+            label: z.string().nullable(),
+            text: z.string(),
+            change: z.enum(["same", "added", "removed"]),
+            requestable: z.boolean(),
+          }),
+        ),
+        previousVersion: z.number().nullable(),
+        review: z.object({
+          /** The viewer can ask for changes now: the client's side, sent and not signed by it yet. */
+          canRequest: z.boolean(),
+          /** Requests on the version shown; drafts only reach the client's side. */
+          requests: z.array(changeRequest),
+          drafts: z.number(),
+          /** Earlier versions' requests with the team's answers, newest first. */
+          history: z.array(z.object({ version: z.number(), requests: z.array(changeRequest) })),
+        }),
+        /** Every text sent, newest first, each with its PDF (`?versao=N` for an earlier one). */
+        versions: z.array(
+          z.object({ version: z.number(), sentAt: z.string(), current: z.boolean(), signedBy: z.array(party), pdfPath: z.string() }),
+        ),
+        /** The contract an amendment changes, and the amendments of a contract. */
+        parent: z.object({ id: z.string(), title: z.string(), statusLabel: z.string() }).nullable(),
+        amendments: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            status: z.string(),
+            statusLabel: z.string(),
+            signedAt: z.string().nullable(),
+            endsAt: z.string().nullable(),
+          }),
+        ),
       }),
     ),
     /** Signs the version on screen, with the person's own session as proof (same as the web). */
     sign: oc.input(z.object({ id: z.uuid(), consent: z.literal(true) })).output(z.object({ message: z.string(), signed: z.boolean() })),
+    /** Writes (or, with `requestId`, edits) a change request on one clause of the version waiting for signatures; it stays a draft until sent. */
+    saveRequest: oc
+      .input(
+        z.object({
+          contractId: z.uuid(),
+          requestId: z.uuid().optional(),
+          blockIndex: z.number().int().min(0).max(10_000),
+          comment: z.string().max(2000),
+          proposedText: z.string().max(8000).default(""),
+        }),
+      )
+      .output(message),
+    /** Discards a change request not sent yet. */
+    discardRequest: oc.input(z.object({ id: z.uuid() })).output(message),
+    /** Sends the round's requests to Anuntech: the contract goes to "Em revisão". */
+    submitRequests: oc.input(z.object({ contractId: z.uuid() })).output(message),
   },
   quotes: {
-    /** Quotes of the person's finance companies, with the figures that were sent. */
-    list: oc.input(page).output(
-      z.object({
-        rows: z.array(documentRow.extend({ number: z.string(), totalCents: z.number(), validUntil: z.string().nullable() })),
-        ...paged,
-      }),
-    ),
+    /** Quotes of the person's finance companies, with the figures that were sent, by situation and a search on number and title. */
+    list: oc
+      .input(
+        page.extend({
+          status: z.enum(["all", "sent", "accepted", "declined", "expired"]).default("all"),
+          search: z.string().max(160).default(""),
+        }),
+      )
+      .output(
+        z.object({
+          rows: z.array(
+            documentRow.extend({
+              number: z.string(),
+              totalCents: z.number(),
+              validUntil: z.string().nullable(),
+              hoursMin: z.number(),
+              hoursMax: z.number(),
+              /** Waiting past its validity date. */
+              expired: z.boolean(),
+              /** While it waits: "Válido por 12 dias". */
+              validityLabel: z.string().nullable(),
+            }),
+          ),
+          ...paged,
+        }),
+      ),
     /** One quote: its phases, figures, the answer if there is one, and the PDF. */
     get: oc.input(z.object({ id: z.uuid() })).output(
       documentRow.extend({
         number: z.string(),
         validUntil: z.string().nullable(),
+        /** While it waits: "Válido por 12 dias". */
+        validityLabel: z.string().nullable(),
         totalCents: z.number(),
+        /** The hours' value before the negotiated discount, and the discount ("10%"). */
+        subtotalCents: z.number(),
+        discountCents: z.number(),
+        discountShare: z.string(),
+        upfrontCents: z.number(),
+        balanceCents: z.number(),
+        hourlyRateCents: z.number(),
         hoursMin: z.number(),
         hoursMax: z.number(),
-        decision: z.object({ party: z.string(), name: z.string(), note: z.string().nullable(), at: z.string() }).nullable(),
+        stack: z.array(z.string()),
+        /** Who answered; e-mail and IP only when the client answered (the web's "Mais"). */
+        decision: z
+          .object({
+            party: z.string(),
+            name: z.string(),
+            note: z.string().nullable(),
+            at: z.string(),
+            email: z.string().nullable(),
+            ip: z.string().nullable(),
+          })
+          .nullable(),
         pdfPath: z.string(),
-        /** The proposal as it was sent: summary, phases with hours and tasks, notes. */
+        /** The proposal as it was sent: summary, phases with hours, weeks and tasks, notes. */
         summary: z.string(),
         phases: z.array(
-          z.object({ name: z.string(), description: z.string(), hoursMin: z.number(), hoursMax: z.number(), tasks: z.array(z.string()) }),
+          z.object({
+            name: z.string(),
+            description: z.string(),
+            hoursMin: z.number(),
+            hoursMax: z.number(),
+            weeks: z.number().nullable(),
+            tasks: z.array(z.object({ title: z.string(), description: z.string() })),
+          }),
         ),
         notes: z.string(),
         upfrontPercent: z.number(),
         documentHash: z.string().nullable(),
         version: z.number().nullable(),
+        sentAt: z.string().nullable(),
         expired: z.boolean(),
         /** The viewer answers for the company (a client Administrador) and the quote waits for an answer. */
         canAnswer: z.boolean(),
+        /** Every proposal sent, newest first, each with its PDF (`?versao=N` for an earlier one). */
+        versions: z.array(z.object({ version: z.number(), sentAt: z.string(), current: z.boolean(), pdfPath: z.string() })),
       }),
     ),
     /** Accepts (with consent) or declines (with an optional note) a quote that was sent. */
