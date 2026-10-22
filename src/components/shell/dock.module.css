@@ -49,11 +49,42 @@
     gap: 2px;
   }
 }
+/* Glass that reads as glass: the page shows through, blurred, and a bright
+   top edge catches the light (fainter in the dark theme). */
 @supports (backdrop-filter: blur(12px)) {
   .dock {
-    background: color-mix(in srgb, var(--card) 88%, transparent);
-    backdrop-filter: blur(16px) saturate(140%);
+    background: color-mix(in srgb, var(--card) 72%, transparent);
+    backdrop-filter: blur(20px) saturate(160%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--anu-white) 55%, transparent),
+      var(--anu-shadow-float);
   }
+  :global(html[data-theme="dark"]) .dock {
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--anu-white) 6%, transparent),
+      var(--anu-shadow-float);
+  }
+  @media (prefers-color-scheme: dark) {
+    :global(html[data-theme="system"]) .dock {
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--anu-white) 6%, transparent),
+        var(--anu-shadow-float);
+    }
+  }
+}
+/* Scroll edge: where the page runs under the dock, it fades into the
+   background instead of cutting hard. Only along the bottom, and low enough
+   (76px) to stay clear of a list that ends 12px above the dock. */
+.floating::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: calc(-1 * max(12px, env(safe-area-inset-left)));
+  right: calc(-1 * max(12px, env(safe-area-inset-right)));
+  bottom: calc(-1 * max(12px, env(safe-area-inset-bottom)));
+  height: 76px;
+  background: linear-gradient(to top, color-mix(in srgb, var(--background) 85%, transparent), transparent);
+  pointer-events: none;
 }
 .link {
   position: relative;
@@ -67,16 +98,19 @@
   color: var(--foreground);
   text-decoration: none;
   transition:
-    background-color 120ms ease,
-    color 120ms ease;
+    background-color var(--anu-motion-fast) var(--anu-motion-ease),
+    color var(--anu-motion-fast) var(--anu-motion-ease),
+    transform var(--anu-motion-fast) var(--anu-motion-ease);
 }
 .link:hover {
   background: var(--secondary);
   color: var(--primary);
   text-decoration: none;
 }
+/* Feedback lands on the press, like the assistant button. */
 .link:active {
   background: var(--accent);
+  transform: scale(0.94);
 }
 .link[aria-current="page"] {
   background: var(--accent);
@@ -121,16 +155,23 @@
   font-weight: 500;
   line-height: 1.45;
   overflow-wrap: anywhere;
-  transition: opacity 100ms ease;
+  transition: opacity var(--anu-motion-fast) var(--anu-motion-ease);
 }
 .tooltip[data-starting-style],
 .tooltip[data-ending-style] {
   opacity: 0;
 }
+/* After the first tooltip, moving along the dock shows the next one at once. */
+.tooltip[data-instant] {
+  transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .link,
   .tooltip {
     transition: none;
+  }
+  .link:active {
+    transform: none;
   }
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -141,6 +182,9 @@
   }
 }
 @media (forced-colors: active) {
+  .floating::before {
+    display: none;
+  }
   .dock,
   .tooltip {
     background: Canvas;
@@ -181,7 +225,9 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--primary) 9%, transparent);
   cursor: pointer;
-  transition: transform 120ms ease-out, background-color 200ms ease-out;
+  transition:
+    transform var(--anu-motion-fast) var(--anu-motion-ease),
+    background-color var(--anu-motion-base) var(--anu-motion-ease);
 }
 .assistant:hover,
 .assistant[aria-expanded="true"] { background: color-mix(in srgb, var(--primary) 16%, transparent); }
@@ -206,7 +252,7 @@
   color: var(--primary);
 }
 .create svg {
-  transition: transform 160ms ease;
+  transition: transform var(--anu-motion-base) var(--anu-motion-ease);
 }
 .create[data-popup-open] svg {
   transform: rotate(45deg);
@@ -230,8 +276,8 @@
   box-shadow: var(--shadow-popover);
   transform-origin: var(--transform-origin);
   transition:
-    transform 180ms ease,
-    opacity 180ms ease;
+    transform var(--anu-motion-base) var(--anu-motion-ease),
+    opacity var(--anu-motion-base) var(--anu-motion-ease);
 }
 .panel[data-starting-style],
 .panel[data-ending-style] {
@@ -316,6 +362,8 @@
   :global(html[data-dock="left"]) .floating,
   :global(html[data-dock="right"]) .floating { top: 12px; bottom: 12px; right: auto; width: 64px; align-items: center; }
   :global(html[data-dock="right"]) .floating { left: auto; right: 12px; }
+  /* The scroll-edge fade belongs to the bottom edge only. */
+  :global(html:is([data-dock="top"], [data-dock="left"], [data-dock="right"])) .floating::before { display: none; }
 }
 /* The assistant beside the page: the dock centers on what is left of it. */
 @media (min-width: 1024px) {
@@ -349,8 +397,14 @@
 }
 @supports (backdrop-filter: blur(12px)) {
   .tabbar {
-    background: color-mix(in srgb, var(--card) 90%, transparent);
-    backdrop-filter: blur(16px) saturate(140%);
+    background: color-mix(in srgb, var(--card) 78%, transparent);
+    backdrop-filter: blur(20px) saturate(160%);
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .tabbar {
+    background: var(--card);
+    backdrop-filter: none;
   }
 }
 .tabbarInner {
@@ -376,7 +430,26 @@
   line-height: 1;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
-  transition: color 120ms ease-out;
+  transition: color var(--anu-motion-fast) var(--anu-motion-ease);
+}
+/* The icon sits on a pill that fills in when the tab is active, so the state
+   is not colour alone; a press squeezes it a little. */
+.tabIcon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  max-width: 100%;
+  height: 28px;
+  border-radius: var(--anu-radius-pill);
+  transition:
+    background-color var(--anu-motion-base) var(--anu-motion-ease),
+    transform var(--anu-motion-fast) var(--anu-motion-ease);
+}
+.tab:active .tabIcon {
+  transform: scale(0.92);
+}
+.tabActive .tabIcon {
+  background: var(--accent);
 }
 .tab span {
   max-width: 100%;
@@ -386,10 +459,14 @@
 }
 .tab:active { color: var(--foreground); }
 .tabActive, .tabActive:active { color: var(--primary); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) {
+  .tab:active .tabIcon { transform: none; }
+}
 @media (max-width: 640px) {
   .floating { display: none; }
   .tabbar { display: block; }
 }
 @media (forced-colors: active) {
   .tabActive { color: LinkText; }
+  .tabActive .tabIcon { outline: 1px solid LinkText; }
 }

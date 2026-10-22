@@ -11,7 +11,7 @@ import {
   UserRoundIcon,
   UsersIcon,
   type LucideIcon, LifeBuoyIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import {
   Sheet,
   SheetContent,
@@ -69,7 +69,7 @@ function Row({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-1">
-      <h3 className="m-0 px-3 pb-1 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{title}</h3>
+      <h3 className="m-0 px-3 pb-1 text-caption font-medium text-muted-foreground">{title}</h3>
       {children}
     </section>
   );
@@ -150,7 +150,9 @@ export function MobileTabBar({
                 className={cn(styles.tab, active && styles.tabActive)}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon size={22} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" />
+                <span className={styles.tabIcon}>
+                  <Icon size={22} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" />
+                </span>
                 <span>{short ?? label}</span>
               </Link>
             );
@@ -162,7 +164,9 @@ export function MobileTabBar({
             aria-expanded={open}
             onClick={() => setOpen(true)}
           >
-            <EllipsisIcon size={22} strokeWidth={restActive ? 2.2 : 1.8} aria-hidden="true" />
+            <span className={styles.tabIcon}>
+              <EllipsisIcon size={22} strokeWidth={restActive ? 2.2 : 1.8} aria-hidden="true" />
+            </span>
             <span>Mais</span>
           </button>
         </div>

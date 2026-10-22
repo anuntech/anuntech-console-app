@@ -1,12 +1,22 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/cn"
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * `quiet` is for supporting cards (the side column of a detail page): no
+ * border and a soft fill, so the main card leads.
+ */
+function Card({
+  className,
+  variant = "default",
+  ...props
+}: React.ComponentProps<"div"> & { variant?: "default" | "quiet" }) {
   return (
     <div
       data-slot="card"
+      data-variant={variant}
       className={cn(
         "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground",
+        variant === "quiet" && "border-transparent bg-secondary/60 dark:border-border/60 dark:bg-card/60",
         className
       )}
       {...props}

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { engagementLabels } from "@/lib/format";
 import { taskPriorityLabels, type TaskPriority } from "@/lib/projects/task-model";
 
@@ -77,19 +77,22 @@ export function TaskPriorityMark({
   );
 }
 
+/* Brand and neutrals only: green, amber and red already mean a state on the
+   card (done, high, urgent, late), and a label is a category, not a state. */
 const labelTones = [
-  "bg-accent text-primary",
-  "bg-success-soft text-success",
-  "bg-warning-soft text-warning",
-  "bg-destructive-soft text-destructive",
-  "bg-secondary text-foreground",
+  { chip: "bg-accent text-accent-foreground", dot: "bg-primary" },
+  { chip: "bg-secondary text-secondary-foreground", dot: "bg-muted-foreground" },
+  { chip: "text-foreground ring-1 ring-border ring-inset", dot: "bg-foreground" },
 ];
-/** Same text, same colour, everywhere. */
-export function labelTone(label: string) {
+const toneOf = (label: string) => {
   let hash = 0;
   for (const char of label.toLocaleLowerCase("pt-BR")) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return labelTones[hash % labelTones.length];
-}
+};
+/** Same text, same colour, everywhere: the chip's classes. */
+const labelTone = (label: string) => toneOf(label).chip;
+/** The label's colour as a solid dot (filters, the label field). */
+export const labelDot = (label: string) => toneOf(label).dot;
 
 export function LabelChip({
   label,

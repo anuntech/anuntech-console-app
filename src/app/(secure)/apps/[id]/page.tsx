@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { CirclePauseIcon, ExternalLinkIcon, KeyRoundIcon, LockIcon } from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import { getActor } from "@/lib/access/access";
 import { resolveAppOpening } from "@/lib/apps/app-access";
 import { appBlockText } from "@/lib/apps/app-texts";
@@ -22,13 +22,6 @@ function webUrl(url: string | null) {
     return null;
   }
 }
-
-const icons = {
-  inactive: <CirclePauseIcon />,
-  role: <LockIcon />,
-  no_tenant: <KeyRoundIcon />,
-  not_protected: <ExternalLinkIcon />,
-};
 
 /**
  * A client app (CMS, Roteiro Digital, Base Pendente) inside the Console. The
@@ -54,7 +47,8 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
     return (
       <StatusPage
         layout="inline"
-        icon={icons[opening.reason]}
+        // The products illustration: the text says why this one does not open.
+        art="projetos"
         eyebrow={opening.engagement.name}
         title={text.title}
         description={text.description}

@@ -1,4 +1,4 @@
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { formatDocument } from "@/lib/companies/company-input";
 import { currency, dateLabel, longDateLabel } from "@/lib/format";
 import { discountShareLabel, hoursLabel, quoteTotals, taskCode, type QuoteContent, weeksLabel } from "@/lib/quotes/quote-model";
@@ -82,7 +82,9 @@ export function QuoteDocument({ data, className }: { data: QuoteDocumentData; cl
       {data.phases.length > 0 && (
         <section>
           <Eyebrow>Resumo por fase</Eyebrow>
-          <table className="mt-3 w-full border-collapse text-sm">
+          {/* A narrow phone scrolls the table in place, never the page. */}
+          <div className="mt-3 overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b text-left text-[11px] font-semibold tracking-[0.06em] text-muted-foreground uppercase">
                 <th className="py-2 pr-3 font-semibold">Fase</th>
@@ -107,6 +109,7 @@ export function QuoteDocument({ data, className }: { data: QuoteDocumentData; cl
               </tr>
             </tfoot>
           </table>
+          </div>
         </section>
       )}
 

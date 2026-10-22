@@ -1,4 +1,4 @@
-import { MessageCircleIcon, ReceiptTextIcon } from "lucide-react";
+import { MessageCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPage } from "@/components/console/status-page";
 import { SUPPORT_WHATSAPP_URL } from "@/lib/support";
@@ -15,7 +15,7 @@ export const metadata = {
 export default function PaymentNotFound() {
   return (
     <StatusPage
-      icon={<ReceiptTextIcon />}
+      art="busca"
       eyebrow="Link de pagamento"
       title="Este link não abre nenhuma fatura"
       description="Ele pode ter sido desativado ou trocado por um novo, ou o endereço chegou incompleto. Fale com a Anuntech para receber o link da sua fatura."

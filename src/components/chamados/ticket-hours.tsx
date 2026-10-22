@@ -30,7 +30,7 @@ export function TicketHoursCard({ ticketId, data }: { ticketId: string; data: Ti
   const [logging, setLogging] = useState(false);
   const total = data.entries.reduce((sum, e) => sum + e.minutes, 0);
   return (
-    <Card className="gap-4 py-5">
+    <Card variant="quiet" className="gap-4 py-5">
       <CardHeader>
         <SectionTitle title="Horas" description={data.entries.length ? `${hours(total)} registradas neste chamado` : "Nenhuma hora registrada."} />
       </CardHeader>

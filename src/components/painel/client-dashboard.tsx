@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   AlertTriangleIcon,
-  ArrowRightIcon,
   BanIcon,
   BookmarkIcon,
   ExternalLinkIcon,
@@ -70,12 +69,12 @@ function webUrl(url: string | null) {
   }
 }
 
-function SeeAll({ href, label }: { href: string; label: string }) {
+/** The accessible name starts with the visible "Ver todos" (WCAG 2.5.3) and adds the area. */
+function SeeAll({ href, area }: { href: string; area: string }) {
   return (
     <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
-      <Link href={href} aria-label={label}>
+      <Link href={href} aria-label={`Ver todos: ${area}`}>
         Ver todos
-        <ArrowRightIcon />
       </Link>
     </Button>
   );
@@ -100,7 +99,7 @@ function Widget({
         {/* the link stays on the title's line; the description wraps beside it */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-[15px] leading-6 font-semibold text-foreground">{title}</h2>
+            <h2 className="text-body font-medium text-foreground">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
           </div>
           {action && <div className="-mt-1 shrink-0">{action}</div>}
@@ -163,8 +162,9 @@ function Row({
   );
 }
 
+/* Neutral: a row's icon says what it is; colour is kept for what needs attention. */
 const Tile = ({ icon }: { icon: ReactNode }) => (
-  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent text-primary [&_svg]:size-4">{icon}</span>
+  <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground [&_svg]:size-4">{icon}</span>
 );
 
 export async function ClientDashboard({ actor }: { actor: Actor }) {
@@ -440,7 +440,8 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
         </div>
       ))}
 
-      <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {/* the tiles arrive one after another, once, as the page opens */}
+      <div className="stagger mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         {canFinance && (
           <KpiTile
             label="A pagar"
@@ -482,7 +483,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
 
       <div className="mb-6 grid items-start gap-6 lg:grid-cols-2">
         {canFinance && (
-          <Widget title="A pagar" action={<SeeAll href="/financeiro" label="Ver todas as faturas" />}>
+          <Widget title="A pagar" action={<SeeAll href="/financeiro" area="faturas" />}>
             {openInvoices.length ? (
               <ul className="divide-y border-t">
                 {openInvoices.map(({ invoice, company }) => {
@@ -535,7 +536,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
       </div>
 
       <div className="mb-6 grid items-start gap-6 lg:grid-cols-2">
-        <Widget title="Projetos" action={<SeeAll href="/projetos" label="Ver todos os projetos" />}>
+        <Widget title="Projetos" action={<SeeAll href="/projetos" area="projetos" />}>
           {projects.length ? (
             <ul className="divide-y border-t">
               {projects.map((project) => {
@@ -571,7 +572,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             <EmptyState icon={<FolderKanbanIcon />} title="Nenhum projeto em andamento" description="Quando a Anuntech iniciar um projeto com você, o quadro aparece aqui." className="py-10" />
           )}
         </Widget>
-        <Widget title="Produtos e serviços" action={<SeeAll href="/produtos" label="Ver todos os produtos e serviços" />}>
+        <Widget title="Produtos e serviços" action={<SeeAll href="/produtos" area="produtos e serviços" />}>
           {products.length ? (
             <ul className="divide-y border-t">
               {products.map((product) => {
@@ -598,7 +599,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         {canSupport && (
-          <Widget title="Últimos chamados" action={<SeeAll href="/chamados" label="Ver todos os chamados" />}>
+          <Widget title="Últimos chamados" action={<SeeAll href="/chamados" area="chamados" />}>
             {recentTickets.length ? (
               <ul className="divide-y border-t">
                 {recentTickets.map(({ ticket, company }) => (
@@ -617,7 +618,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             )}
           </Widget>
         )}
-        <Widget title="Bookmarks" action={<SeeAll href="/bookmarks" label="Ver todos os bookmarks" />}>
+        <Widget title="Bookmarks" action={<SeeAll href="/bookmarks" area="bookmarks" />}>
           {bookmarkPage.items.length ? (
             <ul className="divide-y border-t">
               {bookmarkPage.items.map((item) => {

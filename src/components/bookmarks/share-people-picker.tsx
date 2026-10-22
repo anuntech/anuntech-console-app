@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { CheckIcon, Loader2Icon, SearchIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
 import { PersonAvatar } from "@/components/console/person-avatar";
 import { TokenChip } from "@/components/console/token-chip";

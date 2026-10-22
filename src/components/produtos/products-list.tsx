@@ -11,7 +11,6 @@ import {
   ChevronRightIcon,
   CircleCheckIcon,
   ExternalLinkIcon,
-  PackageIcon,
   PauseIcon,
   PencilIcon,
   PlayIcon,
@@ -19,7 +18,7 @@ import {
   Trash2Icon,
   WrenchIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenuItem,
@@ -42,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { CardGrid, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { ProductIcon } from "@/components/console/product-icon";
+import { LinkPending } from "@/components/console/motion";
 import { EmptyState } from "@/components/console/page-header";
 import type { ListLayout } from "@/lib/list-layout";
 import {
@@ -275,8 +275,10 @@ function ClientTile({ row, company }: { row: ProductRow; company: string | null 
   const name = !href ? (
     row.name
   ) : consolePage ? (
+    // No prefetch, like the other cards; the hairline shows while the app or the service page loads.
     <Link href={consolePage} prefetch={false} className={cover}>
       {row.name}
+      <LinkPending className="inset-x-4 bottom-0 sm:inset-x-5" />
     </Link>
   ) : (
     <a href={href} target="_blank" rel="noopener noreferrer" className={cover}>
@@ -288,26 +290,33 @@ function ClientTile({ row, company }: { row: ProductRow; company: string | null 
   return (
     <li
       className={cn(
-        "group/card relative flex min-w-0 items-center gap-3 px-4 py-3 transition-colors",
-        "sm:flex-col sm:items-stretch sm:gap-0 sm:rounded-xl sm:border sm:bg-card sm:p-4",
-        // Inset on phones: the full-width row sits in a scrolling card that would clip an outer ring.
-        href && "hover:bg-accent/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50 max-sm:has-[:focus-visible]:ring-inset sm:hover:border-primary/30",
+        "group/card relative flex min-w-0 items-center gap-3 px-4 py-3",
+        "sm:flex-col sm:items-stretch sm:gap-0 sm:rounded-xl sm:border sm:bg-card sm:p-5",
+        // Hover tints and a press gives a little (no lift: depth is the border). Inset ring on
+        // phones: the full-width row sits in a scrolling card that would clip an outer one.
+        href
+          ? "press hover:bg-accent/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50 max-sm:has-[:focus-visible]:ring-inset sm:hover:border-primary/30"
+          : "transition-colors",
       )}
     >
       <ProductIcon src={row.icon} name={row.name} size={56} className="max-sm:[--icon:44px]!" />
-      <div className="min-w-0 flex-1 sm:mt-3">
-        <p className="m-0 truncate text-sm leading-5 font-semibold">{name}</p>
+      <div className="min-w-0 flex-1 sm:mt-4">
+        <p className="m-0 truncate text-body-sm font-medium">{name}</p>
         {company && <p className="m-0 truncate text-xs text-muted-foreground">{company}</p>}
         <p className="m-0 mt-0.5 truncate text-xs text-muted-foreground sm:line-clamp-2 sm:whitespace-normal">{lineOf(row)}</p>
         {status && <div className="mt-1.5 sm:hidden">{status}</div>}
       </div>
-      <div className="flex shrink-0 items-center gap-2 text-xs sm:mt-auto sm:pt-4">
+      <div className="flex shrink-0 items-center gap-2 text-xs sm:mt-auto sm:pt-5">
         {status && <span className="max-sm:hidden">{status}</span>}
         <span
           aria-hidden="true"
           className={cn(
             "inline-flex items-center gap-1 font-medium whitespace-nowrap sm:ml-auto [&_svg]:size-3.5",
+            // The arrow leans the way the click goes: right into the Console, up and out to another tab.
+            "[&_svg]:transition-transform [&_svg]:duration-(--anu-motion-base)",
             href ? "text-primary" : "text-muted-foreground",
+            consolePage && "group-hover/card:[&_svg]:translate-x-0.5",
+            href && !consolePage && "group-hover/card:[&_svg]:translate-x-0.5 group-hover/card:[&_svg]:-translate-y-0.5",
           )}
         >
           {row.kind === "service" ? (
@@ -338,7 +347,7 @@ function Price({ money, large = false }: { money: ProductMoney | undefined; larg
   if (money?.amountCents == null) return <span className="text-muted-foreground">—</span>;
   return (
     <>
-      <span className={cn("text-foreground", large ? "text-base font-semibold" : "font-medium")}>{currency(money.amountCents)}</span>
+      <span className={cn("text-foreground", large ? "text-body font-medium" : "font-medium")}>{currency(money.amountCents)}</span>
       {money.interval && <span className="text-muted-foreground">{intervalLabel[money.interval]}</span>}
     </>
   );
@@ -408,6 +417,7 @@ export function ProductsList({
   return (
     <ListCard
       fill
+      empty={total === 0}
       actions={actions}
       label="Lista de produtos e serviços"
       layout={<ViewToggle view={layout} onChange={chooseLayout} />}
@@ -568,7 +578,7 @@ export function ProductsList({
         </Table>
       ) : (
         <EmptyState
-          icon={<PackageIcon />}
+          art={filtered ? "busca" : "projetos"}
           title={filtered ? "Nenhum produto ou serviço encontrado" : "Nenhum produto ou serviço ativo"}
           description={
             filtered

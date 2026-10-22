@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
+import { BrandArt, type SpotArtName } from "@/components/ui/brand-art";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,6 +15,9 @@ import {
  * The one page header used by every redesigned screen: optional breadcrumb
  * trail, title with an optional count, one-line description, actions on the
  * right. Keeping the grammar identical across screens is the point.
+ *
+ * It rises into place when the page arrives (bridging the loading skeleton);
+ * it persists across filter and page changes, so it does not replay.
  */
 export function PageHeader({
   crumbs,
@@ -22,6 +26,7 @@ export function PageHeader({
   description,
   actions,
   leading,
+  actionsInline = false,
   className,
 }: {
   crumbs?: { label: string; href?: string }[];
@@ -31,10 +36,12 @@ export function PageHeader({
   actions?: ReactNode;
   /** Identity slot rendered before the title (avatar, status). */
   leading?: ReactNode;
+  /** Icon-only actions (the "…" menu) stay beside the title on phones instead of wrapping to a row of their own. */
+  actionsInline?: boolean;
   className?: string;
 }) {
   return (
-    <header className={cn("mb-7 flex flex-col gap-4", className)}>
+    <header className={cn("reveal mb-7 flex flex-col gap-4", className)}>
       {crumbs && crumbs.length > 0 && (
         <Breadcrumb>
           <BreadcrumbList className="text-xs">
@@ -47,7 +54,8 @@ export function PageHeader({
                       <Link href={crumb.href}>{crumb.label}</Link>
                     </BreadcrumbLink>
                   ) : (
-                    <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                    // The full title is the h1 below; on a phone the trail stays on one line.
+                    <BreadcrumbPage className="max-w-[24ch] truncate sm:max-w-[48ch]">{crumb.label}</BreadcrumbPage>
                   )}
                 </BreadcrumbItem>
               </Fragment>
@@ -55,8 +63,13 @@ export function PageHeader({
           </BreadcrumbList>
         </Breadcrumb>
       )}
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex min-w-0 items-center gap-4">
+      <div
+        className={cn(
+          "flex items-start justify-between gap-y-3",
+          actionsInline ? "flex-nowrap gap-x-3" : "flex-wrap gap-x-6",
+        )}
+      >
+        <div className={cn("flex min-w-0 items-center gap-4", actionsInline && "flex-1")}>
           {leading}
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-title-lg text-foreground">
@@ -75,7 +88,8 @@ export function PageHeader({
           </div>
         </div>
         {actions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          // min-w-0, not shrink-0: on a phone the actions wrap instead of pushing the page sideways.
+          <div className={cn("flex min-w-0 flex-wrap items-center gap-2", actionsInline && "shrink-0")}>
             {actions}
           </div>
         )}
@@ -104,7 +118,7 @@ export function SectionTitle({
       )}
     >
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold leading-6 text-foreground">
+        <h2 className="text-body font-medium text-foreground">
           {title}
         </h2>
         {description && (
@@ -118,39 +132,69 @@ export function SectionTitle({
   );
 }
 
-/** Empty state with the same voice everywhere: what is missing, what to do. */
+/** Literal classes, so Tailwind finds them. */
+const STEP = { 2: "reveal [--i:2]", 3: "reveal [--i:3]", 4: "reveal [--i:4]" } as const;
+
+/**
+ * Empty state with the same voice everywhere: what is missing, what to do.
+ *
+ * Page-level empties (a list with nothing yet, a search with no match) show
+ * the brand illustration of their area with `art`; small empties inside a
+ * card keep the `icon` tile. With `art="busca"` the art only fades, since it
+ * comes and goes while the person types.
+ *
+ *   art="chamados"  tickets, a conversation with no messages
+ *   art="faturas"   invoices, quotes, contracts, sends
+ *   art="projetos"  projects, journeys, bookmarks, products
+ *   art="busca"     any list with filters or search and no result, 404
+ */
 export function EmptyState({
+  art,
   icon,
   title,
   description,
   action,
+  size = "default",
   className,
 }: {
+  art?: SpotArtName;
   icon?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
+  /** `compact`: smaller art and padding, for an empty area inside a card. */
+  size?: "default" | "compact";
   className?: string;
 }) {
+  const search = art === "busca";
+  // The text follows the art in; a search result swaps often, so it only fades.
+  const enter = (step: 2 | 3 | 4) => (!art ? undefined : search ? "reveal-fade" : STEP[step]);
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center px-6 py-14 text-center",
+        "flex flex-col items-center justify-center text-center",
+        size === "compact" ? "px-4 py-8" : art ? "px-6 py-12" : "px-6 py-14",
         className,
       )}
     >
-      {icon && (
-        <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-accent text-primary [&_svg]:size-5">
-          {icon}
-        </div>
+      {art ? (
+        <BrandArt
+          name={art}
+          animate={search ? "fade" : "build"}
+          className={cn(size === "compact" ? "mb-3 w-28" : "mb-5 w-40 sm:w-48")}
+        />
+      ) : (
+        icon && (
+          <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-secondary text-muted-foreground [&_svg]:size-5">
+            {icon}
+          </div>
+        )
       )}
-      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <p className={cn("font-medium text-foreground", art && size !== "compact" ? "text-body" : "text-sm", enter(2))}>{title}</p>
       {description && (
-        <p className="mt-1 max-w-[42ch] text-sm text-muted-foreground">
-          {description}
-        </p>
+        <p className={cn("mt-1 max-w-[42ch] text-sm text-pretty text-muted-foreground", enter(3))}>{description}</p>
       )}
-      {action && <div className="mt-5">{action}</div>}
+      {action && <div className={cn(size === "compact" ? "mt-4" : "mt-5", enter(4))}>{action}</div>}
     </div>
   );
 }

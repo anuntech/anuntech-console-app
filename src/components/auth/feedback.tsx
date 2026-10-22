@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { CircleAlertIcon, InfoIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 
 /** Inline feedback for the access screens: one tone for errors, one for news. */
 export function AuthAlert({
@@ -19,7 +19,8 @@ export function AuthAlert({
       role={kind === "error" ? "alert" : "status"}
       aria-atomic="true"
       className={cn(
-        "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm",
+        // Fades in where it appears; the text is announced either way.
+        "reveal-fade flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm",
         kind === "error"
           ? "border-destructive-edge bg-destructive-soft text-destructive"
           : "border-border bg-secondary/60 text-foreground",

@@ -2,7 +2,7 @@ import "server-only";
 import Link from "next/link";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { sql } from "drizzle-orm";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { db } from "@/lib/db";
 import { settingsEnvironment } from "@/lib/access/environment";
 import { auditLabels, dateTimeLabel } from "@/lib/format";

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeftIcon, LoaderCircleIcon, RotateCwIcon, TriangleAlertIcon } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { useFillViewport } from "@/components/console/fill-viewport";
 import { openApp } from "@/lib/apps/app-actions";
@@ -70,9 +71,10 @@ export function AppFrame({ data }: { data: AppFrameData }) {
           </Link>
         </Button>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg leading-6 font-semibold tracking-[-0.01em] text-foreground">{data.name}</h1>
-          <p className="truncate text-xs text-muted-foreground">
-            {[data.company, data.app !== data.name ? data.app : null].filter(Boolean).join(" · ")}
+          <h1 className="truncate text-title-sm text-foreground">{data.name}</h1>
+          <p className="flex min-w-0 gap-x-1.5 text-xs text-muted-foreground [&>*]:truncate [&>*+*]:shrink-0 [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·']">
+            <span>{data.company}</span>
+            {data.app !== data.name && <span>{data.app}</span>}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={reload} disabled={frame.phase === "opening"}>
@@ -97,15 +99,18 @@ export function AppFrame({ data }: { data: AppFrameData }) {
             onLoad={() => setLoaded(true)}
           />
         )}
-        {busy && (
-          <div
-            role="status"
-            className="absolute inset-0 flex items-center justify-center gap-2 bg-card text-sm text-muted-foreground"
-          >
-            <LoaderCircleIcon aria-hidden="true" className="size-4 motion-safe:animate-spin" />
-            Abrindo {data.name}…
-          </div>
-        )}
+        {/* Stays mounted: when the app is in, the cover fades away instead of cutting to it. */}
+        <div
+          role="status"
+          aria-hidden={!busy}
+          className={cn(
+            "absolute inset-0 flex items-center justify-center gap-2 bg-card text-sm text-muted-foreground transition-opacity duration-(--anu-motion-base)",
+            !busy && "pointer-events-none opacity-0",
+          )}
+        >
+          <LoaderCircleIcon aria-hidden="true" className={cn("size-4", busy && "motion-safe:animate-spin")} />
+          Abrindo {data.name}…
+        </div>
         {frame.phase === "error" && (
           <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-warning-soft text-warning [&_svg]:size-6">

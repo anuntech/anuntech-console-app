@@ -3,7 +3,6 @@ import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import {
-  ArrowRightIcon,
   Loader2Icon,
   MailIcon,
   MessageCircleIcon,
@@ -206,7 +205,7 @@ export function LoginForm({
         <BrandLoading fullscreen label="Acesso confirmado. Abrindo o Console." />
       )}
       {!sent && (
-        <Tabs value={mode} onValueChange={(value) => switchMode(value as Mode)}>
+        <Tabs className="reveal [--i:1]" value={mode} onValueChange={(value) => switchMode(value as Mode)}>
           <TabsList aria-label="Forma de acesso" className="grid w-full grid-cols-2">
             <TabsTrigger value="email" disabled={busy}>
               <MailIcon />
@@ -221,14 +220,15 @@ export function LoginForm({
       )}
       <form
         aria-label={`Acesso por ${mode === "email" ? "e-mail" : "WhatsApp"}`}
-        className="flex flex-col gap-4"
+        className="reveal flex flex-col gap-4 [--i:2]"
         onSubmit={(event) => {
           event.preventDefault();
           void (sent ? verify() : send());
         }}
       >
         {sent ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border bg-secondary/50 py-2 pr-1.5 pl-3 text-sm">
+          // The code step arrives in place of the address: a short rise says the step changed.
+          <div className="reveal flex items-center justify-between gap-3 rounded-lg border bg-secondary/50 py-2 pr-1.5 pl-3 text-sm">
             <span className="min-w-0">
               <span className="block text-xs text-muted-foreground">
                 Código enviado para
@@ -291,7 +291,7 @@ export function LoginForm({
           </div>
         )}
         {sent && (
-          <div>
+          <div className="reveal [--i:1]">
             <Label htmlFor={`${id}-code`} className="mb-2">
               Código de acesso
             </Label>
@@ -339,7 +339,6 @@ export function LoginForm({
               : seconds
                 ? `Aguarde ${seconds}s para pedir outro código`
                 : "Receber código"}
-          {!busy && !seconds && <ArrowRightIcon />}
         </Button>
         {sent && (
           <div className="flex justify-center">
@@ -358,12 +357,12 @@ export function LoginForm({
       </form>
       {!sent && (
         <>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="reveal flex items-center gap-3 text-xs text-muted-foreground [--i:3]">
             <span className="h-px flex-1 bg-border" aria-hidden="true" />
             ou
             <span className="h-px flex-1 bg-border" aria-hidden="true" />
           </div>
-          <GoogleButton returnTo={returnTo} />
+          <GoogleButton returnTo={returnTo} className="reveal [--i:4]" />
         </>
       )}
     </div>

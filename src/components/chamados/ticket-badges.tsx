@@ -1,4 +1,4 @@
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { clientTicketLabels, priorityLabels, ticketLabels } from "@/lib/format";
 import type { TicketPriority, TicketStatus } from "@/lib/tickets/ticket-table";
 
@@ -36,6 +36,25 @@ export function TicketStatusBadge({
       )}
     >
       <span aria-hidden="true" className={cn("size-1.5 rounded-full", tone.dot)} />
+      {(client ? clientTicketLabels : ticketLabels)[status] ?? status}
+    </span>
+  );
+}
+
+/** The status as a dot and its name in running text: the phone list's second line, where a pill would be cut. */
+export function TicketStatusText({
+  status,
+  client = false,
+  className,
+}: {
+  status: TicketStatus;
+  client?: boolean;
+  className?: string;
+}) {
+  const tone = statusTone[status] ?? statusTone.closed;
+  return (
+    <span className={cn("inline-flex items-center gap-1.5", status === "waiting_customer" ? "text-warning" : status === "resolved" ? "text-success" : undefined, className)}>
+      <span aria-hidden="true" className={cn("size-1.5 shrink-0 rounded-full", tone.dot)} />
       {(client ? clientTicketLabels : ticketLabels)[status] ?? status}
     </span>
   );

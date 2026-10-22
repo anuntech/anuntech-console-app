@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ComponentProps } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { toast } from "@/components/shell/notifications";
 
 /**

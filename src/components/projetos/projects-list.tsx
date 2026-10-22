@@ -6,7 +6,6 @@ import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
   CircleCheckIcon,
-  FolderKanbanIcon,
   KanbanIcon,
   PauseIcon,
   PencilIcon,
@@ -14,7 +13,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenuItem,
@@ -240,6 +239,7 @@ export function ProjectsList({
   return (
     <ListCard
       fill
+      empty={rows.length === 0}
       actions={actions}
       label="Lista de projetos"
       layout={<ViewToggle view={layout} onChange={chooseLayout} />}
@@ -368,7 +368,7 @@ export function ProjectsList({
         </Table>
       ) : (
         <EmptyState
-          icon={<FolderKanbanIcon />}
+          art={filtered ? "busca" : "projetos"}
           title={filtered ? "Nenhum projeto encontrado" : "Nenhum projeto ativo"}
           description={
             filtered

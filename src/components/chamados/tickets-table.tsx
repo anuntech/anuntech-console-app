@@ -1,5 +1,5 @@
 "use client";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -7,7 +7,6 @@ import { useState, type ReactNode } from "react";
 import {
   Building2Icon,
   CheckIcon,
-  HeadsetIcon,
   LockIcon,
   MessagesSquareIcon,
   PlusIcon,
@@ -61,7 +60,7 @@ import {
   DeleteTicketDialog,
   useTicketMove,
 } from "./ticket-actions";
-import { TicketPriorityMark, TicketStatusBadge } from "./ticket-badges";
+import { TicketPriorityMark, TicketStatusBadge, TicketStatusText } from "./ticket-badges";
 import { ticketKindShort, type TicketKind } from "@/lib/tickets/ticket-intake";
 
 export type TicketRow = {
@@ -223,6 +222,7 @@ export function TicketsTable({
   return (
     <ListCard
       fill
+      empty={!rows.length}
       actions={actions}
       label="Lista de chamados"
       toolbar={
@@ -277,7 +277,7 @@ export function TicketsTable({
               {companyColumn && (
                 <TableHead className="hidden md:table-cell">Empresa</TableHead>
               )}
-              <TableHead>Situação</TableHead>
+              <TableHead className="hidden md:table-cell">Situação</TableHead>
               <TableHead className="hidden md:table-cell">Prioridade</TableHead>
               {admin && (
                 <TableHead className="hidden md:table-cell">Responsável</TableHead>
@@ -294,12 +294,23 @@ export function TicketsTable({
                 <PrimaryCell
                   href={`/chamados/${ticket.id}`}
                   title={ticket.subject}
-                  subtitle={subtitle(ticket)}
+                  subtitle={
+                    <>
+                      <span className="max-md:hidden">{subtitle(ticket)}</span>
+                      {/* Phones: the status column would be cut by the scroll, so it reads here. */}
+                      <span className="flex min-w-0 items-center gap-x-2 md:hidden">
+                        <TicketStatusText status={ticket.status} client={!admin} className="min-w-0 truncate" />
+                        {ticket.due && (
+                          <span className={cn("shrink-0", ticket.due.late && "font-medium text-destructive")}>{ticket.due.label}</span>
+                        )}
+                      </span>
+                    </>
+                  }
                 />
                 {companyColumn && (
                   <CompanyCell>{ticket.company}</CompanyCell>
                 )}
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <TicketStatusBadge status={ticket.status} client={!admin} />
                   {ticket.due && (
                     <span className={cn("mt-1 block text-xs whitespace-nowrap", ticket.due.late ? "font-medium text-destructive" : "text-muted-foreground")}>
@@ -308,7 +319,12 @@ export function TicketsTable({
                   )}
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  <TicketPriorityMark priority={ticket.priority} />
+                  {/* Only priorities that ask for attention show; the rest read as "Normal" to screen readers. */}
+                  {ticket.priority === "high" || ticket.priority === "critical" ? (
+                    <TicketPriorityMark priority={ticket.priority} />
+                  ) : (
+                    <span className="sr-only">Normal</span>
+                  )}
                 </TableCell>
                 {admin && (
                   <TableCell
@@ -333,7 +349,7 @@ export function TicketsTable({
         </Table>
       ) : (
         <EmptyState
-          icon={<HeadsetIcon />}
+          art={filtered ? "busca" : "chamados"}
           title={
             filtered
               ? "Nenhum chamado encontrado"

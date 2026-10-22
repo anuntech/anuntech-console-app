@@ -1,10 +1,11 @@
 "use client";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type AnimationEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { LayoutGridIcon, ListIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { LIST_LAYOUT_COOKIES, type ListLayout, type ListLayoutArea } from "@/lib/list-layout";
+import { LinkPending } from "@/components/console/motion";
 
 /*
  * The grid way of drawing a list (Bookmarks, Projetos, Contratos, Produtos,
@@ -28,10 +29,17 @@ export function useListLayout(area: ListLayoutArea, initial: ListLayout) {
   return [view, choose] as const;
 }
 
-/** Lista · Grade, for the list's toolbar (`ListCard`'s `layout`). */
+/** Lista · Grade, for the list's toolbar (`ListCard`'s `layout`). A thumb slides to the chosen one. */
 export function ViewToggle({ view, onChange }: { view: ListLayout; onChange: (view: ListLayout) => void }) {
   return (
-    <div role="group" aria-label="Visualização" className="flex rounded-md border bg-background p-0.5">
+    <div role="group" aria-label="Visualização" className="relative flex rounded-full border bg-background p-0.5">
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute top-0.5 left-0.5 size-7 rounded-full bg-accent transition-transform duration-(--anu-motion-base)",
+          view === "grid" && "translate-x-7",
+        )}
+      />
       {(
         [
           ["list", "Lista", <ListIcon key="list" />],
@@ -47,7 +55,7 @@ export function ViewToggle({ view, onChange }: { view: ListLayout; onChange: (vi
           title={label}
           aria-pressed={view === mode}
           onClick={() => onChange(mode)}
-          className={cn("size-7", view === mode ? "bg-accent text-primary hover:bg-accent" : "text-muted-foreground")}
+          className={cn("relative size-7", view === mode ? "text-primary hover:bg-transparent hover:text-primary" : "text-muted-foreground")}
         >
           {icon}
         </Button>
@@ -56,9 +64,27 @@ export function ViewToggle({ view, onChange }: { view: ListLayout; onChange: (vi
   );
 }
 
-/** The cards, in as many columns as fit. */
+/**
+ * The cards, in as many columns as fit. On first mount they arrive one after
+ * another (`data-fresh`, shadcn.css); cards that come later (a filter, the
+ * next page) just appear, so browsing never replays it.
+ */
 export function CardGrid({ children, className }: { children: ReactNode; className?: string }) {
-  return <ul className={cn("m-0 grid list-none gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4", className)}>{children}</ul>;
+  const [fresh, setFresh] = useState(true);
+  // Done when the last staggered card (the 8th, or the last one) finishes.
+  const settle = (event: AnimationEvent<HTMLUListElement>) => {
+    const cards = event.currentTarget.children;
+    if (event.target === cards[Math.min(cards.length, 8) - 1]) setFresh(false);
+  };
+  return (
+    <ul
+      data-fresh={fresh ? "" : undefined}
+      onAnimationEnd={fresh ? settle : undefined}
+      className={cn("m-0 grid list-none gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4", className)}
+    >
+      {children}
+    </ul>
+  );
 }
 
 const InCard = createContext(false);
@@ -132,14 +158,16 @@ export function GridCard({
     // No prefetch: a page shows 25+ cards, and opening one already shows the loading state at once.
     <Link href={href} prefetch={false} className={cover}>
       {title}
+      <LinkPending className="inset-x-4 top-0" />
     </Link>
   );
   return (
     <li
       className={cn(
-        "group/card relative flex min-w-0 flex-col rounded-lg border bg-card p-4 transition-colors",
+        "group/card relative flex min-w-0 flex-col rounded-lg border bg-card p-4",
+        // Hover tints, press gives a little; no lift (surfaces are flat, depth is the border).
         (href || onOpen) &&
-          "hover:border-primary/30 hover:bg-accent/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
+          "press hover:border-primary/30 hover:bg-accent/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
       )}
     >
       <div className="flex items-start gap-3">

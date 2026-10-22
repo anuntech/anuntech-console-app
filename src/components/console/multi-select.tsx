@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
   Command,

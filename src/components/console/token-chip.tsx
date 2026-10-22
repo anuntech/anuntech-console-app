@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { XIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 
 /**
  * A removable token inside a field: a label, a person, a technology. Same

@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState } from "react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { isCatalogAvatar } from "@/lib/account/avatar-catalog";
 import { initials } from "@/lib/format";
 import { IllustratedAvatar } from "@/components/settings/illustrated-avatar";

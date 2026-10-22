@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronRightIcon, HeadsetIcon, MessageCircleQuestionIcon, PlayIcon, SparklesIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { BrandArt } from "@/components/ui/brand-art";
+import { EmptyState, PageHeader } from "@/components/console/page-header";
 import { SearchField } from "@/components/console/search-field";
 import { openAssistant } from "@/components/shell/assistant-events";
 import { openSupportWidget } from "@/components/shell/support-trigger";
@@ -75,7 +77,7 @@ export function NotFoundHelp({ viewer }: { viewer: HelpViewer }) {
   return (
     <Card className="gap-4 px-5 py-5 sm:px-6">
       <div>
-        <h2 className="m-0 text-[15px] font-semibold text-foreground">Não encontrou o que procurava?</h2>
+        <h2 className="m-0 text-body font-medium text-foreground">Não encontrou o que procurava?</h2>
         <p className="m-0 mt-1 text-sm text-muted-foreground">O assistente responde na hora, e a equipe da Anuntech pelo chamado ou pelo chat.</p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -115,30 +117,54 @@ const tutorials = TUTORIALS.flatMap((tutorial) => {
 /* The articles come with this component's code (cached with the bundle), not in the page's data. */
 export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }) {
   const router = useRouter();
+  // The sections arrive in sequence only on the first visit; after a search they just come back.
+  const [fresh, setFresh] = useState(!query.trim());
   const search = useCallback(
-    (q: string) => router.replace(q.trim() ? `/ajuda?q=${encodeURIComponent(q)}` : "/ajuda", { scroll: false }),
+    (q: string) => {
+      setFresh(false);
+      router.replace(q.trim() ? `/ajuda?q=${encodeURIComponent(q)}` : "/ajuda", { scroll: false });
+    },
     [router],
   );
   const results = useMemo(() => (query.trim() ? searchHelp(articles, query, { limit: 30 }) : []), [query]);
   const top = TOP_QUESTIONS.map((slug) => articles.find((a) => a.slug === slug)).filter((a): a is HelpArticle => !!a?.faq?.length);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <SearchField
-          value={query}
-          onChange={search}
-          placeholder="Busque por assunto: boleto, convite, prazo, contrato..."
-          ariaLabel="Buscar na ajuda"
-          className="max-w-2xl [&_input]:h-11 [&_input]:text-base"
-        />
-        <p className="m-0 text-xs text-muted-foreground" aria-live="polite">
-          {query.trim() ? (results.length ? `${results.length} ${results.length === 1 ? "artigo encontrado" : "artigos encontrados"}` : "Nenhum artigo encontrado") : `${articles.length} artigos sobre tudo o que dá para fazer no Console.`}
-        </p>
-      </div>
+    <div className="flex flex-col gap-10">
+      {/* The hero: title and search on the left; from 1024px the brand story on the
+          right (a spreadsheet becoming a system) over the pixel field. */}
+      <section className="relative isolate grid items-start gap-x-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]">
+        <div className="flex min-w-0 flex-col">
+          <PageHeader className="mb-5" title="Ajuda" description="Tudo o que dá para fazer no Console, passo a passo, com as regras e os tutoriais em vídeo." />
+          <div className="reveal flex flex-col gap-2 [--i:1]">
+            <SearchField
+              value={query}
+              onChange={search}
+              placeholder="Busque por assunto: boleto, convite, prazo, contrato..."
+              ariaLabel="Buscar na ajuda"
+              className="max-w-2xl [&_input]:h-11 [&_input]:rounded-xl [&_input]:text-base"
+            />
+            <p className="m-0 text-xs text-muted-foreground" aria-live="polite">
+              {query.trim() ? (results.length ? `${results.length} ${results.length === 1 ? "artigo encontrado" : "artigos encontrados"}` : "Nenhum artigo encontrado") : `${articles.length} artigos sobre tudo o que dá para fazer no Console.`}
+            </p>
+          </div>
+        </div>
+        <div className="relative hidden px-4 py-6 lg:block">
+          <span aria-hidden="true" className="pixel-field pointer-events-none absolute inset-0 -z-10 [--pixel-from:55%_45%] [--pixel-strength:5.5%]" />
+          <BrandArt name="planilha" glow className="w-full" />
+        </div>
+      </section>
 
       {query.trim() ? (
         <>
+          {results.length === 0 && (
+            <EmptyState
+              art="busca"
+              title="Nenhum artigo encontrado"
+              description="Tente outra palavra, como boleto, convite, prazo ou contrato."
+              className="py-6"
+            />
+          )}
           {results.length > 0 && (
             <Card className="py-2">
               <ul className="m-0 flex list-none flex-col p-1">
@@ -154,21 +180,23 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
         <>
           {tutorials.length > 0 && (
             <section aria-labelledby="videos" className="flex flex-col gap-3">
-              <h2 id="videos" className="m-0 text-lg font-semibold tracking-[-0.01em] text-foreground">
+              <h2 id="videos" className="m-0 text-title-sm text-foreground">
                 Tutoriais em vídeo
               </h2>
-              <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2 xl:grid-cols-3">
+              {/* grid-cols-1: one explicit column on phones, or the truncated line widens the track. */}
+              <ul className={`m-0 grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2 xl:grid-cols-3 ${fresh ? "stagger" : ""}`}>
                 {tutorials.map(({ tutorial, slug }) => (
                   <li key={tutorial.id}>
                     <Link
                       href={`/ajuda/${slug}#video`}
-                      className="group flex h-full items-center gap-3 rounded-xl border bg-card px-3.5 py-3 transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                      className="press group flex h-full items-center gap-3 rounded-xl border bg-card px-3.5 py-3 hover:border-primary/40 hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                     >
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform duration-150 group-hover:scale-105 motion-reduce:transition-none">
+                      {/* Neutral at rest, so seven discs do not shout; the brand colour comes with the pointer. */}
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground group-focus-visible:bg-primary group-focus-visible:text-primary-foreground">
                         <PlayIcon aria-hidden="true" className="ml-0.5 size-4 fill-current" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-foreground group-hover:text-primary">{tutorial.title}</span>
+                        <span className="block text-sm font-medium text-foreground group-hover:text-primary">{tutorial.title}</span>
                         <span className="block truncate text-xs text-muted-foreground">
                           <span className="tabular-nums">{durationLabel(tutorial.duration)}</span> · {tutorial.description}
                         </span>
@@ -181,7 +209,7 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
           )}
 
           <section aria-labelledby="assuntos" className="flex flex-col gap-3">
-            <h2 id="assuntos" className="m-0 text-lg font-semibold tracking-[-0.01em] text-foreground">
+            <h2 id="assuntos" className="m-0 text-title-sm text-foreground">
               Assuntos
             </h2>
             {/* Columns, not a grid: each card keeps its own height. */}
@@ -194,7 +222,7 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
                     <div className="flex items-start gap-3 px-3">
                       <CategoryTile id={category.id} />
                       <div className="min-w-0">
-                        <h3 className="m-0 text-[15px] font-semibold text-foreground">{category.title}</h3>
+                        <h3 className="m-0 text-body font-medium text-foreground">{category.title}</h3>
                         <p className="m-0 text-xs leading-5 text-muted-foreground">{category.description}</p>
                       </div>
                     </div>
@@ -220,7 +248,7 @@ export function HelpHub({ query, viewer }: { query: string; viewer: HelpViewer }
 
           {top.length > 0 && (
             <section aria-labelledby="perguntas" className="flex flex-col gap-3">
-              <h2 id="perguntas" className="m-0 text-lg font-semibold tracking-[-0.01em] text-foreground">
+              <h2 id="perguntas" className="m-0 text-title-sm text-foreground">
                 Perguntas frequentes
               </h2>
               <Card className="px-5 py-1 sm:px-6">

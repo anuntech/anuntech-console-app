@@ -23,7 +23,6 @@ export default async function SignIn({
   return (
     <main id="main-content" tabIndex={-1} className="contents">
       <AuthShell
-        eyebrow="Boas-vindas"
         title="Entre no Console"
         description="Use o e-mail liberado para a sua empresa ou o WhatsApp da sua conta."
       >
@@ -40,7 +39,7 @@ export default async function SignIn({
             </AuthAlert>
           )}
           <LoginForm returnTo={returnTo} />
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="reveal text-center text-xs text-muted-foreground [--i:5]">
             Ainda não tem acesso?{" "}
             {process.env.NODE_ENV === "production" ? (
               <SupportButton className="font-medium text-primary underline-offset-2 hover:underline">

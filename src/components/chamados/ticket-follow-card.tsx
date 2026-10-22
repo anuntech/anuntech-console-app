@@ -12,7 +12,7 @@ export type TicketFollowUp = { waiting: boolean; noHours: boolean };
 export function TicketFollowCard({ ticketId, followUp }: { ticketId: string; followUp: TicketFollowUp }) {
   if (!followUp.waiting && !followUp.noHours) return null;
   return (
-    <Card>
+    <Card variant="quiet">
       <CardHeader>
         <SectionTitle
           title="Acompanhamento"

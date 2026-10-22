@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { UserRoundIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,

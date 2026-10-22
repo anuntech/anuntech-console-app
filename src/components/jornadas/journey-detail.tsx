@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import {
-  ArrowRightIcon,
+  ArrowDownIcon,
   CheckCircle2Icon,
   CircleCheckIcon,
   LinkIcon,
@@ -15,7 +15,7 @@ import {
   Trash2Icon,
   XCircleIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -28,6 +28,7 @@ import {
 import { PageHeader, SectionTitle } from "@/components/console/page-header";
 import { Fact } from "@/components/console/fact";
 import { PersonAvatar } from "@/components/console/person-avatar";
+import { PixelProgress } from "@/components/console/pixel-progress";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { deleteJourney, setJourneyStatus } from "@/lib/journeys/journey-actions";
 import { currency, dateTimeLabel, relativeLabel } from "@/lib/format";
@@ -57,7 +58,11 @@ export function JourneyStatusBadge({ status, className }: { status: JourneyStatu
   );
 }
 
-/** Done over total as a thin bar. */
+/**
+ * Done over total as a thin bar, for counts too long for a pixel per step
+ * (the whole journey). The fill slides in from the left (transform, not
+ * width), so finishing a step moves it without reflowing anything.
+ */
 export function JourneyProgress({ done, total, className }: { done: number; total: number; className?: string }) {
   const percent = total ? Math.round((done / total) * 100) : 0;
   return (
@@ -70,7 +75,10 @@ export function JourneyProgress({ done, total, className }: { done: number; tota
       aria-valuetext={`${done} de ${total} passos`}
       aria-label="Passos feitos"
     >
-      <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${percent}%` }} />
+      <div
+        className="h-full w-full rounded-full bg-primary transition-transform duration-(--anu-motion-slow) ease-brand"
+        style={{ transform: `translateX(${percent - 100}%)` }}
+      />
     </div>
   );
 }
@@ -107,7 +115,13 @@ function StageRail({ data, current }: { data: JourneyDetailData; current: string
                   {complete && <CheckCircle2Icon className="size-3.5 shrink-0 text-success" />}
                   <span className={cn("truncate font-medium", stage.key === current ? "text-primary" : "text-foreground")}>{stage.title}</span>
                 </span>
-                <JourneyProgress done={stage.done} total={stage.total} />
+                {/* One pixel per step, as in the logo's pixel half: the journey goes from raw to product. */}
+                <PixelProgress
+                  done={stage.done}
+                  total={stage.total}
+                  label={`Etapa ${stage.title}`}
+                  className="gap-[3px] [&>span]:size-2 lg:gap-1 lg:[&>span]:size-2.5"
+                />
                 <span className="text-muted-foreground tabular-nums">
                   {stage.done} de {stage.total}
                   {stage.key === "setup" ? " · em paralelo" : ""}
@@ -133,13 +147,13 @@ function NowCard({ data, className }: { data: JourneyDetailData; className?: str
       {next && (
         <CardContent className="flex flex-col gap-3">
           <div>
-            <p className="m-0 text-sm font-semibold text-foreground">{next.def.title}</p>
+            <p className="m-0 text-sm font-medium text-foreground">{next.def.title}</p>
             <p className="m-0 mt-1 text-sm text-muted-foreground">{next.detail ?? next.def.help}</p>
           </div>
           <Button size="sm" className="self-start" asChild>
             <a href={`#passo-${next.def.key}`}>
+              <ArrowDownIcon />
               Ir para o passo
-              <ArrowRightIcon />
             </a>
           </Button>
         </CardContent>
@@ -166,7 +180,7 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
     </button>
   );
   return (
-    <Card className="gap-4 py-5">
+    <Card variant="quiet" className="gap-4 py-5">
       <CardHeader>
         <SectionTitle title="Registros" description="O que já existe no Console para este projeto." />
       </CardHeader>
@@ -281,7 +295,7 @@ function RecordsCard({ data, onLink }: { data: JourneyDetailData; onLink: (kind:
 function ActivityCard({ data }: { data: JourneyDetailData }) {
   if (!data.activity.length) return null;
   return (
-    <Card className="gap-4 py-5">
+    <Card variant="quiet" className="gap-4 py-5">
       <CardHeader>
         <SectionTitle title="Atividade" />
       </CardHeader>
@@ -334,7 +348,7 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
         title={journey.title}
         className="mb-5"
         description={
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <JourneyStatusBadge status={journey.status} />
             {journey.company ? (
               <Link href={`/empresas/${journey.company.id}`} className="text-primary hover:underline">
@@ -345,20 +359,20 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
             )}
             {owner && (
               <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true">·</span>
                 <PersonAvatar person={owner} size={18} tone="staff" />
                 {owner.name || owner.email}
               </span>
             )}
           </span>
         }
+        actionsInline
         actions={
           <>
             {resolved.next && (
               <Button asChild className="max-sm:hidden">
                 <a href={`#passo-${resolved.next.def.key}`}>
+                  <ArrowDownIcon />
                   Próximo: {resolved.next.def.title}
-                  <ArrowRightIcon />
                 </a>
               </Button>
             )}

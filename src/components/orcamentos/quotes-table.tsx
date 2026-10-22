@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Building2Icon, CalculatorIcon, CopyPlusIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -151,6 +151,7 @@ export function QuotesTable({
   return (
     <ListCard
       fill
+      empty={!rows.length}
       actions={actions}
       label="Lista de orçamentos"
       toolbar={
@@ -256,7 +257,7 @@ export function QuotesTable({
         </Table>
       ) : (
         <EmptyState
-          icon={<CalculatorIcon />}
+          art={filtered ? "busca" : "faturas"}
           title={filtered ? "Nenhum orçamento encontrado" : "Nenhum orçamento ainda"}
           description={
             filtered

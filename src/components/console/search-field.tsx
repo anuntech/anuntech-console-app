@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { SearchIcon, XIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Input } from "@/components/ui/input";
 
 /**

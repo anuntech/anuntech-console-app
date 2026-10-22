@@ -5,12 +5,13 @@ import { useInCard } from "@/components/console/list-grid";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DownloadIcon, ExternalLinkIcon, MoreHorizontalIcon, XIcon } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { downloadFile } from "@/components/console/download-link";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { TablePagination } from "@/components/console/table-pagination";
+import { LinkPending } from "@/components/console/motion";
 
 /**
  * The one list layout of the Console:
@@ -33,10 +34,11 @@ const LIST_MIN_HEIGHT = 280;
 export function ListCard({
   label,
   toolbar,
-  layout,
+  layout: layoutSlot,
   actions,
-  footer,
+  footer: footerSlot,
   fill = false,
+  empty = false,
   children,
   className,
 }: {
@@ -49,10 +51,17 @@ export function ListCard({
   actions?: ReactNode;
   footer?: ReactNode;
   fill?: boolean;
+  /**
+   * Nothing to list (the body is an EmptyState): the Lista · Grade switch and
+   * the footer have nothing to act on, so they are left out.
+   */
+  empty?: boolean;
   children: ReactNode;
   className?: string;
 }) {
   const ref = useRef<HTMLElement>(null);
+  const layout = empty ? undefined : layoutSlot;
+  const footer = empty ? undefined : footerSlot;
   // Lower than the board's floor: the toolbar, the column names and the
   // footer still leave a few rows, and on a short notebook screen the page
   // keeps from scrolling.
@@ -71,7 +80,9 @@ export function ListCard({
               // the dock below, so the card does not start out under the dock.
               { maxHeight: `max(${LIST_MIN_HEIGHT}px, calc(100dvh - 172px))` }
       }
-      className={cn("overflow-hidden rounded-xl border bg-card shadow-card", fill && "flex flex-col", className)}
+      // Fades in a beat after the header, never rises: useFillViewport measures
+      // this card with getBoundingClientRect, which includes transforms.
+      className={cn("reveal-fade overflow-hidden rounded-xl border bg-card shadow-card [--i:1]", fill && "flex flex-col", className)}
     >
       {(toolbar || layout || actions) && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-3">
@@ -222,14 +233,15 @@ export function PrimaryCell({
           <span className="truncate font-medium text-foreground group-hover:text-primary">{title}</span>
           {external && href && <ExternalLinkIcon aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />}
         </span>
-        {subtitle ? <span className="block truncate text-xs text-muted-foreground">{subtitle}</span> : null}
+        {/* font-normal: the legacy `td a` rule would bold it and compete with the name. */}
+        {subtitle ? <span className="block truncate text-xs font-normal text-muted-foreground">{subtitle}</span> : null}
       </span>
     </>
   );
   return (
     // w-full + max-w-0: the name column takes the room the other columns leave and
     // truncates, instead of stretching the table past the card; min-w keeps it readable.
-    <TableCell className={cn("w-full max-w-0 min-w-48 py-3 pl-4", className)}>
+    <TableCell className={cn("relative w-full max-w-0 min-w-48 py-3 pl-4", className)}>
       {onOpen ? (
         <button type="button" onClick={onOpen} className="group flex w-full min-w-0 items-center gap-3 text-left">
           {content}
@@ -245,6 +257,7 @@ export function PrimaryCell({
         // No prefetch: a list shows 25+ rows, and opening one already shows the loading state at once.
         <Link href={href} prefetch={false} className="group flex min-w-0 items-center gap-3">
           {content}
+          <LinkPending className="right-0 bottom-0 left-4" />
         </Link>
       )}
     </TableCell>
@@ -316,6 +329,8 @@ export function ListPagination({
   hrefFor: (patch: { page: number; pageSize?: number }) => string;
 }) {
   const router = useRouter();
+  // An empty list has no pages to move between.
+  if (total === 0) return null;
   return (
     <TablePagination
       page={page}

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { LockIcon } from "lucide-react";
 import { auth } from "@/lib/auth/auth";
 import { withReturnPath } from "@/lib/auth/return-path";
 import { getActor } from "@/lib/access/access";
@@ -34,7 +33,7 @@ export default async function OpenAppLink({ params }: { params: Promise<{ app: s
   if (choice.kind !== "none") redirect(choice.href);
   return (
     <StatusPage
-      icon={<LockIcon />}
+      art="projetos"
       eyebrow={app.name}
       title="Este app não está liberado para você"
       description={

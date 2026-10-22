@@ -10,7 +10,7 @@ import {
   ShieldCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -114,7 +114,7 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
             <label
               key={value}
               className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
+                "group press flex cursor-pointer items-start gap-3 rounded-lg border bg-card px-3 py-2.5 hover:border-primary/40 has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
                 kind === value && "border-primary bg-accent/50",
                 value === "new_project" && "sm:col-span-2",
               )}
@@ -131,7 +131,7 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
               <span
                 aria-hidden="true"
                 className={cn(
-                  "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-4",
+                  "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground transition-colors [&_svg]:size-4",
                   kind === value && "bg-primary text-primary-foreground",
                 )}
               >
@@ -273,7 +273,7 @@ export function TicketFields({ context, autoFocus = false }: { context: TicketFo
 export function NewTicketForm({ context }: { context: TicketFormContext }) {
   const uploads = useTicketUploads();
   return (
-    <Card className="max-w-2xl">
+    <Card className="reveal-fade max-w-2xl">
       <ServerForm action={createTicket} prepare={uploads} className="contents">
         <CardContent className="flex flex-col gap-5">
           <FormError />

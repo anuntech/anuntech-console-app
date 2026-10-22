@@ -2,7 +2,7 @@
 import { useCallback, useRef, useState } from "react";
 import { CalendarIcon } from "lucide-react";
 import { ptBR } from "date-fns/locale";
-import { cn } from "cn";
+import { cn } from "@/lib/cn";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
