@@ -13,6 +13,7 @@ import { pushChecks } from "./api-smoke-push.mjs";
 import { ticketsChecks } from "./api-smoke-tickets.mjs";
 import { helpChecks } from "./api-smoke-help.mjs";
 import { financeChecks } from "./api-smoke-finance.mjs";
+import { contractsChecks } from "./api-smoke-contracts.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -892,7 +893,7 @@ try {
       r.body.phases[0].name === "Descoberta" &&
       r.body.phases[0].hoursMax === 20 &&
       r.body.phases[0].tasks.length === 1 &&
-      r.body.phases[0].tasks[0] === "Reunião de descoberta" &&
+      r.body.phases[0].tasks[0]?.title === "Reunião de descoberta" &&
       r.body.notes === "Estimativa de esforço." &&
       r.body.upfrontPercent === 40 &&
       r.body.documentHash === hashOf(quoteFixtures[0][2]) &&
@@ -1079,6 +1080,8 @@ try {
   await helpChecks({ db, rpc, ok, marker, emailSignIn, staff });
   // Financeiro: busca, período, recorrência, próximas cobranças e o detalhe (scripts/api-smoke-finance.mjs).
   await financeChecks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Contratos e orçamentos (scripts/api-smoke-contracts.mjs).
+  await contractsChecks({ db, rpc, ok, marker, emailSignIn, staff, base, mailFile: join(dir, "mail.jsonl") });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);
