@@ -131,12 +131,12 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 
 ## Frente 8 — Conta, notificações e assistente
 
-- [ ] **C1** Aparência: Claro, Escuro ou Sistema.
-- [ ] **C2** Notificações: histórico de envios (Administrador).
-- [ ] **C3** Assistente: sugestões conforme o papel (o Membro não vê "faturas").
-- [ ] **C4** Assistente: atalhos fixos sob a caixa (Abrir chamado, Ajuda).
-- [ ] **C5** Assistente e chamados: ditado por voz com a mesma transcrição da web (`/api/v1/transcricao`).
-- [ ] **C6** "Falar com alguém da Anuntech": WhatsApp da equipe em vez de só "Abrir chamado".
+- [x] **C1** Aparência: Claro, Escuro ou Sistema.
+- [x] **C2** Notificações: histórico de envios (Administrador).
+- [x] **C3** Assistente: sugestões conforme o papel (o Membro não vê "faturas").
+- [x] **C4** Assistente: atalhos fixos sob a caixa (Abrir chamado, Ajuda).
+- [x] **C5** Assistente e chamados: ditado por voz com a mesma transcrição da web (`/api/v1/transcricao`).
+- [x] **C6** "Falar com alguém da Anuntech": WhatsApp da equipe em vez de só "Abrir chamado".
 - ⚪ Preencher ou clicar na tela pelo assistente (depende da página web), tempo e tokens por resposta, posição do dock, lista ou grade.
 
 ---

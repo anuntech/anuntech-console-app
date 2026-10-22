@@ -12,6 +12,8 @@ export default function AccountLayout() {
       <Stack.Screen name="email" options={{ title: "Alterar e-mail" }} />
       <Stack.Screen name="whatsapp" options={{ title: "WhatsApp" }} />
       <Stack.Screen name="seguranca" options={{ title: "Segurança" }} />
+      <Stack.Screen name="aparencia" options={{ title: "Aparência" }} />
+      <Stack.Screen name="envios" options={{ title: "Histórico de envios" }} />
       <Stack.Screen name="excluir" options={{ title: "Excluir conta" }} />
       {/* The other screens of Empresa set their own titles; inviting opens as a sheet. */}
       <Stack.Screen name="membros/convidar" options={{ presentation: "modal" }} />

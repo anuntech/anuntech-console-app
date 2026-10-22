@@ -6,6 +6,7 @@ import { SymbolView, type SFSymbol } from "expo-symbols";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AttachmentField, uploadIds, uploading, type Attachment } from "@/components/attachment-field";
 import { Button } from "@/components/button";
+import { DictationBar } from "@/components/dictation";
 import { Field } from "@/components/field";
 import { ListRow } from "@/components/list-row";
 import { Section } from "@/components/section";
@@ -14,6 +15,7 @@ import { Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
+import { appendTranscript, useDictation } from "@/lib/dictation";
 import { haptic } from "@/lib/haptics";
 import { openHelp } from "@/lib/help-link";
 import { useTabBarSpace } from "@/lib/layout";
@@ -152,6 +154,11 @@ export default function NewTicket() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<Attachment[]>([]);
+  const dictation = useDictation((text) => {
+    const result = appendTranscript(body, text, 10000);
+    setBody(result.value);
+    if (result.truncated) return "O texto passou do limite de 10.000 caracteres e foi cortado. Revise antes de enviar.";
+  });
   const [tried, setTried] = useState(false);
   const companies = choices.data?.companies ?? [];
   // A link's company counts only when the person may open tickets for it; with one company there is nothing to pick.
@@ -215,7 +222,12 @@ export default function NewTicket() {
       ? "Espere os anexos terminarem de enviar."
       : `Escolha ${list(pick)}${pick.length > 1 ? "," : ""} e preencha assunto e descrição.`;
   const submit = () => {
-    if (ready) return create.mutate();
+    // What was said is still on its way: opening now would leave it out.
+    if (dictation.phase === "transcribing") return;
+    if (ready) {
+      if (dictation.busy) dictation.cancel();
+      return create.mutate();
+    }
     setTried(true);
     const where = positions.current;
     const block = missing[0];
@@ -364,6 +376,9 @@ export default function NewTicket() {
                   invalid={tried && !body.trim()}
                   style={{ minHeight: 140, paddingTop: space.md, textAlignVertical: "top" }}
                 />
+                <View style={{ marginTop: space.sm }}>
+                  <DictationBar dictation={dictation} testID="body-mic" />
+                </View>
               </View>
               {companyId ? <AttachmentField value={files} onChange={setFiles} target={{ kind: "ticket", companyId }} /> : null}
               {expect ? (

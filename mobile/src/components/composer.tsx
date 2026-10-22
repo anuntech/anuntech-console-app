@@ -28,6 +28,9 @@ export function Composer({
   leading,
   accessory,
   canSend = false,
+  trailing,
+  status,
+  footer,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -46,6 +49,12 @@ export function Composer({
   accessory?: ReactNode;
   /** Something besides text is ready to go (a file), so sending is allowed without words. */
   canSend?: boolean;
+  /** A button inside the capsule, before send (the microphone). */
+  trailing?: ReactNode;
+  /** A line above the capsule (what the microphone is doing). */
+  status?: ReactNode;
+  /** A line under the capsule (the assistant's shortcuts). */
+  footer?: ReactNode;
 }) {
   const palette = usePalette();
   const tabBar = useBottomBarSpace();
@@ -61,6 +70,7 @@ export function Composer({
   return (
     <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: typing ? 8 : tabBar, gap: 8 }}>
       {error ? <Notice kind="error">{error}</Notice> : null}
+      {status}
       {accessory}
       <View
         style={{
@@ -97,6 +107,8 @@ export function Composer({
             color: palette.foreground,
           }}
         />
+        {accessory ? <View style={{ marginVertical: 7, marginLeft: 2 }}>{accessory}</View> : null}
+        {trailing ? <View style={{ marginVertical: 7, marginLeft: 2 }}>{trailing}</View> : null}
         <Animated.View style={[{ margin: 7 }, pop]}>
           <Pressable
             testID={sendTestID}
@@ -133,6 +145,7 @@ export function Composer({
           </Pressable>
         </Animated.View>
       </View>
+      {footer}
     </View>
   );
 }

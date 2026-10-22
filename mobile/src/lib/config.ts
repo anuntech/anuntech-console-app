@@ -32,3 +32,5 @@ export function formatPhone(phone: string) {
   const split = n.length > 10 ? 7 : 6;
   return `(${n.slice(0, 2)}) ${n.slice(2, split)}-${n.slice(split)}`;
 }
+/** The team's WhatsApp, (11) 5107-3435 (src/lib/support.ts on the Console). */
+export const SUPPORT_WHATSAPP_URL = "https://wa.me/551151073435";

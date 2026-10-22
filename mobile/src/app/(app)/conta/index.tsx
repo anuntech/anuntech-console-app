@@ -14,6 +14,7 @@ import { Bar, useDelayed } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { useMe } from "@/lib/me";
+import { appearanceLabel, useAppearanceChoice } from "@/lib/appearance";
 import { errorMessage } from "@/lib/api";
 import { CONSOLE_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
@@ -88,6 +89,7 @@ export default function Account() {
   const [locked, setLocked] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const push = usePushPermission();
+  const appearance = useAppearanceChoice();
   useEffect(() => {
     void lockAvailable().then(setCanLock);
     void lockEnabled().then(setLocked);
@@ -192,6 +194,14 @@ export default function Account() {
           value={me.data ? (me.data.twoFactorEnabled ? "Ativada" : "Desativada") : undefined}
           leading={<IconTile icon="lock.shield.fill" color="green" />}
           onPress={() => router.push("/conta/seguranca")}
+        />
+        <ListRow
+          testID="row-appearance"
+          title="Aparência"
+          subtitle="Tema do app"
+          value={appearanceLabel(appearance)}
+          leading={<IconTile icon="circle.lefthalf.filled" color="ink" />}
+          onPress={() => router.push("/conta/aparencia" as never)}
         />
       </Section>
       {me.data?.managedCompanyId ? (
