@@ -8,8 +8,8 @@ const sheet = {
 } as const;
 
 /**
- * Início and the areas its shortcuts open (Projetos, Contratos, Orçamentos,
- * Bookmarks). Lists get the large title; a detail screen draws its own name.
+ * Início and the areas its shortcuts open (Projetos, Produtos e serviços,
+ * Contratos, Orçamentos, Bookmarks). Lists get the large title; a detail screen draws its own name.
  */
 export default function HomeLayout() {
   const options = useStackOptions();
@@ -49,6 +49,9 @@ export default function HomeLayout() {
       <Stack.Screen name="bookmarks/pasta" options={{ title: "Nova pasta", ...sheet }} />
       <Stack.Screen name="bookmarks/compartilhar" options={{ title: "Compartilhar", ...sheet }} />
       <Stack.Screen name="bookmarks/[id]/lousa" options={{ title: "Lousa", headerTransparent: false }} />
+      <Stack.Screen name="produtos/index" options={{ title: "Produtos e serviços", headerLargeTitle: true }} />
+      <Stack.Screen name="produtos/[id]" options={{ title: "" }} />
+      <Stack.Screen name="produtos/app/[id]" options={{ title: "" }} />
     </Stack>
   );
 }

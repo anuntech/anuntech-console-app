@@ -210,6 +210,60 @@ const companyAddress = z.object({
 });
 const memberScope = z.object({ access: z.enum(["all", "selected"]), ids: z.array(z.uuid()).max(500) });
 const noticeTopic = z.enum(["billing", "tickets"]);
+/** How a product or service opens: a protected app (apps.open), its own web link, the service's screen, or nothing yet. */
+const opensAs = z.enum(["app", "link", "service", "none"]);
+const productCard = z.object({
+  id: z.string(),
+  kind: z.enum(["product", "service"]),
+  name: z.string(),
+  description: z.string().nullable(),
+  status: z.string(),
+  statusLabel: z.string(),
+  company: z.string(),
+  /** The catalog icon's path on the Console (a gallery file, or /api/catalogo/<id>/icone with the session); null for initials. */
+  iconPath: z.string().nullable(),
+  opensAs,
+  /** The product's own web link, only when it opens as a link. */
+  url: z.string().nullable(),
+});
+/** Amount, interval and next due date: only where the person sees money (Administradores). */
+const productMoney = z.object({
+  amountCents: z.number().nullable(),
+  interval: z.enum(["monthly", "yearly"]).nullable(),
+  nextDueDate: z.string().nullable(),
+});
+/** What the client reads while something is suspended, and whether "Pagar agora" shows. */
+const suspensionNotice = z.object({ title: z.string(), text: z.string(), canPay: z.boolean() });
+const reportState = z.object({
+  month: z.string(),
+  reportSentAt: z.string().nullable(),
+  contestedAt: z.string().nullable(),
+  /** Last instant to contest the sent report; null when the contract sets no window. */
+  contestUntil: z.string().nullable(),
+});
+/** A company's hours bank this month (never the terms or a price), and whether the person approves and contests. */
+const bankCard = reportState.extend({
+  companyId: z.string(),
+  company: z.string(),
+  viewer: z.enum(["approver", "member"]),
+  includedMinutes: z.number(),
+  usedMinutes: z.number(),
+  overageApprovedMinutes: z.number(),
+  alertPercent: z.number(),
+  entries: z.array(
+    z.object({
+      id: z.string(),
+      minutes: z.number(),
+      note: z.string(),
+      workedOn: z.string(),
+      kind: z.string(),
+      ticket: z.string().nullable(),
+      author: z.string(),
+    }),
+  ),
+  /** Last month, while its report can still be contested. */
+  previous: reportState.nullable(),
+});
 
 const helpBlock = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("p"), text: z.string() }),
@@ -935,8 +989,118 @@ export const contract = {
         recent: z.array(ticketRow),
         toPay: z.array(invoiceRow),
         canFinance: z.boolean(),
+        canSupport: z.boolean(),
+        /** Several companies: rows name theirs. */
+        showCompany: z.boolean(),
+        /** "Precisa de atenção": counts for the Administrador and the suspended products for everyone. */
+        attention: z.object({
+          quotesToAnswer: z.number(),
+          contractsToSign: z.number(),
+          /** Improvements whose estimate waits for approval; the ticket when there is only one. */
+          estimates: z.object({ count: z.number(), ticketId: z.string().nullable() }),
+          /** Deliveries in Revisão; the project when they are all on one. */
+          reviews: z.object({ count: z.number(), projectId: z.string().nullable() }),
+          suspended: z.array(z.object({ id: z.string(), name: z.string() })),
+        }),
+        /** Up to 4 active or paused projects, with their progress. */
+        projects: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            status: z.string(),
+            statusLabel: z.string(),
+            company: z.string(),
+            tasks: z.object({ total: z.number(), done: z.number() }),
+          }),
+        ),
+        /** Up to 5 products and services, suspended first. */
+        products: z.array(productCard),
+        /** Up to 5 bookmarks. */
+        bookmarks: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            kind: z.enum(["link", "file", "board"]),
+            url: z.string().nullable(),
+            fileName: z.string().nullable(),
+            filePath: z.string().nullable(),
+            folder: z.string().nullable(),
+          }),
+        ),
+        /** With nothing to pay: the next recurring charge (Administradores). */
+        nextCharge: z.object({ amountCents: z.number(), dueDate: z.string(), issueDate: z.string() }).nullable(),
+        banks: z.array(bankCard),
       }),
     ),
+  },
+  products: {
+    /** Products and services the person sees (a Membro, only the chosen ones), with money for Administradores. */
+    list: oc
+      .input(
+        page.extend({
+          status: z.enum(["active", "paused", "completed", "all"]).default("active"),
+          search: z.string().max(160).default(""),
+        }),
+      )
+      .output(
+        z.object({
+          rows: z.array(productCard.extend({ money: productMoney.optional() })),
+          ...paged,
+          /** Clients see the status filter only when something is paused or closed. */
+          showStatusFilter: z.boolean(),
+          suspended: suspensionNotice.nullable(),
+        }),
+      ),
+    /** One product or service: the catalog's four sections, its billing (Administradores) and its suspension. */
+    get: oc.input(z.object({ id: z.uuid() })).output(
+      productCard.extend({
+        companyId: z.string(),
+        showCompany: z.boolean(),
+        sections: z.object({
+          whatWeDo: z.string().nullable(),
+          whatWeNeed: z.string().nullable(),
+          expectedResults: z.string().nullable(),
+          deadlines: z.string().nullable(),
+        }),
+        billing: productMoney.optional(),
+        suspension: suspensionNotice.nullable(),
+      }),
+    ),
+  },
+  apps: {
+    /**
+     * Opens a product's protected app: a fresh 2-minute pass in the address
+     * (recorded as app.opened), or why it does not open, or the screen a
+     * service or project has instead.
+     */
+    open: oc.input(z.object({ id: z.uuid() })).output(
+      z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("open"), url: z.string(), app: z.string() }),
+        z.object({
+          kind: z.literal("blocked"),
+          product: z.string(),
+          title: z.string(),
+          description: z.string(),
+          /** "Abrir produto": the product's own link, when it opens outside the Console. */
+          link: z.string().nullable(),
+          /** "Abrir chamado": the app is not yet set up for the company. */
+          ticket: z.boolean(),
+          /** "Pagar agora": suspended, and the person sees the company's invoices. */
+          pay: z.boolean(),
+        }),
+        z.object({ kind: z.literal("page"), to: z.enum(["service", "project"]), id: z.string() }),
+      ]),
+    ),
+  },
+  hours: {
+    /** Each company's hours bank the person sees. */
+    banks: oc.input(empty).output(z.object({ banks: z.array(bankCard) })),
+    /** An Administrador approves up to this many hours beyond this month's bank ("2" or "1,5"). */
+    approveOverage: oc.input(z.object({ companyId: z.uuid(), hours: z.string().max(10) })).output(message),
+    /** An Administrador contests a sent report within the contract's window. */
+    contestReport: oc
+      .input(z.object({ companyId: z.uuid(), month: z.string().regex(/^\d{4}-\d{2}$/), note: z.string().max(2000) }))
+      .output(message),
   },
   devices: {
     /** This phone receives push notifications for the signed-in person. */

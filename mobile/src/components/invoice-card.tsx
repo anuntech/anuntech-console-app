@@ -1,7 +1,8 @@
 import { router } from "expo-router";
 import { invoiceLook } from "@/lib/status";
 import { fonts, usePalette } from "@/lib/theme";
-import { dueLine, money } from "@/lib/format";
+import { dueLine } from "@/lib/format";
+import { shownMoney, spokenMoney } from "@/lib/money-hidden";
 import { ListRow } from "./list-row";
 import { Text } from "./text";
 import { StatusTile, toneColors } from "./tile";
@@ -30,7 +31,7 @@ export const recurrenceLabel = (interval: "monthly" | "yearly") => `Recorrência
  * due date under it, the amount at the end (red when overdue). Tapping opens it.
  * The caller draws the group (a Section, or `groupedItem` in a FlatList).
  */
-export function InvoiceCard({ invoice, showCompany }: { invoice: InvoiceRow; showCompany?: boolean }) {
+export function InvoiceCard({ invoice, showCompany, hideMoney = false }: { invoice: InvoiceRow; showCompany?: boolean; /** The eye on Início is closed. */ hideMoney?: boolean }) {
   const palette = usePalette();
   const look = invoiceLook[invoice.display] ?? invoiceLook.issued;
   const overdue = invoice.display === "overdue";
@@ -38,7 +39,7 @@ export function InvoiceCard({ invoice, showCompany }: { invoice: InvoiceRow; sho
   const due = [dueLine(invoice.display, invoice.dueDate), late].filter(Boolean).join(" · ");
   const recurrence = invoice.interval ? recurrenceLabel(invoice.interval) : null;
   const meta = [showCompany ? invoice.company : null, recurrence].filter(Boolean).join(" · ");
-  const amount = money(invoice.amountCents);
+  const amount = shownMoney(invoice.amountCents, hideMoney);
   return (
     <ListRow
       leading={<StatusTile icon={look.icon} tone={look.tone} />}
@@ -59,7 +60,7 @@ export function InvoiceCard({ invoice, showCompany }: { invoice: InvoiceRow; sho
       value={amount}
       money
       valueTone={overdue ? "destructive" : "foreground"}
-      accessibilityLabel={[invoice.statusLabel, invoice.description, amount, due, invoice.company, recurrence].filter(Boolean).join(". ")}
+      accessibilityLabel={[invoice.statusLabel, invoice.description, spokenMoney(invoice.amountCents, hideMoney), due, invoice.company, recurrence].filter(Boolean).join(". ")}
       onPress={() => router.push({ pathname: "/financeiro/[id]", params: { id: invoice.id } })}
     />
   );
