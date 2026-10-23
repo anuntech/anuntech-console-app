@@ -163,7 +163,8 @@ export async function financeChecks({ db, rpc, ok, marker, emailSignIn, staff, b
     ok(r.status === 200 && r.body.rows.length === 0, "Mês passado leaves out this month and 2020");
     r = await rpc("finance.list", { period: "next_30", status: "overdue" }, people.admin.session);
     ok(r.status === 200 && r.body.rows.length === 0, "Period and situation combine");
-    ok((await rpc("finance.list", { period: "custom" }, people.admin.session)).status === 400, "Only the period shortcuts are accepted");
+    // "Personalizado" (custom + from/to) is checked in api-smoke-lac3.mjs.
+    ok((await rpc("finance.list", { period: "next_year" }, people.admin.session)).status === 400, "Only the web's periods are accepted");
 
     // Who sees it: a Membro nothing, another company 404.
     r = await rpc("finance.list", {}, people.member.session);
