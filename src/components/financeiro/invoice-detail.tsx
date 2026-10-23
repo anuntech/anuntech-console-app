@@ -17,6 +17,7 @@ import {
   PauseIcon,
   PencilIcon,
   PlayIcon,
+  SendIcon,
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -51,6 +52,7 @@ import {
   changePaymentLink,
   changeSubscription,
   resendBillingNotice,
+  resendInvoice,
   sendInvoiceNotice,
 } from "@/lib/billing/billing-public-actions";
 import {
@@ -370,6 +372,7 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
   >(null);
   const [send, setSend] = useState<null | "email" | "whatsapp">(null);
   const [resend, setResend] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
   const [allEvents, setAllEvents] = useState(false);
   const ask = (which: "link" | "subscription" | "cancel" | "delete" | "bank") =>
     setTimeout(() => setConfirm(which), 0);
@@ -441,8 +444,16 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
         ]}
         actionsInline
         actions={
-          admin &&
-          hasMenu && (
+          admin && (
+            <>
+            {/* Once the first notice went out: the same invoice again, to everyone who receives billing notices. */}
+            {issued && invoice.publicEnabled && notices.length > 0 && (
+              <Button variant="outline" onClick={() => setResending(true)}>
+                <SendIcon />
+                <span className="max-sm:sr-only">Reenviar cobrança</span>
+              </Button>
+            )}
+            {hasMenu && (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" aria-label="Mais ações">
@@ -487,6 +498,8 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            )}
+            </>
           )
         }
       />
@@ -1350,6 +1363,16 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             description={`${companyName} recebe o aviso desta fatura de ${currency(invoice.amountCents)} com o link de pagamento.`}
             confirmLabel="Enviar"
             onSuccess={() => setSend(null)}
+          />
+          <ConfirmDialog
+            open={resending}
+            onOpenChange={setResending}
+            action={resendInvoice}
+            fields={{ id: invoice.id }}
+            title="Reenviar a cobrança?"
+            description={`Todos os contatos do financeiro de ${companyName} recebem de novo esta fatura de ${currency(invoice.amountCents)}, com o link de pagamento, pelos canais que o cliente mantém ligados. A mensagem fala da situação de hoje: em aberto, vence hoje ou em atraso.`}
+            confirmLabel="Reenviar"
+            onSuccess={() => setResending(false)}
           />
           <ConfirmDialog
             open={resend !== null}
