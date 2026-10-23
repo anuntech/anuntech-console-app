@@ -287,12 +287,12 @@ try {
     }
   };
   const imageOf = async (id) => (await db.query("select image from console_user where id=$1", [id])).rows[0]?.image;
-  const catalog = /^\/brand\/avatars\/(avatar|marca)-\d{2}\.svg$/;
+  const catalog = /^\/brand\/avatars\/marca-\d{2}\.(svg|png)$/;
   let refused = true;
   for (const [path, input] of [
     ["profile.rename", { name: "Sem sessão" }],
     ["profile.avatars", undefined],
-    ["profile.setAvatar", { image: "/brand/avatars/avatar-01.svg" }],
+    ["profile.setAvatar", { image: "/brand/avatars/marca-01.svg" }],
     ["profile.removePhoto", undefined],
     ["profile.startEmailChange", { email: address("nobody") }],
     ["profile.confirmEmailChange", { challengeId: randomUUID(), sourceCode: "123456", targetCode: "123456" }],
@@ -352,24 +352,24 @@ try {
   ok(
     r.status === 200 &&
       // 24 of the brand first, then the 89 illustrations.
-      r.body.avatars.length === 113 &&
+      r.body.avatars.length === 48 &&
       r.body.avatars[0].image === "/brand/avatars/marca-01.svg" &&
       r.body.avatars.every((a) => catalog.test(a.image) && a.path === a.image && /^#[0-9A-F]{6}$/i.test(a.color)),
     "profile.avatars lists the catalog with each background",
   );
   refused = true;
-  for (const image of ["/brand/avatars/avatar-90.svg", "/brand/avatars/../x.svg", "https://evil.invalid/a.png", "profile-avatars/x.webp"])
+  for (const image of ["/brand/avatars/avatar-90.svg", "/brand/avatars/avatar-05.svg", "/brand/avatars/../x.svg", "https://evil.invalid/a.png", "profile-avatars/x.webp"])
     refused &&=
       (r = await rpc("profile.setAvatar", { image }, profile)).status === 400 && r.body?.message === "Selecione um avatar válido.";
   ok(refused && (await imageOf(people.profile.id)) === null, "profile.setAvatar takes only the catalog's illustrations");
-  r = await rpc("profile.setAvatar", { image: "/brand/avatars/avatar-05.svg" }, profile);
+  r = await rpc("profile.setAvatar", { image: "/brand/avatars/marca-30.png" }, profile);
   ok(
     r.status === 200 &&
       r.body.message === "Avatar atualizado." &&
       r.body.avatar.kind === "illustration" &&
-      r.body.avatar.path === "/brand/avatars/avatar-05.svg" &&
+      r.body.avatar.path === "/brand/avatars/marca-30.png" &&
       /^#[0-9A-F]{6}$/i.test(r.body.avatar.color) &&
-      (await imageOf(people.profile.id)) === "/brand/avatars/avatar-05.svg",
+      (await imageOf(people.profile.id)) === "/brand/avatars/marca-30.png",
     "profile.setAvatar picks an illustration",
   );
 
@@ -383,7 +383,7 @@ try {
   r = await photo(profile, Buffer.alloc(20 * 1024 * 1024 + 1));
   ok(r.status === 413 && (await r.json()).error === "A foto deve ter até 20 MB.", "The photo route refuses more than 20 MB");
   ok(
-    (await imageOf(people.profile.id)) === "/brand/avatars/avatar-05.svg",
+    (await imageOf(people.profile.id)) === "/brand/avatars/marca-30.png",
     "A refused photo leaves the picture as it was",
   );
   r = await photo(profile, tinyPng);

@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, gt } from "drizzle-orm";
 import { db } from "../db";
 import { session, user } from "@/db/schema";
-import { isCatalogAvatar } from "./avatar-catalog";
+import { isPickableAvatar } from "./avatar-catalog";
 import { randomProfileAvatar } from "./default-avatar";
 import {
   MAX_AVATAR_BYTES,
@@ -88,7 +88,7 @@ export async function saveProfilePhoto(
 
 /** Selects an illustration of the catalog (the whitelist: never an arbitrary URL). */
 export async function chooseCatalogAvatar(current: Current, image: unknown) {
-  if (typeof image !== "string" || !isCatalogAvatar(image))
+  if (typeof image !== "string" || !isPickableAvatar(image))
     throw new ProfileAvatarError("Selecione um avatar válido.", 400);
   const previous = await replaceProfileAvatar(current, image);
   await cleanupProfileAvatar(previous, current.user.id);
