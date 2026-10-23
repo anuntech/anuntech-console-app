@@ -18,6 +18,7 @@ import { projectsChecks } from "./api-smoke-projects.mjs";
 import { bookmarksChecks } from "./api-smoke-bookmarks.mjs";
 import { homeChecks } from "./api-smoke-home.mjs";
 import { f8Checks } from "./api-smoke-f8.mjs";
+import { lac4Checks } from "./api-smoke-lac4.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -1094,6 +1095,8 @@ try {
   await homeChecks({ db, rpc, ok, marker, emailSignIn, staff });
   // Histórico de envios e ditado (scripts/api-smoke-f8.mjs).
   await f8Checks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Documento da proposta e diferença do texto proposto (scripts/api-smoke-lac4.mjs).
+  await lac4Checks({ db, rpc, ok, marker, emailSignIn, staff });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

@@ -23,6 +23,7 @@ import { openHelp } from "@/lib/help-link";
 import { useTabBarSpace } from "@/lib/layout";
 import { useMe } from "@/lib/me";
 import { rounded, space, usePalette } from "@/lib/theme";
+import { documentLine, preparedLine, rateLine } from "@/lib/quote-document";
 import { quoteTone } from "@/lib/tones";
 
 type Detail = Awaited<ReturnType<typeof api.quotes.get>>;
@@ -74,6 +75,52 @@ function Phase({ phase, index }: { phase: Detail["phases"][number]; index: numbe
           ))}
         </View>
       ) : null}
+      <Text variant="caption" tone="muted" style={{ textAlign: "right", fontVariant: ["tabular-nums"] }}>
+        Subtotal {phase.name}: <Text variant="caption">{hours(phase.hoursMin, phase.hoursMax)}</Text>
+      </Text>
+    </View>
+  );
+}
+
+/** The web's "Resumo por fase": each phase with its tasks and hours, and the total. */
+function PhaseSummary({ phases, tasks, hoursMin, hoursMax }: { phases: Detail["phases"]; tasks: number; hoursMin: number; hoursMax: number }) {
+  const count = (n: number) => `${n} ${n === 1 ? "tarefa" : "tarefas"}`;
+  return (
+    <Section header="Resumo por fase" indent={space.lg}>
+      {phases.map((phase, index) => (
+        <ListRow key={index} title={phase.name} subtitle={count(phase.tasks.length)} value={hours(phase.hoursMin, phase.hoursMax)} />
+      ))}
+      <ListRow title="Total" titleStyle="semibold" subtitle={count(tasks)} value={hours(hoursMin, hoursMax)} valueTone="foreground" />
+    </Section>
+  );
+}
+
+/** The web's closing box: the estimate, how the price is reached, and the total. */
+function TotalBox({ q }: { q: Detail }) {
+  const palette = usePalette();
+  const rate = rateLine(q.hoursMax, q.hourlyRateCents, q.discountCents);
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Total estimado do projeto, ${hours(q.hoursMin, q.hoursMax)}. ${rate}. ${money(q.totalCents)}`}
+      style={{ gap: space.md, padding: space.lg, ...rounded(20), backgroundColor: palette.primary }}
+    >
+      <View style={{ gap: 2 }}>
+        <Text variant="micro" tone="inverse" style={{ textTransform: "uppercase", opacity: 0.8 }}>
+          Total estimado do projeto
+        </Text>
+        <Text variant="title" tone="inverse" style={{ fontVariant: ["tabular-nums"] }}>
+          {hours(q.hoursMin, q.hoursMax)}
+        </Text>
+      </View>
+      <View style={{ gap: 2 }}>
+        <Text variant="caption" tone="inverse" style={{ opacity: 0.8, fontVariant: ["tabular-nums"] }}>
+          {rate}
+        </Text>
+        <Text variant="title" tone="inverse" style={{ fontVariant: ["tabular-nums"] }}>
+          {money(q.totalCents)}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -214,6 +261,11 @@ export default function Quote() {
             <Text variant="subhead" tone="muted">
               {q.number} · {q.company}
             </Text>
+            {documentLine(q.companyDocument) ? (
+              <Text variant="caption" tone="muted" selectable>
+                {documentLine(q.companyDocument)}
+              </Text>
+            ) : null}
           </View>
           <View accessible accessibilityLabel={`Total, ${money(q.totalCents)}`} style={{ gap: 2 }}>
             <Text variant="caption" tone="muted">
@@ -239,12 +291,9 @@ export default function Quote() {
                 value={`${q.phases.length} · ${tasks} ${tasks === 1 ? "tarefa" : "tarefas"}`}
               />
             ) : null}
-            {q.upfrontPercent > 0 ? (
-              <ListRow title={`Entrada (${q.upfrontPercent}%)`} value={money(q.upfrontCents)} />
-            ) : null}
-            {q.upfrontPercent > 0 && q.upfrontPercent < 100 ? (
-              <ListRow title={`Saldo (${100 - q.upfrontPercent}%)`} value={money(q.balanceCents)} />
-            ) : null}
+            {/* As the web's document: both lines, even with no entry (0%) or all of it up front. */}
+            <ListRow title={`Entrada (${q.upfrontPercent}%)`} value={money(q.upfrontCents)} />
+            <ListRow title={`Saldo (${100 - q.upfrontPercent}%)`} value={money(q.balanceCents)} />
             {q.validUntil ? (
               <ListRow
                 title="Válido até"
@@ -281,6 +330,7 @@ export default function Quote() {
               </View>
             </Section>
           ) : null}
+          {q.phases.length ? <PhaseSummary phases={q.phases} tasks={tasks} hoursMin={q.hoursMin} hoursMax={q.hoursMax} /> : null}
           {q.phases.length ? (
             <Section header={q.phases.length === 1 ? "Fase" : "Fases"} indent={space.lg}>
               {q.phases.map((phase, index) => (
@@ -295,6 +345,10 @@ export default function Quote() {
               </Text>
             </Section>
           ) : null}
+          <TotalBox q={q} />
+          <Text variant="caption" tone="muted" style={{ marginTop: -space.sm }}>
+            {preparedLine(q.sentAt ?? q.updatedAt, q.validUntil)}
+          </Text>
           {answered || q.canAnswer ? (
             <View style={{ gap: space.block }}>
               {answered ? <Notice kind="success">{answered}</Notice> : null}
