@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { MetalPromptBar, type PromptSuggestion } from "@/components/ui/metal-prompt-bar";
 import { AiOrb } from "@/components/ui/ai-orb";
+import { PixelField } from "@/components/console/pixel-field";
 import { openSupportWidget } from "@/components/shell/support-trigger";
 import { toast } from "@/components/shell/notifications";
 import { relativeLabel } from "@/lib/format";
@@ -861,11 +862,15 @@ export function AssistantPanel({
           <div
             ref={scroller}
             onScroll={followScroll}
-            className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-5"
+            className="relative min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-5"
           >
+            {/* The site's pixels light up under the cursor while the conversation is still empty. */}
+            {turns.length === 0 && (
+              <PixelField className="[mask-image:linear-gradient(to_top,black_35%,transparent)]" />
+            )}
             {turns.length === 0 ? (
               // min-h-full, not h-full: content taller than a phone's panel must stay reachable by scrolling.
-              <div className="flex min-h-full flex-col justify-end gap-5">
+              <div className="relative flex min-h-full flex-col justify-end gap-5">
                 <div className="reveal">
                   <AiOrb state={activity} size="lg" decorative className="mb-4" />
                   <p className="m-0 text-title text-foreground">
