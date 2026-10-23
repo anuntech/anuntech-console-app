@@ -870,6 +870,8 @@ export const contract = {
         canAnswer: z.boolean(),
         /** Every proposal sent, newest first, each with its PDF (`?versao=N` for an earlier one). */
         versions: z.array(z.object({ version: z.number(), sentAt: z.string(), current: z.boolean(), pdfPath: z.string() })),
+        /** The company's CNPJ/CPF as the proposal's header shows it (digits; frozen when sent). Optional for older servers. */
+        companyDocument: z.string().nullable().optional(),
       }),
     ),
     /** Accepts (with consent) or declines (with an optional note) a quote that was sent. */

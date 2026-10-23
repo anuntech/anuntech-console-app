@@ -294,6 +294,8 @@ export const quotes = {
           current: v.current,
           pdfPath: v.current ? pdfPath : `${pdfPath}?versao=${v.version}`,
         })),
+        // The web's header line: the document frozen with the proposal, else the company's current one.
+        companyDocument: (frozen?.companyDocument ?? row.company.document) || null,
       };
     }),
   answer: api.quotes.answer

@@ -1,5 +1,6 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useRef, useState } from "react";
 import { Stack, router } from "expo-router";
+import type { SearchBarCommands } from "react-native-screens";
 import { FilterChips } from "@/components/filter-chips";
 import { PagedList } from "@/components/paged-list";
 import { RecordRow } from "@/components/record-card";
@@ -7,6 +8,7 @@ import { api } from "@/lib/api";
 import { civilDate, money } from "@/lib/format";
 import { useMe } from "@/lib/me";
 import { HeaderIconButton } from "@/lib/stack";
+import { relativeLabel } from "@/lib/tasks";
 import { quoteTone } from "@/lib/tones";
 
 type Status = "all" | "sent" | "accepted" | "declined" | "expired";
@@ -34,11 +36,19 @@ export default function Quotes() {
   const [status, setStatus] = useState<Status>("all");
   const [search, setSearch] = useState("");
   const query = useDeferredValue(search.trim());
+  const searchBar = useRef<SearchBarCommands>(null);
+  // As the web's "Limpar filtros": the situation and the search both go.
+  const clear = () => {
+    searchBar.current?.clearText();
+    setSearch("");
+    setStatus("all");
+  };
   return (
     <>
       <Stack.Screen
         options={{
           headerSearchBarOptions: {
+            ref: searchBar,
             placeholder: "Buscar por número ou título",
             hideWhenScrolling: false,
             onChangeText: (e) => setSearch(e.nativeEvent.text),
@@ -64,7 +74,7 @@ export default function Quotes() {
                 icon: "magnifyingglass",
                 title: "Nenhum orçamento encontrado",
                 text: "Tente outro termo ou mude os filtros.",
-                action: status !== "all" ? { label: "Limpar filtros", onPress: () => setStatus("all") } : undefined,
+                action: { label: "Limpar filtros", onPress: clear },
               }
             : undefined
         }
@@ -78,7 +88,15 @@ export default function Quotes() {
               title={q.title}
               status={{ label: q.statusLabel, tone: q.expired ? "danger" : quoteTone(q.status) }}
               value={money(q.totalCents)}
-              details={[`nº ${q.number}`, hoursLabel(q.hoursMin, q.hoursMax), showCompany ? q.company : null].filter(Boolean).join(" · ")}
+              details={[
+                `nº ${q.number}`,
+                hoursLabel(q.hoursMin, q.hoursMax),
+                showCompany ? q.company : null,
+                // The web's last column: when the quote last changed.
+                `Atualizado ${relativeLabel(q.updatedAt)}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               note={validity ?? undefined}
               noteTone={q.expired ? "destructive" : "warning"}
               onPress={() => router.push({ pathname: "/orcamentos/[id]", params: { id: q.id } })}

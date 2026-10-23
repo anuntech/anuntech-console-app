@@ -47,7 +47,7 @@ const nextSteps = [
 ];
 
 /** One side of the contract, as the web's Party: who it is and whether (and when) it signed. */
-function PartyRow({ label, who, signature, pending }: { label: string; who: string; signature?: Signature; pending: boolean }) {
+function PartyRow({ label, who, signature, pending }: { label: string; who?: string; signature?: Signature; pending: boolean }) {
   const palette = usePalette();
   const line = signature ? `${signature.name} · ${when(signature.signedAt)}` : pending ? "Aguardando assinatura" : "—";
   return (
@@ -68,7 +68,7 @@ function PartyRow({ label, who, signature, pending }: { label: string; who: stri
           {line}
         </Text>
       }
-      accessibilityLabel={`${label}, ${who}, ${line}`}
+      accessibilityLabel={[label, who, line].filter(Boolean).join(", ")}
     />
   );
 }
@@ -388,12 +388,12 @@ export default function Contract() {
               }
             >
               <PartyRow
-                label="Contratante"
+                label="Cliente"
                 who={c.companyDocument ? `${c.company} · ${formatDocument(c.companyDocument)}` : c.company}
                 signature={signedBy("client")}
                 pending={c.status === "sent"}
               />
-              <PartyRow label="Contratada" who="Anuntech" signature={signedBy("anuntech")} pending={c.status === "sent"} />
+              <PartyRow label="Anuntech" signature={signedBy("anuntech")} pending={c.status === "sent"} />
             </Section>
           ) : null}
           <Section>

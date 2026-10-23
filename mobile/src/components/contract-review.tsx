@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 import { SymbolView } from "@/components/symbol";
 import type { api } from "@/lib/api";
 import { when } from "@/lib/format";
+import { diffSummary, diffWords } from "@/lib/word-diff";
 import type { ToneName } from "@/lib/status";
 import { rounded, space, usePalette } from "@/lib/theme";
 import { Pill } from "./pill";
@@ -153,6 +154,36 @@ export function ContractBlocks({
   );
 }
 
+/** What the proposed text keeps, drops (struck, red) and adds (green), word by word, as the web's ProposalDiff. */
+function ProposalDiff({ before, after }: { before: string; after: string }) {
+  const palette = usePalette();
+  const parts = diffWords(before, after);
+  const summary = diffSummary(parts);
+  return (
+    <Text variant="subhead" selectable accessibilityLabel={summary ? `${after}. Em relação ao texto atual: ${summary}.` : after}>
+      {parts.map((part, index) =>
+        part.change === "removed" ? (
+          <Text
+            key={index}
+            variant="subhead"
+            style={{ color: palette.destructive, backgroundColor: palette.destructiveSoft, textDecorationLine: "line-through" }}
+          >
+            {part.text}
+          </Text>
+        ) : part.change === "added" ? (
+          <Text key={index} variant="subhead" style={{ color: palette.success, backgroundColor: palette.successSoft }}>
+            {part.text}
+          </Text>
+        ) : (
+          <Text key={index} variant="subhead">
+            {part.text}
+          </Text>
+        ),
+      )}
+    </Text>
+  );
+}
+
 /** One request: where (when asked), its situation, why, the text proposed and Anuntech's answer. */
 export function RequestCard({
   request,
@@ -160,7 +191,7 @@ export function RequestCard({
   actions,
 }: {
   request: ChangeRequest;
-  /** The block's name and its text then; left out under the block itself, where it is obvious. */
+  /** The block's name; left out under the block itself, where it is obvious. */
   showLabel?: boolean;
   actions?: ReactNode;
 }) {
@@ -195,22 +226,10 @@ export function RequestCard({
       </View>
       {request.proposedText ? (
         <View style={{ gap: space.xs, padding: space.sm, ...rounded(10), backgroundColor: palette.secondary }}>
-          {showLabel ? (
-            <>
-              <Text variant="caption" tone="muted">
-                Texto enviado na versão {request.version}
-              </Text>
-              <Text variant="subhead" tone="muted" selectable>
-                {request.excerpt}
-              </Text>
-            </>
-          ) : null}
           <Text variant="caption" tone="muted">
             Texto proposto
           </Text>
-          <Text variant="subhead" selectable>
-            {request.proposedText}
-          </Text>
+          <ProposalDiff before={request.excerpt} after={request.proposedText} />
         </View>
       ) : null}
       {request.response || request.applied ? (
