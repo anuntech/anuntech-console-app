@@ -1,11 +1,5 @@
 [
   {
-    "id": "GHSA-vfj7-8cjw-p6xm",
-    "package": "braces",
-    "path": "@excalidraw/excalidraw > sass > chokidar > braces",
-    "expires": "2026-12-31"
-  },
-  {
     "id": "GHSA-r5fr-rjxr-66jc",
     "package": "lodash-es",
     "path": "@excalidraw/excalidraw > @excalidraw/mermaid-to-excalidraw > mermaid > dagre-d3-es > lodash-es; @mermaid-js/parser > langium > chevrotain > lodash-es",
