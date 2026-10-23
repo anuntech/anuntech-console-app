@@ -32,7 +32,7 @@ export async function lac1Checks({ db, rpc, ok, marker, emailSignIn, base }) {
   /** What the app's browser does: open the address, not follow the redirect, keep the cookies it sets. */
   async function open(path, cookie) {
     const response = await fetch(`${base}${path}`, { redirect: "manual", headers: cookie ? { Cookie: cookie } : {} });
-    const set = response.headers.getSetCookie().map((h) => h.split(";")[0]).filter((pair) => pair.includes("session_token=") && !pair.endsWith("="));
+    const set = response.headers.getSetCookie().map((h) => h.split(";")[0]).filter((pair) => /(session_token|dont_remember)=./.test(pair));
     return { status: response.status, location: response.headers.get("location") || "", cookie: set.join("; "), cache: response.headers.get("cache-control") };
   }
   const tokenOf = (path) => new URL(path, base).searchParams.get("t");
@@ -90,13 +90,17 @@ export async function lac1Checks({ db, rpc, ok, marker, emailSignIn, base }) {
     const second = r.body.path;
     opened = await open(second);
     ok(
-      opened.status === 302 && opened.location === `${base}${board}?v=1#topo` && !!opened.cookie && opened.cache === "no-store",
+      opened.status === 302 && opened.location === `${base}${board}?v=1#topo` && /session_token=/.test(opened.cookie) && /dont_remember=/.test(opened.cookie) && opened.cache === "no-store",
       "Opening the address signs the browser in and lands on the page",
     );
-    const me = await rpc("me.get", undefined, opened.cookie);
-    ok(me.status === 200 && me.body.email === people.ana.email, "The web session is the app's person");
     const created = (await db.query("select * from console_session where user_id=$1 order by created_at desc limit 1", [people.ana.id])).rows[0];
-    ok(created.expires_at.getTime() - Date.now() <= 86_400_000 + 5_000, "The web session lasts a day at most");
+    ok(created.expires_at.getTime() - Date.now() <= 86_400_000 + 5_000, "The web session lasts a day at most, without a lasting cookie");
+    const me = await rpc("me.get", undefined, opened.cookie);
+    ok(
+      me.status === 200 && me.body.email === people.ana.email &&
+        (await db.query("select expires_at from console_session where id=$1", [created.id])).rows[0].expires_at.getTime() - Date.now() <= 86_400_000 + 5_000,
+      "The web session is the app's person, and using it does not stretch it",
+    );
     const audit = (await db.query("select * from console_audit_events where actor_id=$1 and action in ('account.session.handoff','account.session.started') and entity_id=$2", [people.ana.id, created.id])).rows;
     ok(
       audit.some((a) => a.action === "account.session.handoff" && a.details.from === "app" && a.details.next === board) &&
