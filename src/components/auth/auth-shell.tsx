@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { LockKeyholeIcon } from "lucide-react";
 import { BrandLockup } from "@/components/shell/brand";
 import { BrandArt } from "@/components/ui/brand-art";
 
@@ -51,10 +50,6 @@ export function AuthShell({
             <div className="mt-8">{children}</div>
           </div>
         </div>
-        <footer className="flex items-center justify-center gap-1.5 px-6 pb-6 text-xs text-muted-foreground">
-          <LockKeyholeIcon className="size-3.5" aria-hidden="true" />
-          Cada pessoa entra com o próprio e-mail ou WhatsApp.
-        </footer>
       </div>
       <div
         className="relative isolate m-3 hidden w-[46%] max-w-[46rem] shrink-0 flex-col overflow-hidden rounded-3xl bg-secondary lg:flex dark:bg-card"
