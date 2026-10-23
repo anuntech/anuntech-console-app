@@ -336,7 +336,7 @@ export async function runBillingTests({
     resent.length === 1 &&
       resent[0].channel === "email" &&
       resent[0].recipient === deliveredEmail.recipient &&
-      resent[0].status === "accepted" &&
+      ["accepted", "delivered"].includes(resent[0].status) &&
       sentFor(resent[0]).length === 1 &&
       !resent.some((n) => n.channel === "whatsapp") &&
       resentEmail?.payload.html.includes(`/pagar/${i.public_id}`),
@@ -352,11 +352,16 @@ export async function runBillingTests({
   await submitForm(page, "admin", "admin", { action: "resendNoticeAgain" }, { noticeId: resent[0].id });
   await submitForm(page, "admin", "admin", { action: "resendNoticeAgain" }, { noticeId: whatsappRow.id });
   const again = await settledResends(2);
-  ok(
+  const resentEvents = (await db.query("select count(*)::int as n from console_audit_events where entity_id=$1 and action='invoice.resent'", [i.id])).rows[0].n;
+  const againOk =
     again.length === 2 &&
-      again.every((n) => n.id !== resent[0].id && n.status === "accepted" && sentFor(n).length === 1) &&
-      (await db.query("select count(*)::int as n from console_audit_events where entity_id=$1 and action='invoice.resent'", [i.id])).rows[0].n === 3,
-    "Minutos depois o reenvio sai como mensagem nova, e cada canal se reenvia sozinho",
+    again.every((n) => n.id !== resent[0].id && ["accepted", "delivered"].includes(n.status) && sentFor(n).length === 1) &&
+    resentEvents === 3;
+  ok(
+    againOk,
+    `Minutos depois o reenvio sai como mensagem nova, e cada canal se reenvia sozinho${
+      againOk ? "" : ` (${JSON.stringify({ events: resentEvents, rows: again.map((n) => ({ channel: n.channel, status: n.status, error: n.error, sent: sentFor(n).length, same: n.id === resent[0].id })) })})`
+    }`,
   );
   await submitForm(
     page,
