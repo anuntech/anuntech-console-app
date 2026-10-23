@@ -18,6 +18,7 @@ import { projectsChecks } from "./api-smoke-projects.mjs";
 import { bookmarksChecks } from "./api-smoke-bookmarks.mjs";
 import { homeChecks } from "./api-smoke-home.mjs";
 import { f8Checks } from "./api-smoke-f8.mjs";
+import { lac3Checks } from "./api-smoke-lac3.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -1094,6 +1095,8 @@ try {
   await homeChecks({ db, rpc, ok, marker, emailSignIn, staff });
   // Histórico de envios e ditado (scripts/api-smoke-f8.mjs).
   await f8Checks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Lacunas L9–L12: company display names, showCompany, "Personalizado" and the company filter.
+  await lac3Checks({ db, rpc, ok, marker, emailSignIn, staff });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

@@ -5,6 +5,7 @@ import { db } from "../../db";
 import { allowedIds, type Actor } from "../../access/access";
 import { saoPauloDate } from "../../dates";
 import { formatDocument } from "../../companies/company-input";
+import { companyDisplayName } from "../../companies/display-name";
 import { listInvoices } from "../../billing/invoice-list";
 import { findInvoice } from "../../billing/invoice-access";
 import { invoiceDebt } from "../../billing/invoice-debt";
@@ -25,6 +26,7 @@ import {
   type InvoicePeriod,
 } from "../../billing/invoice-table";
 import { api } from "../server";
+import { companyOptions } from "../company-options";
 import { guard, missing } from "../access";
 
 type ListRow = Awaited<ReturnType<typeof listInvoices>>["list"][number];
@@ -38,7 +40,8 @@ export function invoiceRow(row: ListRow) {
   return {
     id: row.id,
     description: row.description,
-    company: row.company,
+    // The name people read; the boleto's payer keeps the razão social.
+    company: companyDisplayName(row.company, row.companyDocument),
     amountCents: row.amountCents,
     display,
     statusLabel: invoiceStatusLabels[display] ?? row.status,
@@ -57,17 +60,24 @@ function financeRow(row: ListRow, today: string) {
   };
 }
 
-/** The same list the web shows, for the app: the web's query, with its search and period. */
+/** The same list the web shows, for the app: the web's query, with its search, period (de/até) and company. */
 export async function invoicePage(
   actor: Actor,
   status: Status,
   page: number,
   pageSize = 25,
-  filters: { search?: string; period?: InvoicePeriod } = {},
+  filters: { search?: string; period?: InvoicePeriod; from?: string; to?: string; company?: string } = {},
   today = saoPauloDate(),
 ) {
   const query = {
-    ...invoiceQuery({ status, q: filters.search ?? "", periodo: filters.period ?? "all" }),
+    ...invoiceQuery({
+      status,
+      q: filters.search ?? "",
+      periodo: filters.period ?? "all",
+      de: filters.from ?? "",
+      ate: filters.to ?? "",
+      company: filters.company ?? "",
+    }),
     page,
     pageSize,
   };
@@ -86,6 +96,7 @@ export const finance = {
       const today = saoPauloDate();
       const result = await invoicePage(actor, input.status, input.page, 25, input, today);
       const pick = (k: Status) => result.totals[k];
+      const ids = new Set(allowedIds(actor, "finance"));
       return {
         rows: result.list.map((row) => financeRow(row, today)),
         totals: { all: pick("all"), issued: pick("issued"), overdue: pick("overdue"), paid: pick("paid") },
@@ -94,7 +105,7 @@ export const finance = {
           ? []
           : result.upcoming.map((c) => ({
               subscriptionId: c.subscriptionId,
-              company: c.company,
+              company: companyDisplayName(c.company, c.companyDocument),
               description: c.description,
               amountCents: c.amountCents,
               dueDate: c.dueDate,
@@ -103,7 +114,12 @@ export const finance = {
             })),
         page: result.query.page,
         pageCount: result.pageCount,
-        showCompany: actor.admin || allowedIds(actor, "finance").length > 1,
+        showCompany: actor.admin || ids.size > 1,
+        // The web's company filter (?company=): clients with several finance companies pick one; the team arrives by link.
+        companies: actor.admin ? [] : companyOptions(actor, ids),
+        companyFilter: result.companyFilter
+          ? { id: result.companyFilter.id, name: companyDisplayName(result.companyFilter.name, result.companyFilter.document) }
+          : null,
       };
     }),
   get: api.finance.get
@@ -127,7 +143,7 @@ export const finance = {
       return {
         id: i.id,
         description: i.description,
-        company: row.company.name,
+        company: companyDisplayName(row.company.name, row.company.document),
         engagement: row.engagement,
         amountCents: i.amountCents,
         display,

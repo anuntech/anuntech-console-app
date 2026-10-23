@@ -4,6 +4,7 @@ import { guard } from "../access";
 import { avatarView } from "../../account/avatar-view";
 import { isRecentSignIn } from "../../account/account-profile";
 import { managedCompanyIds } from "../../access/member-access";
+import { companyDisplayName } from "../../companies/display-name";
 
 export const me = {
   get: api.me.get.use(guard({ self: true })).handler(({ context }) => {
@@ -25,7 +26,8 @@ export const me = {
       owner: actor.owner,
       companies: actor.grants.map((grant) => ({
         id: grant.company.id,
-        name: grant.company.name,
+        // The name people read (Início, Conta); Dados da empresa keeps the razão social (company.get).
+        name: companyDisplayName(grant.company.name, grant.company.document),
         role: grant.role,
       })),
     };

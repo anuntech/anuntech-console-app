@@ -5,6 +5,7 @@ import { db } from "../../db";
 import { allowedIds, answersForClient, canSeeEngagement, type Actor } from "../../access/access";
 import { avatarView } from "../../account/avatar-view";
 import { saoPauloDate } from "../../dates";
+import { companyDisplayName } from "../../companies/display-name";
 import { engagementLabels } from "../../format";
 import { guideSection } from "../../guide/guide-content";
 import { projectListQuery } from "../../projects/project-table";
@@ -107,7 +108,7 @@ export const projects = {
       const ids = new Set(allowedIds(actor, "overview"));
       const companies = actor.admin
         ? []
-        : [...new Map(actor.grants.filter((g) => ids.has(g.company.id)).map((g) => [g.company.id, g.company.name])).entries()]
+        : [...new Map(actor.grants.filter((g) => ids.has(g.company.id)).map((g) => [g.company.id, companyDisplayName(g.company.name, g.company.document)])).entries()]
             .map(([id, name]) => ({ id, name }))
             .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
       return {
@@ -116,7 +117,7 @@ export const projects = {
           name: row.name,
           status: row.status,
           statusLabel: label(engagementLabels, row.status),
-          company: row.company,
+          company: companyDisplayName(row.company, row.companyDocument),
           tasks: row.tasks,
           updatedAt: row.updatedAt,
         })),
@@ -139,7 +140,9 @@ export const projects = {
         id: row.project.id,
         name: row.project.name,
         description: row.project.description,
-        company: row.company,
+        company: companyDisplayName(row.company, row.companyDocument),
+        // Only who sees more than one company reads whose board it is (the team, a client of several).
+        showCompany: actor.admin || new Set(allowedIds(actor, "overview")).size > 1,
         status: row.project.status,
         statusLabel: label(engagementLabels, row.project.status),
         columns: TASK_STATUSES.map((status) => ({

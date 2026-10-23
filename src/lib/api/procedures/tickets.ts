@@ -5,7 +5,8 @@ import { ZodError } from "zod";
 import { logDatabaseFault } from "../../action-errors";
 import { engagements, tickets as ticketTable } from "@/db/schema";
 import { db } from "../../db";
-import { accessibleCompanies, canAccess, engagementWhere, type Actor } from "../../access/access";
+import { accessibleCompanies, allowedIds, canAccess, engagementWhere, type Actor } from "../../access/access";
+import { companyDisplayName } from "../../companies/display-name";
 import { clientTicketLabels, dateTimeLabel, dueLabel, priorityLabels, ticketLabels } from "../../format";
 import {
   ticketDescriptionHints,
@@ -25,6 +26,7 @@ import { replyToTicket } from "../../tickets/ticket-reply";
 import { openTicket, ticketInput } from "../../tickets/ticket-create";
 import { api } from "../server";
 import { guard, missing } from "../access";
+import { companyOptions } from "../company-options";
 
 const statusLabel = (actor: Actor, status: string) =>
   (actor.admin ? ticketLabels : clientTicketLabels)[status] ?? status;
@@ -44,7 +46,8 @@ export function ticketRow(actor: Actor, row: Awaited<ReturnType<typeof listTicke
     statusLabel: statusLabel(actor, row.status),
     priority: row.priority,
     kindLabel: row.kind ? ticketKindShort[row.kind] : null,
-    company: row.company,
+    // The name people read, as the web's list; the search still looks in the razão social.
+    company: companyDisplayName(row.company, row.companyDocument),
     engagement: row.engagement,
     author: row.author,
     assignee: row.assignee,
@@ -62,7 +65,8 @@ export const tickets = {
       const list = await listTickets(actor, {
         status: input.status,
         search: input.search.trim(),
-        company: "",
+        // listTickets drops a company the person does not reach, as /chamados?company= on the web.
+        company: input.company,
         page: input.page,
         pageSize: 25,
       });
@@ -73,6 +77,10 @@ export const tickets = {
         pageCount: list.pageCount,
         canCreate: list.canCreate,
         showCompany: list.showCompany,
+        companies: companyOptions(actor, allowedIds(actor, "support")),
+        companyFilter: list.companyFilter
+          ? { id: list.companyFilter.id, name: companyDisplayName(list.companyFilter.name, list.companyFilter.document) }
+          : null,
       };
     }),
   get: api.tickets.get
@@ -107,7 +115,9 @@ export const tickets = {
         kindLabel: t.kind ? ticketKindLabels[t.kind] : null,
         impactLabel: t.impact ? ticketImpactLabels[t.impact] : null,
         companyId: t.companyId,
-        company: t.company,
+        company: companyDisplayName(t.company, t.companyDocument),
+        // The web's ticket page: a client with one company is not told its own name.
+        showCompany: actor.admin || new Set(allowedIds(actor, "support")).size > 1,
         engagement: t.engagement,
         author: t.author.name || t.author.email,
         // The e-mail only when it is one: a client reads "Equipe Anuntech" for the team.
@@ -184,7 +194,7 @@ export const tickets = {
       // Archived clients stay out of the picker, as on the web.
       const companies = (await accessibleCompanies(actor, "support"))
         .filter((c) => !c.archived)
-        .map((c) => ({ id: c.id, name: c.name }));
+        .map((c) => ({ id: c.id, name: companyDisplayName(c.name, c.document) }));
       const ids = [...new Set(companies.map((c) => c.id))];
       const running = ids.length
         ? await db

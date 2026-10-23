@@ -64,6 +64,16 @@ const upcomingCharge = z.object({
   invoiceId: z.string().nullable(),
 });
 const page = z.object({ page: z.number().int().min(1).max(10_000).default(1) });
+/** A company to narrow a list to, by its display name (companyDisplayName). */
+const companyOption = z.object({ id: z.string(), name: z.string() });
+/** The company filter of a list (`?company=` on the web); "" for all. A company out of reach is ignored, as on the web. */
+const companyInput = z.union([z.uuid(), z.literal("")]).default("");
+/** Optional on the list outputs, so older apps keep parsing: the companies to pick (clients with more than one) and the one applied. */
+const companyChoice = {
+  companies: z.array(companyOption).optional(),
+  companyFilter: companyOption.nullable().optional(),
+};
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const paged = { page: z.number(), pageCount: z.number(), showCompany: z.boolean() };
 const projectRow = z.object({
   id: z.string(),
@@ -339,6 +349,7 @@ export const contract = {
             .default("active"),
           search: z.string().max(160).default(""),
           page: z.number().int().min(1).max(10_000).default(1),
+          company: companyInput,
         }),
       )
       .output(
@@ -349,6 +360,7 @@ export const contract = {
           pageCount: z.number(),
           canCreate: z.boolean(),
           showCompany: z.boolean(),
+          ...companyChoice,
         }),
       ),
     /** One ticket and its conversation. Out of reach answers NOT_FOUND. */
@@ -365,6 +377,8 @@ export const contract = {
         impactLabel: z.string().nullable(),
         companyId: z.string(),
         company: z.string(),
+        /** Name the company in the header: the team, or a client who sees more than one (the web's ticket page). */
+        showCompany: z.boolean().optional(),
         engagement: z.string().nullable(),
         author: z.string(),
         /** E-mail of who opened it; null when it was the team ("Equipe Anuntech"). */
@@ -459,8 +473,11 @@ export const contract = {
           status: z.enum(["all", "issued", "overdue", "paid"]).default("all"),
           /** Words of the description, or of the company's name. */
           search: z.string().trim().max(160).default(""),
-          /** Due-date window, as the web's period picker (without "Personalizado"). */
-          period: z.enum(["all", "this_month", "last_month", "next_30", "this_year"]).default("all"),
+          /** Due-date window, as the web's period picker; "custom" reads `from` and `to` (either may be missing). */
+          period: z.enum(["all", "this_month", "last_month", "next_30", "this_year", "custom"]).default("all"),
+          from: isoDate.optional(),
+          to: isoDate.optional(),
+          company: companyInput,
           page: z.number().int().min(1).max(10_000).default(1),
         }),
       )
@@ -474,6 +491,7 @@ export const contract = {
           page: z.number(),
           pageCount: z.number(),
           showCompany: z.boolean(),
+          ...companyChoice,
         }),
       ),
     /** One invoice with what pays it: Pix copia e cola, the boleto line and its PDF. */
@@ -546,6 +564,8 @@ export const contract = {
         name: z.string(),
         description: z.string().nullable(),
         company: z.string(),
+        /** Name the company under the title: the team, or a client who sees more than one. */
+        showCompany: z.boolean().optional(),
         status: z.string(),
         statusLabel: z.string(),
         columns: z.array(z.object({ status: taskStatus, label: z.string(), tasks: z.array(projectTask) })),
@@ -702,6 +722,10 @@ export const contract = {
         template: z.string().nullable(),
         /** The client company's CPF or CNPJ, digits only, as the signature block shows it. */
         companyDocument: z.string().nullable(),
+        /** The name people read in the header (`company` stays the razão social of the text and the signatures). */
+        companyName: z.string().optional(),
+        /** Name the company in the header: the team, or a client of more than one company (the web's contract page). */
+        showCompany: z.boolean().optional(),
         /** The viewer's side: a client Administrador signs for the company, the team for Anuntech. */
         party: z.enum(["client", "anuntech"]).nullable(),
         canSign: z.boolean(),
@@ -799,6 +823,10 @@ export const contract = {
     get: oc.input(z.object({ id: z.uuid() })).output(
       documentRow.extend({
         number: z.string(),
+        /** The name people read in the header and in "por …" (`company` stays the razão social of the proposal). */
+        companyName: z.string().optional(),
+        /** Name the company: the team, or a client of more than one company (the web's quote page). */
+        showCompany: z.boolean().optional(),
         validUntil: z.string().nullable(),
         /** While it waits: "Válido por 12 dias". */
         validityLabel: z.string().nullable(),
@@ -1040,12 +1068,16 @@ export const contract = {
         page.extend({
           status: z.enum(["active", "paused", "completed", "all"]).default("active"),
           search: z.string().max(160).default(""),
+          company: companyInput,
         }),
       )
       .output(
         z.object({
           rows: z.array(productCard.extend({ money: productMoney.optional() })),
           ...paged,
+          /** "Só desta empresa": the companies behind a search's matches (up to 4), for people with several. */
+          shortcuts: z.array(companyOption).optional(),
+          companyFilter: companyOption.nullable().optional(),
           /** Clients see the status filter only when something is paused or closed. */
           showStatusFilter: z.boolean(),
           suspended: suspensionNotice.nullable(),
