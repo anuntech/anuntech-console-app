@@ -8,8 +8,19 @@ const consoleUrl =
   process.env.CONSOLE_URL ??
   (env === "production" ? "https://console.anuntech.com" : "http://localhost:3100");
 // Areas the app shows; the same list the Console serves in /.well-known
-// (src/lib/api/app-links.ts). Change both together.
-const linkPaths = ["/painel", "/chamados", "/financeiro"];
+// (src/lib/api/app-links.ts). Change both together. A prefix, so "/contratos"
+// also takes "/contratos/<id>"; src/app/+native-intent.ts turns the web paths
+// the app names differently (/painel) into its own.
+const linkPaths = [
+  "/painel",
+  "/chamados",
+  "/financeiro",
+  "/contratos",
+  "/orcamentos",
+  "/projetos",
+  "/produtos",
+  "/como-trabalhamos",
+];
 const MICROPHONE_USAGE =
   "O Console usa o microfone só quando você toca em Falar, para transformar sua voz em texto. O áudio não fica guardado.";
 

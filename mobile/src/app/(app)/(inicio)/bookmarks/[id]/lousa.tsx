@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
-import * as WebBrowser from "expo-web-browser";
 import {
   GestureDetector,
   GestureHandlerRootView,
@@ -15,8 +14,9 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTimin
 import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";
 import { authClient } from "@/lib/auth";
-import { boardUrl } from "@/lib/bookmarks";
+import { boardPath } from "@/lib/bookmarks";
 import { CONSOLE_URL } from "@/lib/config";
+import { openConsole } from "@/lib/console-web";
 import { openAttachment } from "@/lib/files";
 import { haptic } from "@/lib/haptics";
 import { useBottomBarSpace } from "@/lib/layout";
@@ -41,13 +41,9 @@ function useSessionCookie() {
   return cookie;
 }
 
-/** Opens the board on the web, where it is drawn (Excalidraw needs a big screen and a mouse). */
-async function openInConsole(id: string) {
-  try {
-    await WebBrowser.openBrowserAsync(boardUrl(id));
-  } catch {
-    Alert.alert("Não foi possível abrir", "Confira a internet e tente de novo.");
-  }
+/** Opens the board on the web, signed in, where it is drawn (Excalidraw needs a big screen and a mouse). */
+function openInConsole(id: string) {
+  return openConsole(boardPath(id));
 }
 
 /** The board's picture in the share sheet, to save it to Fotos or Arquivos or send it (the web's "Salvar como imagem"). */

@@ -22,6 +22,7 @@ import { lac5Checks } from "./api-smoke-lac5.mjs";
 import { lac2Checks } from "./api-smoke-lac2.mjs";
 import { lac4Checks } from "./api-smoke-lac4.mjs";
 import { lac3Checks } from "./api-smoke-lac3.mjs";
+import { lac1Checks } from "./api-smoke-lac1.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -1106,6 +1107,8 @@ try {
   await lac4Checks({ db, rpc, ok, marker, emailSignIn, staff });
   // Lacunas L9–L12: company display names, showCompany, "Personalizado" and the company filter.
   await lac3Checks({ db, rpc, ok, marker, emailSignIn, staff });
+  // Abrir o Console já com a sessão do app (scripts/api-smoke-lac1.mjs).
+  await lac1Checks({ db, rpc, ok, marker, emailSignIn, staff, base });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

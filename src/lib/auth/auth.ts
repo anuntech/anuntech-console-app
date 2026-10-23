@@ -23,6 +23,7 @@ import * as schema from "@/db/schema";
 import { normalizeEmail } from "../access/permissions";
 import { z } from "zod";
 import { consoleTwoStep } from "./security-plugin";
+import { consoleHandoff } from "./session-handoff";
 import { rememberOAuthEmail } from "./oauth-identity";
 import { randomProfileAvatar } from "../account/default-avatar";
 export const auth = betterAuth({
@@ -259,6 +260,7 @@ export const auth = betterAuth({
       },
     }),
     consoleTwoStep(),
+    consoleHandoff(),
     expo(),
     nextCookies(),
   ],

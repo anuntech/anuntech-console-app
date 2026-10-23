@@ -146,10 +146,10 @@ Legenda: ❌ falta · 🟡 parcial · ⚠️ diferente · 🐞 defeito. **OTA** 
 
 ### 1. Links que levam ao lugar errado (o cliente sente primeiro)
 
-- [ ] **L1** ⚠️ E-mails de contrato, orçamento, projeto e produto abrem o navegador mesmo com o app instalado (só `/painel`, `/chamados` e `/financeiro` são links do app). Somar `/contratos`, `/orcamentos`, `/projetos` e `/produtos` em `APP_LINK_PATHS` (servidor, vale no iPhone na hora) e em `linkPaths` do Android (loja).
-- [ ] **L2** 🐞 E-mails do banco de horas (alerta de 80% e relatório do mês) mandam para `/painel`, que o app não tem: provável tela "não encontrada". `+native-intent` levando `/painel` ao Início. OTA.
-- [ ] **L3** ⚠️ Links da Ajuda e do assistente: Produtos, um app, Aparência, Minha conta, Membros, artigos e Como trabalhamos abrem o site (sem sessão, pede login) embora o app tenha as telas; `?tipo=`, `?status=` e `?company=` se perdem ("Pedir orçamento" abre sem o tipo); `/projetos/novo` vira um quadro "não encontrado". Um mapa só para os dois (`help-routes.ts` e `assistente/index.tsx`). OTA.
-- [ ] **L4** ⚠️ O que ainda abre o Console no navegador (desenhar a lousa) cai no login com segunda etapa. Ponte de sessão de uso único, como o passe dos apps, ou ao menos avisar antes de abrir. Servidor + OTA.
+- [x] **L1** ⚠️ E-mails de contrato, orçamento, projeto e produto abrem o navegador mesmo com o app instalado (só `/painel`, `/chamados` e `/financeiro` são links do app). Somar `/contratos`, `/orcamentos`, `/projetos` e `/produtos` em `APP_LINK_PATHS` (servidor, vale no iPhone na hora) e em `linkPaths` do Android (loja).
+- [x] **L2** 🐞 E-mails do banco de horas (alerta de 80% e relatório do mês) mandam para `/painel`, que o app não tem: provável tela "não encontrada". `+native-intent` levando `/painel` ao Início. OTA.
+- [x] **L3** ⚠️ Links da Ajuda e do assistente: Produtos, um app, Aparência, Minha conta, Membros, artigos e Como trabalhamos abrem o site (sem sessão, pede login) embora o app tenha as telas; `?tipo=`, `?status=` e `?company=` se perdem ("Pedir orçamento" abre sem o tipo); `/projetos/novo` vira um quadro "não encontrado". Um mapa só para os dois (`help-routes.ts` e `assistente/index.tsx`). OTA.
+- [x] **L4** ⚠️ O que ainda abre o Console no navegador (desenhar a lousa) cai no login com segunda etapa. Ponte de sessão de uso único, como o passe dos apps, ou ao menos avisar antes de abrir. Servidor + OTA.
 
 ### 2. Privacidade e Android
 
@@ -169,7 +169,7 @@ Legenda: ❌ falta · 🟡 parcial · ⚠️ diferente · 🐞 defeito. **OTA** 
 - [x] **L15** Projetos: "Pedir orçamento" na lista vazia de ativos (❌); etiquetas com cor (⚠️); reordenar dentro da coluna com "Mover para cima / para baixo / para o topo" (🟡, `afterId` opcional em `projects.moveTask`). Servidor + OTA.
 - [x] **L16** Lousa: salvar ou compartilhar a imagem (🟡); criar lousa termina num visualizador vazio (⚠️, voltar à lista com "Desenhe no Console"); o Início e Bookmarks abrem a lousa de jeitos diferentes (⚠️, unificar no visualizador); miniatura na lista (🟡). OTA.
 - [x] **L17** Chamados: aviso "A equipe precisa de você" sempre que está Aguardando você (⚠️); "Aberto por" na lista (🟡); cartão com todos os anexos (🟡); foto de quem escreveu e separador por dia (⚠️); ver imagem e PDF dentro do app em vez da folha de compartilhar (⚠️; imagem por OTA, Quick Look pede loja). OTA. Feito: imagens abrem num visualizador em tela cheia no app (chamados, tarefas e bookmarks, com Compartilhar); PDF segue na folha de compartilhar, que já mostra a prévia no iOS (ver PDF dentro do app pede módulo nativo: Quick Look ou WebView, versão de loja).
-- [ ] **L18** Assistente: mensagem até 20.000 caracteres, como na web (hoje 4.000). OTA.
+- [x] **L18** Assistente: mensagem até 20.000 caracteres, como na web (hoje 4.000). OTA.
 - [x] **L19** Notificações: link "Quando cada aviso chega" no cartão Financeiro. OTA.
 - [x] **L20** 🐞 Bookmarks: "Trocar" sempre abre a galeria, mesmo se o arquivo veio de documentos ou da câmera; editar e mover só funcionam com a lista carregada (hoje não aparece, porque só se chega pela lista). OTA.
 

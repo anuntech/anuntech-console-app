@@ -360,6 +360,15 @@ export const contract = {
         }),
       )
       .output(z.object({ deleted: z.literal(true) })),
+    /**
+     * Opens a Console page in the app's browser already signed in: a single-use
+     * address, valid for two minutes, for this person and this app session.
+     * `next` is a path on the Console ("/bookmarks/<id>/lousa"); the app opens
+     * the Console address followed by `path`.
+     */
+    openWeb: oc
+      .input(z.object({ next: z.string().max(1024) }))
+      .output(z.object({ path: z.string(), expiresAt: z.string() })),
   },
   tickets: {
     /** The tickets the person sees, newest activity first (the team: nearest deadline first). */

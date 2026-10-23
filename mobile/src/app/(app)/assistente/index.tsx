@@ -25,7 +25,8 @@ import { Section } from "@/components/section";
 import { Bar, useDelayed } from "@/components/skeleton";
 import { Text } from "@/components/text";
 import { loadConversation, sendTurn, type Card as ProposalCard, type PageAction } from "@/lib/assistant";
-import { CONSOLE_URL, SUPPORT_WHATSAPP_URL } from "@/lib/config";
+import { SUPPORT_WHATSAPP_URL } from "@/lib/config";
+import { followHelpLink, helpTarget, useAppReach, type AppReach } from "@/lib/help-routes";
 import { appendTranscript, useDictation } from "@/lib/dictation";
 import { useMe } from "@/lib/me";
 import { askAssistantConsent } from "@/lib/consent";
@@ -89,24 +90,15 @@ const phaseLabels: Record<string, string> = {
   answer: "Escrevendo a resposta…",
 };
 
-/** The longest message the box takes (the server takes up to 20,000, assistant-http.ts). */
-const MAX_MESSAGE = 4000;
+/** The longest message the box takes, as on the web (metal-prompt-bar.tsx; the server takes 20,000 too, assistant-http.ts). */
+const MAX_MESSAGE = 20000;
 
 /** Distance from the bottom (pt) within which the conversation follows a new answer. */
 const FOLLOW = 80;
 
-/** The screens of the app a Console path opens; other paths open in the browser. */
-function appRoute(href: string): string | null {
-  const path = href.split("?")[0];
-  if (/^\/(chamados|financeiro|projetos|contratos|orcamentos)(\/[\w-]+)?$/.test(path) || path === "/bookmarks") return path;
-  if (path === "/chamados/novo") return path;
-  if (path === "/painel" || path === "/") return "/";
-  return null;
-}
-
 /** What a link button says, from where it goes. */
 function linkLabel(href: string): string {
-  const path = href.split("?")[0];
+  const path = href.split(/[?#]/)[0].replace(/\/+$/, "");
   if (path === "/chamados/novo") return "Abrir chamado";
   const named: [RegExp, string][] = [
     [/^\/chamados\/[\w-]+$/, "Ver chamado"],
@@ -119,10 +111,18 @@ function linkLabel(href: string): string {
     [/^\/contratos$/, "Ver contratos"],
     [/^\/orcamentos\/[\w-]+$/, "Ver orçamento"],
     [/^\/orcamentos$/, "Ver orçamentos"],
+    [/^\/produtos\/[\w-]+$/, "Ver produto"],
+    [/^\/produtos$/, "Ver produtos"],
+    [/^\/apps\/[\w-]+$/, "Abrir app"],
+    [/^\/bookmarks\/[\w-]+\/lousa$/, "Ver lousa"],
     [/^\/bookmarks$/, "Ver bookmarks"],
+    [/^\/ajuda\/[\w-]+$/, "Ler artigo"],
+    [/^\/ajuda$/, "Ver ajuda"],
+    [/^\/como-trabalhamos$/, "Ver como trabalhamos"],
+    [/^\/(conta|configuracoes)(\/[\w-]+)?$/, "Abrir configurações"],
     [/^\/(painel)?$/, "Ver início"],
   ];
-  return named.find(([pattern]) => pattern.test(path))?.[1] ?? "Abrir no navegador";
+  return named.find(([pattern]) => pattern.test(path))?.[1] ?? "Abrir no Console";
 }
 
 /**
@@ -130,10 +130,10 @@ function linkLabel(href: string): string {
  * asked for someone of the Anuntech (the web's support chat), the team's
  * WhatsApp and a new ticket.
  */
-function linksFrom(actions: PageAction[]) {
+function linksFrom(actions: PageAction[], reach: AppReach) {
   const links: Link[] = [];
   const add = (href: string, label = linkLabel(href)) => {
-    if (!links.some((l) => l.href === href)) links.push({ label, href, inApp: !!appRoute(href) });
+    if (!links.some((l) => l.href === href)) links.push({ label, href, inApp: helpTarget(href, reach).kind !== "web" });
   };
   for (const action of actions) {
     if (action.type === "open_support") {
@@ -231,6 +231,7 @@ function Chat({
 }) {
   const palette = usePalette();
   const me = useMe();
+  const reach = useAppReach();
   const reduce = useReducedMotion();
   const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -341,7 +342,7 @@ function Chat({
             }
           },
           card: (card) => update(answerId, (m) => ({ ...m, cards: [...(m.cards ?? []), card] })),
-          actions: (actions) => update(answerId, (m) => ({ ...m, links: linksFrom(actions) })),
+          actions: (actions) => update(answerId, (m) => ({ ...m, links: linksFrom(actions, reach) })),
           finish: (meta) => {
             if (meta.conversationId) setConversationId(meta.conversationId);
           },
@@ -371,15 +372,13 @@ function Chat({
       void Linking.openURL(href).catch(() => WebBrowser.openBrowserAsync(href));
       return;
     }
-    const route = appRoute(href);
-    if (route) router.push(route as never);
-    else void WebBrowser.openBrowserAsync(`${CONSOLE_URL}${href}`);
+    followHelpLink(href, reach, "app");
   };
 
   // A confirmed change may have touched what other screens show.
   const changed = (actions: PageAction[]) => {
     void queryClient.invalidateQueries();
-    const next = linksFrom(actions).find((link) => !link.external);
+    const next = linksFrom(actions, reach).find((link) => !link.external);
     if (next) open(next.href);
   };
 

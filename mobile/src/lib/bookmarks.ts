@@ -101,7 +101,8 @@ export function useBookmarkChoices() {
 }
 
 /** Where a whiteboard opens on the web, to draw. */
-export const boardUrl = (id: string) => `${CONSOLE_URL}/bookmarks/${id}/lousa`;
+export const boardPath = (id: string) => `/bookmarks/${id}/lousa`;
+export const boardUrl = (id: string) => `${CONSOLE_URL}${boardPath(id)}`;
 
 /** A bookmark as bookmarks.list and Início (overview.get) send it. */
 export type BookmarkTarget = Pick<Bookmark, "id" | "title" | "kind" | "url" | "fileName" | "filePath"> & { updatedAt?: string };
