@@ -197,6 +197,26 @@ const taskFields = {
 };
 /** Someone a bookmark folder is (or can be) shared with. */
 const bookmarkPerson = z.object({ id: z.string(), name: z.string(), avatar });
+/** A link, a file or a board, as the list and `bookmarks.get` show it. */
+const bookmarkItem = z.object({
+  id: z.string(),
+  title: z.string(),
+  kind: z.enum(["link", "file", "board"]),
+  url: z.string().nullable(),
+  fileName: z.string().nullable(),
+  /** Bytes of the saved file; null for links and boards. */
+  fileSize: z.number().nullable(),
+  /** Path to download the file (or the board's picture) with the session. */
+  filePath: z.string().nullable(),
+  /** A board with a picture to show. */
+  hasPreview: z.boolean(),
+  folderId: z.string().nullable(),
+  companyId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  /** Who saved it or the owner of its folder: edits, moves and deletes it. */
+  editable: z.boolean(),
+});
 const sixDigits = z.string().regex(/^\d{6}$/);
 const companyAddress = z.object({
   cep: z.string().max(9),
@@ -897,27 +917,7 @@ export const contract = {
               manages: z.boolean(),
             }),
           ),
-          items: z.array(
-            z.object({
-              id: z.string(),
-              title: z.string(),
-              kind: z.enum(["link", "file", "board"]),
-              url: z.string().nullable(),
-              fileName: z.string().nullable(),
-              /** Bytes of the saved file; null for links and boards. */
-              fileSize: z.number().nullable(),
-              /** Path to download the file (or the board's picture) with the session. */
-              filePath: z.string().nullable(),
-              /** A board with a picture to show. */
-              hasPreview: z.boolean(),
-              folderId: z.string().nullable(),
-              companyId: z.string().nullable(),
-              createdAt: z.string(),
-              updatedAt: z.string(),
-              /** Who saved it or the owner of its folder: edits, moves and deletes it. */
-              editable: z.boolean(),
-            }),
-          ),
+          items: z.array(bookmarkItem),
           /** The folder actually shown. */
           folder: z.string(),
           /** Bookmarks outside any folder, in the companies shown. */
@@ -930,6 +930,8 @@ export const contract = {
           companies: z.array(z.object({ id: z.string(), name: z.string() })),
         }),
       ),
+    /** One bookmark the person can see, as in the list (editing or moving it without the list loaded). */
+    get: oc.input(z.object({ id: z.uuid() })).output(bookmarkItem),
     /** A link or a blank board (drawn in the Console). A file goes to POST /api/v1/bookmarks/arquivo. */
     create: oc
       .input(
@@ -1136,6 +1138,19 @@ export const contract = {
     confirmEmailChange: oc
       .input(z.object({ challengeId: z.uuid(), sourceCode: sixDigits, targetCode: sixDigits }))
       .output(message),
+
+    /**
+     * The person's year in the Console (the web's "Atividade"): one entry per
+     * day, oldest first, São Paulo time, 365 of them, quiet days with 0. Counts
+     * their actions, ticket messages and questions to the assistant. Only theirs.
+     */
+    activity: oc.input(empty).output(
+      z.object({
+        days: z.array(z.object({ date: z.string(), count: z.number() })),
+        /** Every interaction of the range: "128 interações nos últimos 12 meses". */
+        total: z.number(),
+      }),
+    ),
   },
   security: {
     /** Two-step state and where the account has been open. Changes go through /api/auth/security/*. */

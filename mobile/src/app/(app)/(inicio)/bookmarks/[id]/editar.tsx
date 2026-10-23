@@ -2,16 +2,16 @@ import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
+import { BookmarkGate } from "@/components/bookmark-gate";
 import { Button } from "@/components/button";
 import { FolderPicker } from "@/components/bookmark-pickers";
-import { EmptyState } from "@/components/empty-state";
 import { Field } from "@/components/field";
 import { ListRow } from "@/components/list-row";
 import { Section } from "@/components/section";
 import { Notice } from "@/components/surface";
 import { IconTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
-import { cachedBookmark, deleteNote, openBookmark, refreshBookmarks, useBookmarkChoices, type Bookmark } from "@/lib/bookmarks";
+import { deleteNote, openBookmark, refreshBookmarks, useBookmarkChoices, type Bookmark } from "@/lib/bookmarks";
 import { showFlash } from "@/lib/flash";
 import { fileSize } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
@@ -20,19 +20,7 @@ import { space } from "@/lib/theme";
 /** "Editar bookmark": title, link and folder; a file or a drawing stays as it is. */
 export default function EditBookmark() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [item] = useState(() => cachedBookmark(id ?? ""));
-  if (!item || !item.editable)
-    return (
-      <ScrollView contentInsetAdjustmentBehavior="automatic">
-        <EmptyState
-          icon="bookmark.slash"
-          title="Bookmark não encontrado"
-          text="Ele pode ter sido excluído ou você não pode alterá-lo. Volte para a lista."
-          action={router.canGoBack() ? { label: "Voltar", onPress: () => router.back() } : undefined}
-        />
-      </ScrollView>
-    );
-  return <Editor item={item} />;
+  return <BookmarkGate id={id ?? ""}>{(item) => <Editor item={item} />}</BookmarkGate>;
 }
 
 function Editor({ item }: { item: Bookmark }) {

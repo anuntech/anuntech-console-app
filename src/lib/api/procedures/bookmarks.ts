@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { bookmarkFolders, bookmarks as bookmarkTable } from "@/db/schema";
 import { db } from "../../db";
 import { accessibleCompanies, type Actor } from "../../access/access";
@@ -7,7 +7,7 @@ import { avatarView } from "../../account/avatar-view";
 import { companyDisplayName } from "../../companies/display-name";
 import { pageCountOf } from "../../list-query";
 import { kindOf } from "../../bookmarks/board-rules";
-import { bookmarkFor, bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "../../bookmarks/bookmarks";
+import { bookmarkFor, bookmarkQuery, bookmarksFor, foldersFor, scopeOf, type BookmarkView } from "../../bookmarks/bookmarks";
 import {
   createFolderAs,
   deleteBookmarkAs,
@@ -56,6 +56,32 @@ async function companiesFor(actor: Actor) {
   return rows.map((c) => ({ id: c.id, name: companyDisplayName(c.name, c.document) }));
 }
 
+/** A bookmark as the app shows it, in the list and alone. */
+function itemView(item: BookmarkView, editable: boolean) {
+  const kind = kindOf(item);
+  const hasPreview = kind === "board" && !!item.preview;
+  return {
+    id: item.id,
+    title: item.title,
+    kind,
+    url: item.url,
+    fileName: item.fileName,
+    fileSize: kind === "file" ? (item.fileSize ?? null) : null,
+    filePath:
+      kind === "file"
+        ? `/api/bookmarks/${item.id}`
+        : hasPreview
+          ? `/api/bookmarks/${item.id}/preview?v=${encodeURIComponent(item.updatedAt ?? "")}`
+          : null,
+    hasPreview,
+    folderId: item.folderId,
+    companyId: item.companyId,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt ?? item.createdAt,
+    editable,
+  };
+}
+
 const person = (p: { id: string; name: string; image: string | null }) => ({
   id: p.id,
   name: p.name,
@@ -98,34 +124,15 @@ export const bookmarks = {
           sharedWith: f.sharedWith.map(person),
           manages: actor.admin || f.ownerId === actor.user.id,
         })),
-        items: items.map((item) => {
-          const kind = kindOf(item);
-          const hasPreview = kind === "board" && !!item.preview;
-          return {
-            id: item.id,
-            title: item.title,
-            kind,
-            url: item.url,
-            fileName: item.fileName,
-            fileSize: kind === "file" ? (item.fileSize ?? null) : null,
-            filePath:
-              kind === "file"
-                ? `/api/bookmarks/${item.id}`
-                : hasPreview
-                  ? `/api/bookmarks/${item.id}/preview?v=${encodeURIComponent(item.updatedAt ?? "")}`
-                  : null,
-            hasPreview,
-            folderId: item.folderId,
-            companyId: item.companyId,
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt ?? item.createdAt,
+        items: items.map((item) =>
+          itemView(
+            item,
             // The same rule as editableBookmark: the team, who saved it, or the folder's owner.
-            editable:
-              actor.admin ||
+            actor.admin ||
               item.ownerId === actor.user.id ||
               (!!item.folderId && folderOwner.get(item.folderId) === actor.user.id),
-          };
-        }),
+          ),
+        ),
         folder: query.folder,
         rootCount,
         total: matching,
@@ -133,6 +140,34 @@ export const bookmarks = {
         pageCount: pageCountOf(matching, PAGE_SIZE),
         companies,
       };
+    }),
+  get: api.bookmarks.get
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      // bookmarkFor: the company, and a folder open to the company, theirs or shared with them.
+      const record = await bookmarkFor(context.actor, input.id);
+      if (!record) throw missing();
+      const [extra] = await db
+        .select({
+          // octet_length reads the stored size without loading the bytes, as the list.
+          fileSize: sql<number | null>`octet_length(${bookmarkTable.content})`,
+          preview: sql<boolean>`(${bookmarkTable.preview} is not null)`,
+          createdAt: bookmarkTable.createdAt,
+        })
+        .from(bookmarkTable)
+        .where(eq(bookmarkTable.id, input.id));
+      if (!extra) throw missing();
+      return itemView(
+        {
+          ...record,
+          board: record.board != null,
+          fileSize: extra.fileSize,
+          preview: extra.preview,
+          createdAt: extra.createdAt.toISOString(),
+          updatedAt: record.updatedAt.toISOString(),
+        },
+        record.editable,
+      );
     }),
   create: api.bookmarks.create
     // Inside a folder, the folder's company; otherwise the one chosen. Anuntech's own space stays on the web.

@@ -66,6 +66,7 @@ import { CardGrid, GridCard, useListLayout, ViewToggle } from "@/components/cons
 import { dateTimeLabel, fileSizeLabel, relativeLabel } from "@/lib/format";
 import { companyDisplayName } from "@/lib/companies/display-name";
 import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
+import { letterTile, linkHost } from "@/lib/bookmarks/letter-tile";
 import { BookmarkSheet, deleteNote, type BookmarkEditor } from "./bookmark-sheet";
 import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
 
@@ -95,13 +96,6 @@ const tones = [
   "bg-secondary text-foreground",
   "border bg-card text-foreground",
 ];
-function hostOf(url: string) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
 /** A letter tile stands in for the favicon, without calling anyone. */
 function Tile({ item, large = false }: { item: BookmarkView; large?: boolean }) {
   const size = large ? "size-10 rounded-lg" : "size-8 rounded-md";
@@ -118,9 +112,7 @@ function Tile({ item, large = false }: { item: BookmarkView; large?: boolean }) 
         <FileIcon className={large ? "size-5" : "size-4"} />
       </span>
     );
-  const host = hostOf(item.url);
-  let hash = 0;
-  for (const char of host) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  const { letter, tone } = letterTile(item.url);
   return (
     <span
       aria-hidden="true"
@@ -128,10 +120,10 @@ function Tile({ item, large = false }: { item: BookmarkView; large?: boolean }) 
         "flex shrink-0 items-center justify-center font-semibold uppercase",
         size,
         large ? "text-sm" : "text-xs",
-        tones[hash % tones.length],
+        tones[tone],
       )}
     >
-      {host.replace(/^[^a-z0-9]+/i, "").charAt(0) || "•"}
+      {letter}
     </span>
   );
 }
@@ -296,7 +288,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   /** Link host or file name and size; the company too when the list spans several and has no column for it. */
   const subtitleFor = (item: BookmarkView, withCompany: boolean) =>
     [
-      kindOf(item) === "board" ? "Lousa" : item.url ? hostOf(item.url) : item.fileName,
+      kindOf(item) === "board" ? "Lousa" : item.url ? linkHost(item.url) : item.fileName,
       kindOf(item) === "file" && item.fileSize ? fileSizeLabel(item.fileSize) : null,
       withCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
     ]

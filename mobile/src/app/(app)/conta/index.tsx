@@ -6,6 +6,7 @@ import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { IosAuthorizationStatus } from "expo-notifications";
 import { SymbolView } from "@/components/symbol";
+import { ActivityCard, activityKey } from "@/components/activity-card";
 import { Avatar } from "@/components/avatar";
 import { Notice } from "@/components/surface";
 import { ListRow } from "@/components/list-row";
@@ -15,7 +16,7 @@ import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { useMe } from "@/lib/me";
 import { appearanceLabel, useAppearanceChoice } from "@/lib/appearance";
-import { errorMessage } from "@/lib/api";
+import { errorMessage, queryClient } from "@/lib/api";
 import { PRIVACY_URL, formatPhone } from "@/lib/config";
 import { haptic } from "@/lib/haptics";
 import { TEAM_WHATSAPP, talkToTeam } from "@/lib/help-routes";
@@ -130,7 +131,12 @@ export default function Account() {
       contentContainerStyle={{ padding: space.gutter, gap: space.block, paddingBottom: bottom }}
       scrollIndicatorInsets={{ bottom }}
       style={{ backgroundColor: palette.background }}
-      refreshControl={<RefreshControl refreshing={me.isRefetching} onRefresh={() => void me.refetch()} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={me.isRefetching}
+          onRefresh={() => void Promise.all([me.refetch(), queryClient.invalidateQueries({ queryKey: activityKey })])}
+        />
+      }
     >
       {me.error && <Notice kind="error">{errorMessage(me.error)}</Notice>}
       {loading ? <HeaderSkeleton /> : null}
@@ -172,6 +178,8 @@ export default function Account() {
           </Pressable>
         </Section>
       )}
+      {/* After Perfil, as on the web's Minha conta. */}
+      {me.data ? <ActivityCard /> : null}
       <Section header="Minha conta">
         <ListRow
           testID="row-profile"
