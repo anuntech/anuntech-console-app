@@ -1,7 +1,7 @@
 import { useRef, useState, type ComponentRef } from "react";
 import { Alert, RefreshControl, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";

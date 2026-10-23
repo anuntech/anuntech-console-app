@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { AccessibilityInfo, ActivityIndicator, Platform, Pressable, View } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { clockLabel, PRIVACY_LINE, type Dictation } from "@/lib/dictation";
 import { space, usePalette } from "@/lib/theme";
 import { Button } from "./button";

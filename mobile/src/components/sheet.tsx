@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { space, usePalette } from "@/lib/theme";
 import { Text } from "./text";
 

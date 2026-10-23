@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { haptic } from "@/lib/haptics";
 import { rounded, usePalette } from "@/lib/theme";
 import { Text } from "./text";

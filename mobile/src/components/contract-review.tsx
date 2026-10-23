@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Pressable, View } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import type { api } from "@/lib/api";
 import { when } from "@/lib/format";
 import type { ToneName } from "@/lib/status";

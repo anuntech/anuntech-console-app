@@ -27,6 +27,13 @@
       "env": {
         "APP_ENV": "production"
       }
+    },
+    "android-test": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

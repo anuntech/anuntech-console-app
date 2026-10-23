@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Pressable, View, type AccessibilityActionEvent, type AccessibilityActionInfo, type AccessibilityRole, type AccessibilityState } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { space, usePalette } from "@/lib/theme";
 import { Text } from "./text";
 

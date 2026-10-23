@@ -1,6 +1,6 @@
 import { useState, type ComponentRef, type Ref } from "react";
 import { TextInput, View, type TextInputProps } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { fonts, rounded, space, usePalette } from "@/lib/theme";
 import { Text } from "./text";
 

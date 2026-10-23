@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { Stack, router } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/button";
 import { EmptyState } from "@/components/empty-state";

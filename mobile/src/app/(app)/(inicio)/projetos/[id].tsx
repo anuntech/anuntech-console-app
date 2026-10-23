@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, Platform, Pressable, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { haptic } from "@/lib/haptics";
 import { space, usePalette } from "@/lib/theme";
 import { ListRow } from "./list-row";

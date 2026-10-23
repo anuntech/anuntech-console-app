@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import type { ToneName } from "@/lib/status";
 import { rounded, usePalette } from "@/lib/theme";
 import { Text } from "./text";

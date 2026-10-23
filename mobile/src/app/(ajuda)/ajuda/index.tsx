@@ -1,7 +1,7 @@
 import { useDeferredValue, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
 import { Stack, router } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
 import { CATEGORY_SYMBOLS, FaqList } from "@/components/help-content";

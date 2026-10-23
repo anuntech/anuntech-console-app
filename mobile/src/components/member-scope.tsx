@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { haptic } from "@/lib/haptics";
 import type { MemberScope, ScopeChoice } from "@/lib/manager";
 import { space, usePalette } from "@/lib/theme";

@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { AccessibilityInfo, Platform, ScrollView, View, type ViewProps } from "react-native";
 import Animated from "react-native-reanimated";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { enter } from "@/lib/motion";
 import { raised as raisedStyle, rounded, space, usePalette } from "@/lib/theme";
 import { ListRow } from "./list-row";

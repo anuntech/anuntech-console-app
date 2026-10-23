@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { router } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { rounded, space, usePalette } from "@/lib/theme";
 import { Button } from "./button";
 import { Text } from "./text";

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import * as WebBrowser from "expo-web-browser";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/button";

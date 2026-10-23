@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { AttachmentField, type Attachment } from "./attachment-field";
 import { fileSize } from "@/lib/format";
 import { haptic } from "@/lib/haptics";

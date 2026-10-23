@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { usePalette } from "@/lib/theme";
 import { Button } from "./button";
 import { Text } from "./text";

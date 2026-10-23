@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";

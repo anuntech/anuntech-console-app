@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ScrollView, View } from "react-native";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { Card, Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
