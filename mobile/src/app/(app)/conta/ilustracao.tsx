@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { Avatar } from "@/components/avatar";
 import { Bar, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";

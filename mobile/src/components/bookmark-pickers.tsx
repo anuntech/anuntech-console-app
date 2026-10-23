@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import type { BookmarkFolder } from "@/lib/bookmarks";
 import { haptic } from "@/lib/haptics";
 import { space, usePalette } from "@/lib/theme";

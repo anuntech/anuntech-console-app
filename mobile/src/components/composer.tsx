@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { haptic } from "@/lib/haptics";
 import { useKeyboardVisible, useBottomBarSpace } from "@/lib/layout";
 import { popSpring } from "@/lib/motion";

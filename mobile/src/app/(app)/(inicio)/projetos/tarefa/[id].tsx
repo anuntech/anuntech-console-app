@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AttachmentField, type Attachment } from "@/components/attachment-field";
 import { Avatar } from "@/components/avatar";

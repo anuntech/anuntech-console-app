@@ -1,5 +1,5 @@
 import { ActivityIndicator, View, type PressableProps } from "react-native";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { rounded, space, usePalette } from "@/lib/theme";
 import { PressableScale } from "./pressable-scale";
 import { Text } from "./text";

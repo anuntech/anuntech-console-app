@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "
 import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AttachmentField, uploadIds, uploading, type Attachment } from "@/components/attachment-field";
 import { Button } from "@/components/button";

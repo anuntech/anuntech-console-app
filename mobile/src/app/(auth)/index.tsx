@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import { Image, KeyboardAvoidingView, Platform, View, type TextInput } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import type { ComponentRef } from "react";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";

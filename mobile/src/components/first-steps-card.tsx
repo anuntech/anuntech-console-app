@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { View } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { haptic } from "@/lib/haptics";

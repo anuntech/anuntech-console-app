@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { router } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { when } from "@/lib/format";
 import { ticketLook } from "@/lib/status";
 import { usePalette } from "@/lib/theme";

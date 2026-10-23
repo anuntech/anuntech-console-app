@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { radius, rounded, space, usePalette } from "@/lib/theme";
 import { Button } from "./button";
 import { Text } from "./text";

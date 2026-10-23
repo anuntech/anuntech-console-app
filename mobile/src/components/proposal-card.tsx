@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { decideCard, type Card as ProposalCard, type PageAction } from "@/lib/assistant";
 import { haptic } from "@/lib/haptics";
 import { enter, exit, layout, popSpring } from "@/lib/motion";

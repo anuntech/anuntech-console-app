@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AccessibilityInfo, ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, View } from "react-native";
 import Animated from "react-native-reanimated";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { fileSize } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { enter, exit, layout } from "@/lib/motion";

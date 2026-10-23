@@ -17,7 +17,7 @@ const config: ExpoConfig = {
   name: env === "production" ? "Anuntech Console" : `Console (${env})`,
   slug: "anuntech",
   owner: process.env.EXPO_OWNER ?? "anuntech",
-  version: "1.1.0",
+  version: "1.2.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "anuntech",
@@ -35,6 +35,9 @@ const config: ExpoConfig = {
   },
   android: {
     package: env === "production" ? "com.anuntech.console" : `com.anuntech.console.${env}`,
+    // Firebase (push on Android, FCM). EAS hands the file in as a secret variable; never in git.
+    // Only the store package (com.anuntech.console) is registered in Firebase.
+    googleServicesFile: env === "production" ? process.env.GOOGLE_SERVICES_JSON : undefined,
     adaptiveIcon: {
       backgroundColor: "#6E56FF",
       foregroundImage: "./assets/images/android-foreground.png",

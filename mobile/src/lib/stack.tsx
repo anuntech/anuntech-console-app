@@ -1,12 +1,17 @@
-import { Pressable } from "react-native";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { Platform, Pressable } from "react-native";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { fonts, usePalette } from "./theme";
 
-/** The header every stack shares: transparent (iOS draws its glass), chevron-only back. */
+/**
+ * The header every stack shares, chevron-only back. iOS: transparent, the
+ * system draws its glass and the content scrolls under it. Android has no
+ * automatic inset for that, so its header is solid and the content starts below.
+ */
 export function useStackOptions() {
   const palette = usePalette();
   return {
-    headerTransparent: true,
+    headerTransparent: Platform.OS === "ios",
+    headerStyle: Platform.OS === "android" ? { backgroundColor: palette.background } : undefined,
     headerShadowVisible: false,
     headerLargeTitleShadowVisible: false,
     headerBackButtonDisplayMode: "minimal",

@@ -44,3 +44,4 @@ example
 
 # App Store listing: holds the reviewer sign-in, never committed.
 store.config.json
+google-services.json

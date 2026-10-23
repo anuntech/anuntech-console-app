@@ -2,7 +2,7 @@ import { useRef, useState, type ComponentRef } from "react";
 import { AccessibilityInfo, Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { LayoutAnimationConfig, useReducedMotion } from "react-native-reanimated";
 import { router, useLocalSearchParams } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AttachmentError, uploadIds, uploading, useAttachments, type Attachment as Picked } from "@/components/attachment-field";
 import { Button } from "@/components/button";

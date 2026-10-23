@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { requireOptionalNativeModule } from "expo";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import type * as ExpoVideo from "expo-video";
 import * as WebBrowser from "expo-web-browser";
 import type { api } from "@/lib/api";

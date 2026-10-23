@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { keepPreviousData, useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { Avatar } from "@/components/avatar";
 import { Chip } from "@/components/chip";

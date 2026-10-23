@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { applyStoredAppearance } from "@/lib/appearance";
@@ -56,6 +57,8 @@ export default function RootLayout() {
           </Stack.Protected>
         </Stack>
         {!opened && <Opening onShown={hideSplash} onDone={finishOpening} />}
+        {/* Light icons over the violet opening and the dark theme, dark ones over the light theme (Android draws edge to edge). */}
+        <StatusBar style={!opened || scheme === "dark" ? "light" : "dark"} />
       </ThemeProvider>
     </QueryClientProvider>
   );

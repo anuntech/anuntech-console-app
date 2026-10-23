@@ -1,5 +1,5 @@
 import { ScrollView } from "react-native";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { ListRow } from "@/components/list-row";
 import { Check } from "@/components/member-scope";
 import { Section } from "@/components/section";

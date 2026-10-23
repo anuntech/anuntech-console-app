@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
 import { setAssistantConsent, settleConsent } from "@/lib/consent";

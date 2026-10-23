@@ -5,7 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { IosAuthorizationStatus } from "expo-notifications";
-import { SymbolView } from "expo-symbols";
+import { SymbolView } from "@/components/symbol";
 import { Avatar } from "@/components/avatar";
 import { Notice } from "@/components/surface";
 import { ListRow } from "@/components/list-row";

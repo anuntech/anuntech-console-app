@@ -13,7 +13,7 @@ import {
 import Animated, { useReducedMotion } from "react-native-reanimated";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { SymbolView, type SFSymbol } from "expo-symbols";
+import { SymbolView, type SFSymbol } from "@/components/symbol";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/button";
 import { Composer } from "@/components/composer";
