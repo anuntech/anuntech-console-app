@@ -139,6 +139,55 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 - [x] **C6** "Falar com alguém da Anuntech": WhatsApp da equipe em vez de só "Abrir chamado".
 - ⚪ Preencher ou clicar na tela pelo assistente (depende da página web), tempo e tokens por resposta, posição do dock, lista ou grade.
 
+## Lacunas (mapa de 23/10)
+
+Segunda comparação, feita no código da web e do app depois da paridade e das mudanças da web de 22/10. Só o que o Administrador ou o Membro veem. Detalhes com arquivo e linha: `lacunas-a.md`, `lacunas-b.md` e `lacunas-c.md` na pasta da sessão 261020-refined-falls.
+Legenda: ❌ falta · 🟡 parcial · ⚠️ diferente · 🐞 defeito. **OTA** = vai por atualização automática; **loja** = pede versão nova; **servidor** = só o Console.
+
+### 1. Links que levam ao lugar errado (o cliente sente primeiro)
+
+- [ ] **L1** ⚠️ E-mails de contrato, orçamento, projeto e produto abrem o navegador mesmo com o app instalado (só `/painel`, `/chamados` e `/financeiro` são links do app). Somar `/contratos`, `/orcamentos`, `/projetos` e `/produtos` em `APP_LINK_PATHS` (servidor, vale no iPhone na hora) e em `linkPaths` do Android (loja).
+- [ ] **L2** 🐞 E-mails do banco de horas (alerta de 80% e relatório do mês) mandam para `/painel`, que o app não tem: provável tela "não encontrada". `+native-intent` levando `/painel` ao Início. OTA.
+- [ ] **L3** ⚠️ Links da Ajuda e do assistente: Produtos, um app, Aparência, Minha conta, Membros, artigos e Como trabalhamos abrem o site (sem sessão, pede login) embora o app tenha as telas; `?tipo=`, `?status=` e `?company=` se perdem ("Pedir orçamento" abre sem o tipo); `/projetos/novo` vira um quadro "não encontrado". Um mapa só para os dois (`help-routes.ts` e `assistente/index.tsx`). OTA.
+- [ ] **L4** ⚠️ O que ainda abre o Console no navegador (desenhar a lousa) cai no login com segunda etapa. Ponte de sessão de uso único, como o passe dos apps, ou ao menos avisar antes de abrir. Servidor + OTA.
+
+### 2. Privacidade e Android
+
+- [ ] **L5** ⚠️ Bookmarks: o ícone de cada link vem do DuckDuckGo, que fica sabendo dos domínios que a empresa salva. A web usa a inicial "sem chamar ninguém". Igualar à web. OTA.
+- [ ] **L6** 🐞 Android: os ícones de aparelho em Segurança (iPhone, iPad, notebook, computador) aparecem como círculo. Somar `smartphone`, `tablet`, `laptop` e `desktop_windows` ao mapa. OTA.
+- [ ] **L7** Conferir num Android de verdade se o teclado cobre o botão salvar nos formulários (tarefa, bookmark, pasta, comentário).
+
+### 3. Falta no app
+
+- [ ] **L8** ❌ **Atividade** em Minha conta: o calendário do último ano (web, commit 69b5b83). Procedimento `profile.activity` com `guard({ self: true })` sobre `accountActivity` + cartão em grade. Servidor + OTA.
+- [ ] **L9** ⚠️ Nome da empresa como se lê (sem número do MEI, sem LTDA, sem caixa alta) em chamados, Conta, Início, Financeiro, Projetos, Contratos e Orçamentos: `companyDisplayName` no servidor (mesmo campo, só muda o texto). E só mostrar a empresa a quem tem mais de uma (detalhe do chamado, quadro do projeto, cabeçalho de contrato e orçamento, "respondido por"). Servidor + OTA.
+- [ ] **L10** ⚠️ Início: "Orçamentos para responder" e "Contratos para assinar" abrem a lista em "Todas"; a web abre em "Aguardando". OTA.
+- [ ] **L11** 🟡 Financeiro: período "Personalizado" (de/até). `period: "custom"` + `from`/`to` opcionais em `finance.list`. Servidor + OTA.
+- [ ] **L12** ❌ Filtro por empresa (quem tem várias): Financeiro, Chamados (o assistente manda `?company=`) e atalhos "Só desta empresa" em Produtos. Campos opcionais na API + chips. Servidor + OTA.
+- [ ] **L13** 🟡 Orçamento: o documento completo da proposta (resumo por fase com horas, subtotal, quadro "Xh × R$/h com desconto", rodapé "preparada pela Anuntech… válida até", CNPJ). Entrada e Saldo também com 0% de entrada, como na web. "Limpar filtros" limpa a busca em orçamentos e contratos. "Atualizado há…" na lista. OTA (CNPJ: campo novo opcional).
+- [ ] **L14** ⚠️ Contrato: texto proposto como diferença palavra a palavra (riscado/inserido); partes "Cliente" e "Anuntech" em vez de "Contratante" e "Contratada". OTA.
+- [ ] **L15** Projetos: "Pedir orçamento" na lista vazia de ativos (❌); etiquetas com cor (⚠️); reordenar dentro da coluna com "Mover para cima / para baixo / para o topo" (🟡, `afterId` opcional em `projects.moveTask`). Servidor + OTA.
+- [ ] **L16** Lousa: salvar ou compartilhar a imagem (🟡); criar lousa termina num visualizador vazio (⚠️, voltar à lista com "Desenhe no Console"); o Início e Bookmarks abrem a lousa de jeitos diferentes (⚠️, unificar no visualizador); miniatura na lista (🟡). OTA.
+- [ ] **L17** Chamados: aviso "A equipe precisa de você" sempre que está Aguardando você (⚠️); "Aberto por" na lista (🟡); cartão com todos os anexos (🟡); foto de quem escreveu e separador por dia (⚠️); ver imagem e PDF dentro do app em vez da folha de compartilhar (⚠️; imagem por OTA, Quick Look pede loja). OTA.
+- [ ] **L18** Assistente: mensagem até 20.000 caracteres, como na web (hoje 4.000). OTA.
+- [ ] **L19** Notificações: link "Quando cada aviso chega" no cartão Financeiro. OTA.
+- [ ] **L20** 🐞 Bookmarks: "Trocar" sempre abre a galeria, mesmo se o arquivo veio de documentos ou da câmera; editar e mover só funcionam com a lista carregada (hoje não aparece, porque só se chega pela lista). OTA.
+
+### 4. Decisões (a web mudou e o celular pode preferir outro jeito)
+
+- **D1** Início: a web lista os 5 últimos chamados em qualquer situação; o app, só os abertos. Recomendação: manter os abertos (o Início do celular é "o que pede atenção").
+- **D2** Assistente: a web tirou as sugestões fixas e mostra perguntas só enquanto a pessoa digita (c9da909). Recomendação: manter as sugestões fixas no celular, onde digitar custa mais.
+- **D3** Início: a web mostra Projetos, Produtos e Bookmarks mesmo vazios, com explicação; o app esconde. Recomendação: manter escondido; os atalhos já levam às telas.
+- **D4** Ilustrações da marca nos estados vazios (a web usa; o app usa ícones). Opcional, visual.
+
+### 5. Não faz sentido no celular (sem ação)
+
+Arrastar cartões, lista ou grade, paginação numerada e tamanho de página, editor de desenho da lousa, posição do dock e animação no hover, assistente que lê ou preenche a página, tempo e tokens por resposta, atalhos de teclado, QR Code do Pix (no celular é copiar e colar), página `/pagar` dentro do app, menus "…" das linhas (o detalhe já tem as ações), apps num quadro embutido (o navegador do app com o passe faz o mesmo), widget de chat (no app é o WhatsApp, C6). As mudanças da web de 22/10 sobre reenviar cobrança, avisos e e-mails, editar proposta e jornada são da equipe.
+
+### Conferido sem lacuna
+
+Chamados (lista, filtros, abrir completo, responder, estimativa), Financeiro (lista, detalhe, NF, Pix, PDF), assinatura e pedido de alteração de contrato, aceite e versões de orçamento (inclusive a versão nova depois de respondido, 988b65a), Produtos, banco de horas, Ajuda, Como trabalhamos, primeiros passos, Conta (perfil, contatos, segurança, empresa, membros, notificações com vários e-mails e telefones), quadro e tarefas, Bookmarks e pastas. Todos os 77 procedimentos que o app chama existem, e todas as rotas e artigos citados também. O orçamento que fechava o app com a atualização de 22/10 de manhã (tarefas viraram título + descrição) já está corrigido na atualização de paridade.
+
 ---
 
 ## Publicação
