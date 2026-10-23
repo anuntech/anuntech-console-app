@@ -12,7 +12,9 @@ import { SkeletonRows, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";
 import { api, errorMessage } from "@/lib/api";
 import { when } from "@/lib/format";
+import { haptic } from "@/lib/haptics";
 import { useTabBarSpace } from "@/lib/layout";
+import { useMe } from "@/lib/me";
 import type { ToneName } from "@/lib/status";
 import { rounded, space, usePalette } from "@/lib/theme";
 
@@ -26,6 +28,12 @@ const emptyTexts: Record<Filter, { title: string; text: string }> = {
   paused: { title: "Nenhum projeto pausado", text: "Projetos pausados pela equipe aparecem aqui." },
   completed: { title: "Nenhum projeto concluído", text: "Projetos entregues aparecem aqui, com o quadro completo." },
   all: { title: "Nenhum projeto ainda", text: "Quando a Anuntech começar um projeto com sua empresa, o quadro aparece aqui." },
+};
+
+/** No active project yet: ask for a quote, as the web's empty list does (`/chamados/novo?tipo=novo-projeto`). */
+const askForQuote = () => {
+  haptic.light();
+  router.push({ pathname: "/chamados/novo", params: { kind: "new_project" } });
 };
 
 /** A thin bar with the share of the board already done (the row says it in words). */
@@ -43,6 +51,9 @@ function Progress({ done, total }: { done: number; total: number }) {
 export default function Projects() {
   const palette = usePalette();
   const bottom = useTabBarSpace();
+  const me = useMe();
+  // The team creates projects on the web; asking for a quote is the client's.
+  const canAsk = !!me.data && !me.data.staff;
   const [filter, setFilter] = useState<Filter>("active");
   const [company, setCompany] = useState("");
   const [search, setSearch] = useState("");
@@ -123,7 +134,14 @@ export default function Projects() {
           loading ? (
             <SkeletonRows />
           ) : list.isPending || switching || list.error ? undefined : (
-            <EmptyState icon="square.grid.2x2" title={empty.title} text={empty.text} />
+            <EmptyState
+              icon="square.grid.2x2"
+              title={empty.title}
+              text={empty.text}
+              action={
+                canAsk && filter === "active" && !deferred ? { label: "Pedir orçamento", icon: "plus", onPress: askForQuote } : undefined
+              }
+            />
           )
         }
         ItemSeparatorComponent={GroupSeparator}

@@ -27,7 +27,7 @@ import { civilDate } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { shownMoney, spokenMoney, useMoneyHidden } from "@/lib/money-hidden";
 import { openProduct } from "@/lib/product-open";
-import { openBookmark } from "@/lib/bookmark-open";
+import { openBookmark } from "@/lib/bookmarks";
 import { HeaderIconButton } from "@/lib/stack";
 import type { ToneName } from "@/lib/status";
 import { easeOut } from "@/lib/motion";

@@ -7,6 +7,7 @@ import { AttachmentField, type Attachment } from "@/components/attachment-field"
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { Field } from "@/components/field";
+import { LabelPill } from "@/components/label-pill";
 import { ListRow } from "@/components/list-row";
 import { PickSheet } from "@/components/pick-sheet";
 import { Pill } from "@/components/pill";
@@ -24,7 +25,7 @@ import { haptic } from "@/lib/haptics";
 import { useTabBarSpace } from "@/lib/layout";
 import { HeaderIconButton } from "@/lib/stack";
 import type { ToneName } from "@/lib/status";
-import { relativeLabel } from "@/lib/tasks";
+import { relativeLabel, reorderAfter, type Reorder } from "@/lib/tasks";
 import { fonts, rounded, space, usePalette } from "@/lib/theme";
 
 type Detail = Awaited<ReturnType<typeof api.projects.task>>;
@@ -261,6 +262,47 @@ export default function Task() {
     clearFlash();
     setNotice({ kind: "error", text: errorMessage(error) });
   };
+  // The board gives the column's order, for "Mover para o topo / para cima / para baixo".
+  const board = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => api.projects.get({ id: projectId! }),
+    enabled: !!projectId,
+  });
+  const siblings = board.data?.columns.find((column) => column.status === t?.status)?.tasks.map((item) => item.id) ?? [];
+  const place = siblings.indexOf(id);
+  const reorder = useMutation({
+    mutationFn: (afterId: string | null) => api.projects.moveTask({ id, status: t!.status, afterId }),
+    onSuccess: async ({ message }) => {
+      haptic.success();
+      await said(message);
+    },
+    onError: failed,
+  });
+  const reorderActions = () => {
+    haptic.light();
+    const choices: { text: string; to: Reorder }[] = [
+      { text: "Mover para o topo", to: "top" },
+      { text: "Mover para cima", to: "up" },
+      { text: "Mover para baixo", to: "down" },
+    ];
+    Alert.alert("Ordem na coluna", `${place + 1}ª de ${siblings.length} em ${t?.statusLabel ?? "sua coluna"}.`, [
+      ...choices.flatMap(({ text, to }) => {
+        const afterId = reorderAfter(siblings, id, to);
+        return afterId === undefined
+          ? []
+          : [
+              {
+                text,
+                onPress: () => {
+                  setNotice(null);
+                  reorder.mutate(afterId);
+                },
+              },
+            ];
+      }),
+      { text: "Cancelar", style: "cancel" as const },
+    ]);
+  };
   const move = useMutation({
     mutationFn: (status: Detail["status"]) => api.projects.moveTask({ id, status }),
     onSuccess: async ({ message }) => {
@@ -428,6 +470,17 @@ export default function Task() {
                 accessibilityHint={canMove ? "Muda a tarefa de coluna" : undefined}
                 onPress={canMove && !move.isPending ? () => setMoving(true) : undefined}
               />
+              {place >= 0 && siblings.length > 1 ? (
+                <ListRow
+                  title="Ordem na coluna"
+                  value={reorder.isPending ? "Movendo…" : `${place + 1}ª de ${siblings.length}`}
+                  valueTone="primary"
+                  testID="task-order"
+                  accessibilityLabel={`Ordem na coluna, ${place + 1}ª de ${siblings.length}`}
+                  accessibilityHint="Move a tarefa para o topo, para cima ou para baixo"
+                  onPress={reorder.isPending || move.isPending ? undefined : reorderActions}
+                />
+              ) : null}
               <ListRow title="Prioridade" value={t.priorityLabel} />
               <ListRow
                 title="Responsáveis"
@@ -458,7 +511,7 @@ export default function Task() {
                   t.labels.length ? (
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
                       {t.labels.map((label) => (
-                        <Pill key={label} label={label} />
+                        <LabelPill key={label} label={label} />
                       ))}
                     </View>
                   ) : (

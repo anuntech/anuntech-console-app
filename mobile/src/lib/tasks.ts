@@ -47,3 +47,54 @@ export function isoFromInput(value: string): string | null {
 
 /** YYYY-MM-DD as the field shows it. */
 export const inputFromIso = (iso: string | null) => (iso ? civilDate(iso) : "");
+
+/*
+ * A label's colour, as the web's (../src/components/projetos/project-badges.tsx):
+ * the same hash of the text picks one of three tones, so the same label has the
+ * same colour on the card, the filter and the task, in the app and on the web.
+ * Brand and neutrals only: green, amber and red already mean a state.
+ */
+export type LabelTone = "brand" | "neutral" | "outline";
+const LABEL_TONES: LabelTone[] = ["brand", "neutral", "outline"];
+
+export function labelTone(label: string): LabelTone {
+  let hash = 0;
+  for (const char of label.toLocaleLowerCase("pt-BR")) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return LABEL_TONES[hash % LABEL_TONES.length];
+}
+
+type LabelPalette = {
+  accent: string;
+  infoEdge: string;
+  primary: string;
+  secondary: string;
+  secondaryForeground: string;
+  border: string;
+  foreground: string;
+  muted: string;
+};
+
+/** The chip (background, edge, text) and the solid dot of a label, in the app's palette. */
+export function labelColors(palette: LabelPalette, label: string) {
+  const tone = labelTone(label);
+  if (tone === "brand") return { bg: palette.accent, edge: palette.infoEdge, fg: palette.primary, dot: palette.primary };
+  if (tone === "neutral") return { bg: palette.secondary, edge: palette.border, fg: palette.secondaryForeground, dot: palette.muted };
+  return { bg: "transparent", edge: palette.border, fg: palette.foreground, dot: palette.foreground };
+}
+
+export type Reorder = "top" | "up" | "down";
+
+/**
+ * Where a task lands when moved inside its column, as projects.moveTask's
+ * `afterId` reads it (null: first). `undefined` when it cannot move that way.
+ */
+export function reorderAfter(ids: readonly string[], id: string, to: Reorder): string | null | undefined {
+  const index = ids.indexOf(id);
+  if (index < 0) return undefined;
+  if (to === "top" || to === "up") {
+    if (index === 0) return undefined;
+    if (to === "top") return null;
+    return index >= 2 ? ids[index - 2] : null;
+  }
+  return index < ids.length - 1 ? ids[index + 1] : undefined;
+}

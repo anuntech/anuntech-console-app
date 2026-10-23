@@ -84,11 +84,18 @@ export function useBookmarkChoices() {
 /** Where a whiteboard opens on the web, to draw. */
 export const boardUrl = (id: string) => `${CONSOLE_URL}/bookmarks/${id}/lousa`;
 
-/** Opens what a bookmark points at: a link in the browser, a file in the share sheet, a board full screen. */
-export async function openBookmark(item: Bookmark) {
+/** A bookmark as bookmarks.list and Início (overview.get) send it. */
+export type BookmarkTarget = Pick<Bookmark, "id" | "title" | "kind" | "url" | "fileName" | "filePath"> & { updatedAt?: string };
+
+/**
+ * Opens what a bookmark points at, the same from every screen (the web's
+ * `boardHref`): a link in the browser, a file in the share sheet, a board
+ * full screen in the viewer (which also saves or shares its picture).
+ */
+export async function openBookmark(item: BookmarkTarget) {
   try {
     if (item.kind === "board")
-      router.push({ pathname: "/bookmarks/[id]/lousa", params: { id: item.id, title: item.title, v: item.updatedAt } });
+      router.push({ pathname: "/bookmarks/[id]/lousa", params: { id: item.id, title: item.title, ...(item.updatedAt ? { v: item.updatedAt } : {}) } });
     else if (item.kind === "link" && item.url) await WebBrowser.openBrowserAsync(item.url);
     else if (item.filePath) await openAttachment(item.filePath, item.fileName ?? item.title);
   } catch {

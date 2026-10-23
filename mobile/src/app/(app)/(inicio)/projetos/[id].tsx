@@ -7,6 +7,7 @@ import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { Chip } from "@/components/chip";
 import { EmptyState } from "@/components/empty-state";
+import { LabelDot, LabelPill } from "@/components/label-pill";
 import { ListRow } from "@/components/list-row";
 import { PickSheet, type PickOption } from "@/components/pick-sheet";
 import { Pill } from "@/components/pill";
@@ -128,7 +129,7 @@ function TaskRow({ task, onPress }: { task: Task; onPress: () => void }) {
           <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 4, marginTop: 4 }}>
             {task.requested ? <Pill label="Pedido do cliente" tone="attention" /> : null}
             {shown.map((label) => (
-              <Pill key={label} label={label} tone="neutral" />
+              <LabelPill key={label} label={label} />
             ))}
             {task.labels.length > shown.length ? (
               <Text variant="caption" tone="muted">
@@ -272,7 +273,7 @@ export default function Project() {
         })),
       ],
     },
-    labels: { title: "Etiquetas", options: labels.map((label) => ({ value: label, label })) },
+    labels: { title: "Etiquetas", options: labels.map((label) => ({ value: label, label, leading: <LabelDot label={label} /> })) },
     priorities: { title: "Prioridade", options: p?.priorities ?? [] },
   };
   const create = () => {

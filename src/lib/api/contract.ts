@@ -633,8 +633,11 @@ export const contract = {
     updateTask: oc
       .input(z.object({ id: z.uuid(), status: taskStatus, ...taskFields, removeFileIds: z.array(z.uuid()).max(20).default([]) }))
       .output(message),
-    /** Moves a task to another column (to its end), with the client's rules. */
-    moveTask: oc.input(z.object({ id: z.uuid(), status: taskStatus })).output(message),
+    /**
+     * Moves a task to another column, with the client's rules: to its end, or
+     * right after `afterId` (first when null), as the web's board drops a card.
+     */
+    moveTask: oc.input(z.object({ id: z.uuid(), status: taskStatus, afterId: z.uuid().nullable().optional() })).output(message),
     /** Deletes a task (whoever created it, or the team). */
     deleteTask: oc.input(z.object({ id: z.uuid() })).output(message),
     /** Removes a saved file (whoever added it, the task's creator, or the team). */

@@ -17,6 +17,8 @@ import { EmptyState } from "@/components/empty-state";
 import { authClient } from "@/lib/auth";
 import { boardUrl } from "@/lib/bookmarks";
 import { CONSOLE_URL } from "@/lib/config";
+import { openAttachment } from "@/lib/files";
+import { haptic } from "@/lib/haptics";
 import { useBottomBarSpace } from "@/lib/layout";
 import { HeaderIconButton } from "@/lib/stack";
 import { space, usePalette } from "@/lib/theme";
@@ -45,6 +47,16 @@ async function openInConsole(id: string) {
     await WebBrowser.openBrowserAsync(boardUrl(id));
   } catch {
     Alert.alert("Não foi possível abrir", "Confira a internet e tente de novo.");
+  }
+}
+
+/** The board's picture in the share sheet, to save it to Fotos or Arquivos or send it (the web's "Salvar como imagem"). */
+async function shareBoard(id: string, name: string) {
+  haptic.light();
+  try {
+    await openAttachment(`/api/bookmarks/${id}/preview`, `${name}.png`);
+  } catch {
+    Alert.alert("Não foi possível baixar a imagem", "Confira a internet e tente de novo.");
   }
 }
 
@@ -127,7 +139,17 @@ export default function Board() {
         options={{
           title: name,
           headerRight: () => (
-            <HeaderIconButton symbol="safari" label="Abrir no Console" testID="open-board" onPress={() => void openInConsole(id)} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+              {state === "shown" ? (
+                <HeaderIconButton
+                  symbol="square.and.arrow.up"
+                  label="Salvar ou compartilhar a imagem"
+                  testID="share-board"
+                  onPress={() => void shareBoard(id, name)}
+                />
+              ) : null}
+              <HeaderIconButton symbol="safari" label="Abrir no Console" testID="open-board" onPress={() => void openInConsole(id)} />
+            </View>
           ),
         }}
       />

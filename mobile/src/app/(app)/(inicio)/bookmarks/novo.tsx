@@ -63,13 +63,12 @@ export default function NewBookmark() {
       if (kind === "file") return uploadBookmarkFile(photo!, fields);
       return api.bookmarks.create({ ...fields, url: kind === "link" ? url.trim() : "", kind });
     },
-    onSuccess: async ({ id, message }) => {
+    onSuccess: async ({ message }) => {
       haptic.success();
-      showFlash(message);
+      // A blank board has nothing to see here yet: back to the list, which says where to draw.
+      showFlash(kind === "board" ? "Lousa criada. Desenhe no Console, no computador." : message);
       await refreshBookmarks();
-      if (kind === "board")
-        router.replace({ pathname: "/bookmarks/[id]/lousa", params: { id, title: title.trim(), v: "" } });
-      else router.back();
+      router.back();
     },
     onError: () => haptic.error(),
   });

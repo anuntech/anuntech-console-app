@@ -14,6 +14,7 @@ import { Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
+import { authClient } from "@/lib/auth";
 import {
   audience,
   bookmarksKey,
@@ -25,6 +26,7 @@ import {
   type Bookmark,
   type BookmarkFolder,
 } from "@/lib/bookmarks";
+import { CONSOLE_URL } from "@/lib/config";
 import { clearFlash, showFlash, useFlash } from "@/lib/flash";
 import { when } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
@@ -67,6 +69,52 @@ function BookmarkIcon({ item }: { item: Bookmark }) {
   );
 }
 
+/** The session cookie: a board's picture is served only to who can see the bookmark. */
+function useSessionCookie() {
+  const [cookie, setCookie] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(authClient.getCookie()).then((value) => live && setCookie(value || null));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return cookie;
+}
+
+/** A board's drawing, 16:9 under its row, as the web's grid shows it; nothing when it fails to load. */
+function BoardThumb({ item, cookie }: { item: Bookmark; cookie: string }) {
+  const palette = usePalette();
+  const [failed, setFailed] = useState(false);
+  if (failed || !item.filePath) return null;
+  return (
+    <View
+      accessible={false}
+      style={{
+        marginTop: space.sm,
+        width: "100%",
+        maxWidth: 320,
+        aspectRatio: 16 / 9,
+        ...rounded(12),
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: palette.border,
+        backgroundColor: "#ffffff",
+      }}
+    >
+      {/* filePath carries the board's version (?v=), so a new drawing is a new picture. */}
+      <Image
+        source={{ uri: `${CONSOLE_URL}${item.filePath}`, headers: { Cookie: cookie } }}
+        style={{ flex: 1 }}
+        contentFit="contain"
+        cachePolicy="memory"
+        accessible={false}
+        onError={() => setFailed(true)}
+      />
+    </View>
+  );
+}
+
 /** Up to three faces of the people a folder is shared with. */
 function Faces({ people }: { people: BookmarkFolder["sharedWith"] }) {
   const palette = usePalette();
@@ -89,6 +137,7 @@ function Faces({ people }: { people: BookmarkFolder["sharedWith"] }) {
 export default function Bookmarks() {
   const palette = usePalette();
   const bottom = useTabBarSpace();
+  const cookie = useSessionCookie();
   const me = useMe();
   const flash = useFlash();
   useEffect(() => () => clearFlash(), []);
@@ -370,16 +419,22 @@ export default function Bookmarks() {
           const whose = manyCompanies && company === "all" && !current && item.companyId ? companyName.get(item.companyId) : null;
           const detail = [where, describe(item), whose].filter(Boolean).join(" · ");
           const added = `Adicionado em ${when(item.createdAt)}`;
+          const thumb = item.kind === "board" && item.hasPreview;
           return (
             <View style={[groupedItem(palette, index, items.length), { opacity: list.isPlaceholderData ? 0.6 : 1 }]}>
               <ListRow
                 leading={<BookmarkIcon item={item} />}
                 title={item.title}
                 subtitle={
-                  detail ? (
-                    <Text variant="caption" tone="muted" numberOfLines={1}>
-                      {detail}
-                    </Text>
+                  detail || thumb ? (
+                    <View>
+                      {detail ? (
+                        <Text variant="caption" tone="muted" numberOfLines={1}>
+                          {detail}
+                        </Text>
+                      ) : null}
+                      {thumb && cookie ? <BoardThumb item={item} cookie={cookie} /> : null}
+                    </View>
                   ) : undefined
                 }
                 meta={added}

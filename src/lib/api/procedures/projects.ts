@@ -260,10 +260,11 @@ export const projects = {
     .use(guard({ area: "overview", company: async (input: { id: string }) => (await projectOfTask(input))?.companyId }))
     .handler(async ({ input, context }) => {
       await reach(context.actor, projectOfTask(input));
-      // Picked from the task's "Coluna": it lands at the end of the column, as the web's sheet does.
-      const result = await moveTaskAs(context.actor, { id: input.id, status: input.status });
+      // Picked from the task's "Coluna" it lands at the end of the column, as the web's sheet does;
+      // with `afterId` (null: the top) it lands in place, as a card dropped on the web's board.
+      const result = await moveTaskAs(context.actor, { id: input.id, status: input.status, afterId: input.afterId });
       if (result.error) throw refuse(result.error);
-      return { message: `Tarefa movida para ${taskStatusLabels[input.status]}.` };
+      return { message: input.afterId === undefined ? `Tarefa movida para ${taskStatusLabels[input.status]}.` : "Tarefa movida." };
     }),
   deleteTask: api.projects.deleteTask
     .use(guard({ area: "overview", company: async (input: { id: string }) => (await projectOfTask(input))?.companyId }))
