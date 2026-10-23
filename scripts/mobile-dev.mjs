@@ -162,7 +162,7 @@ if (fresh) {
 }
 await db.end();
 
-// 3. The Console on port 3100 (CONSOLE_PORT=3101 when another project holds it),
+// 3. The Console on port 3100 (CONSOLE_PORT=3102 when another project holds it; 3101 is the integration tests' port),
 // with code delivery and every outside call simulated.
 const port = process.env.CONSOLE_PORT || "3100";
 if (args.includes("--build") || !existsSync(".next/BUILD_ID")) {
