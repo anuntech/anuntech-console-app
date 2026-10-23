@@ -18,6 +18,7 @@ import {
   PauseIcon,
   PencilIcon,
   PlayIcon,
+  SendIcon,
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -981,11 +982,13 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                         <NoticeStatusBadge status={notice.status} />
                         {(notice.resendable || notice.again) && (
                           <Button
-                            size="xs"
+                            size="icon-sm"
                             variant="outline"
+                            aria-label={`Reenviar ${noticeChannelLabels[notice.channel] ?? notice.channel} · ${noticeKindLabel(notice.kind)}`}
+                            title="Reenviar"
                             onClick={() => (notice.resendable ? setResend(notice.id) : setAgain(notice.id))}
                           >
-                            Reenviar
+                            <SendIcon />
                           </Button>
                         )}
                       </li>
