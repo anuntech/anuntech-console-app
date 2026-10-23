@@ -1,10 +1,10 @@
-import { PROFILE_AVATARS } from "./avatar-catalog";
+import { PROFILE_AVATARS, catalogAvatar } from "./avatar-catalog";
 import { isOwnedProfileAvatar } from "./profile-avatar-path";
 
 /** How the app draws a person's picture (the contract's `avatar`). */
 export type AvatarView = {
   kind: "illustration" | "photo" | "initials";
-  /** Path on the Console: /brand/avatars/<n>.svg, /api/conta/foto?v=… or /api/pessoas/<id>/foto?v=… */
+  /** Path on the Console: /brand/avatars/marca-<n>.svg|png, /api/conta/foto?v=… or /api/pessoas/<id>/foto?v=… */
   path: string | null;
   /** Background of an illustration. */
   color: string | null;
@@ -16,7 +16,8 @@ const initials: AvatarView = { kind: "initials", path: null, color: null };
 
 /**
  * user.image as the app draws it, with the web's rules (IllustratedAvatar and
- * profileAvatarSource): an illustration of the catalog with its background,
+ * profileAvatarSource): an illustration of the catalog with its background (a retired one draws
+ * its brand stand-in),
  * an uploaded photo through the Console's private routes, or initials. The
  * Blob pathname itself never leaves the server.
  *
@@ -28,7 +29,7 @@ const initials: AvatarView = { kind: "initials", path: null, color: null };
  */
 export function avatarView(image: string | null | undefined, userId?: string): AvatarView {
   if (!image) return initials;
-  const illustration = PROFILE_AVATARS.find((avatar) => avatar.image === image);
+  const illustration = catalogAvatar(image);
   if (illustration) return { kind: "illustration", path: illustration.image, color: illustration.background };
   const file = ownPhoto.exec(image)?.[1];
   if (!file) return initials;

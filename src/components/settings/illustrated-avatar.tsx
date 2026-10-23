@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { PROFILE_AVATARS, isCatalogAvatar } from "@/lib/account/avatar-catalog";
+import { catalogAvatar } from "@/lib/account/avatar-catalog";
 
 /** One crop and colour everywhere: picker, account, navigation and members. */
 export function IllustratedAvatar({
@@ -9,7 +9,7 @@ export function IllustratedAvatar({
   image: string;
   size?: number;
 }) {
-  const avatar = PROFILE_AVATARS.find((avatar) => avatar.image === image);
+  const avatar = catalogAvatar(image);
   if (!avatar) return null;
   return (
     <span
@@ -17,7 +17,7 @@ export function IllustratedAvatar({
       style={{ backgroundColor: avatar.background, width: size, height: size }}
     >
       <Image
-        src={image}
+        src={avatar.image}
         alt=""
         width={size}
         height={size}
@@ -30,7 +30,8 @@ export function IllustratedAvatar({
 
 /** The private proxy always resolves the current user's photo on the server. */
 export function profileAvatarSource(image: string | null | undefined) {
-  if (isCatalogAvatar(image)) return image;
+  const illustration = catalogAvatar(image);
+  if (illustration) return illustration.image;
   if (
     !image ||
     !/^profile-avatars\/[a-f0-9]{64}\/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.webp$/.test(

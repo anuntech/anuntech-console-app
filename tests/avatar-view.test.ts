@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
-import { PROFILE_AVATARS } from "../src/lib/account/avatar-catalog";
+import { PROFILE_AVATARS, isCatalogAvatar, isPickableAvatar } from "../src/lib/account/avatar-catalog";
 import { avatarView, catalogAvatars } from "../src/lib/account/avatar-view";
 
 const photoOf = (userId: string, file = `${randomUUID()}.webp`) => ({
@@ -57,4 +57,26 @@ test("the catalog the app picks from is the web's, with the same colors", () => 
     path: PROFILE_AVATARS[0].image,
     color: PROFILE_AVATARS[0].background,
   });
+});
+
+test("the catalog is the brand's 48 avatars, each with its own file", () => {
+  assert.equal(PROFILE_AVATARS.length, 48);
+  assert.equal(new Set(PROFILE_AVATARS.map((avatar) => avatar.image)).size, 48);
+  for (const avatar of PROFILE_AVATARS) assert.match(avatar.image, /^\/brand\/avatars\/marca-\d{2}\.(svg|png)$/);
+});
+
+test("a retired illustration draws a brand avatar, always the same one, and cannot be picked again", () => {
+  const stand = PROFILE_AVATARS[6];
+  for (const userId of [undefined, "someone"])
+    assert.deepEqual(avatarView("/brand/avatars/avatar-07.svg", userId), {
+      kind: "illustration",
+      path: stand.image,
+      color: stand.background,
+    });
+  assert.equal(avatarView("/brand/avatars/avatar-89.svg").path, PROFILE_AVATARS[88 % 48].image);
+  assert.equal(isCatalogAvatar("/brand/avatars/avatar-07.svg"), true);
+  assert.equal(isPickableAvatar("/brand/avatars/avatar-07.svg"), false);
+  assert.equal(isPickableAvatar(stand.image), true);
+  for (const image of ["/brand/avatars/avatar-00.svg", "/brand/avatars/avatar-90.svg", "/brand/avatars/avatar-7.svg"])
+    assert.equal(isCatalogAvatar(image), false);
 });

@@ -202,6 +202,6 @@ Referência WCAG 2.2 AA e padrões da WAI-ARIA APG.
 ## Referências
 
 - shadcn.io (blocos e componentes, via MCP `shadcnio`) e ui.shadcn.com.
-- `anuntech-brand`: tokens, fontes, logotipo e o guia da marca. Avatares: a origem de cada arquivo está em `docs/avatar-sources.json`.
+- `anuntech-brand`: tokens, fontes, logotipo e o guia da marca. Avatares: os 24 de formas saem de `scripts/avatars.mjs` e os 24 de objetos foram desenhados com IA (Higgsfield) e ficam em `art/avatars/ia/`; o Console guarda a cópia em `public/brand/avatars/`.
 - Telas com dados fictícios para revisar o visual: `node --env-file-if-exists=.env.local scripts/design-fixtures.mjs` cria o banco local `console_design` (só no Postgres desta máquina), com ids estáveis entre execuções (`.design-ids.json`), a sessão da equipe em `.design-session` e a de uma Administradora de cliente em `.design-session-client`; `scripts/app-shots.mjs` da marca fotografa em claro, escuro e celular.
 - `/dev/preview` em desenvolvimento mostra os componentes com dados fictícios.

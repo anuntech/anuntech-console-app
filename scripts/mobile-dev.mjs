@@ -83,9 +83,9 @@ if (fresh) {
       "insert into console_user(id,name,email,email_verified,phone_number,phone_number_verified,image) values($1,$2,$3,true,$4,$5,$6)",
       [id, name, email, phone, !!phone, image],
     );
-  await person(ana, "Ana Demonstração", "ana@demo.invalid", "+5511900000001", "/brand/avatars/avatar-07.svg");
-  await person(bruno, "Bruno Demonstração", "bruno@demo.invalid", null, "/brand/avatars/avatar-12.svg");
-  await person(team, "Equipe Anuntech", "equipe@demo.invalid", null, "/brand/avatars/avatar-03.svg");
+  await person(ana, "Ana Demonstração", "ana@demo.invalid", "+5511900000001", "/brand/avatars/marca-26.png");
+  await person(bruno, "Bruno Demonstração", "bruno@demo.invalid", null, "/brand/avatars/marca-31.png");
+  await person(team, "Equipe Anuntech", "equipe@demo.invalid", null, "/brand/avatars/marca-01.svg");
   await db.query("insert into console_memberships(id,company_id,email,role) values($1,$2,'ana@demo.invalid','manager'),($3,$2,'bruno@demo.invalid','member')", [randomUUID(), company, randomUUID()]);
   const ticket = async (subject, status, kind, lines) => {
     const id = randomUUID();

@@ -67,14 +67,14 @@ export async function seedData({ db, uid }) {
 
   const staffEmail = "equipe@design.invalid";
   const people = {
-    kauan: { name: "Kauan Silva", email: staffEmail, image: "/brand/avatars/avatar-07.svg", phone: "+5547991230001" },
-    marina: { name: "Marina Duarte", email: "marina@anuntech.invalid", image: "/brand/avatars/avatar-23.svg" },
-    rafael: { name: "Rafael Lima", email: "rafael@anuntech.invalid", image: "/brand/avatars/avatar-41.svg" },
-    renata: { name: "Renata Moura", email: "renata@vidaplena.invalid", image: "/brand/avatars/avatar-12.svg", phone: "+5511987650002" },
+    kauan: { name: "Kauan Silva", email: staffEmail, image: "/brand/avatars/marca-01.svg", phone: "+5547991230001" },
+    marina: { name: "Marina Duarte", email: "marina@anuntech.invalid", image: "/brand/avatars/marca-29.png" },
+    rafael: { name: "Rafael Lima", email: "rafael@anuntech.invalid", image: "/brand/avatars/marca-33.png" },
+    renata: { name: "Renata Moura", email: "renata@vidaplena.invalid", image: "/brand/avatars/marca-31.png", phone: "+5511987650002" },
     paulo: { name: "Paulo Henrique Souza", email: "paulo@vidaplena.invalid", image: null },
-    joao: { name: "João Batista Ferreira", email: "joao@bomgrao.invalid", image: "/brand/avatars/avatar-55.svg" },
+    joao: { name: "João Batista Ferreira", email: "joao@bomgrao.invalid", image: "/brand/avatars/marca-40.png" },
     claudia: { name: "Cláudia Ramos", email: "financeiro@rotasul.invalid", image: null },
-    marcos: { name: "Marcos Vinícius Andrade", email: "marcos.andrade@design.invalid", image: "/brand/avatars/avatar-33.svg" },
+    marcos: { name: "Marcos Vinícius Andrade", email: "marcos.andrade@design.invalid", image: "/brand/avatars/marca-36.png" },
   };
   for (const [key, p] of Object.entries(people)) {
     p.id = uid(`user:${key}`);

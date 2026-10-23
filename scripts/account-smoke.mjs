@@ -272,7 +272,7 @@ try {
   );
 
   // Bundled avatars use the same authorization and transaction as uploads.
-  const chosen = "/brand/avatars/avatar-01.svg";
+  const chosen = "/brand/avatars/marca-01.svg";
   const avatarRequest = (who, image, origin = base) =>
     request("/api/conta/foto", who, {
       method: "PATCH",
@@ -292,6 +292,7 @@ try {
     "https://evil.invalid/x.svg",
     "/brand/avatars/../x.svg",
     "/brand/avatars/avatar-90.svg",
+    "/brand/avatars/avatar-01.svg",
     null,
   ])
     ok(
@@ -332,7 +333,7 @@ try {
   });
   ok(
     removed.status === 200 &&
-      /^\/brand\/avatars\/(avatar|marca)-\d{2}\.svg$/.test(
+      /^\/brand\/avatars\/marca-\d{2}\.(svg|png)$/.test(
         JSON.parse(removed.text).image,
       ),
     "Removing a photo assigns a default avatar",
@@ -353,7 +354,7 @@ try {
   });
   ok(
     fresh.status === 200 &&
-      /^\/brand\/avatars\/(avatar|marca)-\d{2}\.svg$/.test(fresh.body.user?.image),
+      /^\/brand\/avatars\/marca-\d{2}\.(svg|png)$/.test(fresh.body.user?.image),
     "Invited user's first login creates an account with a random avatar",
   );
   ok(
@@ -613,7 +614,7 @@ try {
     leaverPhone = `+5511${String(Date.now()).slice(-9)}`,
     soloCompany = randomUUID();
   await db.query(
-    "update console_user set phone_number=$2,phone_number_verified=true,image='/brand/avatars/avatar-02.svg' where id=$1",
+    "update console_user set phone_number=$2,phone_number_verified=true,image='/brand/avatars/marca-02.svg' where id=$1",
     [leaver.id, leaverPhone],
   );
   // Two-step on: the contacts trigger must not block the deletion.

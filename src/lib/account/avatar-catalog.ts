@@ -1,28 +1,8 @@
-// Stable, varied backgrounds: choosing an avatar keeps its color across reloads.
-const backgrounds = [
-  "#DCE8FF",
-  "#F9DDDF",
-  "#D9EDE1",
-  "#F8E8C5",
-  "#E8DFF6",
-  "#D4EDF0",
-  "#F6DFCE",
-  "#DFE9CF",
-  "#E1E3F8",
-  "#F3DFED",
-  "#D1E8E5",
-  "#F4EDCF",
-];
-function backgroundFor(index: number) {
-  let value = Math.imul(index + 1, 0x45d9f3b);
-  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b);
-  return backgrounds[(value >>> 0) % backgrounds.length];
-}
-
 /**
- * The brand's avatars (anuntech-brand scripts/avatars.mjs): abstract shapes, half smooth and half pixel,
- * in the brand colors. Each is drawn inside the window the shared crop shows (1.75× from 50% / 30%), so
- * the web and the app draw them as they draw the illustrations below.
+ * The brand's avatars, half smooth and half pixel, in the brand colors: abstract shapes drawn in code
+ * (anuntech-brand scripts/avatars.mjs) and objects drawn with AI (anuntech-brand art/avatars/ia). Each
+ * sits inside the window the shared crop shows (1.75× from 50% / 30%), so the web and the app draw them
+ * the same way.
  */
 const BRAND_AVATARS: [file: string, title: string, background: string][] = [
   ["marca-01.svg", "Círculo violeta", "#6E56FF"],
@@ -49,25 +29,63 @@ const BRAND_AVATARS: [file: string, title: string, background: string][] = [
   ["marca-22.svg", "Órbita", "#6E56FF"],
   ["marca-23.svg", "Bauhaus", "#ececec"],
   ["marca-24.svg", "Estrela de cinco", "#0d0d0d"],
+  ["marca-25.png", "Planeta", "#191342"],
+  ["marca-26.png", "Foguete", "#694FFD"],
+  ["marca-27.png", "Broto", "#F1EDFD"],
+  ["marca-28.png", "Montanha", "#0B0B0A"],
+  ["marca-29.png", "Lâmpada", "#F1EEFD"],
+  ["marca-30.png", "Nuvem", "#0B0B0B"],
+  ["marca-31.png", "Globo", "#D7CFFD"],
+  ["marca-32.png", "Conversa", "#EAEAEA"],
+  ["marca-33.png", "Código", "#18133F"],
+  ["marca-34.png", "Engrenagem", "#6A4DFC"],
+  ["marca-35.png", "Chave", "#F1EEFD"],
+  ["marca-36.png", "Bússola", "#0B0A0A"],
+  ["marca-37.png", "Lua", "#D4CBFD"],
+  ["marca-38.png", "Coroa", "#EBEBEA"],
+  ["marca-39.png", "Diamante", "#17123F"],
+  ["marca-40.png", "Avião de papel", "#6A50FC"],
+  ["marca-41.png", "Nota musical", "#F1EDFD"],
+  ["marca-42.png", "Câmera", "#0B0B0B"],
+  ["marca-43.png", "Livro", "#D4CBFD"],
+  ["marca-44.png", "Âncora", "#EBEBEB"],
+  ["marca-45.png", "Troféu", "#17113E"],
+  ["marca-46.png", "Quebra-cabeça", "#6B52FD"],
+  ["marca-47.png", "Flor", "#F1EEFD"],
+  ["marca-48.png", "Café", "#0A0A0A"],
 ];
 
-/** Public, bundled illustrations. Never accept arbitrary image URLs. The brand's come first in the picker. */
-export const PROFILE_AVATARS = [
-  ...BRAND_AVATARS.map(([file, title, background]) => ({
-    image: `/brand/avatars/${file}`,
-    label: title,
-    background,
-  })),
-  ...Array.from({ length: 89 }, (_, index) => ({
-    image: `/brand/avatars/avatar-${String(index + 1).padStart(2, "0")}.svg`,
-    label: `Avatar ${index + 1}`,
-    background: backgroundFor(index),
-  })),
-];
+/** Public, bundled illustrations. Never accept arbitrary image URLs. */
+export const PROFILE_AVATARS = BRAND_AVATARS.map(([file, title, background]) => ({
+  image: `/brand/avatars/${file}`,
+  label: title,
+  background,
+}));
 
+export type ProfileAvatar = (typeof PROFILE_AVATARS)[number];
+
+/**
+ * The illustrated people (avatar-01 … avatar-89) left the catalog. People who still have one in
+ * user.image see a brand avatar instead, always the same one for the same file, until they pick again.
+ */
+const retired = /^\/brand\/avatars\/avatar-(\d{2})\.svg$/;
+
+/** The catalog entry a stored user.image draws, including the retired illustrations. */
+export function catalogAvatar(value: unknown): ProfileAvatar | null {
+  if (typeof value !== "string") return null;
+  const current = PROFILE_AVATARS.find((avatar) => avatar.image === value);
+  if (current) return current;
+  const number = Number(retired.exec(value)?.[1]);
+  if (!(number >= 1 && number <= 89)) return null;
+  return PROFILE_AVATARS[(number - 1) % PROFILE_AVATARS.length];
+}
+
+/** A stored user.image that draws as an illustration. */
 export function isCatalogAvatar(value: unknown): boolean {
-  return (
-    typeof value === "string" &&
-    PROFILE_AVATARS.some((avatar) => avatar.image === value)
-  );
+  return catalogAvatar(value) !== null;
+}
+
+/** An illustration a person can pick now: only the current catalog. */
+export function isPickableAvatar(value: unknown): boolean {
+  return typeof value === "string" && PROFILE_AVATARS.some((avatar) => avatar.image === value);
 }
