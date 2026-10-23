@@ -153,13 +153,13 @@ Legenda: ❌ falta · 🟡 parcial · ⚠️ diferente · 🐞 defeito. **OTA** 
 
 ### 2. Privacidade e Android
 
-- [ ] **L5** ⚠️ Bookmarks: o ícone de cada link vem do DuckDuckGo, que fica sabendo dos domínios que a empresa salva. A web usa a inicial "sem chamar ninguém". Igualar à web. OTA.
-- [ ] **L6** 🐞 Android: os ícones de aparelho em Segurança (iPhone, iPad, notebook, computador) aparecem como círculo. Somar `smartphone`, `tablet`, `laptop` e `desktop_windows` ao mapa. OTA.
+- [x] **L5** ⚠️ Bookmarks: o ícone de cada link vem do DuckDuckGo, que fica sabendo dos domínios que a empresa salva. A web usa a inicial "sem chamar ninguém". Igualar à web. OTA.
+- [x] **L6** 🐞 Android: os ícones de aparelho em Segurança (iPhone, iPad, notebook, computador) aparecem como círculo. Somar `smartphone`, `tablet`, `laptop` e `desktop_windows` ao mapa. OTA.
 - [ ] **L7** Conferir num Android de verdade se o teclado cobre o botão salvar nos formulários (tarefa, bookmark, pasta, comentário).
 
 ### 3. Falta no app
 
-- [ ] **L8** ❌ **Atividade** em Minha conta: o calendário do último ano (web, commit 69b5b83). Procedimento `profile.activity` com `guard({ self: true })` sobre `accountActivity` + cartão em grade. Servidor + OTA.
+- [x] **L8** ❌ **Atividade** em Minha conta: o calendário do último ano (web, commit 69b5b83). Procedimento `profile.activity` com `guard({ self: true })` sobre `accountActivity` + cartão em grade. Servidor + OTA.
 - [ ] **L9** ⚠️ Nome da empresa como se lê (sem número do MEI, sem LTDA, sem caixa alta) em chamados, Conta, Início, Financeiro, Projetos, Contratos e Orçamentos: `companyDisplayName` no servidor (mesmo campo, só muda o texto). E só mostrar a empresa a quem tem mais de uma (detalhe do chamado, quadro do projeto, cabeçalho de contrato e orçamento, "respondido por"). Servidor + OTA.
 - [ ] **L10** ⚠️ Início: "Orçamentos para responder" e "Contratos para assinar" abrem a lista em "Todas"; a web abre em "Aguardando". OTA.
 - [ ] **L11** 🟡 Financeiro: período "Personalizado" (de/até). `period: "custom"` + `from`/`to` opcionais em `finance.list`. Servidor + OTA.
@@ -170,8 +170,8 @@ Legenda: ❌ falta · 🟡 parcial · ⚠️ diferente · 🐞 defeito. **OTA** 
 - [ ] **L16** Lousa: salvar ou compartilhar a imagem (🟡); criar lousa termina num visualizador vazio (⚠️, voltar à lista com "Desenhe no Console"); o Início e Bookmarks abrem a lousa de jeitos diferentes (⚠️, unificar no visualizador); miniatura na lista (🟡). OTA.
 - [ ] **L17** Chamados: aviso "A equipe precisa de você" sempre que está Aguardando você (⚠️); "Aberto por" na lista (🟡); cartão com todos os anexos (🟡); foto de quem escreveu e separador por dia (⚠️); ver imagem e PDF dentro do app em vez da folha de compartilhar (⚠️; imagem por OTA, Quick Look pede loja). OTA.
 - [ ] **L18** Assistente: mensagem até 20.000 caracteres, como na web (hoje 4.000). OTA.
-- [ ] **L19** Notificações: link "Quando cada aviso chega" no cartão Financeiro. OTA.
-- [ ] **L20** 🐞 Bookmarks: "Trocar" sempre abre a galeria, mesmo se o arquivo veio de documentos ou da câmera; editar e mover só funcionam com a lista carregada (hoje não aparece, porque só se chega pela lista). OTA.
+- [x] **L19** Notificações: link "Quando cada aviso chega" no cartão Financeiro. OTA.
+- [x] **L20** 🐞 Bookmarks: "Trocar" sempre abre a galeria, mesmo se o arquivo veio de documentos ou da câmera; editar e mover só funcionam com a lista carregada (hoje não aparece, porque só se chega pela lista). OTA.
 
 ### 4. Decisões (a web mudou e o celular pode preferir outro jeito)
 
