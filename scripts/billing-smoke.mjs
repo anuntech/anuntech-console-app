@@ -324,7 +324,8 @@ export async function runBillingTests({
     return (await notices(i.id)).filter((n) => n.kind === "resend");
   };
   // "Reenviar" on one delivered notice: that channel, that contact, now; the other channel stays as it was.
-  const beforeResend = sentNotices().length;
+  // Messages are counted by the resend rows' own ids: other invoices' notices may go out in the same drain.
+  const sentFor = (row) => sentNotices().filter((n) => n.key === row.id || n.key.startsWith(`invoice-${row.id}-`));
   const deliveredEmail = rows.find((n) => n.channel === "email");
   await submitForm(page, "admin", "finance", { action: "resendNoticeAgain" }, { noticeId: deliveredEmail.id });
   ok(!(await notices(i.id)).some((n) => n.kind === "resend"), "Cliente não reenvia o aviso");
@@ -336,7 +337,8 @@ export async function runBillingTests({
       resent[0].channel === "email" &&
       resent[0].recipient === deliveredEmail.recipient &&
       resent[0].status === "accepted" &&
-      sentNotices().length === beforeResend + 1 &&
+      sentFor(resent[0]).length === 1 &&
+      !resent.some((n) => n.channel === "whatsapp") &&
       resentEmail?.payload.html.includes(`/pagar/${i.public_id}`),
     "Reenviar um aviso entregue manda de novo só por aquele canal, para o mesmo contato",
   );
@@ -352,8 +354,7 @@ export async function runBillingTests({
   const again = await settledResends(2);
   ok(
     again.length === 2 &&
-      again.every((n) => n.id !== resent[0].id && n.status === "accepted") &&
-      sentNotices().length === beforeResend + 3 &&
+      again.every((n) => n.id !== resent[0].id && n.status === "accepted" && sentFor(n).length === 1) &&
       (await db.query("select count(*)::int as n from console_audit_events where entity_id=$1 and action='invoice.resent'", [i.id])).rows[0].n === 3,
     "Minutos depois o reenvio sai como mensagem nova, e cada canal se reenvia sozinho",
   );
