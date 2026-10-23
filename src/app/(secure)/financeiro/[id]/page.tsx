@@ -192,10 +192,17 @@ export default async function Invoice({
           status: n.status,
           error: n.error,
           createdAt: n.createdAt.toISOString(),
+          recipient: n.recipient,
           resendable:
             i.status === "issued" &&
             i.publicEnabled &&
             ["failed", "expired", "skipped", "uncertain"].includes(n.status),
+          // A delivered one can go out again to the same contact (resendNoticeAgain).
+          again:
+            i.status === "issued" &&
+            i.publicEnabled &&
+            !!n.recipient &&
+            (n.status === "accepted" || n.status === "delivered"),
         })),
         contacts: preferences
           ? {

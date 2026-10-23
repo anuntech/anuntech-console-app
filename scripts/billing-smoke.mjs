@@ -313,36 +313,49 @@ export async function runBillingTests({
     sentNotices().length === sentCount,
     "Reexecução dos envios não duplica mensagens aceitas",
   );
-  // "Reenviar cobrança": the delivered invoice goes out again, now, to the same contacts and channels.
+  // A resend is processed right after the click, in the background: wait for it to settle before reading.
+  const settledResends = async (count) => {
+    for (let tries = 0; tries < 40; tries++) {
+      await drain();
+      const list = (await notices(i.id)).filter((n) => n.kind === "resend");
+      if (list.length === count && list.every((n) => !["waiting", "pending", "sending"].includes(n.status))) return list;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return (await notices(i.id)).filter((n) => n.kind === "resend");
+  };
+  // "Reenviar" on one delivered notice: that channel, that contact, now; the other channel stays as it was.
   const beforeResend = sentNotices().length;
-  await submitForm(page, "admin", "finance", { action: "resendInvoice" }, { id: i.id });
-  ok(!(await notices(i.id)).some((n) => n.kind === "resend"), "Cliente não reenvia a cobrança");
-  await submitForm(page, "admin", "admin", { action: "resendInvoice" }, { id: i.id });
-  await drain();
-  const resent = (await notices(i.id)).filter((n) => n.kind === "resend");
-  const resentWa = sentNotices().find((n) => n.key === resent.find((r) => r.channel === "whatsapp")?.id);
+  const deliveredEmail = rows.find((n) => n.channel === "email");
+  await submitForm(page, "admin", "finance", { action: "resendNoticeAgain" }, { noticeId: deliveredEmail.id });
+  ok(!(await notices(i.id)).some((n) => n.kind === "resend"), "Cliente não reenvia o aviso");
+  await submitForm(page, "admin", "admin", { action: "resendNoticeAgain" }, { noticeId: deliveredEmail.id });
+  const resent = await settledResends(1);
+  const resentEmail = sentNotices().find((n) => n.key.startsWith(`invoice-${resent[0]?.id}-`));
   ok(
-    resent.length === 2 &&
-      resent.every((n) => n.status === "accepted") &&
-      sentNotices().length === beforeResend + 2 &&
-      resentWa?.payload.parameters["[id_fatura]"] === i.public_id,
-    "Reenviar cobrança manda de novo por e-mail e WhatsApp, com o link de pagamento",
+    resent.length === 1 &&
+      resent[0].channel === "email" &&
+      resent[0].recipient === deliveredEmail.recipient &&
+      resent[0].status === "accepted" &&
+      sentNotices().length === beforeResend + 1 &&
+      resentEmail?.payload.html.includes(`/pagar/${i.public_id}`),
+    "Reenviar um aviso entregue manda de novo só por aquele canal, para o mesmo contato",
   );
-  await submitForm(page, "admin", "admin", { action: "resendInvoice" }, { id: i.id });
+  await submitForm(page, "admin", "admin", { action: "resendNoticeAgain" }, { noticeId: resent[0].id });
   ok(
-    (await notices(i.id)).filter((n) => n.kind === "resend").every((n) => resent.some((r) => r.id === n.id)),
+    (await notices(i.id)).filter((n) => n.kind === "resend").every((n) => n.id === resent[0].id),
     "Reenvio logo depois do anterior é recusado",
   );
-  await db.query("update console_audit_events set created_at = now() - interval '10 minutes' where entity_id=$1 and action='invoice.resent'", [i.id]);
-  await submitForm(page, "admin", "admin", { action: "resendInvoice" }, { id: i.id });
-  await drain();
-  const again = (await notices(i.id)).filter((n) => n.kind === "resend");
+  await db.query("update console_billing_notices set created_at = now() - interval '10 minutes' where id=$1", [resent[0].id]);
+  const whatsappRow = rows.find((n) => n.channel === "whatsapp");
+  await submitForm(page, "admin", "admin", { action: "resendNoticeAgain" }, { noticeId: resent[0].id });
+  await submitForm(page, "admin", "admin", { action: "resendNoticeAgain" }, { noticeId: whatsappRow.id });
+  const again = await settledResends(2);
   ok(
     again.length === 2 &&
-      again.every((n) => !resent.some((r) => r.id === n.id) && n.status === "accepted") &&
-      sentNotices().length === beforeResend + 4 &&
-      (await db.query("select count(*)::int as n from console_audit_events where entity_id=$1 and action='invoice.resent'", [i.id])).rows[0].n === 2,
-    "Um novo reenvio minutos depois sai como mensagem nova e o anterior fica no histórico",
+      again.every((n) => n.id !== resent[0].id && n.status === "accepted") &&
+      sentNotices().length === beforeResend + 3 &&
+      (await db.query("select count(*)::int as n from console_audit_events where entity_id=$1 and action='invoice.resent'", [i.id])).rows[0].n === 3,
+    "Minutos depois o reenvio sai como mensagem nova, e cada canal se reenvia sozinho",
   );
   await submitForm(
     page,
