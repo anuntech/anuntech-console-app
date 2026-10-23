@@ -134,6 +134,7 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 - [x] **C1** Aparência: Claro, Escuro ou Sistema.
 - [x] **C2** Notificações: histórico de envios (Administrador).
 - [x] **C3** Assistente: sugestões conforme o papel (o Membro não vê "faturas").
+- ⚪ Assistente: pixels que acendem sob o cursor (web, 23/10). Efeito de mouse; no celular não há cursor.
 - [x] **C4** Assistente: atalhos fixos sob a caixa (Abrir chamado, Ajuda).
 - [x] **C5** Assistente e chamados: ditado por voz com a mesma transcrição da web (`/api/v1/transcricao`).
 - [x] **C6** "Falar com alguém da Anuntech": WhatsApp da equipe em vez de só "Abrir chamado".
