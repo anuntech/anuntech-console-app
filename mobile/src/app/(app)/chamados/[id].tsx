@@ -287,7 +287,7 @@ export default function Ticket() {
                 {t.subject}
               </Text>
               <Text variant="subhead" tone="muted">
-                {[t.company, t.engagement, t.kindLabel].filter(Boolean).join(" · ")}
+                {[t.showCompany === false ? null : t.company, t.engagement, t.kindLabel].filter(Boolean).join(" · ")}
               </Text>
               {t.assigneeName ? (
                 <View accessible accessibilityLabel={`Com ${t.assigneeName}`} style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>

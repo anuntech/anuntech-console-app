@@ -4,6 +4,7 @@ import Animated, { ReduceMotion, useAnimatedStyle, useSharedValue, withTiming } 
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { Chip } from "@/components/chip";
+import { CompanyChips } from "@/components/company-chips";
 import { EmptyState } from "@/components/empty-state";
 import { GroupSeparator, groupedItem } from "@/components/section";
 import { SkeletonRows, useDelayed } from "@/components/skeleton";
@@ -11,6 +12,7 @@ import { Notice } from "@/components/surface";
 import { TicketCard } from "@/components/ticket-card";
 import { api, errorMessage } from "@/lib/api";
 import { useTabBarSpace } from "@/lib/layout";
+import { companyParam } from "@/lib/list-filters";
 import { useMe } from "@/lib/me";
 import { HeaderIconButton } from "@/lib/stack";
 import { space, usePalette } from "@/lib/theme";
@@ -32,25 +34,32 @@ const isFilter = (value: unknown): value is Filter => typeof value === "string" 
 /**
  * The tickets the person sees (tickets.list), open ones first, 25 at a time,
  * with the web's situations and a search by subject. `/chamados?status=waiting_customer`
- * opens with a situation chosen (Início's "Aguardando você").
+ * opens with a situation chosen (Início's "Aguardando você"); `?company=<id>` with
+ * a company (the assistant's links). Clients with several companies pick one.
  */
 export default function Tickets() {
   const palette = usePalette();
   const bottom = useTabBarSpace();
   const me = useMe();
-  const params = useLocalSearchParams<{ status?: string }>();
+  const params = useLocalSearchParams<{ status?: string; company?: string }>();
   const [filter, setFilter] = useState<Filter>(isFilter(params.status) ? params.status : "active");
+  const [company, setCompany] = useState(companyParam(params.company));
   // A new link (Início → "Aguardando você") picks its situation even with the list already open.
   const [linked, setLinked] = useState(params.status);
   if (params.status !== linked) {
     setLinked(params.status);
     if (isFilter(params.status)) setFilter(params.status);
   }
+  const [linkedCompany, setLinkedCompany] = useState(params.company);
+  if (params.company !== linkedCompany) {
+    setLinkedCompany(params.company);
+    if (companyParam(params.company)) setCompany(companyParam(params.company));
+  }
   const [search, setSearch] = useState("");
   const query = useDeferredValue(search.trim());
   const list = useInfiniteQuery({
-    queryKey: ["tickets", filter, query],
-    queryFn: ({ pageParam }) => api.tickets.list({ status: filter, search: query, page: pageParam }),
+    queryKey: ["tickets", filter, query, company],
+    queryFn: ({ pageParam }) => api.tickets.list({ status: filter, search: query, company, page: pageParam }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page < last.pageCount ? last.page + 1 : undefined),
     // Switching the filter keeps the old rows (dimmed) until the new ones arrive.
@@ -105,6 +114,7 @@ export default function Tickets() {
                 <Chip key={value} label={label(value)} group="Situação" selected={filter === value} onPress={() => setFilter(value)} />
               ))}
             </ScrollView>
+            <CompanyChips companies={first?.companies} filter={first?.companyFilter} value={company} onChange={setCompany} />
             {list.error && (
               <View style={{ paddingHorizontal: space.gutter }}>
                 <Notice kind="error">{errorMessage(list.error)}</Notice>
@@ -115,12 +125,22 @@ export default function Tickets() {
         ListEmptyComponent={
           loading ? (
             <SkeletonRows />
-          ) : list.isPending || switching || list.error ? undefined : query || (filter !== "active" && filter !== "all") ? (
+          ) : list.isPending || switching || list.error ? undefined : query || company || (filter !== "active" && filter !== "all") ? (
             <EmptyState
               icon="magnifyingglass"
               title="Nenhum chamado encontrado"
-              text={query ? "Tente outra palavra ou outra situação." : "Nenhum chamado nesta situação."}
-              action={filter !== "active" ? { label: "Limpar filtros", onPress: () => setFilter("active") } : undefined}
+              text={query ? "Tente outra palavra ou outra situação." : company && filter === "active" ? "Nenhum chamado em aberto desta empresa." : "Nenhum chamado nesta situação."}
+              action={
+                filter !== "active" || company
+                  ? {
+                      label: "Limpar filtros",
+                      onPress: () => {
+                        setFilter("active");
+                        setCompany("");
+                      },
+                    }
+                  : undefined
+              }
             />
           ) : filter === "active" ? (
             <EmptyState
@@ -144,7 +164,7 @@ export default function Tickets() {
           <View style={groupedItem(palette, index, rows.length)}>
             {/* Only the content dims, so the white group stays whole. */}
             <Animated.View style={dimmed}>
-              <TicketCard ticket={item} showCompany={first?.showCompany} />
+              <TicketCard ticket={item} showCompany={first?.showCompany && !company} />
             </Animated.View>
           </View>
         )}

@@ -6,6 +6,8 @@ import type { SearchBarCommands } from "react-native-screens";
 import { Text } from "@/components/text";
 import { Card, Notice } from "@/components/surface";
 import { Chip } from "@/components/chip";
+import { CompanyChips } from "@/components/company-chips";
+import { Field } from "@/components/field";
 import { InvoiceCard } from "@/components/invoice-card";
 import { ListRow } from "@/components/list-row";
 import { PressableScale } from "@/components/pressable-scale";
@@ -18,23 +20,26 @@ import { IconTile, StatusTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
 import { civilDate, money } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
+import { companyParam, customPeriod } from "@/lib/list-filters";
+import { formatDateInput } from "@/lib/tasks";
 import type { StatusLook } from "@/lib/status";
 import { space, usePalette } from "@/lib/theme";
 import { useTabBarSpace } from "@/lib/layout";
 
 type Filter = "all" | "issued" | "overdue" | "paid";
-type Period = "all" | "this_month" | "last_month" | "next_30" | "this_year";
+type Period = "all" | "this_month" | "last_month" | "next_30" | "this_year" | "custom";
 type Upcoming = Awaited<ReturnType<typeof api.finance.list>>["upcoming"][number];
 const filters: Filter[] = ["all", "issued", "overdue", "paid"];
 const labels = ["Todas", "Em aberto", "Vencidas", "Pagas"];
 const listTitles: Record<Filter, string> = { all: "Faturas", issued: "Em aberto", overdue: "Vencidas", paid: "Pagas" };
-// The web's period picker (lib/billing/invoice-table.ts), without "Personalizado".
+// The web's period picker (lib/billing/invoice-table.ts); "Personalizado" opens De and Até.
 const periods: { value: Period; label: string }[] = [
   { value: "all", label: "Todo o período" },
   { value: "this_month", label: "Este mês" },
   { value: "last_month", label: "Mês passado" },
   { value: "next_30", label: "Próximos 30 dias" },
   { value: "this_year", label: "Este ano" },
+  { value: "custom", label: "Personalizado" },
 ];
 /** Next charges shown before "Ver mais", as on the web. */
 const SHOWN = 4;
@@ -166,21 +171,29 @@ export default function Invoices() {
   const { fontScale, width } = useWindowDimensions();
   const stacked = fontScale > 1.3 || width < 340;
   const searchBar = useRef<SearchBarCommands>(null);
-  // A link may open the list filtered ("Pagar agora" on a suspended product: /financeiro?status=overdue).
-  const { status } = useLocalSearchParams<{ status?: string }>();
+  // A link may open the list filtered ("Pagar agora" on a suspended product: /financeiro?status=overdue;
+  // the assistant: /financeiro?company=<id>).
+  const params = useLocalSearchParams<{ status?: string; company?: string }>();
+  const status = params.status;
   const linked = filters.find((f) => f === status);
   const [filter, setFilter] = useState<Filter>(linked ?? "all");
-  const [seenLink, setSeenLink] = useState(status);
-  if (status !== seenLink) {
-    setSeenLink(status);
+  const [company, setCompany] = useState(companyParam(params.company));
+  const [seenLink, setSeenLink] = useState(`${status}|${params.company}`);
+  if (`${status}|${params.company}` !== seenLink) {
+    setSeenLink(`${status}|${params.company}`);
     if (linked) setFilter(linked);
+    if (companyParam(params.company)) setCompany(companyParam(params.company));
   }
   const [period, setPeriod] = useState<Period>("all");
+  const [fromText, setFromText] = useState("");
+  const [toText, setToText] = useState("");
+  const custom = customPeriod(fromText, toText);
+  const range = period === "custom" ? { from: custom.from, to: custom.to } : {};
   const [search, setSearch] = useState("");
   const deferred = useDeferredValue(search.trim());
   const list = useInfiniteQuery({
-    queryKey: ["invoices", filter, period, deferred],
-    queryFn: ({ pageParam }) => api.finance.list({ status: filter, period, search: deferred, page: pageParam }),
+    queryKey: ["invoices", filter, period, range.from ?? "", range.to ?? "", company, deferred],
+    queryFn: ({ pageParam }) => api.finance.list({ status: filter, period, ...range, company, search: deferred, page: pageParam }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page < last.pageCount ? last.page + 1 : undefined),
     placeholderData: keepPreviousData,
@@ -189,12 +202,15 @@ export default function Invoices() {
   const first = list.data?.pages[0];
   const rows = list.data?.pages.flatMap((page) => page.rows) ?? [];
   const overdue = first?.totals.overdue;
-  const filtered = !!deferred || period !== "all";
+  const filtered = !!deferred || period !== "all" || !!company;
   const pick = (next: Filter) => setFilter(filter === next ? "all" : next);
   const clear = () => {
     searchBar.current?.clearText();
     setSearch("");
     setPeriod("all");
+    setFromText("");
+    setToText("");
+    setCompany("");
     setFilter("all");
   };
   return (
@@ -264,6 +280,35 @@ export default function Invoices() {
                 <Chip key={p.value} label={p.label} group="Período, pelo vencimento" selected={period === p.value} onPress={() => setPeriod(p.value)} />
               ))}
             </ScrollView>
+            {period === "custom" ? (
+              <View style={{ flexDirection: stacked ? "column" : "row", gap: space.md, paddingHorizontal: space.gutter }}>
+                <View style={{ flex: stacked ? undefined : 1 }}>
+                  <Field
+                    label="De"
+                    placeholder="DD/MM/AAAA"
+                    keyboardType="number-pad"
+                    value={fromText}
+                    onChangeText={(text) => setFromText(formatDateInput(text))}
+                    maxLength={10}
+                    hint="Vencimento a partir de"
+                    error={custom.fromError}
+                  />
+                </View>
+                <View style={{ flex: stacked ? undefined : 1 }}>
+                  <Field
+                    label="Até"
+                    placeholder="DD/MM/AAAA"
+                    keyboardType="number-pad"
+                    value={toText}
+                    onChangeText={(text) => setToText(formatDateInput(text))}
+                    maxLength={10}
+                    hint="Vencimento até"
+                    error={custom.toError}
+                  />
+                </View>
+              </View>
+            ) : null}
+            <CompanyChips companies={first?.companies} filter={first?.companyFilter} value={company} onChange={setCompany} />
             <View style={{ paddingHorizontal: space.gutter }}>
               <Segmented
                 values={labels}
@@ -279,7 +324,7 @@ export default function Invoices() {
             )}
             {first?.upcoming.length ? (
               <View style={{ paddingHorizontal: space.gutter }}>
-                <UpcomingCharges charges={first.upcoming} showCompany={first.showCompany} />
+                <UpcomingCharges charges={first.upcoming} showCompany={first.showCompany && !company} />
               </View>
             ) : null}
             {first && rows.length > 0 ? (

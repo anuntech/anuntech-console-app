@@ -202,9 +202,9 @@ function AttentionList({ attention }: { attention: Overview["attention"] }) {
           : router.push("/produtos"),
     });
   if (attention.quotesToAnswer)
-    rows.push({ key: "quotes", icon: "list.bullet.rectangle.portrait.fill", tone: "attention", title: "Orçamentos para você responder", count: attention.quotesToAnswer, open: () => router.push("/orcamentos") });
+    rows.push({ key: "quotes", icon: "list.bullet.rectangle.portrait.fill", tone: "attention", title: "Orçamentos para você responder", count: attention.quotesToAnswer, open: () => router.push({ pathname: "/orcamentos", params: { status: "sent" } }) });
   if (attention.contractsToSign)
-    rows.push({ key: "contracts", icon: "signature", tone: "attention", title: "Contratos para você assinar", count: attention.contractsToSign, open: () => router.push("/contratos") });
+    rows.push({ key: "contracts", icon: "signature", tone: "attention", title: "Contratos para você assinar", count: attention.contractsToSign, open: () => router.push({ pathname: "/contratos", params: { status: "sent" } }) });
   if (attention.estimates.count) {
     const ticketId = attention.estimates.ticketId;
     rows.push({
