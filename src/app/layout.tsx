@@ -19,7 +19,8 @@ export default async function RootLayout({
   const theme = parseTheme(store.get("console-theme")?.value);
   const position = parseDockPosition(store.get("console-dock")?.value);
   return (
-    <html lang="pt-BR" data-theme={theme} data-dock={position}>
+    // suppressHydrationWarning: the opening's script marks <html data-opening> before React hydrates.
+    <html lang="pt-BR" data-theme={theme} data-dock={position} suppressHydrationWarning>
       <body>
         <AppearanceProvider initialTheme={theme} initialPosition={position}>
           <TooltipProvider delayDuration={350}>

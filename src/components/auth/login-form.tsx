@@ -20,7 +20,7 @@ import {
 import { authClient } from "@/lib/auth/auth-client";
 import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
 import { AuthAlert } from "./feedback";
-import { BrandLoading } from "@/components/shell/brand-loading";
+import { OpeningSplash, enterConsole } from "@/components/shell/console-opening";
 import { GoogleButton } from "./google-button";
 import { normalizePhone, useCooldown } from "./otp";
 
@@ -190,6 +190,7 @@ export function LoginForm({
       const next = afterSignIn(returnTo);
       setMessage(next === "/painel" ? "Acesso confirmado. Abrindo o painel." : "Acesso confirmado. Abrindo o app.");
       setOpening(true);
+      if (enterConsole(next)) return;
       router.replace(next);
       router.refresh();
     } catch {
@@ -202,7 +203,7 @@ export function LoginForm({
   return (
     <div className="flex flex-col gap-5">
       {opening && (
-        <BrandLoading fullscreen label="Acesso confirmado. Abrindo o Console." />
+        <OpeningSplash />
       )}
       {!sent && (
         <Tabs className="reveal [--i:1]" value={mode} onValueChange={(value) => switchMode(value as Mode)}>

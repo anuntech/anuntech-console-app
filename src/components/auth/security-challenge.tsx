@@ -10,7 +10,7 @@ import type { SecurityChannel } from "@/lib/auth/security-policy";
 import { securityRequest } from "@/components/auth/security-request";
 import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
 import { AuthAlert } from "./feedback";
-import { BrandLoading } from "@/components/shell/brand-loading";
+import { OpeningSplash, enterConsole } from "@/components/shell/console-opening";
 import { CodeInput } from "./login-form";
 import { useCooldown } from "./otp";
 
@@ -90,6 +90,7 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
         const next = afterSignIn(returnTo);
         setMessage(next === "/painel" ? "Verificação concluída. Abrindo o painel." : "Verificação concluída. Abrindo o app.");
         setOpening(true);
+        if (enterConsole(next)) return;
         router.replace(next);
         router.refresh();
       }
@@ -110,7 +111,7 @@ export function SecurityChallenge({ returnTo }: { returnTo?: string | null } = {
   return (
     <div className="flex flex-col gap-5">
       {opening && (
-        <BrandLoading fullscreen label="Verificação concluída. Abrindo o Console." />
+        <OpeningSplash />
       )}
       {challenge && (
         <p className="reveal-fade text-sm text-muted-foreground">
