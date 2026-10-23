@@ -162,7 +162,9 @@ if (fresh) {
 }
 await db.end();
 
-// 3. The Console on port 3100, with code delivery and every outside call simulated.
+// 3. The Console on port 3100 (CONSOLE_PORT=3101 when another project holds it),
+// with code delivery and every outside call simulated.
+const port = process.env.CONSOLE_PORT || "3100";
 if (args.includes("--build") || !existsSync(".next/BUILD_ID")) {
   say("Gerando o build do Console (alguns minutos na primeira vez).");
   execFileSync("npm", ["run", "build"], { stdio: "inherit" });
@@ -172,7 +174,7 @@ writeFileSync(otpFile, "");
 const consoleEnv = {
   ...process.env,
   DATABASE_URL: `${server}/${database}`,
-  BETTER_AUTH_URL: "http://localhost:3100",
+  BETTER_AUTH_URL: `http://localhost:${port}`,
   CONSOLE_ADMIN_EMAIL: "equipe@demo.invalid",
   // otp-mock.cjs records the codes and refuses every request outside this Mac;
   // ai-gateway-mock.cjs answers the assistant with scripted replies, never a real model.
@@ -187,22 +189,22 @@ const consoleEnv = {
   FLW_SENDER_NUMBER: "5511000000000",
   FLW_OTP_TEMPLATE_ID: "test",
 };
-const web = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", "3100"], {
+const web = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", port], {
   env: consoleEnv,
   stdio: ["ignore", "ignore", "inherit"],
 });
 children.push(web);
-web.on("exit", (code) => code && fail("O Console parou. A porta 3100 pode estar em uso por outro processo."));
+web.on("exit", (code) => code && fail(`O Console parou. A porta ${port} pode estar em uso por outro processo.`));
 for (let attempt = 0; ; attempt++) {
   try {
-    await fetch("http://localhost:3100/entrar");
+    await fetch(`http://localhost:${port}/entrar`);
     break;
   } catch {
-    if (attempt > 100) fail("O Console não subiu na porta 3100.");
+    if (attempt > 100) fail(`O Console não subiu na porta ${port}.`);
     await new Promise((r) => setTimeout(r, 300));
   }
 }
-say("Console local em http://localhost:3100 (banco de demonstração).");
+say(`Console local em http://localhost:${port} (banco de demonstração).`);
 
 // 4. Codes appear here instead of an e-mail or WhatsApp.
 let seen = 0;
@@ -227,12 +229,12 @@ try {
   local = hostname();
 }
 const target = process.env.DEVICE || process.env.SIMULATOR || "iPhone 17 Pro";
-say(`${args.includes("--serve") ? "App já instalado" : `App em ${target}`}, falando com http://${local}:3100.`);
+say(`${args.includes("--serve") ? "App já instalado" : `App em ${target}`}, falando com http://${local}:${port}.`);
 const serve = args.includes("--serve");
 if (serve) say("Abra o app \"Console (development)\" no iPhone ou no simulador.");
 const app = spawn("npx", serve ? ["expo", "start", "--dev-client", "--lan"] : ["expo", "run:ios", "--device", target], {
   cwd: "mobile",
-  env: { ...process.env, APP_ENV: "development", CONSOLE_URL: `http://${local}:3100` },
+  env: { ...process.env, APP_ENV: "development", CONSOLE_URL: `http://${local}:${port}` },
   stdio: "inherit",
 });
 children.push(app);
