@@ -2,6 +2,7 @@ import { View } from "react-native";
 import { router } from "expo-router";
 import { SymbolView } from "@/components/symbol";
 import { when } from "@/lib/format";
+import { useMe } from "@/lib/me";
 import { ticketLook } from "@/lib/status";
 import { usePalette } from "@/lib/theme";
 import { ListRow } from "./list-row";
@@ -18,6 +19,8 @@ export type TicketRow = {
   kindLabel: string | null;
   company: string;
   engagement: string | null;
+  /** Who opened it (optional: older servers left it out of some lists). */
+  author?: string;
   updatedAt: string;
   due: { label: string; late: boolean } | null;
 };
@@ -31,7 +34,10 @@ export function TicketCard({ ticket, showCompany }: { ticket: TicketRow; showCom
   const palette = usePalette();
   const look = ticketLook[ticket.status] ?? ticketLook.open;
   const color = toneColors(palette, look.tone).fg;
-  const place = [showCompany ? ticket.company : null, ticket.engagement].filter(Boolean).join(" · ");
+  const staff = !!useMe().data?.staff;
+  // As the web's list: a client sees who opened it unless the company takes that place; the team always does.
+  const opener = ticket.author && (staff || !showCompany) ? `Aberto por ${ticket.author}` : null;
+  const place = [showCompany ? ticket.company : null, opener, ticket.engagement].filter(Boolean).join(" · ");
   const late = !!ticket.due?.late;
   const urgent = ticket.priority === "critical" ? "Crítica" : ticket.priority === "high" ? "Alta" : null;
   // Meta line: place and time, then the deadline (an on-time one joins the line;

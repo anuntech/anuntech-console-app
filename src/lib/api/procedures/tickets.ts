@@ -16,6 +16,7 @@ import {
   ticketKindShort,
   ticketKinds,
 } from "../../tickets/ticket-intake";
+import { avatarView } from "../../account/avatar-view";
 import { ticketClockView } from "../../tickets/ticket-clock-view";
 import { ticketPreview } from "../../tickets/ticket-preview";
 import { decideEstimateAs } from "../../service-terms/estimate-decision";
@@ -140,6 +141,7 @@ export const tickets = {
                 createdAt: entry.createdAt,
                 author: entry.author,
                 authorImage: entry.authorImage,
+                avatar: avatarView(entry.authorImage, entry.authorId),
                 staff: entry.staff,
                 mine: entry.authorId === actor.user.id,
               }

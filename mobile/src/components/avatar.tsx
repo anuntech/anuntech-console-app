@@ -33,10 +33,25 @@ function useSessionCookie() {
 /**
  * A round picture: the catalog illustration on its color (scaled like the
  * web's), an uploaded photo (fetched with the session) or the initials.
+ * `tone="staff"` colours the initials for the Anuntech team, as the web's
+ * PersonAvatar; a photo that does not load falls back to the initials.
  */
-export function Avatar({ avatar, name, email, size = 40 }: { avatar: AvatarInfo | null | undefined; name?: string | null; email?: string; size?: number }) {
+export function Avatar({
+  avatar,
+  name,
+  email,
+  size = 40,
+  tone = "default",
+}: {
+  avatar: AvatarInfo | null | undefined;
+  name?: string | null;
+  email?: string;
+  size?: number;
+  tone?: "default" | "staff";
+}) {
   const palette = usePalette();
   const cookie = useSessionCookie();
+  const [failed, setFailed] = useState<string | null>(null);
   const frame = { width: size, height: size, borderRadius: size / 2, overflow: "hidden" as const };
   if (avatar?.kind === "illustration" && avatar.path)
     return (
@@ -49,15 +64,23 @@ export function Avatar({ avatar, name, email, size = 40 }: { avatar: AvatarInfo 
         />
       </View>
     );
-  if (avatar?.kind === "photo" && avatar.path && cookie)
+  if (avatar?.kind === "photo" && avatar.path && cookie && failed !== avatar.path) {
+    const path = avatar.path;
     return (
       <View accessible={false} style={[frame, { backgroundColor: palette.fill }]}>
-        <Image source={{ uri: `${CONSOLE_URL}${avatar.path}`, headers: { Cookie: cookie } }} style={{ width: size, height: size }} contentFit="cover" />
+        <Image
+          source={{ uri: `${CONSOLE_URL}${path}`, headers: { Cookie: cookie } }}
+          style={{ width: size, height: size }}
+          contentFit="cover"
+          onError={() => setFailed(path)}
+        />
       </View>
     );
+  }
+  const staff = tone === "staff";
   return (
-    <View accessible={false} style={[frame, { backgroundColor: palette.accent, alignItems: "center", justifyContent: "center" }]}>
-      <Text variant={size >= 56 ? "heading" : "micro"} tone="primary">
+    <View accessible={false} style={[frame, { backgroundColor: staff ? palette.primary : palette.accent, alignItems: "center", justifyContent: "center" }]}>
+      <Text variant={size >= 56 ? "heading" : "micro"} tone={staff ? "inverse" : "primary"} maxFontSizeMultiplier={1}>
         {initials(name, email)}
       </Text>
     </View>

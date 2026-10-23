@@ -138,6 +138,14 @@ const changeRequest = z.object({
   submittedAt: z.string().nullable(),
   decidedAt: z.string().nullable(),
 });
+/** A person's picture: an illustration of the catalog, an uploaded photo (path served with the session) or initials. */
+const avatar = z.object({
+  kind: z.enum(["illustration", "photo", "initials"]),
+  /** Path on the Console: /brand/avatars/<n>.svg, /api/conta/foto?v=… or /api/pessoas/<id>/foto?v=… */
+  path: z.string().nullable(),
+  /** Background of an illustration. */
+  color: z.string().nullable(),
+});
 const ticketEntry = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("message"),
@@ -146,6 +154,8 @@ const ticketEntry = z.discriminatedUnion("kind", [
     createdAt: z.string(),
     author: z.string(),
     authorImage: z.string().nullable(),
+    /** The author's picture as the app draws it (optional: older servers left it out). */
+    avatar: avatar.optional(),
     staff: z.boolean(),
     mine: z.boolean(),
   }),
@@ -163,14 +173,6 @@ const ticketEntry = z.discriminatedUnion("kind", [
   }),
 ]);
 
-/** A person's picture: an illustration of the catalog, an uploaded photo (path served with the session) or initials. */
-const avatar = z.object({
-  kind: z.enum(["illustration", "photo", "initials"]),
-  /** Path on the Console: /brand/avatars/<n>.svg, /api/conta/foto?v=… or /api/pessoas/<id>/foto?v=… */
-  path: z.string().nullable(),
-  /** Background of an illustration. */
-  color: z.string().nullable(),
-});
 const message = z.object({ message: z.string() });
 /** Someone on a task, a comment or the activity: name and picture. */
 const taskPerson = z.object({ id: z.string(), name: z.string(), avatar });
