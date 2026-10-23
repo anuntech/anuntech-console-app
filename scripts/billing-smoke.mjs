@@ -313,6 +313,37 @@ export async function runBillingTests({
     sentNotices().length === sentCount,
     "Reexecução dos envios não duplica mensagens aceitas",
   );
+  // "Reenviar cobrança": the delivered invoice goes out again, now, to the same contacts and channels.
+  const beforeResend = sentNotices().length;
+  await submitForm(page, "admin", "finance", { action: "resendInvoice" }, { id: i.id });
+  ok(!(await notices(i.id)).some((n) => n.kind === "resend"), "Cliente não reenvia a cobrança");
+  await submitForm(page, "admin", "admin", { action: "resendInvoice" }, { id: i.id });
+  await drain();
+  const resent = (await notices(i.id)).filter((n) => n.kind === "resend");
+  const resentWa = sentNotices().find((n) => n.key === resent.find((r) => r.channel === "whatsapp")?.id);
+  ok(
+    resent.length === 2 &&
+      resent.every((n) => n.status === "accepted") &&
+      sentNotices().length === beforeResend + 2 &&
+      resentWa?.payload.parameters["[id_fatura]"] === i.public_id,
+    "Reenviar cobrança manda de novo por e-mail e WhatsApp, com o link de pagamento",
+  );
+  await submitForm(page, "admin", "admin", { action: "resendInvoice" }, { id: i.id });
+  ok(
+    (await notices(i.id)).filter((n) => n.kind === "resend").every((n) => resent.some((r) => r.id === n.id)),
+    "Reenvio logo depois do anterior é recusado",
+  );
+  await db.query("update console_audit_events set created_at = now() - interval '10 minutes' where entity_id=$1 and action='invoice.resent'", [i.id]);
+  await submitForm(page, "admin", "admin", { action: "resendInvoice" }, { id: i.id });
+  await drain();
+  const again = (await notices(i.id)).filter((n) => n.kind === "resend");
+  ok(
+    again.length === 2 &&
+      again.every((n) => !resent.some((r) => r.id === n.id) && n.status === "accepted") &&
+      sentNotices().length === beforeResend + 4 &&
+      (await db.query("select count(*)::int as n from console_audit_events where entity_id=$1 and action='invoice.resent'", [i.id])).rows[0].n === 2,
+    "Um novo reenvio minutos depois sai como mensagem nova e o anterior fica no histórico",
+  );
   await submitForm(
     page,
     "admin",
@@ -459,7 +490,8 @@ export async function runBillingTests({
   flags({ approved: true, bankUnpaid: true, billingBankDue: offset(-30) });
   await drain();
   ok(
-    sentNotices().length === n && (await notices(i.id)).length === 14,
+    // The automatic ones only: the team's resends above are not reminders.
+    sentNotices().length === n && (await notices(i.id)).filter((x) => x.kind !== "resend").length === 14,
     "Cobrança tem exatamente 5 avisos de atraso por canal e encerra aos 30 dias",
   );
   // Payment arriving before a queued notice must suppress it.

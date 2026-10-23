@@ -12,7 +12,8 @@ import {
   ThumbsDownIcon,
   ThumbsUpIcon,
   Trash2Icon,
-  Undo2Icon,
+  MailIcon,
+  PencilIcon,
   XCircleIcon,
   RouteIcon,
 } from "lucide-react";
@@ -44,7 +45,7 @@ import { FormField } from "@/components/console/form-field";
 import { CopyButton } from "@/components/console/copy-button";
 import { DownloadLink } from "@/components/console/download-link";
 import { ConfirmDialog, FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
-import { answerQuote, cancelQuote, duplicateQuote, revertQuote, sendQuote } from "@/lib/quotes/quote-actions";
+import { answerQuote, cancelQuote, duplicateQuote, resendQuote, revertQuote, sendQuote } from "@/lib/quotes/quote-actions";
 import { deleteQuote } from "@/lib/quotes/quote-deletion";
 import { canDeleteQuote, quoteDecisionNotice } from "@/lib/deletion-rules";
 import { auditLabels, currency, dateLabel, dateTimeLabel, relativeLabel } from "@/lib/format";
@@ -158,12 +159,20 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
   const [cancelling, setCancelling] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // "Editar" on an answered or cancelled proposal: the original stays, a copy opens for editing.
+  const [editCopy, setEditCopy] = useState(false);
+  const [resending, setResending] = useState(false);
   const [declining, setDeclining] = useState(false);
   const [recording, setRecording] = useState<"accept" | "decline" | null>(null);
   const [consent, setConsent] = useState(false);
   const expired = quoteExpired(q.status, q.validUntil, today);
   const waiting = q.status === "sent" && !expired;
   const editable = viewer.admin && q.status === "draft";
+  const answered = q.status === "accepted" || q.status === "declined" || q.status === "cancelled";
+  // Like a contract before signature: the same proposal gets a new version, unless something was already made from it.
+  const handoff = data.handoff;
+  const madeFrom = !!(handoff && (handoff.contract || handoff.project || handoff.upfrontInvoiceId || handoff.balanceInvoiceId));
+  const newVersion = q.status === "sent" || q.status === "declined" || (q.status === "accepted" && !madeFrom);
   const deletable = viewer.admin && canDeleteQuote(q.status, { validUntil: q.validUntil, today });
   const decisionNotice = quoteDecisionNotice(q.status);
   const canAnswer = waiting && viewer.party === "client";
@@ -205,6 +214,12 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                 </DownloadLink>
               </Button>
             )}
+            {viewer.admin && (q.status === "sent" || answered) && (
+              <Button variant="outline" onClick={() => (newVersion ? setReverting(true) : setEditCopy(true))}>
+                <PencilIcon />
+                Editar
+              </Button>
+            )}
             {viewer.admin && q.status === "draft" && (
               <Button onClick={() => setSending(true)}>
                 <SendIcon />
@@ -235,12 +250,20 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                       </Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onSelect={menu(() => setDuplicating(true))}>
-                    <CopyPlusIcon />
-                    Duplicar como novo rascunho
-                  </DropdownMenuItem>
+                  {!answered && (
+                    <DropdownMenuItem onSelect={menu(() => setDuplicating(true))}>
+                      <CopyPlusIcon />
+                      Duplicar como novo rascunho
+                    </DropdownMenuItem>
+                  )}
                   {q.status === "sent" && (
                     <>
+                      {!expired && (
+                        <DropdownMenuItem onSelect={menu(() => setResending(true))}>
+                          <MailIcon />
+                          Reenviar e-mail
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onSelect={menu(() => setRecording("accept"))}>
                         <ThumbsUpIcon />
@@ -249,10 +272,6 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
                       <DropdownMenuItem onSelect={menu(() => setRecording("decline"))}>
                         <ThumbsDownIcon />
                         Registrar recusa
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={menu(() => setReverting(true))}>
-                        <Undo2Icon />
-                        Voltar para rascunho
                       </DropdownMenuItem>
                     </>
                   )}
@@ -514,9 +533,15 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         onOpenChange={setReverting}
         action={revertQuote}
         fields={{ id: q.id }}
-        title="Voltar para rascunho?"
-        description="Você volta a editar a proposta. O envio atual fica registrado como versão anterior e o cliente deixa de poder responder até o novo envio."
-        confirmLabel="Voltar para rascunho"
+        title={q.status === "sent" ? "Editar o orçamento?" : "Gerar uma nova versão?"}
+        description={
+          q.status === "sent"
+            ? "Ele volta para rascunho para você ajustar. O cliente deixa de poder responder até você enviar de novo, e o envio atual fica registrado como versão anterior."
+            : `O orçamento volta para rascunho como versão ${q.version + 1}, com o mesmo número. ${
+                q.status === "accepted" ? "O aceite" : "A recusa"
+              } da versão ${q.version} fica no histórico, com quem respondeu, quando e de onde, e o cliente responde de novo ao próximo envio.`
+        }
+        confirmLabel={q.status === "sent" ? "Editar" : "Gerar nova versão"}
       />
       <ConfirmDialog
         open={cancelling}
@@ -527,6 +552,28 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
         description="Ele deixa de aparecer para o cliente. O número não é reaproveitado."
         confirmLabel="Cancelar orçamento"
         destructive
+      />
+      <ConfirmDialog
+        open={resending}
+        onOpenChange={setResending}
+        action={resendQuote}
+        fields={{ id: q.id }}
+        title="Reenviar o aviso por e-mail?"
+        description="Os Administradores da empresa recebem de novo o e-mail com o link para ver e responder. A proposta não muda."
+        confirmLabel="Reenviar"
+      />
+      <ConfirmDialog
+        open={editCopy}
+        onOpenChange={setEditCopy}
+        action={duplicateQuote}
+        fields={{ id: q.id }}
+        title="Editar em uma cópia?"
+        description={
+          q.status === "cancelled"
+            ? "Este orçamento foi cancelado e fica como está. Você edita uma cópia, com número próprio, e envia de novo quando quiser."
+            : "Já existe contrato, projeto ou cobrança feitos a partir deste orçamento aceito, então ele fica como está. Você edita uma cópia, com número próprio, e envia de novo."
+        }
+        confirmLabel="Criar cópia para editar"
       />
       <ConfirmDialog
         open={duplicating}

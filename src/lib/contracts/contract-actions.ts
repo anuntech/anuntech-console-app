@@ -30,6 +30,7 @@ import { signContractAs } from "./contract-sign";
 import { addressLabel } from "../companies/company-billing";
 import { formatDocument } from "../companies/company-input";
 import { deliverContractNotice } from "./contract-mail";
+import { notifiedLabel, RESEND_TOO_SOON, sentMomentsAgo } from "../notifications/resend-guard";
 import { enqueuePush, schedulePushNotices } from "../notifications/push-queue";
 import { inviteManagerOnSend } from "../access/invite-manager";
 import { fillContractTemplate, pendingContractVariables } from "./contract-templates";
@@ -571,6 +572,49 @@ export async function sendContract(_: ActionState, form: FormData): Promise<Acti
           ? `${noun} enviado. ${notified === 1 ? "1 pessoa avisada" : `${notified} pessoas avisadas`} por e-mail.`
           : `${noun} enviado. Ninguém da empresa é Administrador para receber o aviso; libere o acesso em Empresas.`) + (invite ? ` ${invite}` : ""),
     };
+  } catch (e) {
+    return failure(e);
+  }
+}
+
+/** Sends the "contract awaits your signature" e-mail again to the Administradores, while the client has not signed. */
+export async function resendContract(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  if (!actor.admin) return blocked;
+  try {
+    const contractId = id.parse(form.get("id"));
+    const [c] = await db.select().from(contracts).where(eq(contracts.id, contractId));
+    if (!c) throw Error("Contrato não encontrado.");
+    if (c.status !== "sent" || !c.documentHash) throw Error("Só um contrato aguardando assinatura tem aviso para reenviar.");
+    const [{ signed }] = await db
+      .select({ signed: count() })
+      .from(contractSignatures)
+      .where(and(eq(contractSignatures.contractId, c.id), eq(contractSignatures.documentHash, c.documentHash), eq(contractSignatures.party, "client")));
+    if (signed) throw Error("O cliente já assinou esta versão.");
+    if (await sentMomentsAgo(c.id, ["contract.sent", "contract.notice_resent"])) throw Error(RESEND_TOO_SOON);
+    const signers = await companySigners(c.companyId);
+    if (!signers.length) throw Error("Ninguém da empresa é Administrador para receber o aviso. Libere o acesso em Empresas.");
+    const [company] = await db.select({ name: companies.name }).from(companies).where(eq(companies.id, c.companyId));
+    const url = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/contratos/${c.id}`;
+    let notified = 0;
+    for (const signer of signers) {
+      try {
+        await deliverContractNotice(signer.email, { companyName: company.name, title: c.title, url, kind: c.kind, version: c.publishedVersion });
+        notified += 1;
+      } catch {
+        /* One address failing does not stop the others. */
+      }
+    }
+    if (!notified) throw Error("O e-mail não saiu. Tente de novo em alguns minutos.");
+    await db.insert(auditEvents).values({
+      actorId: actor.user.id,
+      companyId: c.companyId,
+      entityId: c.id,
+      action: "contract.notice_resent",
+      details: { version: c.publishedVersion, notified },
+    });
+    refresh(c.id, c.parentId);
+    return { success: `E-mail reenviado para ${notifiedLabel(notified)}.` };
   } catch (e) {
     return failure(e);
   }

@@ -34,6 +34,7 @@ import {
   noticeDate,
   payableUntil,
   reminderKindFor,
+  messageKind,
 } from "./billing-notice-rules";
 
 const flwHeaders = () => ({
@@ -254,6 +255,8 @@ export async function processBillingNotice(
       return;
     }
     const today = saoPauloDate();
+    // A resend speaks for the invoice's situation today; the others for their own moment.
+    const wording = messageKind(notice.kind, row.i, today);
     if (row.i.status !== "issued" || !row.i.publicId) {
       await save({
         error: "Aguardando emissão e dados de pagamento do Inter.",
@@ -270,9 +273,9 @@ export async function processBillingNotice(
       }
       const template =
         billingTemplates[
-          notice.kind.startsWith("overdue_")
+          wording.startsWith("overdue_")
             ? "overdue"
-            : (notice.kind as "initial" | "due")
+            : (wording as "initial" | "due")
         ];
       if (!(await templates()).has(template.id)) {
         await save({
@@ -384,7 +387,7 @@ export async function processBillingNotice(
         payUntil: payableUntil(row.i),
         publicId: row.i.publicId!,
         today,
-        kind: notice.kind,
+        kind: wording,
       };
       let payload: BillingNoticePayload;
       if (notice.payload) payload = notice.payload;
@@ -413,9 +416,9 @@ export async function processBillingNotice(
           to: phone,
           templateId:
             billingTemplates[
-              notice.kind.startsWith("overdue_")
+              wording.startsWith("overdue_")
                 ? "overdue"
-                : (notice.kind as "initial" | "due")
+                : (wording as "initial" | "due")
             ].id,
           parameters: billingWhatsappParameters(data),
           senderId: notice.id,

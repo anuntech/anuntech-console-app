@@ -336,7 +336,6 @@ export function JourneyDetail({ data }: { data: JourneyDetailData }) {
       step={s}
       journeyId={journey.id}
       quoteId={journey.quoteId}
-      staff={data.staff}
       voice={data.voice}
       handlers={handlers}
       highlight={resolved.next?.def.key === s.def.key}

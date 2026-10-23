@@ -19,6 +19,7 @@ import { companyLinks } from "@/lib/record-links";
 import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
+import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
 import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
 import { OnboardingCard } from "@/components/empresas/onboarding-card";
@@ -45,6 +46,7 @@ export default async function Company({
     .from(companies)
     .where(eq(companies.id, id));
   if (!company) notFound();
+  const finance = await getNoticePreferences(company.id, "billing");
   const [
     people,
     events,
@@ -203,6 +205,10 @@ export default async function Company({
           document: company.document,
           billingEmail: company.billingEmail,
           phone: company.phone,
+          finance: {
+            emails: finance.emails ?? [finance.email].filter(Boolean),
+            phones: finance.phones ?? [finance.phone].filter(Boolean),
+          },
           billingAddress: company.billingAddress,
           autoIssueNfse: company.autoIssueNfse,
           archived: company.archived,

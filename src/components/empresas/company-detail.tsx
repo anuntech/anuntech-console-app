@@ -102,6 +102,8 @@ export type CompanyDetailData = {
     id: string;
     archived: boolean;
     createdAt: string;
+    /** Who receives the billing notices (the same list the client edits in Notificações). */
+    finance: { emails: string[]; phones: string[] };
   };
   members: {
     id: string;
@@ -448,6 +450,11 @@ export function CompanyDetail({
   // The name people read; the razão social and the document stay in Cadastro, once.
   const displayName = companyDisplayName(company.name, company.document);
   const person = onlyDigits(company.document).length === 11;
+  // The company's own e-mail and phone first, then the others that receive the billing notices.
+  const mainFirst = (main: string | null, list: string[]) =>
+    main && (list.includes(main) || !list.length) ? [main, ...list.filter((item) => item !== main)] : list;
+  const financeEmails = mainFirst(company.billingEmail, company.finance.emails);
+  const financePhones = mainFirst(company.phone, company.finance.phones);
   // Events of the same kind on the same day read as one line ("Tarefa criada", 6 vezes).
   const history = groupEvents(events);
 
@@ -567,9 +574,11 @@ export function CompanyDetail({
                     {formatDocument(company.document)}
                   </span>
                 </Fact>
-                <Fact label="E-mail financeiro">{company.billingEmail}</Fact>
-                <Fact label="Telefone">
-                  {company.phone && formatPhone(company.phone)}
+                <Fact label={financeEmails.length > 1 ? "E-mails do financeiro" : "E-mail financeiro"}>
+                  <ContactList items={financeEmails} />
+                </Fact>
+                <Fact label={financePhones.length > 1 ? "Telefones do financeiro" : "Telefone"}>
+                  <ContactList items={financePhones.map(formatPhone)} />
                 </Fact>
                 <Fact label="Endereço de cobrança" className="sm:col-span-2">
                   {company.billingAddress && addressLabel(company.billingAddress)}
@@ -771,6 +780,10 @@ export function CompanyDetail({
         onOpenChange={closeEditor}
         company={company}
         companyId={company.id}
+        financeExtras={{
+          emails: financeEmails.filter((email) => email !== company.billingEmail),
+          phones: financePhones.filter((phone) => phone !== company.phone),
+        }}
       />
       <ConfirmDialog
         open={confirm === "assist"}
@@ -844,5 +857,20 @@ function OffboardingChoices({ formId, data, members }: { formId: string; data: C
         </div>
       )}
     </div>
+  );
+}
+
+/** Contacts one per line, so a list of e-mails reads like a list and copies cleanly. */
+function ContactList({ items }: { items: string[] }) {
+  if (!items.length) return null;
+  if (items.length === 1) return <>{items[0]}</>;
+  return (
+    <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+      {items.map((item) => (
+        <li key={item} className="break-all">
+          {item}
+        </li>
+      ))}
+    </ul>
   );
 }

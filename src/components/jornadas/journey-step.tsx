@@ -27,7 +27,6 @@ import { createJourneyQuote, removeJourneyStep, saveJourneyStep } from "@/lib/jo
 import { createProjectFromQuote } from "@/lib/quotes/quote-actions";
 import type { ResolvedStep, StepStatus } from "@/lib/journeys/journey-model";
 import { StepAi } from "./journey-ai";
-import type { StaffOption } from "./journey-types";
 
 const statusIcon: Record<StepStatus, { icon: typeof CircleIcon; className: string; label: string }> = {
   done: { icon: CheckCircle2Icon, className: "text-success", label: "Feito" },
@@ -103,7 +102,6 @@ export function JourneyStep({
   step,
   journeyId,
   quoteId,
-  staff,
   voice,
   handlers,
   highlight = false,
@@ -112,7 +110,6 @@ export function JourneyStep({
   step: ResolvedStep;
   journeyId: string;
   quoteId: string | null;
-  staff: StaffOption[];
   voice: boolean;
   handlers: StepHandlers;
   /** The step "Agora" points at. */
@@ -129,7 +126,6 @@ export function JourneyStep({
   const Icon = look.icon;
   const auto = def.source === "auto";
   const fields = def.fields ?? [];
-  const assignee = staff.find((person) => person.id === row?.assigneeId) ?? null;
   // The client step's detail is the company's name, which the page header already shows.
   const detail = def.key === "cadastro" && step.status === "done" ? null : step.detail;
   const panelId = `passo-${def.key.replace(/[^a-z0-9-]/gi, "")}-painel`;
@@ -155,11 +151,9 @@ export function JourneyStep({
             {!def.required && !step.extra && <span className="text-caption text-muted-foreground">opcional</span>}
             {step.extra && <span className="rounded-full bg-secondary px-1.5 py-px text-caption text-secondary-foreground">acrescentado</span>}
           </div>
-          {(detail || assignee) && (
+          {detail && (
             <p className="m-0 mt-0.5 text-xs break-words text-muted-foreground">
               {detail}
-              {detail && assignee ? " · " : ""}
-              {assignee ? `Com ${assignee.name || assignee.email}` : ""}
               {/* Who ticked a finished step is history; "pelo Console" matters while the step is still open. */}
               {step.by === "data" && step.status !== "waiting" && step.status !== "done" ? <span className="ml-1.5 text-caption text-muted-foreground">· pelo Console</span> : null}
             </p>
@@ -216,16 +210,6 @@ export function JourneyStep({
                   {!auto && <NativeSelectOption value="doing">Em andamento</NativeSelectOption>}
                   {!auto && <NativeSelectOption value="done">Feito</NativeSelectOption>}
                   <NativeSelectOption value="skipped">Não se aplica</NativeSelectOption>
-                </NativeSelect>
-              </FormField>
-              <FormField label="Responsável" htmlFor={`${panelId}-assignee`}>
-                <NativeSelect id={`${panelId}-assignee`} name="assigneeId" defaultValue={row?.assigneeId ?? ""}>
-                  <NativeSelectOption value="">Sem responsável</NativeSelectOption>
-                  {staff.map((person) => (
-                    <NativeSelectOption key={person.id} value={person.id}>
-                      {person.name || person.email}
-                    </NativeSelectOption>
-                  ))}
                 </NativeSelect>
               </FormField>
               {fields.includes("url") && (

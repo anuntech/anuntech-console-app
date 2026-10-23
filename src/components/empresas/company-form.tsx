@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { NumberFormatBase } from "react-number-format";
-import { Loader2Icon } from "lucide-react";
+import { Loader2Icon, PlusIcon, XIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/components/shell/notifications";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,6 +27,9 @@ import {
 import { payerAddress } from "@/lib/billing/billing-rules";
 import type { CompanyAddress } from "@/lib/companies/company-billing";
 
+/** The other e-mails and phones that receive billing notices, beyond the main ones (the team's form only). */
+export type FinanceExtras = { emails: string[]; phones: string[] };
+
 export type CompanyFormValues = {
   name: string;
   document: string;
@@ -48,8 +52,11 @@ export function CompanyFields({
   cnpjLookup = lookupEnabled,
   fiscalSettings = true,
   lockDocument = false,
+  financeExtras,
 }: {
   company?: CompanyFormValues | null;
+  /** Shows "Adicionar outro e-mail/telefone"; the client edits the same list in Notificações instead. */
+  financeExtras?: FinanceExtras;
   lookupEnabled?: boolean;
   /** The CNPJ lookup (Receita) is the team's; a client's Administrador only fills by CEP. */
   cnpjLookup?: boolean;
@@ -230,40 +237,47 @@ export function CompanyFields({
       <Separator />
 
       <FormSection title="Contato financeiro" className="sm:grid-cols-2">
-        <FormField label="E-mail" htmlFor={`${id}-billingEmail`}>
-          <Input
-            id={`${id}-billingEmail`}
-            name="billingEmail"
-            value={values.billingEmail}
-            onChange={(e) =>
-              change("billingEmail", e.target.value.trim().toLowerCase())
-            }
-            type="email"
-            autoComplete="email"
-            autoCapitalize="none"
-            spellCheck={false}
-            required
-            maxLength={254}
-          />
-        </FormField>
-        <FormField label="Telefone" htmlFor={`${id}-phone`}>
-          <NumberFormatBase
-            customInput={Input}
-            id={`${id}-phone`}
-            name="phone"
-            type="tel"
-            format={formatPhone}
-            removeFormatting={phoneDigits}
-            valueIsNumericString
-            value={values.phone}
-            onValueChange={(v, info) => {
-              if (info.source === "event") change("phone", v.value);
-            }}
-            autoComplete="tel-national"
-            required
-            maxLength={30}
-          />
-        </FormField>
+        {financeExtras && <input type="hidden" name="financeContacts" value="1" />}
+        <div className="flex flex-col gap-2">
+          <FormField label="E-mail" htmlFor={`${id}-billingEmail`}>
+            <Input
+              id={`${id}-billingEmail`}
+              name="billingEmail"
+              value={values.billingEmail}
+              onChange={(e) =>
+                change("billingEmail", e.target.value.trim().toLowerCase())
+              }
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              maxLength={254}
+            />
+          </FormField>
+          {financeExtras && <ExtraContacts kind="email" initial={financeExtras.emails} />}
+        </div>
+        <div className="flex flex-col gap-2">
+          <FormField label="Telefone" htmlFor={`${id}-phone`}>
+            <NumberFormatBase
+              customInput={Input}
+              id={`${id}-phone`}
+              name="phone"
+              type="tel"
+              format={formatPhone}
+              removeFormatting={phoneDigits}
+              valueIsNumericString
+              value={values.phone}
+              onValueChange={(v, info) => {
+                if (info.source === "event") change("phone", v.value);
+              }}
+              autoComplete="tel-national"
+              required
+              maxLength={30}
+            />
+          </FormField>
+          {financeExtras && <ExtraContacts kind="phone" initial={financeExtras.phones} />}
+        </div>
       </FormSection>
 
       <Separator />
@@ -422,5 +436,73 @@ export function CompanyFields({
         </>
       )}
     </div>
+  );
+}
+
+/** The extra e-mails or phones under the main one: each can be removed; up to nine more (ten in all). */
+function ExtraContacts({ kind, initial }: { kind: "email" | "phone"; initial: string[] }) {
+  const id = useId();
+  const [items, setItems] = useState(initial);
+  const label = kind === "email" ? "e-mail" : "telefone";
+  return (
+    <>
+      {items.map((value, index) => (
+        <div key={index} className="flex items-center gap-1.5">
+          <label htmlFor={`${id}-${index}`} className="sr-only">
+            Outro {label} do financeiro {index + 1}
+          </label>
+          {kind === "email" ? (
+            <Input
+              id={`${id}-${index}`}
+              name="financeEmails"
+              type="email"
+              value={value}
+              autoCapitalize="none"
+              spellCheck={false}
+              maxLength={254}
+              placeholder="nome@empresa.com.br"
+              onChange={(e) => setItems((all) => all.map((item, i) => (i === index ? e.target.value.trim().toLowerCase() : item)))}
+            />
+          ) : (
+            <NumberFormatBase
+              customInput={Input}
+              id={`${id}-${index}`}
+              name="financePhones"
+              type="tel"
+              format={formatPhone}
+              removeFormatting={phoneDigits}
+              valueIsNumericString
+              value={value}
+              placeholder="(11) 99999-9999"
+              maxLength={30}
+              onValueChange={(v, info) => {
+                if (info.source === "event") setItems((all) => all.map((item, i) => (i === index ? v.value : item)));
+              }}
+            />
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Remover ${label} ${index + 2}`}
+            onClick={() => setItems((all) => all.filter((_, i) => i !== index))}
+          >
+            <XIcon />
+          </Button>
+        </div>
+      ))}
+      {items.length < 9 && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="self-start text-muted-foreground"
+          onClick={() => setItems((all) => [...all, ""])}
+        >
+          <PlusIcon />
+          {kind === "email" ? "Adicionar outro e-mail" : "Adicionar outro telefone"}
+        </Button>
+      )}
+    </>
   );
 }

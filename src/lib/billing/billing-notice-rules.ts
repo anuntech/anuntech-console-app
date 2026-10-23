@@ -1,6 +1,8 @@
 import { currency, dateLabel } from "../format";
 export type BillingNoticeKind =
   | "initial"
+  /** Sent again by the team from the invoice; worded for the invoice's situation that day (`messageKind`). */
+  | "resend"
   | "due"
   | "overdue_5"
   | "overdue_10"
@@ -44,7 +46,25 @@ export function noticeIsCurrent(
   due: string,
   today: string,
 ) {
+  // A resend is the team's call on the day: always current.
+  if (kind === "resend") return true;
   return kind === "initial" ? today < due : kind === reminderKind(due, today);
+}
+/**
+ * The wording a resend takes: the new-invoice message before the payable
+ * date, "due today" on it, and the overdue one after (the e-mail and the
+ * WhatsApp count the days from the due date themselves).
+ */
+export function messageKind(
+  kind: BillingNoticeKind,
+  i: { dueDate: string; bankDueDate?: string | null },
+  today: string,
+): Exclude<BillingNoticeKind, "resend"> {
+  if (kind !== "resend") return kind;
+  const payable = payableUntil(i);
+  if (today < payable) return "initial";
+  if (today === payable) return "due";
+  return daysOverdue(i.dueDate, today) > 0 ? "overdue_5" : "due";
 }
 /** The date the boleto/Pix can be paid until: the bank's date when the obligation is already past due. */
 export function payableUntil(i: { dueDate: string; bankDueDate?: string | null }) {
@@ -126,6 +146,7 @@ export const noticeStatusLabels: Record<string, string> = {
 };
 export function noticeKindLabel(kind: string) {
   if (kind === "initial") return "Nova cobrança";
+  if (kind === "resend") return "Reenvio da cobrança";
   if (kind === "due") return "Vence hoje";
   return `${kind.replace("overdue_", "")} dias de atraso`;
 }
