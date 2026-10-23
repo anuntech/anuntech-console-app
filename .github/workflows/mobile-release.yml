@@ -1,0 +1,64 @@
+name: Mobile release
+# Every push to main that changes the app (mobile/) ships it to iPhone and
+# Android: after the app's checks and once Vercel has the same commit in
+# production (the app may call what the server just learned), it starts the EAS
+# workflow mobile/.eas/workflows/deploy-to-production.yml, which sends an
+# over-the-air update when the native code is the same as the store builds,
+# or new store builds (App Store Connect and Google Play) when it changed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+  workflow_dispatch:
+permissions:
+  contents: read
+  deployments: read
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: mobile
+      - run: npm run lint
+        working-directory: mobile
+      - run: npm run typecheck
+        working-directory: mobile
+      - name: Wait for the server of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          for attempt in $(seq 1 60); do
+            id=$(gh api "repos/$REPO/deployments?sha=$SHA&environment=Production" --jq '.[0].id // empty')
+            if [ -n "$id" ]; then
+              state=$(gh api "repos/$REPO/deployments/$id/statuses" --jq '.[0].state // empty')
+              echo "Vercel: ${state:-pending}"
+              [ "$state" = "success" ] && exit 0
+              [ "$state" = "failure" ] || [ "$state" = "error" ] && { echo "The server deploy failed; the app waits for it."; exit 1; }
+            fi
+            sleep 20
+          done
+          echo "The server deploy did not finish in 20 minutes."
+          exit 1
+      - name: Ship the app (update or store build)
+        working-directory: mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx --yes eas-cli@latest workflow:run .eas/workflows/deploy-to-production.yml --non-interactive

@@ -1,0 +1,72 @@
+# Runs on every push to main that touches mobile/ (.github/workflows/mobile-release.yml
+# starts it with `eas workflow:run`). For each platform it compares the native
+# fingerprint with the production builds:
+#   - same native code  -> an over-the-air update (JavaScript only) for that platform;
+#   - new native code   -> a store build, sent to App Store Connect and Google Play.
+# A native change after a version is live in the stores needs a new `version`
+# in app.config.ts first: the stores refuse a second release of the same version.
+name: Deploy to production
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    environment: production
+  get_android_build:
+    name: Check for an Android build
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      profile: production
+  get_ios_build:
+    name: Check for an iOS build
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.ios_fingerprint_hash }}
+      profile: production
+  build_android:
+    name: Build Android
+    needs: [get_android_build]
+    if: ${{ !needs.get_android_build.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: production
+  build_ios:
+    name: Build iOS
+    needs: [get_ios_build]
+    if: ${{ !needs.get_ios_build.outputs.build_id }}
+    type: build
+    params:
+      platform: ios
+      profile: production
+  submit_android_build:
+    name: Submit to Google Play
+    needs: [build_android]
+    type: submit
+    params:
+      build_id: ${{ needs.build_android.outputs.build_id }}
+  submit_ios_build:
+    name: Submit to App Store Connect
+    needs: [build_ios]
+    type: submit
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
+  publish_android_update:
+    name: Publish Android update
+    needs: [get_android_build]
+    if: ${{ needs.get_android_build.outputs.build_id }}
+    type: update
+    params:
+      branch: production
+      platform: android
+  publish_ios_update:
+    name: Publish iOS update
+    needs: [get_ios_build]
+    if: ${{ needs.get_ios_build.outputs.build_id }}
+    type: update
+    params:
+      branch: production
+      platform: ios

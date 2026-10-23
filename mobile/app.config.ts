@@ -108,9 +108,11 @@ const config: ExpoConfig = {
     ],
   ],
   // Over-the-air updates (EAS Update) for JavaScript only; a new native
-  // permission or module always ships as a store build (runtimeVersion follows the app version).
+  // permission or module always ships as a store build. The runtime is the native
+  // fingerprint: an update only reaches builds with exactly the same native code
+  // (.eas/workflows/deploy-to-production.yml decides update or store build).
   updates: { url: "https://u.expo.dev/365924c6-2340-4ad8-8dad-2eb9accb01e8" },
-  runtimeVersion: { policy: "appVersion" },
+  runtimeVersion: { policy: "fingerprint" },
   experiments: { typedRoutes: true, reactCompiler: true },
   extra: {
     consoleUrl,

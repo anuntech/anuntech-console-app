@@ -20,3 +20,5 @@ Antes de mudar algo, leia o que se aplica em `docs/`: [prd.md](docs/prd.md) (pro
 - Não simular sucesso de pagamento ou emissão fiscal quando o provedor não foi integrado.
 - Preservar .env.local e nunca versionar segredos.
 - Testes de integração criam fixtures em banco de desenvolvimento; não executar contra produção com clientes reais.
+- Site, iPhone e Android andam juntos: toda mudança do que o cliente vê ou faz na web entra também no app (`mobile/`) ou, quando não couber no celular, em `mobile/task.md` com o motivo. A API do app (`src/lib/api/`) só cresce de forma compatível: apps antigos nas lojas continuam funcionando (campo novo é opcional, nada é removido nem renomeado sem uma versão nova do app no ar).
+- Publicação do app: push no `main` com mudança em `mobile/` dispara `.github/workflows/mobile-release.yml`, que espera o servidor do mesmo commit ficar no ar e roda `mobile/.eas/workflows/deploy-to-production.yml` (mesmo código nativo: atualização automática; código nativo novo: versão nova nas duas lojas). Mudança nativa depois de uma versão publicada pede `version` nova em `mobile/app.config.ts`.
