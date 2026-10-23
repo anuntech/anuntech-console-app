@@ -42,6 +42,7 @@
         "ascAppId": "6825533260"
       },
       "android": {
+        "applicationId": "com.anuntech.console",
         "track": "production",
         "releaseStatus": "completed"
       }
