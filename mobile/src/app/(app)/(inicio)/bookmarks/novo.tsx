@@ -49,6 +49,8 @@ export default function NewBookmark() {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
+  // The title taken from the last file's name, so a new file can replace it (and a typed one stays).
+  const [fileTitle, setFileTitle] = useState("");
   const [fileError, setFileError] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
   // The folder the list was showing decides the company; otherwise the one picked, or the only one.
@@ -98,7 +100,9 @@ export default function NewBookmark() {
       if (!chosen) return;
       haptic.select();
       setPhoto(chosen);
-      if (!title.trim()) setTitle(chosen.name.replace(/\.[^.]+$/, ""));
+      const named = chosen.name.replace(/\.[^.]+$/, "");
+      if (!title.trim() || title === fileTitle) setTitle(named);
+      setFileTitle(named);
     } catch (failure) {
       haptic.error();
       setFileError(failure instanceof BookmarkFileError ? failure.message : "Não foi possível abrir as fotos. Tente novamente.");
@@ -182,8 +186,13 @@ export default function NewBookmark() {
                       subtitle={fileSize(photo.size)}
                       value="Trocar"
                       valueTone="primary"
-                      accessibilityHint="Escolher outra foto"
-                      onPress={() => void choosePhoto("library")}
+                      accessibilityHint={documentsAvailable ? "Escolher outro arquivo ou foto" : "Escolher outra foto"}
+                      onPress={() => {
+                        // Back to the choices (arquivo, galeria, câmera), wherever this one came from.
+                        haptic.select();
+                        setFileError(null);
+                        setPhoto(null);
+                      }}
                     />
                   </Section>
                 ) : (

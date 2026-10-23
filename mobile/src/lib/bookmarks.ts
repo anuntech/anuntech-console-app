@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Alert, Linking, Platform } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -9,7 +10,7 @@ import { api, queryClient, sessionHeaders } from "./api";
 import { CONSOLE_URL } from "./config";
 import { openAttachment } from "./files";
 import { documentPicker } from "./uploads";
-export { audience, deleteNote, describe, hostOf } from "./bookmark-text";
+export { audience, deleteNote, describe, hostOf, letterTile } from "./bookmark-text";
 
 export type BookmarkList = Awaited<ReturnType<typeof api.bookmarks.list>>;
 export type Bookmark = BookmarkList["items"][number];
@@ -47,6 +48,24 @@ export function cachedBookmark(id: string) {
     if (item) return item;
   }
   return null;
+}
+
+/**
+ * One bookmark for the screens the list opens (edit, move): what the list
+ * already showed, or bookmarks.get when they open without it (a link, a
+ * restored screen). Kept as it opened, so a form does not change under the person.
+ */
+export function useBookmark(id: string) {
+  const [cached] = useState(() => cachedBookmark(id));
+  return useQuery({
+    queryKey: ["bookmark", id],
+    queryFn: () => api.bookmarks.get({ id }),
+    initialData: cached ?? undefined,
+    enabled: !cached && !!id,
+    staleTime: Infinity,
+    // Dropped when the screen closes, so the next one starts from the list again.
+    gcTime: 0,
+  });
 }
 
 /** Folders and companies as the list last saw them (all folders, whichever company was picked). */
