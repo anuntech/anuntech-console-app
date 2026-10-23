@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/server";
 import { api } from "../server";
 import { guard, type Guarded } from "../access";
 import { allowedEmail } from "../../auth/otp-delivery";
+import { accountActivity } from "../../account/activity";
 import { avatarView, catalogAvatars } from "../../account/avatar-view";
 import { ProfileAvatarError } from "../../account/profile-avatar";
 import { chooseCatalogAvatar, removeProfilePhoto } from "../../account/profile-avatar-change";
@@ -101,4 +102,9 @@ export const profile = {
       // Every session is gone, this one too: the app signs in again with the new address.
       return { message: result.success };
     }),
+  activity: api.profile.activity.use(guard({ self: true })).handler(async ({ context }) => {
+    // The signed-in person only (never someone assisted): the same query as the web's card.
+    const days = await accountActivity(context.actor.user.id);
+    return { days, total: days.reduce((sum, day) => sum + day.count, 0) };
+  }),
 };
