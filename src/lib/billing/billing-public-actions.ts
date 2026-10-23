@@ -1,6 +1,6 @@
 "use server";
 import { enqueueBillingNotice } from "./billing-notice-queue";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { after } from "next/server";
@@ -20,8 +20,7 @@ import { processBillingNotices } from "./billing-notices";
 import { saoPauloDate } from "../dates";
 import type { ActionState } from "../action-state";
 import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
-import { getNoticePreferences, noticeEmails, noticePhones } from "../notifications/notification-preferences";
-import { RESEND_TOO_SOON, sentMomentsAgo } from "../notifications/resend-guard";
+import { RESEND_INTERVAL_MINUTES, RESEND_TOO_SOON } from "../notifications/resend-guard";
 
 export async function sendInvoiceNotice(
   _: ActionState,
@@ -86,80 +85,76 @@ export async function sendInvoiceNotice(
   }
 }
 /**
- * Sends the open invoice again, now, to everyone who receives the company's
- * billing notices, by each channel the client keeps on. Worded for the
- * invoice's situation today (new, due today, overdue). The previous resend of
- * each recipient goes to the history and gives way to the new one; refused
- * within 5 minutes of the last resend, so a double click sends once.
+ * Sends one delivered notice again, now, by the same channel to the same
+ * contact, worded for the invoice's situation today (new, due today or
+ * overdue). The contact's previous resend gives way to the new one (its
+ * result goes to the audit log) so each is a fresh message to the provider;
+ * refused while it is still going out and within 5 minutes of the last.
  */
-export async function resendInvoice(
+export async function resendNoticeAgain(
   _: ActionState,
   form: FormData,
 ): Promise<ActionState> {
   const actor = await getActor();
   if (!actor.admin) return { error: "Acesso restrito à administração." };
   try {
-    const id = z.string().uuid().parse(form.get("id"));
-    if (await sentMomentsAgo(id, ["invoice.resent"])) throw Error(RESEND_TOO_SOON);
-    const sent = await db.transaction(async (tx) => {
-      const [i] = await tx.select().from(invoices).where(eq(invoices.id, id)).for("update");
+    const noticeId = z.string().uuid().parse(form.get("noticeId"));
+    const invoiceId = await db.transaction(async (tx) => {
+      const [notice] = await tx.select().from(billingNotices).where(eq(billingNotices.id, noticeId)).for("update");
+      if (!notice) throw Error("Aviso não encontrado.");
+      if (notice.status !== "accepted" && notice.status !== "delivered")
+        throw Error("Só um aviso entregue é reenviado por aqui. Um aviso com falha tem o próprio Reenviar.");
+      if (!notice.recipient) throw Error("Este aviso não tem destinatário. Cadastre os contatos do financeiro.");
+      const [i] = await tx.select().from(invoices).where(eq(invoices.id, notice.invoiceId)).for("update");
       if (!i || i.status !== "issued") throw Error("Reenvie somente cobranças emitidas e em aberto.");
       if (!i.publicEnabled) throw Error("Ative o link público antes de reenviar.");
-      if (!i.publicId)
-        await tx.update(invoices).set({ publicId: randomBytes(32).toString("base64url") }).where(eq(invoices.id, id));
-      const preferences = await getNoticePreferences(i.companyId, "billing", tx);
-      const channels = [
-        ...(preferences.emailEnabled && noticeEmails(preferences).length ? (["email"] as const) : []),
-        ...(preferences.whatsappEnabled && noticePhones(preferences).length ? (["whatsapp"] as const) : []),
-      ];
-      if (!channels.length)
-        throw Error("Ninguém recebe os avisos de cobrança desta empresa. Cadastre os contatos do financeiro antes de reenviar.");
-      const previous = await tx
+      const [previous] = await tx
         .select()
         .from(billingNotices)
-        .where(and(eq(billingNotices.invoiceId, id), eq(billingNotices.kind, "resend")));
-      if (previous.some((n) => ["waiting", "pending", "sending"].includes(n.status)))
-        throw Error("O reenvio anterior ainda está saindo. A situação atualiza em instantes.");
-      // Each resend is a new message (its own id goes to the provider); the last one stays in the audit log.
-      if (previous.length)
-        await tx.delete(billingNotices).where(and(eq(billingNotices.invoiceId, id), eq(billingNotices.kind, "resend")));
-      for (const channel of channels)
-        await enqueueBillingNotice(
-          tx,
-          { invoiceId: id, companyId: i.companyId, actorId: actor.user.id, channel, kind: "resend" },
-          { immediate: true },
+        .where(
+          and(
+            eq(billingNotices.invoiceId, i.id),
+            eq(billingNotices.channel, notice.channel),
+            eq(billingNotices.kind, "resend"),
+            eq(billingNotices.recipient, notice.recipient),
+          ),
         );
+      if (previous && ["waiting", "pending", "sending"].includes(previous.status))
+        throw Error("O reenvio anterior ainda está saindo. A situação atualiza em instantes.");
+      if (previous && Date.now() - previous.createdAt.getTime() < RESEND_INTERVAL_MINUTES * 60_000) throw Error(RESEND_TOO_SOON);
+      // Each resend is a new message (its own id goes to the provider); the last one stays in the audit log.
+      if (previous) await tx.delete(billingNotices).where(eq(billingNotices.id, previous.id));
+      await tx.insert(billingNotices).values({
+        id: randomUUID(),
+        invoiceId: i.id,
+        actorId: actor.user.id,
+        channel: notice.channel,
+        recipient: notice.recipient,
+        kind: "resend",
+        nextAttemptAt: new Date(),
+      });
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
         companyId: i.companyId,
         action: "invoice.resent",
-        entityId: id,
+        entityId: i.id,
         details: {
-          channels,
-          previous: previous.map((n) => ({
-            channel: n.channel,
-            recipient: n.recipient,
-            status: n.status,
-            providerId: n.providerId,
-            sentAt: n.firstAttemptAt?.toISOString() ?? null,
-          })),
+          channel: notice.channel,
+          recipient: notice.recipient,
+          from: notice.kind,
+          previous: previous
+            ? { status: previous.status, providerId: previous.providerId, sentAt: previous.firstAttemptAt?.toISOString() ?? null }
+            : null,
         },
       });
-      return {
-        emails: channels.includes("email") ? noticeEmails(preferences).length : 0,
-        phones: channels.includes("whatsapp") ? noticePhones(preferences).length : 0,
-      };
+      return i.id;
     });
     after(() => processBillingNotices());
-    revalidatePath(`/financeiro/${id}`);
-    const parts = [
-      sent.emails ? `${sent.emails === 1 ? "1 e-mail" : `${sent.emails} e-mails`}` : null,
-      sent.phones ? `${sent.phones === 1 ? "1 WhatsApp" : `${sent.phones} WhatsApps`}` : null,
-    ].filter(Boolean);
-    return { success: `Cobrança reenviada para ${parts.join(" e ")}. A situação atualiza em instantes.` };
+    revalidatePath(`/financeiro/${invoiceId}`);
+    return { success: "Reenvio solicitado. A situação atualiza em instantes." };
   } catch (e) {
     if (logDatabaseFault("billing", e)) return { error: DATABASE_FAILURE };
-    return { error: e instanceof Error && e.message ? e.message : "Não foi possível reenviar a cobrança." };
+    return { error: e instanceof Error && e.message ? e.message : "Não foi possível reenviar o aviso." };
   }
 }
 
