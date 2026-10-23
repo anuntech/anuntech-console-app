@@ -72,7 +72,8 @@ export async function lac4Checks({ db, rpc, ok, marker, emailSignIn, staff }) {
     };
     const base = { number: `${year}-${seq}`, title: `Portal ${tag}`, companyName: "A", validUntil: "2099-01-01", version: 1, ...content };
     const frozen = await quote(companies.own, 0, { ...base, companyDocument: frozenDocument });
-    const older = await quote(companies.own, 1, { ...base, companyDocument: "" });
+    // Published before the CNPJ was frozen with the proposal: no field at all, as the web reads it (`??`).
+    const older = await quote(companies.own, 1, base);
     const foreign = await quote(companies.other, 2, { ...base, companyDocument: frozenDocument });
 
     let r = await rpc("quotes.get", { id: frozen }, admin);
