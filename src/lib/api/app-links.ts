@@ -9,6 +9,15 @@ export const APP_LINK_PATHS = [
   "/chamados/*",
   "/financeiro",
   "/financeiro/*",
+  "/contratos",
+  "/contratos/*",
+  "/orcamentos",
+  "/orcamentos/*",
+  "/projetos",
+  "/projetos/*",
+  "/produtos",
+  "/produtos/*",
+  "/como-trabalhamos",
 ];
 
 /** apple-app-site-association for a Team ID, or null without one. */

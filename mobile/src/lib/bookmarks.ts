@@ -82,7 +82,8 @@ export function useBookmarkChoices() {
 }
 
 /** Where a whiteboard opens on the web, to draw. */
-export const boardUrl = (id: string) => `${CONSOLE_URL}/bookmarks/${id}/lousa`;
+export const boardPath = (id: string) => `/bookmarks/${id}/lousa`;
+export const boardUrl = (id: string) => `${CONSOLE_URL}${boardPath(id)}`;
 
 /** Opens what a bookmark points at: a link in the browser, a file in the share sheet, a board full screen. */
 export async function openBookmark(item: Bookmark) {
