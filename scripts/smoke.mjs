@@ -262,6 +262,9 @@ try {
     "update console_user set phone_number=$1,phone_number_verified=true where id=$2",
     ["+5511999990001", people.admin.id],
   );
+  // Another server on this port would answer instead of ours (unknown sessions, wrong data).
+  const taken = await fetch(base, { redirect: "manual" }).then(() => true, () => false);
+  assert.ok(!taken, `A porta ${port} já está em uso: feche o outro servidor ou use CONSOLE_TEST_HTTP_PORT.`);
   server = spawn(
     process.execPath,
     [
