@@ -43,13 +43,13 @@ const statusLook: Record<string, { tone: ToneName; icon: SFSymbol }> = {
   done: { tone: "good", icon: "checkmark.circle.fill" },
 };
 
-function open(file: { href: string; name: string }) {
-  void openAttachment(file.href, file.name).catch(() =>
+function open(file: { href: string; name: string; mime?: string | null }) {
+  void openAttachment(file.href, file.name, file.mime).catch(() =>
     Alert.alert("Não foi possível abrir o anexo", "Confira a internet e tente de novo."),
   );
 }
 
-/** A file in a list: tapping downloads it and opens the share sheet. */
+/** A file in a list: tapping opens a photo in the viewer, anything else in the share sheet. */
 function FileRow({ file, onRemove }: { file: { name: string; size: number; mime: string; href: string }; onRemove?: () => void }) {
   const palette = usePalette();
   return (

@@ -1,10 +1,11 @@
-import { useRef, useState, type ComponentRef } from "react";
+import { Fragment, useRef, useState, type ComponentRef } from "react";
 import { AccessibilityInfo, Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, { LayoutAnimationConfig, useReducedMotion } from "react-native-reanimated";
 import { router, useLocalSearchParams } from "expo-router";
 import { SymbolView } from "@/components/symbol";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AttachmentError, uploadIds, uploading, useAttachments, type Attachment as Picked } from "@/components/attachment-field";
+import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/button";
 import { Composer } from "@/components/composer";
 import { DictationStatus, MicButton } from "@/components/dictation";
@@ -16,36 +17,65 @@ import { Card, Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { api, errorMessage } from "@/lib/api";
 import { appendTranscript, useDictation } from "@/lib/dictation";
-import { openAttachment } from "@/lib/files";
+import { isViewableImage, openAttachment } from "@/lib/files";
 import { fileSize, when } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { useKeyboardVisible, useBottomBarSpace } from "@/lib/layout";
+import { useMe } from "@/lib/me";
 import { enterUp } from "@/lib/motion";
 import { ticketLook } from "@/lib/status";
 import { fonts, rounded, space, usePalette } from "@/lib/theme";
+import { dayKey, dayLabel } from "@/lib/thread-days";
 
 type Detail = Awaited<ReturnType<typeof api.tickets.get>>;
 type Entry = Detail["entries"][number];
+type FileEntry = Extract<Entry, { kind: "file" }>;
 
 /** Messages from the same side less than this apart read as one group. */
 const GROUP_MS = 15 * 60 * 1000;
 const AVATAR = 28;
 
-/** Who sent each entry, which side it sits on and whether it starts a group. */
-function thread(entries: Entry[]) {
+/**
+ * Who sent each entry, which side it sits on, whether it starts a group and,
+ * for the first entry of each day, the day's separator ("Hoje", "Ontem",
+ * "20 de outubro"), as the web's thread.
+ */
+function thread(entries: Entry[], now: Date) {
   // Files carry no "mine" flag: they are mine when my messages have the same author.
   const me = new Set(entries.filter((e) => e.kind === "message" && e.mine).map((e) => e.author));
   return entries.map((entry, i) => {
     const mine = entry.kind === "message" ? entry.mine : me.has(entry.author);
     const prev = entries[i - 1];
     const prevMine = prev ? (prev.kind === "message" ? prev.mine : me.has(prev.author)) : null;
+    const day = !prev || dayKey(prev.createdAt) !== dayKey(entry.createdAt) ? dayLabel(entry.createdAt, now) : null;
     const first =
       !prev ||
+      !!day ||
       prevMine !== mine ||
       prev.author !== entry.author ||
       new Date(entry.createdAt).getTime() - new Date(prev.createdAt).getTime() > GROUP_MS;
-    return { entry, mine, first };
+    return { entry, mine, first, day };
   });
+}
+
+/** The day between two parts of the conversation, between hairlines. */
+function DaySeparator({ label, first }: { label: string; first: boolean }) {
+  const palette = usePalette();
+  const line = { flex: 1, height: 1, backgroundColor: palette.separator };
+  return (
+    <View
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel={label}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.md, marginTop: first ? 0 : space.lg, marginBottom: space.md }}
+    >
+      <View style={line} />
+      <Text variant="caption" tone="muted" style={{ fontFamily: fonts.semibold }}>
+        {label}
+      </Text>
+      <View style={line} />
+    </View>
+  );
 }
 
 function initials(name: string) {
@@ -53,18 +83,49 @@ function initials(name: string) {
   return ((words[0]?.[0] ?? "") + (words.length > 1 ? (words[words.length - 1]?.[0] ?? "") : "")).toUpperCase();
 }
 
-/** The Anuntech monogram next to the team's messages (one of the three yellow marks). */
-function Monogram() {
+/** Whoever wrote, beside the group: their photo or illustration, else initials (the team's on violet, as the web). */
+function Face({ entry }: { entry: Entry }) {
+  return <Avatar avatar={entry.kind === "message" ? entry.avatar : null} name={entry.author} size={AVATAR} tone={entry.staff ? "staff" : "default"} />;
+}
+
+/** Opens a file of the conversation: a photo in the viewer, anything else in the share sheet. */
+function openFile(entry: FileEntry) {
+  void openAttachment(entry.href, entry.name, entry.mime).catch(() =>
+    Alert.alert("Não foi possível abrir o anexo", "Confira a internet e tente de novo."),
+  );
+}
+
+/** Every file of the conversation in one list, as the web's "Anexos" card. */
+function FilesSection({ files }: { files: FileEntry[] }) {
   const palette = usePalette();
   return (
-    <View
-      accessible={false}
-      style={{ width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, backgroundColor: palette.brand, alignItems: "center", justifyContent: "center" }}
-    >
-      <Text maxFontSizeMultiplier={1} style={{ fontFamily: fonts.bold, fontSize: 13, lineHeight: 16, color: palette.onBrand }}>
-        A
-      </Text>
-    </View>
+    <Section header={`Anexos · ${files.length}`} indent={60}>
+      {files.map((file) => {
+        const image = isViewableImage(file.name, file.mime);
+        const detail = `${fileSize(file.size)} · ${when(file.createdAt)}`;
+        return (
+          <ListRow
+            key={file.id}
+            leading={
+              <View style={{ width: 32, height: 32, ...rounded(8), backgroundColor: palette.accent, alignItems: "center", justifyContent: "center" }}>
+                <SymbolView name={file.mime?.startsWith("image/") ? "photo" : "doc.fill"} size={16} tintColor={palette.primary} accessible={false} />
+              </View>
+            }
+            title={
+              <Text numberOfLines={1} variant="label">
+                {file.name}
+              </Text>
+            }
+            subtitle={detail}
+            meta={file.author}
+            accessibilityLabel={`Anexo ${file.name}, ${detail}, de ${file.author}`}
+            accessibilityHint={image ? "Abre a imagem" : "Baixa e abre o arquivo"}
+            onPress={() => openFile(file)}
+            trailing={<SymbolView name="arrow.down.circle" size={18} tintColor={palette.primary} accessible={false} />}
+          />
+        );
+      })}
+    </Section>
   );
 }
 
@@ -89,19 +150,16 @@ function AuthorLine({ entry, mine }: { entry: Entry; mine: boolean }) {
   );
 }
 
-/** A file in the thread: tapping downloads it and opens the share sheet. */
-function Attachment({ entry, mine }: { entry: Extract<Entry, { kind: "file" }>; mine: boolean }) {
+/** A file in the thread: a photo opens in the viewer, anything else in the share sheet. */
+function Attachment({ entry, mine }: { entry: FileEntry; mine: boolean }) {
   const palette = usePalette();
   const image = !!entry.mime?.startsWith("image/");
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Anexo ${entry.name}, ${fileSize(entry.size)}`}
-      onPress={() =>
-        void openAttachment(entry.href, entry.name).catch(() =>
-          Alert.alert("Não foi possível abrir o anexo", "Confira a internet e tente de novo."),
-        )
-      }
+      accessibilityHint={isViewableImage(entry.name, entry.mime) ? "Abre a imagem" : "Baixa e abre o arquivo"}
+      onPress={() => openFile(entry)}
       style={({ pressed }) => ({
         maxWidth: "80%",
         minHeight: 56,
@@ -214,6 +272,7 @@ export default function Ticket() {
   const reduceMotion = useReducedMotion();
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const me = useMe();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   // The closed notice sits where the composer would: above the floating tab bar.
   const tabBar = useBottomBarSpace();
@@ -258,6 +317,9 @@ export default function Ticket() {
     reply.mutate();
   };
   const marked = t && (t.priority === "high" || t.priority === "critical");
+  const sharedFiles = t ? t.entries.filter((entry): entry is FileEntry => entry.kind === "file") : [];
+  // The day separators read against the moment the data arrived.
+  const now = new Date(ticket.dataUpdatedAt);
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: palette.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView
@@ -304,10 +366,15 @@ export default function Ticket() {
                 </View>
               ) : null}
             </View>
-            {t.waitingFor ? (
-              <Notice kind="warning" title="A equipe precisa de você">
-                {t.waitingFor}
-              </Notice>
+            {/* Whenever the ticket waits for the client, with what is missing when the team wrote it (the web's WaitingNotice). */}
+            {t.status === "waiting_customer" ? (
+              t.waitingFor ? (
+                <Notice kind="warning" title={me.data?.staff ? "Aguardando o cliente" : "A equipe precisa de você para continuar"}>
+                  {t.waitingFor}
+                </Notice>
+              ) : (
+                <Notice kind="warning">{me.data?.staff ? "Aguardando o cliente" : "A equipe precisa de você para continuar"}</Notice>
+              )
             ) : null}
             {t.estimate ? <EstimateCard ticketId={t.id} estimate={t.estimate} /> : null}
             {t.clock ? (
@@ -325,14 +392,15 @@ export default function Ticket() {
               <Fact label="Aberto em" value={when(t.createdAt)} />
               <Fact label="Última atividade" value={when(t.updatedAt)} />
             </Section>
+            {sharedFiles.length > 0 ? <FilesSection files={sharedFiles} /> : null}
             {/* Only messages that arrive after the screen opens slide in. */}
             <LayoutAnimationConfig skipEntering>
               <View>
-                {thread(t.entries).map(({ entry, mine, first }, i) => {
-                  const spacing = { marginTop: i === 0 ? 0 : first ? space.lg : space.xs, gap: space.xs };
+                {thread(t.entries, now).map(({ entry, mine, first, day }, i) => {
+                  const spacing = { marginTop: day || i === 0 ? 0 : first ? space.lg : space.xs, gap: space.xs };
                   const side = (
                     <View style={{ flexDirection: "row", gap: space.sm, justifyContent: mine ? "flex-end" : "flex-start" }}>
-                      {mine ? null : first && entry.staff ? <Monogram /> : <View style={{ width: AVATAR }} />}
+                      {mine ? null : first ? <Face entry={entry} /> : <View style={{ width: AVATAR }} />}
                       {entry.kind === "message" ? (
                         <View
                           style={{
@@ -353,9 +421,8 @@ export default function Ticket() {
                       )}
                     </View>
                   );
-                  return entry.kind === "message" ? (
+                  const item = entry.kind === "message" ? (
                     <Animated.View
-                      key={`m-${entry.id}`}
                       entering={enterUp}
                       accessible
                       accessibilityLabel={`${mine ? "Você" : entry.author}, ${when(entry.createdAt)}: ${entry.body}`}
@@ -365,10 +432,16 @@ export default function Ticket() {
                       {side}
                     </Animated.View>
                   ) : (
-                    <Animated.View key={`f-${entry.id}`} entering={enterUp} style={spacing}>
+                    <Animated.View entering={enterUp} style={spacing}>
                       {first ? <AuthorLine entry={entry} mine={mine} /> : null}
                       {side}
                     </Animated.View>
+                  );
+                  return (
+                    <Fragment key={`${entry.kind}-${entry.id}`}>
+                      {day ? <DaySeparator label={day} first={i === 0} /> : null}
+                      {item}
+                    </Fragment>
                   );
                 })}
               </View>

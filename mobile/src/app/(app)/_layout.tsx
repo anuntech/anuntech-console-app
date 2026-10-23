@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { NativeTabs } from "expo-router/native-tabs";
 import { useQuery } from "@tanstack/react-query";
+import { ImageViewer } from "@/components/image-viewer";
 import { api } from "@/lib/api";
 import { AppLock, useUnlocked } from "@/lib/lock";
 import { useNotificationTaps } from "@/lib/push";
@@ -70,6 +71,8 @@ export default function AppLayout() {
         </NativeTabs.Trigger>
       </NativeTabs>
       <NotificationTaps />
+      {/* Photos attached anywhere open here, over the tabs. */}
+      <ImageViewer />
     </AppLock>
   );
 }
