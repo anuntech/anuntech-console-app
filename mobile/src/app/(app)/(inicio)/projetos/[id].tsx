@@ -346,9 +346,12 @@ export default function Project() {
               <Text variant="title" accessibilityRole="header">
                 {p.name}
               </Text>
-              <Text variant="subhead" tone="muted">
-                {p.company}
-              </Text>
+              {/* Whose board it is, only for who sees more than one company (older servers send no showCompany). */}
+              {p.showCompany !== false ? (
+                <Text variant="subhead" tone="muted">
+                  {p.company}
+                </Text>
+              ) : null}
             </View>
             <Progress columns={p.columns} />
             <Section indent={60}>

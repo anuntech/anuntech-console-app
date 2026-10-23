@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { contractChangeRequests, contracts as contractTable, engagements, quotes as quoteTable } from "@/db/schema";
 import { db } from "../../db";
 import { decisionEvidence, partyFor } from "../../access/client-decision";
+import { companyDisplayName } from "../../companies/display-name";
 import { saoPauloDate } from "../../dates";
 import { contractKindLabels, contractQuery, contractStatusLabels, contractTerm, contractTermLabel } from "../../contracts/contract-table";
 import { listContracts } from "../../contracts/contract-list";
@@ -29,6 +30,8 @@ import { guard, missing } from "../access";
 import { answer, refuse } from "../managed-company";
 
 const label = (labels: Record<string, string>, value: string) => labels[value] ?? value;
+/** The web's contract and quote pages: a client with one company is not named back to itself. */
+const namesCompany = (actor: { admin: boolean; grants: unknown[] }) => actor.admin || actor.grants.length > 1;
 const pageParams = (page: number) => ({ page: String(page) });
 /** "Válido por 12 dias" while a proposal waits (the web's validityText); null otherwise. */
 const validityLabel = (status: string, validUntil: string | null, today: string) => {
@@ -70,7 +73,7 @@ export const contracts = {
         rows: result.list.map((row) => ({
           id: row.id,
           title: row.title,
-          company: row.company,
+          company: companyDisplayName(row.company, row.companyDocument),
           status: row.status,
           statusLabel: label(contractStatusLabels, row.status),
           kind: row.kind,
@@ -110,7 +113,10 @@ export const contracts = {
       return {
         id: c.id,
         title: text.title,
+        // The razão social, as the text and the signatures carry it; the header reads companyName.
         company: row.company.name,
+        companyName: companyDisplayName(row.company.name, row.company.document),
+        showCompany: namesCompany(context.actor),
         engagement: row.engagement,
         status: c.status,
         statusLabel: label(contractStatusLabels, c.status),
@@ -205,7 +211,7 @@ export const quotes = {
             id: row.id,
             number: row.number,
             title: row.title,
-            company: row.company,
+            company: companyDisplayName(row.company, row.companyDocument),
             status: row.status,
             // A proposal waiting past its date reads as expired, as the web's badge.
             statusLabel: expired ? "Expirado" : label(quoteStatusLabels, row.status),
@@ -242,7 +248,10 @@ export const quotes = {
         id: q.id,
         number: frozen?.number ?? quoteNumberLabel(q.year, q.seq),
         title: frozen?.title ?? q.title,
+        // The razão social the proposal was sent to (its text and PDF); the header and "por …" read companyName.
         company: frozen?.companyName ?? row.company.name,
+        companyName: companyDisplayName(frozen?.companyName ?? row.company.name, frozen?.companyDocument ?? row.company.document),
+        showCompany: namesCompany(context.actor),
         status: q.status,
         statusLabel: label(quoteStatusLabels, q.status),
         updatedAt: q.updatedAt.toISOString(),

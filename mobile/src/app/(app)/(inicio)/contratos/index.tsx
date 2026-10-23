@@ -1,5 +1,5 @@
 import { useDeferredValue, useRef, useState } from "react";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import type { SearchBarCommands } from "react-native-screens";
 import { FilterChips } from "@/components/filter-chips";
 import { PagedList } from "@/components/paged-list";
@@ -26,9 +26,21 @@ function termLine(row: Row) {
   return null;
 }
 
-/** The company's contracts that went out, by situation and with a search (contracts.list). */
+const isStatus = (value: unknown): value is Status => filters.some((f) => f.value === value);
+
+/**
+ * The company's contracts that went out, by situation and with a search (contracts.list).
+ * `/contratos?status=sent` opens on "Aguardando assinatura" (Início's "Contratos para você assinar").
+ */
 export default function Contracts() {
-  const [status, setStatus] = useState<Status>("all");
+  const params = useLocalSearchParams<{ status?: string }>();
+  const [status, setStatus] = useState<Status>(isStatus(params.status) ? params.status : "all");
+  // A new link picks its situation even with the list already open.
+  const [linked, setLinked] = useState(params.status);
+  if (params.status !== linked) {
+    setLinked(params.status);
+    if (isStatus(params.status)) setStatus(params.status);
+  }
   const [search, setSearch] = useState("");
   const query = useDeferredValue(search.trim());
   const searchBar = useRef<SearchBarCommands>(null);

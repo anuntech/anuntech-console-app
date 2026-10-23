@@ -198,7 +198,10 @@ export default function Quote() {
       title={`${q.status === "accepted" ? "Aceito" : "Recusado"} por ${q.decision.name}`}
     >
       {[
-        `${q.decision.party === "client" ? `por ${q.company}` : "registrado pela Anuntech a pedido do cliente"} · ${when(q.decision.at)}`,
+        // "por <empresa>" only for who has more than one, as the web.
+        [q.decision.party === "client" ? (q.showCompany === false ? null : `por ${q.companyName ?? q.company}`) : "registrado pela Anuntech a pedido do cliente", when(q.decision.at)]
+          .filter(Boolean)
+          .join(" · "),
         q.decision.note ? `“${q.decision.note}”` : null,
       ]
         .filter(Boolean)
@@ -259,7 +262,7 @@ export default function Quote() {
               {q.title}
             </Text>
             <Text variant="subhead" tone="muted">
-              {q.number} · {q.company}
+              {[q.number, q.showCompany === false ? null : (q.companyName ?? q.company)].filter(Boolean).join(" · ")}
             </Text>
             {documentLine(q.companyDocument) ? (
               <Text variant="caption" tone="muted" selectable>

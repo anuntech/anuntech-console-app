@@ -56,7 +56,8 @@ export const products = {
     .use(guard({ self: true }))
     .handler(async ({ input, context }) => {
       const { actor } = context;
-      const query = projectListQuery({ status: input.status, q: input.search, page: String(input.page) });
+      // listProducts drops a company the person does not reach, as /produtos?company= on the web.
+      const query = projectListQuery({ status: input.status, q: input.search, company: input.company, page: String(input.page) });
       const list = await listProducts(actor, query);
       const apps = protectedApps();
       return {
@@ -72,6 +73,9 @@ export const products = {
         showCompany: list.showCompany,
         showStatusFilter: actor.admin || (list.inactive ?? 0) > 0,
         suspended: suspensionNotice(list.suspended),
+        // "Só desta empresa" after a search, and the company the list is narrowed to (display names).
+        shortcuts: list.shortcuts,
+        companyFilter: list.companyFilter,
       };
     }),
   get: api.products.get

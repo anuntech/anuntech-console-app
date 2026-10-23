@@ -1,5 +1,5 @@
 import { useDeferredValue, useRef, useState } from "react";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import type { SearchBarCommands } from "react-native-screens";
 import { FilterChips } from "@/components/filter-chips";
 import { PagedList } from "@/components/paged-list";
@@ -28,12 +28,24 @@ const hoursLabel = (min: number, max: number) => (min === max ? `${max}h` : `${m
 /** A client asks for a quote with a ticket of its own kind ("App ou projeto novo"), as the web's "Pedir orçamento". */
 const askForQuote = () => router.push({ pathname: "/chamados/novo", params: { kind: "new_project" } });
 
-/** The company's quotes, with the figures that were sent, by situation and with a search (quotes.list). */
+const isStatus = (value: unknown): value is Status => filters.some((f) => f.value === value);
+
+/**
+ * The company's quotes, with the figures that were sent, by situation and with a search (quotes.list).
+ * `/orcamentos?status=sent` opens on "Aguardando resposta" (Início's "Orçamentos para você responder").
+ */
 export default function Quotes() {
   const me = useMe();
   // The team makes quotes on the web; the button is the client's.
   const canAsk = !!me.data && !me.data.staff;
-  const [status, setStatus] = useState<Status>("all");
+  const params = useLocalSearchParams<{ status?: string }>();
+  const [status, setStatus] = useState<Status>(isStatus(params.status) ? params.status : "all");
+  // A new link picks its situation even with the list already open.
+  const [linked, setLinked] = useState(params.status);
+  if (params.status !== linked) {
+    setLinked(params.status);
+    if (isStatus(params.status)) setStatus(params.status);
+  }
   const [search, setSearch] = useState("");
   const query = useDeferredValue(search.trim());
   const searchBar = useRef<SearchBarCommands>(null);

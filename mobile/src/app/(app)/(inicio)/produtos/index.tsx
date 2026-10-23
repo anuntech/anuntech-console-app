@@ -1,7 +1,9 @@
-import { useDeferredValue, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, View } from "react-native";
-import { Stack } from "expo-router";
+import { useDeferredValue, useRef, useState } from "react";
+import { ActivityIndicator, FlatList, RefreshControl, ScrollView, View } from "react-native";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
+import type { SearchBarCommands } from "react-native-screens";
+import { Chip } from "@/components/chip";
 import { EmptyState } from "@/components/empty-state";
 import { ListRow } from "@/components/list-row";
 import { Pill } from "@/components/pill";
@@ -14,6 +16,7 @@ import { SuspensionCard } from "@/components/suspension-card";
 import { Text } from "@/components/text";
 import { api, errorMessage } from "@/lib/api";
 import { civilDate, money } from "@/lib/format";
+import { companyParam } from "@/lib/list-filters";
 import { useTabBarSpace } from "@/lib/layout";
 import { engagementTone, intervalSuffix } from "@/lib/products";
 import { openProduct } from "@/lib/product-open";
@@ -39,17 +42,22 @@ function lineOf(row: Row) {
  * Produtos e serviços (products.list): what each company has with Anuntech,
  * with the situation filter when something is paused or closed, the header's
  * search, the suspension notice and, for Administradores, price and due date.
+ * With several companies, a search offers "Só desta empresa" (the web's
+ * shortcuts) and the chosen company stays as a chip until it is removed.
  * A service opens its screen; a product its app or its link.
  */
 export default function Products() {
   const palette = usePalette();
   const bottom = useTabBarSpace();
+  const searchBar = useRef<SearchBarCommands>(null);
+  const params = useLocalSearchParams<{ company?: string }>();
   const [status, setStatus] = useState<Status>("active");
+  const [company, setCompany] = useState(companyParam(params.company));
   const [search, setSearch] = useState("");
   const deferred = useDeferredValue(search.trim());
   const list = useInfiniteQuery({
-    queryKey: ["products", status, deferred],
-    queryFn: ({ pageParam }) => api.products.list({ status, search: deferred, page: pageParam }),
+    queryKey: ["products", status, deferred, company],
+    queryFn: ({ pageParam }) => api.products.list({ status, search: deferred, company, page: pageParam }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page < last.pageCount ? last.page + 1 : undefined),
     placeholderData: keepPreviousData,
@@ -58,11 +66,20 @@ export default function Products() {
   const first = list.data?.pages[0];
   const rows = list.data?.pages.flatMap((page) => page.rows) ?? [];
   const showFilter = !!first?.showStatusFilter || status !== "active";
+  const shortcuts = first?.shortcuts ?? [];
+  const chosen = company && first?.companyFilter?.id === company ? first.companyFilter : null;
+  /** "Só desta empresa": the list narrows to it and the search clears, as the web's shortcut. */
+  const only = (id: string) => {
+    searchBar.current?.clearText();
+    setSearch("");
+    setCompany(id);
+  };
   return (
     <>
       <Stack.Screen
         options={{
           headerSearchBarOptions: {
+            ref: searchBar,
             placeholder: first?.showCompany ? "Buscar por nome ou empresa" : "Buscar por nome",
             hideWhenScrolling: false,
             onChangeText: (e) => setSearch(e.nativeEvent.text),
@@ -80,8 +97,30 @@ export default function Products() {
         onEndReached={() => list.hasNextPage && !list.isFetchingNextPage && void list.fetchNextPage()}
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
-          first?.suspended || showFilter || list.error ? (
+          first?.suspended || showFilter || list.error || chosen || shortcuts.length ? (
             <View style={{ gap: space.lg, paddingHorizontal: space.gutter, marginBottom: space.lg }}>
+              {chosen || shortcuts.length ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  accessibilityLabel="Empresa"
+                  style={{ marginHorizontal: -space.gutter }}
+                  contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.gutter, paddingVertical: 4, alignItems: "center" }}
+                >
+                  {chosen ? (
+                    <Chip label={chosen.name} group="Empresa. Toque para ver todas" selected onPress={() => setCompany("")} />
+                  ) : (
+                    <>
+                      <Text variant="caption" tone="muted">
+                        Só desta empresa:
+                      </Text>
+                      {shortcuts.map((c) => (
+                        <Chip key={c.id} label={c.name} group="Só desta empresa" selected={false} onPress={() => only(c.id)} />
+                      ))}
+                    </>
+                  )}
+                </ScrollView>
+              ) : null}
               {first?.suspended ? <SuspensionCard notice={first.suspended} /> : null}
               {showFilter ? (
                 <Segmented
@@ -98,8 +137,13 @@ export default function Products() {
         ListEmptyComponent={
           list.isPending ? (
             loading ? <SkeletonRows /> : undefined
-          ) : list.error ? undefined : deferred ? (
-            <EmptyState icon="magnifyingglass" title="Nada encontrado" text="Tente outra palavra." />
+          ) : list.error ? undefined : deferred || company ? (
+            <EmptyState
+              icon="magnifyingglass"
+              title="Nada encontrado"
+              text={company ? "Nada desta empresa nesta situação." : "Tente outra palavra."}
+              action={company ? { label: "Ver todas as empresas", onPress: () => setCompany("") } : undefined}
+            />
           ) : (
             <EmptyState icon="shippingbox" title="Nenhum produto ou serviço" text="Os produtos e serviços contratados aparecem aqui." />
           )
@@ -111,7 +155,7 @@ export default function Products() {
         renderItem={({ item, index }) => {
           const price = item.money?.amountCents != null ? `${money(item.money.amountCents)}${intervalSuffix(item.money.interval)}` : undefined;
           const due = item.money?.nextDueDate ? `Vence em ${civilDate(item.money.nextDueDate)}` : null;
-          const meta = [first?.showCompany ? item.company : null, due].filter(Boolean).join(" · ");
+          const meta = [first?.showCompany && !company ? item.company : null, due].filter(Boolean).join(" · ");
           const opens = item.opensAs !== "none" || item.status === "suspended";
           return (
             <View style={[groupedItem(palette, index, rows.length), { opacity: list.isPlaceholderData ? 0.6 : 1 }]}>

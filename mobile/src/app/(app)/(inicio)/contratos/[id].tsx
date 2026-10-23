@@ -343,7 +343,7 @@ export default function Contract() {
               {c.title}
             </Text>
             <Text variant="subhead" tone="muted">
-              {[c.kindLabel, c.company, c.engagement].filter(Boolean).join(" · ")}
+              {[c.kindLabel, c.showCompany === false ? null : (c.companyName ?? c.company), c.engagement].filter(Boolean).join(" · ")}
             </Text>
           </View>
           {c.parent ? (

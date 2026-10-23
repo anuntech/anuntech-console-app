@@ -160,10 +160,10 @@ Legenda: ❌ falta · 🟡 parcial · ⚠️ diferente · 🐞 defeito. **OTA** 
 ### 3. Falta no app
 
 - [x] **L8** ❌ **Atividade** em Minha conta: o calendário do último ano (web, commit 69b5b83). Procedimento `profile.activity` com `guard({ self: true })` sobre `accountActivity` + cartão em grade. Servidor + OTA.
-- [ ] **L9** ⚠️ Nome da empresa como se lê (sem número do MEI, sem LTDA, sem caixa alta) em chamados, Conta, Início, Financeiro, Projetos, Contratos e Orçamentos: `companyDisplayName` no servidor (mesmo campo, só muda o texto). E só mostrar a empresa a quem tem mais de uma (detalhe do chamado, quadro do projeto, cabeçalho de contrato e orçamento, "respondido por"). Servidor + OTA.
-- [ ] **L10** ⚠️ Início: "Orçamentos para responder" e "Contratos para assinar" abrem a lista em "Todas"; a web abre em "Aguardando". OTA.
-- [ ] **L11** 🟡 Financeiro: período "Personalizado" (de/até). `period: "custom"` + `from`/`to` opcionais em `finance.list`. Servidor + OTA.
-- [ ] **L12** ❌ Filtro por empresa (quem tem várias): Financeiro, Chamados (o assistente manda `?company=`) e atalhos "Só desta empresa" em Produtos. Campos opcionais na API + chips. Servidor + OTA.
+- [x] **L9** ⚠️ Nome da empresa como se lê (sem número do MEI, sem LTDA, sem caixa alta) em chamados, Conta, Início, Financeiro, Projetos, Contratos e Orçamentos: `companyDisplayName` no servidor (mesmo campo, só muda o texto). E só mostrar a empresa a quem tem mais de uma (detalhe do chamado, quadro do projeto, cabeçalho de contrato e orçamento, "respondido por"). Servidor + OTA.
+- [x] **L10** ⚠️ Início: "Orçamentos para responder" e "Contratos para assinar" abrem a lista em "Todas"; a web abre em "Aguardando". OTA.
+- [x] **L11** 🟡 Financeiro: período "Personalizado" (de/até). `period: "custom"` + `from`/`to` opcionais em `finance.list`. Servidor + OTA.
+- [x] **L12** ❌ Filtro por empresa (quem tem várias): Financeiro, Chamados (o assistente manda `?company=`) e atalhos "Só desta empresa" em Produtos. Campos opcionais na API + chips. Servidor + OTA.
 - [x] **L13** 🟡 Orçamento: o documento completo da proposta (resumo por fase com horas, subtotal, quadro "Xh × R$/h com desconto", rodapé "preparada pela Anuntech… válida até", CNPJ). Entrada e Saldo também com 0% de entrada, como na web. "Limpar filtros" limpa a busca em orçamentos e contratos. "Atualizado há…" na lista. OTA (CNPJ: campo novo opcional).
 - [x] **L14** ⚠️ Contrato: texto proposto como diferença palavra a palavra (riscado/inserido); partes "Cliente" e "Anuntech" em vez de "Contratante" e "Contratada". OTA.
 - [x] **L15** Projetos: "Pedir orçamento" na lista vazia de ativos (❌); etiquetas com cor (⚠️); reordenar dentro da coluna com "Mover para cima / para baixo / para o topo" (🟡, `afterId` opcional em `projects.moveTask`). Servidor + OTA.
