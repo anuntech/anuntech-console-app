@@ -573,7 +573,9 @@ export default async function Preview({
               status: "delivered",
               error: null,
               createdAt: ago(24 * 4),
+              recipient: "financeiro@maxipark.com.br",
               resendable: false,
+              again: invoiceStatus === "issued",
             },
             {
               id: "n2",
@@ -582,7 +584,9 @@ export default async function Preview({
               status: "failed",
               error: "Número sem WhatsApp ativo.",
               createdAt: ago(24 * 4),
+              recipient: "5511987654321",
               resendable: invoiceStatus === "issued",
+              again: false,
             },
           ],
     contacts: {

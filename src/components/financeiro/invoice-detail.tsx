@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState, type FocusEvent, type ReactNode } from "react";
 import {
   BanIcon,
@@ -52,7 +53,7 @@ import {
   changePaymentLink,
   changeSubscription,
   resendBillingNotice,
-  resendInvoice,
+  resendNoticeAgain,
   sendInvoiceNotice,
 } from "@/lib/billing/billing-public-actions";
 import {
@@ -149,7 +150,12 @@ export type InvoiceDetailData = {
     status: string;
     error: string | null;
     createdAt: string;
+    /** The e-mail or phone it went to; empty when there was no contact. */
+    recipient: string;
+    /** Failed: requeue it as it was (resendBillingNotice). */
     resendable: boolean;
+    /** Delivered: send it again to the same contact (resendNoticeAgain). */
+    again: boolean;
   }[];
   contacts: {
     email: string;
@@ -372,7 +378,10 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
   >(null);
   const [send, setSend] = useState<null | "email" | "whatsapp">(null);
   const [resend, setResend] = useState<string | null>(null);
-  const [resending, setResending] = useState(false);
+  const [again, setAgain] = useState<string | null>(null);
+  const router = useRouter();
+  // A resend goes out right after the click, in the background: show its result once it settles.
+  const refreshSoon = () => setTimeout(() => router.refresh(), 4000);
   const [allEvents, setAllEvents] = useState(false);
   const ask = (which: "link" | "subscription" | "cancel" | "delete" | "bank") =>
     setTimeout(() => setConfirm(which), 0);
@@ -446,13 +455,6 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
         actions={
           admin && (
             <>
-            {/* Once the first notice went out: the same invoice again, to everyone who receives billing notices. */}
-            {issued && invoice.publicEnabled && notices.length > 0 && (
-              <Button variant="outline" onClick={() => setResending(true)}>
-                <SendIcon />
-                <span className="max-sm:sr-only">Reenviar cobrança</span>
-              </Button>
-            )}
             {hasMenu && (
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
@@ -970,19 +972,23 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
                             {noticeChannelLabels[notice.channel] ?? notice.channel} ·{" "}
                             {noticeKindLabel(notice.kind)}
                           </span>
-                          <span className="block text-xs text-muted-foreground">
+                          <span className="block text-xs break-all text-muted-foreground">
+                            {notice.recipient &&
+                              `${notice.channel === "whatsapp" ? formatPhone(notice.recipient) : notice.recipient} · `}
                             {dateTimeLabel(notice.createdAt)}
                             {notice.error && ` · ${notice.error}`}
                           </span>
                         </span>
                         <NoticeStatusBadge status={notice.status} />
-                        {notice.resendable && (
+                        {(notice.resendable || notice.again) && (
                           <Button
-                            size="xs"
+                            size="icon-sm"
                             variant="outline"
-                            onClick={() => setResend(notice.id)}
+                            aria-label={`Reenviar ${noticeChannelLabels[notice.channel] ?? notice.channel} · ${noticeKindLabel(notice.kind)}`}
+                            title="Reenviar"
+                            onClick={() => (notice.resendable ? setResend(notice.id) : setAgain(notice.id))}
                           >
-                            Reenviar
+                            <SendIcon />
                           </Button>
                         )}
                       </li>
@@ -1365,14 +1371,21 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             onSuccess={() => setSend(null)}
           />
           <ConfirmDialog
-            open={resending}
-            onOpenChange={setResending}
-            action={resendInvoice}
-            fields={{ id: invoice.id }}
-            title="Reenviar a cobrança?"
-            description={`Todos os contatos do financeiro de ${companyName} recebem de novo esta fatura de ${currency(invoice.amountCents)}, com o link de pagamento, pelos canais que o cliente mantém ligados. A mensagem fala da situação de hoje: em aberto, vence hoje ou em atraso.`}
+            open={again !== null}
+            onOpenChange={(open) => !open && setAgain(null)}
+            action={resendNoticeAgain}
+            fields={{ noticeId: again ?? "" }}
+            title="Reenviar este aviso?"
+            description={(() => {
+              const n = notices.find((x) => x.id === again);
+              const to = n ? (n.channel === "whatsapp" ? `o WhatsApp ${formatPhone(n.recipient)}` : n.recipient) : "o mesmo contato";
+              return `A cobrança de ${currency(invoice.amountCents)} vai de novo para ${to}, com o link de pagamento. A mensagem fala da situação de hoje: em aberto, vence hoje ou em atraso.`;
+            })()}
             confirmLabel="Reenviar"
-            onSuccess={() => setResending(false)}
+            onSuccess={() => {
+              setAgain(null);
+              refreshSoon();
+            }}
           />
           <ConfirmDialog
             open={resend !== null}
@@ -1382,7 +1395,10 @@ export function InvoiceDetail({ data }: { data: InvoiceDetailData }) {
             title="Reenviar este aviso?"
             description={`${companyName} recebe novamente o aviso desta fatura. Se o contato foi corrigido nas preferências, o envio também vai para o novo endereço.`}
             confirmLabel="Reenviar"
-            onSuccess={() => setResend(null)}
+            onSuccess={() => {
+              setResend(null);
+              refreshSoon();
+            }}
           />
         </>
       )}
