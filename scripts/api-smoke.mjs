@@ -287,7 +287,7 @@ try {
     }
   };
   const imageOf = async (id) => (await db.query("select image from console_user where id=$1", [id])).rows[0]?.image;
-  const catalog = /^\/brand\/avatars\/avatar-\d{2}\.svg$/;
+  const catalog = /^\/brand\/avatars\/(avatar|marca)-\d{2}\.svg$/;
   let refused = true;
   for (const [path, input] of [
     ["profile.rename", { name: "Sem sessão" }],
@@ -351,7 +351,9 @@ try {
   r = await rpc("profile.avatars", undefined, profile);
   ok(
     r.status === 200 &&
-      r.body.avatars.length === 89 &&
+      // 24 of the brand first, then the 89 illustrations.
+      r.body.avatars.length === 113 &&
+      r.body.avatars[0].image === "/brand/avatars/marca-01.svg" &&
       r.body.avatars.every((a) => catalog.test(a.image) && a.path === a.image && /^#[0-9A-F]{6}$/i.test(a.color)),
     "profile.avatars lists the catalog with each background",
   );

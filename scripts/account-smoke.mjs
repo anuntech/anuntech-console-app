@@ -332,7 +332,7 @@ try {
   });
   ok(
     removed.status === 200 &&
-      /^\/brand\/avatars\/avatar-\d{2}\.svg$/.test(
+      /^\/brand\/avatars\/(avatar|marca)-\d{2}\.svg$/.test(
         JSON.parse(removed.text).image,
       ),
     "Removing a photo assigns a default avatar",
@@ -353,7 +353,7 @@ try {
   });
   ok(
     fresh.status === 200 &&
-      /^\/brand\/avatars\/avatar-\d{2}\.svg$/.test(fresh.body.user?.image),
+      /^\/brand\/avatars\/(avatar|marca)-\d{2}\.svg$/.test(fresh.body.user?.image),
     "Invited user's first login creates an account with a random avatar",
   );
   ok(
