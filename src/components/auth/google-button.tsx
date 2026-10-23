@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth/auth-client";
 import { afterSignIn, withReturnPath } from "@/lib/auth/return-path";
+import { markSignIn } from "@/components/shell/console-opening";
 import { AuthAlert } from "./feedback";
 
 function GoogleMark() {
@@ -52,6 +53,7 @@ export function GoogleButton({ returnTo, className }: { returnTo?: string | null
           if (pending) return;
           setPending(true);
           setError("");
+          markSignIn();
           try {
             const result = await authClient.signIn.social({
               provider: "google",

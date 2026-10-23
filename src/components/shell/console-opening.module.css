@@ -1,0 +1,82 @@
+/* A abertura do Console, igual à do app: tela violeta, símbolo branco. Só aparece quando o script
+ * de console-opening.tsx marca <html data-opening="play"> antes da primeira pintura. */
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: none;
+  place-items: center;
+  background: #6e56ff;
+  fill: #ffffff;
+}
+:global(html[data-opening="play"]) .screen {
+  display: grid;
+  animation: exit 380ms cubic-bezier(0.33, 1, 0.68, 1) 1900ms forwards;
+}
+.splash {
+  display: grid;
+}
+
+.lockup {
+  width: min(72vw, 360px);
+  height: auto;
+  overflow: visible;
+}
+
+/* O símbolo começa sozinho no centro, maior, e desliza para o lugar dele ao lado do nome. */
+.symbol,
+.symbolStill {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  transform: translate(176.3px, 0) scale(1.5);
+}
+.symbol {
+  animation: move 650ms cubic-bezier(0.33, 1, 0.68, 1) 450ms both;
+}
+.symbol rect {
+  animation: wave 250ms ease-in-out both;
+}
+.anun {
+  animation: anun 500ms cubic-bezier(0.33, 1, 0.68, 1) 800ms both;
+}
+.tech {
+  animation: tech 400ms steps(5, end) 1100ms both;
+}
+
+@keyframes move {
+  to {
+    transform: none;
+  }
+}
+@keyframes wave {
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes anun {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+@keyframes tech {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes exit {
+  to {
+    opacity: 0;
+    transform: scale(1.06);
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html[data-opening="play"]) .screen {
+    display: none;
+  }
+}
