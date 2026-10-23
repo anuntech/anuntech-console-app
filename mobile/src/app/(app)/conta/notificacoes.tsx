@@ -15,6 +15,7 @@ import { IconTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
 import { formatPhoneInput, phoneDigits } from "@/lib/br-input";
 import { haptic } from "@/lib/haptics";
+import { openHelp } from "@/lib/help-link";
 import { useTabBarSpace } from "@/lib/layout";
 import { notificationsKey } from "@/lib/manager";
 import { fonts, space, usePalette } from "@/lib/theme";
@@ -129,6 +130,19 @@ function TopicForm({ topic }: { topic: Topic }) {
         <Text variant="subhead" tone="muted">
           {topic.description}
         </Text>
+        {topic.topic === "billing" ? (
+          // Minus the button's own padding, so its icon lines up with the text above.
+          <View style={{ marginLeft: -14 }}>
+            <Button
+              title="Quando cada aviso chega"
+              variant="plain"
+              size="small"
+              icon="questionmark.circle"
+              testID="help-billing-notices"
+              onPress={() => openHelp("avisos-de-cobranca")}
+            />
+          </View>
+        ) : null}
       </View>
 
       <Section header="Receber por">
