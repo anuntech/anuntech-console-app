@@ -1,7 +1,6 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { ActionSheetIOS, ActivityIndicator, Alert, FlatList, Platform, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { router, Stack } from "expo-router";
-import { Image } from "expo-image";
 import { SymbolView } from "@/components/symbol";
 import { keepPreviousData, useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { Avatar } from "@/components/avatar";
@@ -19,7 +18,7 @@ import {
   bookmarksKey,
   deleteNote,
   describe,
-  hostOf,
+  letterTile,
   openBookmark,
   refreshBookmarks,
   type Bookmark,
@@ -36,33 +35,40 @@ import { rounded, space, usePalette } from "@/lib/theme";
 const kindLabels = { link: "Link", file: "Arquivo", board: "Lousa" } as const;
 const openLabels = { link: "Abrir link", file: "Baixar arquivo", board: "Abrir lousa" } as const;
 
-/** The leading tile: the site's icon for links (a link symbol when it has none), a symbol for files and boards. */
+/**
+ * The leading tile, as the web draws it: a link shows its host's letter on a
+ * tone picked by the host (no favicon, so no saved address goes to anyone), a
+ * file and a board their symbol.
+ */
 function BookmarkIcon({ item }: { item: Bookmark }) {
   const palette = usePalette();
-  const host = item.kind === "link" ? hostOf(item.url) : null;
-  const [failed, setFailed] = useState(false);
+  const box = { width: 32, height: 32, ...rounded(8), alignItems: "center", justifyContent: "center" } as const;
+  if (item.kind === "link" && item.url) {
+    const { letter, tone } = letterTile(item.url);
+    // Brand and neutrals only, as the web: green, amber and red mean a state elsewhere.
+    const tones = [
+      { backgroundColor: palette.accent },
+      { backgroundColor: palette.secondary },
+      { backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border },
+    ];
+    return (
+      <View accessible={false} style={{ ...box, ...tones[tone] }}>
+        {/* The tile is fixed in size, so the letter grows only a little with the system text. */}
+        <Text variant="label" tone={tone === 0 ? "primary" : "foreground"} maxFontSizeMultiplier={1.3} style={{ textTransform: "uppercase" }}>
+          {letter}
+        </Text>
+      </View>
+    );
+  }
+  const board = item.kind === "board";
   return (
-    <View
-      accessible={false}
-      style={{ width: 32, height: 32, ...rounded(8), backgroundColor: palette.secondary, alignItems: "center", justifyContent: "center" }}
-    >
-      {host && !failed ? (
-        <Image
-          source={{ uri: `https://icons.duckduckgo.com/ip3/${host}.ico` }}
-          style={{ width: 20, height: 20 }}
-          contentFit="contain"
-          cachePolicy="disk"
-          accessible={false}
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <SymbolView
-          name={item.kind === "file" ? "doc.fill" : item.kind === "board" ? "scribble.variable" : "link"}
-          size={15}
-          tintColor={palette.primary}
-          accessible={false}
-        />
-      )}
+    <View accessible={false} style={{ ...box, backgroundColor: board ? palette.accent : palette.secondary }}>
+      <SymbolView
+        name={board ? "scribble.variable" : item.kind === "file" ? "doc.fill" : "link"}
+        size={15}
+        tintColor={board ? palette.primary : palette.muted}
+        accessible={false}
+      />
     </View>
   );
 }
