@@ -43,7 +43,7 @@ export async function lac5Checks({ db, rpc, ok, marker, emailSignIn, staff }) {
     const id = randomUUID();
     await db.query(
       "insert into console_tasks(id,engagement_id,company_id,title,status,position,requested,created_by) values($1,$2,$3,$4,$5,$6,$7,$8)",
-      [id, engagement, company, title, status, position, extra.requested ?? false, extra.createdBy ?? null],
+      [id, engagement, company, title, status, position, extra.requested ?? false, extra.createdBy ?? people.admin.id],
     );
     return id;
   }
