@@ -60,7 +60,7 @@ export function EditJourneySheet({ data, open, onOpenChange }: { data: JourneyDe
       description="O nome do projeto, quem conduz e o contato enquanto não há cadastro."
       action={updateJourney}
       submitLabel="Salvar"
-      formKey={journey.updatedAt}
+      formKey={journey.id}
     >
       <input type="hidden" name="id" value={journey.id} />
       <FormField label="Projeto" htmlFor="journey-title">
