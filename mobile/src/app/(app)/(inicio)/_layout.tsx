@@ -9,7 +9,7 @@ const sheet = {
 
 /**
  * Início and the areas its shortcuts open (Projetos, Produtos e serviços,
- * Contratos, Orçamentos, Bookmarks). Lists get the large title; a detail screen draws its own name.
+ * Contratos, Orçamentos, Arquivos). Lists get the large title; a detail screen draws its own name.
  */
 export default function HomeLayout() {
   const options = useStackOptions();
@@ -41,7 +41,7 @@ export default function HomeLayout() {
       <Stack.Screen name="contratos/[id]" options={{ title: "" }} />
       <Stack.Screen name="orcamentos/index" options={{ title: "Orçamentos", headerLargeTitle: true }} />
       <Stack.Screen name="orcamentos/[id]" options={{ title: "" }} />
-      <Stack.Screen name="bookmarks/index" options={{ title: "Bookmarks", headerLargeTitle: true }} />
+      <Stack.Screen name="bookmarks/index" options={{ title: "Arquivos", headerLargeTitle: true }} />
       {/* Adding, editing, moving and the folder forms open as sheets; the board opens full size. */}
       <Stack.Screen name="bookmarks/novo" options={{ title: "Novo bookmark", ...sheet }} />
       <Stack.Screen name="bookmarks/[id]/editar" options={{ title: "Editar bookmark", ...sheet }} />

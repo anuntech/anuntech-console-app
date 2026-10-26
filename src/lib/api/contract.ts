@@ -969,11 +969,22 @@ export const contract = {
           pageCount: z.number(),
           /** Where the person can save bookmarks and folders. */
           companies: z.array(z.object({ id: z.string(), name: z.string() })),
+          /** Arquivos keeps files in R2 (files.*, up to 100 GB); false: only the 1 MB of POST /api/v1/bookmarks/arquivo. Page 1 only. */
+          largeFiles: z.boolean().optional(),
+          /**
+           * Used and total bytes per space, as the web's "Espaço usado": each of a client's companies;
+           * for the team, Anuntech's own (companyId null, quota null: no limit) and the company filtered. Page 1 only.
+           */
+          spaces: z.array(z.object({ companyId: z.string().nullable(), used: z.number(), quota: z.number().nullable() })).optional(),
         }),
       ),
     /** One bookmark the person can see, as in the list (editing or moving it without the list loaded). */
     get: oc.input(z.object({ id: z.uuid() })).output(bookmarkItem),
-    /** A link or a blank board (drawn in the Console). A file goes to POST /api/v1/bookmarks/arquivo. */
+    /**
+     * A link, a blank board (drawn in the Console) or, with `kind: "file"`, the
+     * file of a finished `files.*` upload (`uploadId`, taken once). A small file
+     * without R2 goes to POST /api/v1/bookmarks/arquivo.
+     */
     create: oc
       .input(
         z.object({
@@ -981,10 +992,19 @@ export const contract = {
           folderId: z.union([z.uuid(), z.literal("")]).default(""),
           title: z.string().max(400),
           url: z.string().max(2048).default(""),
-          kind: z.enum(["link", "board"]).default("link"),
+          kind: z.enum(["link", "board", "file"]).default("link"),
+          uploadId: z.union([z.uuid(), z.literal("")]).default(""),
         }),
       )
       .output(z.object({ message: z.string(), id: z.string() })),
+    /**
+     * Where to read a file bookmark: for a file in R2, an address signed for five
+     * minutes (`inline` asks the browser to show it instead of saving it); null for
+     * an older file kept in the database, read through `filePath` with the session.
+     */
+    download: oc
+      .input(z.object({ id: z.uuid(), inline: z.boolean().default(false) }))
+      .output(z.object({ url: z.string().nullable(), fileName: z.string(), fileSize: z.number().nullable() })),
     /** Title, link and folder (who saved it or the folder's owner). A file or a board keeps its content. */
     update: oc
       .input(
@@ -1026,6 +1046,37 @@ export const contract = {
     searchPeople: oc
       .input(z.object({ folderId: z.uuid(), query: z.string().max(80) }))
       .output(z.object({ people: z.array(bookmarkPerson) })),
+  },
+  /**
+   * A file's way into Arquivos from the app, as the web's /api/arquivos/envios
+   * (lib/drive/uploads.ts): started here (access, size, quota), sent by the app
+   * straight to R2 in parts through signed addresses, finished here, then named
+   * by `bookmarks.create`. Only who started an upload continues it. Without R2
+   * configured every call answers 503 and the app uses the 1 MB route.
+   */
+  files: {
+    /** `size` in bytes (up to 100 GB). The parts are `partSize` bytes each, the last one smaller. */
+    startUpload: oc
+      .input(
+        z.object({
+          companyId: z.union([z.uuid(), z.literal("")]).default(""),
+          folderId: z.union([z.uuid(), z.literal("")]).default(""),
+          fileName: z.string().max(1000),
+          size: z.number().int().min(0),
+          mime: z.string().max(200).default(""),
+        }),
+      )
+      .output(z.object({ id: z.string(), partSize: z.number(), partCount: z.number() })),
+    /** Addresses to PUT the next parts (up to 100 at a time), valid for an hour. The ETag of each answer goes to `finishUpload`. */
+    signParts: oc
+      .input(z.object({ id: z.uuid(), parts: z.array(z.number().int()).max(100) }))
+      .output(z.object({ parts: z.array(z.object({ partNumber: z.number(), url: z.string() })) })),
+    /** Every part sent: R2 joins them and the size is checked. */
+    finishUpload: oc
+      .input(z.object({ id: z.uuid(), parts: z.array(z.object({ partNumber: z.number().int(), etag: z.string().max(200) })).max(10_000) }))
+      .output(z.object({ id: z.string() })),
+    /** Gives up on an upload: the parts already sent leave R2. */
+    cancelUpload: oc.input(z.object({ id: z.uuid() })).output(z.object({ cancelled: z.boolean() })),
   },
   overview: {
     /** The start screen: what waits for the person and what is due. */

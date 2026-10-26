@@ -189,6 +189,18 @@ Arrastar cartões, lista ou grade, paginação numerada e tamanho de página, ed
 
 Chamados (lista, filtros, abrir completo, responder, estimativa), Financeiro (lista, detalhe, NF, Pix, PDF), assinatura e pedido de alteração de contrato, aceite e versões de orçamento (inclusive a versão nova depois de respondido, 988b65a), Produtos, banco de horas, Ajuda, Como trabalhamos, primeiros passos, Conta (perfil, contatos, segurança, empresa, membros, notificações com vários e-mails e telefones), quadro e tarefas, Bookmarks e pastas. Todos os 77 procedimentos que o app chama existem, e todas as rotas e artigos citados também. O orçamento que fechava o app com a atualização de 22/10 de manhã (tarefas viraram título + descrição) já está corrigido na atualização de paridade.
 
+## Arquivos (26/10)
+
+A web transformou Bookmarks em Arquivos, com arquivos de até 100 GB no R2 (0357a8c). No app:
+
+- [x] **A1** Nome "Arquivos" no título da tela, no Início (bloco e atalho), no estado vazio e nos botões do assistente e de "não encontrado". Rotas e ids continuam `/bookmarks`.
+- [x] **A2** Envio de arquivos grandes direto para o R2, com as regras da web: `files.startUpload`, `files.signParts`, `files.finishUpload` e `files.cancelUpload` chamam o mesmo núcleo das rotas `/api/arquivos/envios` (`lib/drive/uploads.ts`); `bookmarks.create` aceita `kind: "file"` com `uploadId` (usado uma vez só). O app lê o arquivo do disco em partes de 16 MB (`FileHandle`), manda cada parte com `expo/fetch`, tenta cada parte até 3 vezes e conclui com os ETags. Vários arquivos de uma vez ("Enviar arquivos" na lista ou o formulário Novo), dois por vez, com progresso, cancelar e "Enviar de novo". Arquivos (quando o build tem o seletor de documentos), fotos e vídeos da galeria e foto da câmera. Sem R2 configurado, o app segue com o envio antigo de até 1 MB.
+- [x] **A3** "Espaço usado" por empresa na lista (`spaces` e `largeFiles` opcionais em `bookmarks.list`, mesma visibilidade da web), com barra e "N de 5,0 GB", vermelha acima de 90%.
+- [x] **A4** Download: `bookmarks.download` devolve o endereço assinado de 5 minutos depois da mesma checagem de `/api/bookmarks/[id]` (ou null para arquivo antigo no banco). Até 50 MB abre no app como antes; acima disso o app mostra o tamanho e oferece "Abrir no navegador" ou "Baixar".
+- [x] **A5** Testes: `scripts/api-smoke-arquivos-app.mjs` (com o R2 local de `scripts/r2-mock.mjs`) e `tests/mobile-upload-plan.test.ts`.
+- ⚪ Gravar vídeo pela câmera dentro do app: o texto de permissão do microfone fala só de ditado, e mudá-lo pede versão nova nas lojas. Vídeos vêm da galeria.
+- ⚪ Envio em segundo plano: se o app sai da tela o envio pode parar; o app avisa e a pessoa toca em "Enviar de novo" (o envio abandonado expira no Console). Envio em segundo plano de verdade pede módulo nativo.
+
 ---
 
 ## Publicação

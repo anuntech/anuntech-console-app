@@ -9,6 +9,7 @@ import { overview } from "./procedures/overview";
 import { contracts, quotes } from "./procedures/areas";
 import { projects } from "./procedures/projects";
 import { bookmarks } from "./procedures/bookmarks";
+import { files } from "./procedures/files";
 import { profile } from "./procedures/profile";
 import { security } from "./procedures/security";
 import { company } from "./procedures/company";
@@ -20,5 +21,5 @@ import { products } from "./procedures/products";
 import { apps } from "./procedures/apps";
 import { hours } from "./procedures/hours";
 
-export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, overview, devices, profile, security, company, members, notifications, help, guide, products, apps, hours });
+export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, files, overview, devices, profile, security, company, members, notifications, help, guide, products, apps, hours });
 export type Router = typeof router;

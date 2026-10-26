@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, readFileSync, watchFile, writeFileSync } from "n
 import { createHash, randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import pg from "pg";
+import { startR2Mock } from "./r2-mock.mjs";
 
 const args = process.argv.slice(2);
 const container = "console-smoke-pg17";
@@ -171,6 +172,8 @@ if (args.includes("--build") || !existsSync(".next/BUILD_ID")) {
 }
 mkdirSync(dir, { recursive: true });
 writeFileSync(otpFile, "");
+// Arquivos: large files go to a local stand-in for the R2 bucket (scripts/r2-mock.mjs), never the real one.
+const r2 = await startR2Mock();
 const consoleEnv = {
   ...process.env,
   DATABASE_URL: `${server}/${database}`,
@@ -188,6 +191,11 @@ const consoleEnv = {
   FLW_SYNOVA: "test",
   FLW_SENDER_NUMBER: "5511000000000",
   FLW_OTP_TEMPLATE_ID: "test",
+  R2_ENDPOINT: r2.endpoint,
+  R2_ACCOUNT_ID: "",
+  R2_BUCKET: "console-demo",
+  R2_ACCESS_KEY_ID: "test",
+  R2_SECRET_ACCESS_KEY: "test",
 };
 const web = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", port], {
   env: consoleEnv,

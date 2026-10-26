@@ -12,8 +12,9 @@ import { SkeletonRows, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
-import { documentsAvailable } from "@/lib/uploads";
+import { documentsAvailable, type PickedFile } from "@/lib/uploads";
 import { api, errorMessage } from "@/lib/api";
+import { enqueueUploads, pickArquivos } from "@/lib/arquivos";
 import {
   BookmarkFileError,
   pickDocument,
@@ -29,21 +30,38 @@ import { haptic } from "@/lib/haptics";
 import { space } from "@/lib/theme";
 
 type Kind = "link" | "file" | "board";
-const kinds: { value: Kind; label: string; hint: string }[] = [
+const kindsFor = (largeFiles: boolean): { value: Kind; label: string; hint: string }[] => [
   { value: "link", label: "Link", hint: "Um endereço na web." },
-  { value: "file", label: "Arquivo", hint: documentsAvailable ? "Um arquivo ou foto do celular, de até 1 MB." : "Uma foto do celular, de até 1 MB." },
+  {
+    value: "file",
+    label: "Arquivo",
+    hint: largeFiles
+      ? "Qualquer tipo, até 100 GB: arquivos, fotos e vídeos do celular, um ou vários de uma vez."
+      : documentsAvailable
+        ? "Um arquivo ou foto do celular, de até 1 MB."
+        : "Uma foto do celular, de até 1 MB.",
+  },
   { value: "board", label: "Lousa", hint: "Um quadro para desenhar. A lousa abre no Console para desenhar; no celular você vê o desenho." },
 ];
 
-/** Adding a link, a photo as a file, or a blank whiteboard: the web's "Novo bookmark". */
+/**
+ * Adding a link, a file or a blank whiteboard: the web's "Novo bookmark".
+ * With R2 (largeFiles), files of any kind up to 100 GB, several at once, go
+ * to the upload queue and the list shows their progress; without it, one
+ * photo or file of up to 1 MB, as before.
+ */
 export default function NewBookmark() {
-  const params = useLocalSearchParams<{ companyId?: string; folderId?: string }>();
+  const params = useLocalSearchParams<{ companyId?: string; folderId?: string; kind?: string }>();
   const choices = useBookmarkChoices();
   const loading = useDelayed(choices.isPending);
   const companies = choices.data?.companies ?? [];
   const folders = choices.data?.folders ?? [];
+  const largeFiles = !!choices.data?.largeFiles;
+  const kinds = kindsFor(largeFiles);
   const start = params.folderId ? folders.find((f) => f.id === params.folderId) : undefined;
-  const [kind, setKind] = useState<Kind>("link");
+  const [kind, setKind] = useState<Kind>(params.kind === "file" ? "file" : "link");
+  // Large mode: the files picked, each sent on its own.
+  const [files, setFiles] = useState<PickedFile[]>([]);
   const [picked, setCompany] = useState<string>();
   const [folderChoice, setFolder] = useState<string>();
   const [title, setTitle] = useState("");
@@ -59,6 +77,7 @@ export default function NewBookmark() {
   const folderId = folderChoice ?? (start && start.companyId === companyId ? start.id : "");
   const options = folders.filter((f) => f.companyId === companyId);
 
+  const several = largeFiles && kind === "file" && files.length > 1;
   const save = useMutation({
     mutationFn: async () => {
       const fields = { title: title.trim(), companyId: companyId ?? "", folderId };
@@ -81,16 +100,42 @@ export default function NewBookmark() {
       ? "Informe um título."
       : kind === "link" && !url.trim()
         ? "Informe um link ou selecione um arquivo."
-        : kind === "file" && !photo
-          ? "Escolha uma foto para enviar."
-          : null;
+        : kind === "file" && largeFiles && !files.length
+          ? "Escolha um arquivo para enviar."
+          : kind === "file" && !largeFiles && !photo
+            ? "Escolha uma foto para enviar."
+            : null;
   const submit = () => {
     setTried(true);
-    if (missing) {
+    // Several files keep their own names as titles.
+    if (missing && !(several && missing === "Informe um título.")) {
       haptic.error();
       return;
     }
+    if (largeFiles && kind === "file") {
+      // The queue sends them (two at a time) and the list shows how each goes.
+      haptic.select();
+      enqueueUploads(files, { companyId: companyId ?? "", folderId }, title.trim());
+      router.back();
+      return;
+    }
     save.mutate();
+  };
+  const addFiles = async (source: "files" | "library" | "camera") => {
+    setFileError(null);
+    try {
+      const chosen = await pickArquivos(source);
+      if (!chosen.length) return;
+      haptic.select();
+      const next = [...files, ...chosen];
+      setFiles(next);
+      const named = chosen[0].name.replace(/\.[^.]+$/, "");
+      if (next.length === 1 && (!title.trim() || title === fileTitle)) setTitle(named);
+      if (next.length === 1) setFileTitle(named);
+    } catch (failure) {
+      haptic.error();
+      setFileError(failure instanceof BookmarkFileError ? failure.message : "Não foi possível abrir os arquivos. Tente novamente.");
+    }
   };
   const choosePhoto = async (source: "camera" | "library" | "files") => {
     setFileError(null);
@@ -150,6 +195,11 @@ export default function NewBookmark() {
               }}
             />
             <View style={{ paddingHorizontal: space.gutter, gap: space.form }}>
+              {several ? (
+                <Text variant="caption" tone="muted">
+                  Cada arquivo fica com o próprio nome como título.
+                </Text>
+              ) : (
               <Field
                 label="Título"
                 testID="bookmark-title"
@@ -159,6 +209,7 @@ export default function NewBookmark() {
                 maxLength={160}
                 invalid={tried && !title.trim()}
               />
+              )}
               {kind === "link" ? (
                 <Field
                   label="Link"
@@ -175,7 +226,53 @@ export default function NewBookmark() {
                 />
               ) : null}
             </View>
-            {kind === "file" ? (
+            {kind === "file" && largeFiles ? (
+              <View style={{ gap: space.md }}>
+                {files.length ? (
+                  <Section header={files.length > 1 ? `${files.length} arquivos` : "Arquivo"} inset={space.gutter}>
+                    {files.map((file, i) => (
+                      <ListRow
+                        key={`${file.uri}-${i}`}
+                        leading={
+                          <IconTile
+                            icon={file.mime.startsWith("video/") ? "video.fill" : file.mime.startsWith("image/") ? "photo.fill" : "doc.fill"}
+                            color="teal"
+                          />
+                        }
+                        title={file.name}
+                        subtitle={fileSize(file.size)}
+                        value="Remover"
+                        valueTone="destructive"
+                        accessibilityHint="Tirar este arquivo do envio"
+                        onPress={() => {
+                          haptic.light();
+                          const rest = files.filter((_, j) => j !== i);
+                          setFiles(rest);
+                          // Back to one file: its name is the title, unless one was typed.
+                          if (rest.length === 1 && (!title.trim() || title === fileTitle)) {
+                            const named = rest[0].name.replace(/\.[^.]+$/, "");
+                            setTitle(named);
+                            setFileTitle(named);
+                          }
+                        }}
+                      />
+                    ))}
+                  </Section>
+                ) : null}
+                <Section header={files.length ? undefined : "Arquivo"} footer={files.length ? undefined : "Qualquer tipo, até 100 GB."} inset={space.gutter}>
+                  {documentsAvailable ? (
+                    <ListRow leading={<IconTile icon="doc.fill" color="teal" />} title={files.length ? "Mais arquivos" : "Escolher arquivos"} onPress={() => void addFiles("files")} />
+                  ) : null}
+                  <ListRow leading={<IconTile icon="photo.on.rectangle" color="violet" />} title="Fotos e vídeos da galeria" onPress={() => void addFiles("library")} />
+                  <ListRow leading={<IconTile icon="camera.fill" color="gray" />} title="Tirar foto" onPress={() => void addFiles("camera")} />
+                </Section>
+                {fileError ? (
+                  <View style={{ paddingHorizontal: space.gutter }}>
+                    <Notice kind="error">{fileError}</Notice>
+                  </View>
+                ) : null}
+              </View>
+            ) : kind === "file" ? (
               <View style={{ gap: space.md }}>
                 {photo ? (
                   <Section header="Arquivo" inset={space.gutter}>
@@ -216,11 +313,21 @@ export default function NewBookmark() {
             ) : null}
             {companyId ? <FolderPicker folders={options} value={folderId} onChange={setFolder} /> : null}
             <View style={{ paddingHorizontal: space.gutter, gap: space.md }}>
-              {tried && missing ? <Notice kind="warning">{missing}</Notice> : null}
+              {tried && missing && !(several && missing === "Informe um título.") ? <Notice kind="warning">{missing}</Notice> : null}
               {failure ? <Notice kind="error">{failure}</Notice> : null}
               <Button
-                title={busy ? (kind === "board" ? "Criando…" : "Adicionando…") : kind === "board" ? "Criar lousa" : "Adicionar bookmark"}
-                icon={kind === "board" ? "scribble.variable" : "plus"}
+                title={
+                  busy
+                    ? kind === "board"
+                      ? "Criando…"
+                      : "Adicionando…"
+                    : kind === "board"
+                      ? "Criar lousa"
+                      : several
+                        ? `Enviar ${files.length} arquivos`
+                        : "Adicionar bookmark"
+                }
+                icon={kind === "board" ? "scribble.variable" : largeFiles && kind === "file" ? "icloud.and.arrow.up" : "plus"}
                 testID="save-bookmark"
                 busy={busy}
                 onPress={submit}

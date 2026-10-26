@@ -4,6 +4,7 @@ import { router, Stack } from "expo-router";
 import { Image } from "expo-image";
 import { SymbolView } from "@/components/symbol";
 import { keepPreviousData, useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { SpaceMeter, UploadTray } from "@/components/arquivos-tray";
 import { Avatar } from "@/components/avatar";
 import { Chip } from "@/components/chip";
 import { EmptyState } from "@/components/empty-state";
@@ -14,8 +15,10 @@ import { Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
 import { api, errorMessage } from "@/lib/api";
+import { enqueueUploads, pickArquivos, useUploads } from "@/lib/arquivos";
 import { authClient } from "@/lib/auth";
 import {
+  BookmarkFileError,
   audience,
   bookmarksKey,
   deleteNote,
@@ -34,6 +37,7 @@ import { useTabBarSpace } from "@/lib/layout";
 import { useMe } from "@/lib/me";
 import { HeaderIconButton } from "@/lib/stack";
 import { rounded, space, usePalette } from "@/lib/theme";
+import { documentsAvailable } from "@/lib/uploads";
 
 const kindLabels = { link: "Link", file: "Arquivo", board: "Lousa" } as const;
 const openLabels = { link: "Abrir link", file: "Baixar arquivo", board: "Abrir lousa" } as const;
@@ -137,9 +141,11 @@ function Faces({ people }: { people: BookmarkFolder["sharedWith"] }) {
 }
 
 /**
- * The person's bookmarks, as /bookmarks on the web: companies and folders as
- * chips (with "Sem pasta"), who sees the folder open, the header's search,
- * 25 at a time, and what each person may do with each link, file or board.
+ * Arquivos, as /bookmarks on the web: companies and folders as chips (with
+ * "Sem pasta"), who sees the folder open, the header's search, 25 at a time,
+ * and what each person may do with each file, link or board. With R2, files
+ * of any size go from the phone ("Enviar arquivos", with their progress) and
+ * the space each company uses shows under the list's header.
  */
 export default function Bookmarks() {
   const palette = usePalette();
@@ -170,6 +176,9 @@ export default function Bookmarks() {
   const names = new Map(folders.map((f) => [f.id, f.name]));
   const manyCompanies = companies.length > 1;
   const companyName = new Map(companies.map((c) => [c.id, c.name]));
+  const uploads = useUploads();
+  const largeFiles = !!first?.largeFiles;
+  const spaces = first?.spaces ?? [];
 
   // A new item lands where the person is looking: the folder, or the company picked.
   const add = () => {
@@ -181,6 +190,49 @@ export default function Bookmarks() {
         companyId: current?.companyId ?? (company !== "all" ? company : ""),
       },
     });
+  };
+  /** Several files at once into the folder (or company) open, as the web's "Enviar arquivos". */
+  const upload = () => {
+    clearFlash();
+    const target = current
+      ? { companyId: current.companyId ?? "", folderId: current.id }
+      : company !== "all"
+        ? { companyId: company, folderId: "" }
+        : companies.length === 1
+          ? { companyId: companies[0].id, folderId: "" }
+          : null;
+    // Several companies and none chosen: the form asks where.
+    if (!target?.companyId) return router.push({ pathname: "/bookmarks/novo", params: { kind: "file" } });
+    const send = async (source: "files" | "library" | "camera") => {
+      try {
+        const files = await pickArquivos(source);
+        if (!files.length) return;
+        haptic.select();
+        enqueueUploads(files, target);
+      } catch (failure) {
+        haptic.error();
+        Alert.alert("Não foi possível enviar", failure instanceof BookmarkFileError ? failure.message : "Tente novamente.");
+      }
+    };
+    const where = current ? `Em “${current.name}”.` : manyCompanies ? `Em ${companyName.get(target.companyId) ?? "sua empresa"}.` : undefined;
+    if (Platform.OS === "ios") {
+      const options = documentsAvailable ? ["Arquivos", "Fotos e vídeos", "Tirar foto", "Cancelar"] : ["Fotos e vídeos", "Tirar foto", "Cancelar"];
+      const sources = (documentsAvailable ? ["files", "library", "camera"] : ["library", "camera"]) as ("files" | "library" | "camera")[];
+      ActionSheetIOS.showActionSheetWithOptions({ title: "Enviar arquivos", message: where, options, cancelButtonIndex: options.length - 1 }, (index) => {
+        if (sources[index]) void send(sources[index]);
+      });
+      return;
+    }
+    Alert.alert(
+      "Enviar arquivos",
+      where,
+      [
+        ...(documentsAvailable ? [{ text: "Arquivos", onPress: () => void send("files") }] : []),
+        { text: "Fotos e vídeos", onPress: () => void send("library") },
+        { text: "Tirar foto", onPress: () => void send("camera") },
+      ],
+      { cancelable: true },
+    );
   };
   const newFolder = () => {
     clearFlash();
@@ -366,9 +418,17 @@ export default function Bookmarks() {
           <Notice kind="error">{errorMessage(list.error)}</Notice>
         </View>
       ) : null}
+      <UploadTray items={uploads} />
+      {spaces.length ? (
+        <SpaceMeter
+          spaces={spaces}
+          named={spaces.length > 1 || !!me.data?.staff}
+          nameOf={(id) => (id ? (companyName.get(id) ?? "Empresa") : "Anuntech")}
+        />
+      ) : null}
       {first && items.length > 0 ? (
         <Text variant="caption" tone="muted" style={{ marginHorizontal: space.gutter + 16 }}>
-          {first.total === 1 ? "1 bookmark" : `${first.total} bookmarks`}
+          {first.total === 1 ? "1 item" : `${first.total} itens`}
         </Text>
       ) : null}
     </View>
@@ -386,6 +446,7 @@ export default function Bookmarks() {
           },
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+              {largeFiles ? <HeaderIconButton symbol="icloud.and.arrow.up" label="Enviar arquivos" testID="upload-files" onPress={upload} /> : null}
               <HeaderIconButton symbol="folder.badge.plus" label="Nova pasta" testID="new-folder" onPress={newFolder} />
               <HeaderIconButton symbol="plus" label="Adicionar bookmark" testID="new-bookmark" onPress={add} />
             </View>
@@ -412,7 +473,11 @@ export default function Bookmarks() {
             <EmptyState
               icon="bookmark"
               title="Nenhum bookmark aqui"
-              text="Guarde links e arquivos pequenos da empresa e organize em pastas."
+              text={
+                largeFiles
+                  ? "Guarde arquivos de até 100 GB, links e lousas da empresa e organize em pastas."
+                  : "Guarde arquivos, links e lousas da empresa e organize em pastas."
+              }
               action={{ label: "Adicionar", icon: "plus", onPress: add }}
             />
           )

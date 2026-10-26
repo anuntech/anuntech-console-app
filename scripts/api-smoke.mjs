@@ -23,6 +23,8 @@ import { lac2Checks } from "./api-smoke-lac2.mjs";
 import { lac4Checks } from "./api-smoke-lac4.mjs";
 import { lac3Checks } from "./api-smoke-lac3.mjs";
 import { lac1Checks } from "./api-smoke-lac1.mjs";
+import { arquivosAppChecks } from "./api-smoke-arquivos-app.mjs";
+import { startR2Mock } from "./r2-mock.mjs";
 
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
@@ -41,6 +43,7 @@ const dir = mkdtempSync(join(tmpdir(), "console-api-test-")),
   capture = join(dir, "otp.jsonl");
 const app = { "expo-origin": "anuntech://" };
 let server,
+  r2,
   count = 0;
 const ok = (condition, message) => {
   assert.ok(condition, message);
@@ -153,6 +156,8 @@ try {
     "insert into console_two_factor(id,user_id,secret,backup_codes,verified) values($1,$2,'','',false)",
     [randomUUID(), people.guarded.id],
   );
+  // Arquivos talks to a local stand-in for R2 (scripts/r2-mock.mjs), never to the real bucket in .env.local.
+  r2 = await startR2Mock();
   server = spawn(
     process.execPath,
     ["node_modules/next/dist/bin/next", "start", "--hostname", "127.0.0.1", "--port", "3107"],
@@ -178,6 +183,11 @@ try {
         FLW_SYNOVA: "test",
         FLW_SENDER_NUMBER: "5511000000000",
         FLW_OTP_TEMPLATE_ID: randomUUID(),
+        R2_ENDPOINT: r2.endpoint,
+        R2_ACCOUNT_ID: "",
+        R2_BUCKET: "console-test",
+        R2_ACCESS_KEY_ID: "test",
+        R2_SECRET_ACCESS_KEY: "test",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -1111,6 +1121,8 @@ try {
   await lac3Checks({ db, rpc, ok, marker, emailSignIn, staff });
   // Abrir o Console já com a sessão do app (scripts/api-smoke-lac1.mjs).
   await lac1Checks({ db, rpc, ok, marker, emailSignIn, staff, base });
+  // Arquivos no celular: envio em partes para o R2, espaço usado e download assinado (scripts/api-smoke-arquivos-app.mjs).
+  await arquivosAppChecks({ db, rpc, ok, marker, emailSignIn, staff, base, r2 });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);
@@ -1120,6 +1132,7 @@ try {
     server.kill("SIGTERM");
     await new Promise((resolve) => server.once("exit", resolve));
   }
+  await r2?.close();
   try {
     for (const statement of [
       "delete from console_push_devices where user_id=any($1::text[])",

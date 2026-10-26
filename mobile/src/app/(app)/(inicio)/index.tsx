@@ -469,7 +469,7 @@ export default function Home() {
       ) : null}
       {o?.bookmarks.length ? (
         <Block index={9}>
-          <SectionHeader title="Bookmarks" action={{ label: "Ver todos", onPress: () => router.push("/bookmarks") }} />
+          <SectionHeader title="Arquivos" action={{ label: "Ver todos", onPress: () => router.push("/bookmarks") }} />
           <Section>
             {o.bookmarks.map((b) => {
               const where = [b.kind === "board" ? "Lousa" : b.kind === "link" ? hostOf(b.url) : b.fileName, b.folder].filter(Boolean).join(" · ");
@@ -524,8 +524,8 @@ export default function Home() {
             ) : null}
             <ListRow
               leading={<IconTile icon="bookmark.fill" color="ink" />}
-              title="Bookmarks"
-              subtitle="Links e arquivos"
+              title="Arquivos"
+              subtitle="Arquivos, links e lousas"
               onPress={() => router.push("/bookmarks")}
             />
           </Section>

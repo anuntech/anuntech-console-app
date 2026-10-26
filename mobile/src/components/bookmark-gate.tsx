@@ -29,7 +29,7 @@ export function BookmarkGate({ id, children }: { id: string; children: (item: Bo
           action={
             router.canGoBack()
               ? { label: "Voltar", onPress: () => router.back() }
-              : { label: "Ver bookmarks", onPress: () => router.replace("/bookmarks") }
+              : { label: "Ver arquivos", onPress: () => router.replace("/bookmarks") }
           }
         />
       ) : query.error ? (

@@ -22,6 +22,8 @@ import {
   updateBookmarkAs,
   usable,
 } from "../../bookmarks/bookmark-core";
+import { downloadUrl, storageConfigured } from "../../drive/r2";
+import { spacesFor } from "../../drive/uploads";
 import { api } from "../server";
 import { guard, missing } from "../access";
 import { answer } from "../managed-company";
@@ -30,7 +32,7 @@ import { answer } from "../managed-company";
 const PAGE_SIZE = 25;
 
 /** The company of a folder; unknown ids (and Anuntech's own space) reach no one. */
-const folderCompany = async ({ id }: { id: string }) =>
+export const folderCompany = async ({ id }: { id: string }) =>
   (await db.select({ companyId: bookmarkFolders.companyId }).from(bookmarkFolders).where(eq(bookmarkFolders.id, id)))[0]
     ?.companyId;
 /** The company of a bookmark, for the guard. */
@@ -109,6 +111,15 @@ export const bookmarks = {
         ),
         companiesFor(actor),
       ]);
+      // The space meter, as the web page: the team sees Anuntech's own and the company it filtered; a client, each of its companies.
+      const spaces =
+        input.page === 1
+          ? await spacesFor(
+              actor.admin
+                ? [null, ...(query.company !== "all" && query.company !== "internal" ? [query.company] : [])]
+                : actor.grants.map((g) => g.company.id),
+            )
+          : undefined;
       const names = new Map(companies.map((c) => [c.id, c.name]));
       const folderOwner = new Map(folders.map((f) => [f.id, f.ownerId]));
       return {
@@ -139,6 +150,7 @@ export const bookmarks = {
         page,
         pageCount: pageCountOf(matching, PAGE_SIZE),
         companies,
+        ...(spaces ? { largeFiles: storageConfigured(), spaces } : {}),
       };
     }),
   get: api.bookmarks.get
@@ -183,6 +195,24 @@ export const bookmarks = {
       const result = await saveBookmarkAs(context.actor, input, null);
       const { message } = answer(result);
       return { message, id: result.id! };
+    }),
+  download: api.bookmarks.download
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      // The same check as /api/bookmarks/[id]: bookmarkFor, and only a file bookmark.
+      const item = await bookmarkFor(context.actor, input.id);
+      if (!item?.fileName) throw missing();
+      const [stored] = await db
+        .select({
+          key: bookmarkTable.storageKey,
+          fileSize: sql<number | null>`coalesce(${bookmarkTable.fileSize}, octet_length(${bookmarkTable.content}))::float8`,
+        })
+        .from(bookmarkTable)
+        .where(eq(bookmarkTable.id, item.id));
+      if (!stored) throw missing();
+      // A file in R2 is read from there through a five-minute address; an older one through filePath, with the session.
+      const url = stored.key && storageConfigured() ? await downloadUrl(stored.key, item.fileName, input.inline) : null;
+      return { url, fileName: item.fileName, fileSize: stored.fileSize };
     }),
   update: api.bookmarks.update
     .use(guard({ area: "overview", company: bookmarkCompany }))
