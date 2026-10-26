@@ -1,4 +1,5 @@
 import "server-only";
+import { brandEmailHtml } from "@/lib/email/brand-email";
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import {
@@ -59,7 +60,7 @@ export async function sendStaffMail(recipients: string[], subject: string, text:
           "Content-Type": "application/json",
           "Idempotency-Key": `ops-${randomUUID()}`,
         },
-        body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, text }),
+        body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, text, html: brandEmailHtml({ subject, text, audience: "staff" }) }),
         signal: AbortSignal.timeout(15000),
       });
       if (res.ok) {

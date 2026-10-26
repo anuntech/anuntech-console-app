@@ -1,4 +1,5 @@
 "use server";
+import { brandEmailHtml } from "@/lib/email/brand-email";
 import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 import { getActor } from "./access";
@@ -37,11 +38,14 @@ export async function sendAccessNotice(
       .where(and(eq(memberships.id, input.data), eq(memberships.active, true)));
     if (!entry) return { error: "Este acesso não está ativo." };
     const key = `access-notice-${entry.membership.id}`;
+    const subject = "Seu acesso ao Console da Anuntech";
+    const text = `Seu acesso à empresa ${entry.company} no Console da Anuntech foi liberado.\n\nPara entrar, abra ${base}/entrar e use este e-mail. Um código chega na sua caixa de entrada, ou você entra com o Google.\n\nSe você não reconhece este acesso, fale com a Anuntech.\n\nAnuntech`;
     const payload = {
       from: process.env.EMAIL_FROM,
       to: [entry.membership.email],
-      subject: "Seu acesso ao Console da Anuntech",
-      text: `Seu acesso à empresa ${entry.company} no Console da Anuntech foi liberado.\n\nPara entrar, abra ${base}/entrar e use este e-mail. Um código chega na sua caixa de entrada, ou você entra com o Google.\n\nSe você não reconhece este acesso, fale com a Anuntech.\n\nAnuntech`,
+      subject,
+      text,
+      html: brandEmailHtml({ subject, title: "Seu acesso foi liberado", text, url: base, action: { label: "Entrar no Console", url: `${base}/entrar` } }),
     };
     await db
       .insert(emailDeliveries)

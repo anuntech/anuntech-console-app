@@ -1,4 +1,5 @@
 import "server-only";
+import { brandEmailHtml } from "@/lib/email/brand-email";
 import { createHmac, randomUUID } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
@@ -41,6 +42,9 @@ export async function reserveOtp(destination: string) {
     RETURNING key`);
   return result.rows.length > 0;
 }
+const codeText = (otp: string) =>
+  `Seu código de acesso: ${otp}\n\nEle vale por 5 minutos e só funciona uma vez. Não compartilhe com ninguém.\n\nSe você não pediu este código, ignore esta mensagem.\n\nAnuntech`;
+
 export async function deliverEmailOtp(email: string, otp: string) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -54,7 +58,8 @@ export async function deliverEmailOtp(email: string, otp: string) {
       from: process.env.EMAIL_FROM,
       to: [email],
       subject: "Seu código de acesso ao Console da Anuntech",
-      text: `Seu código de acesso: ${otp}\n\nEle vale por 5 minutos e só funciona uma vez. Não compartilhe com ninguém.\n\nSe você não pediu este código, ignore esta mensagem.\n\nAnuntech`,
+      text: codeText(otp),
+      html: brandEmailHtml({ subject: "Seu código de acesso ao Console da Anuntech", title: "Seu código de acesso", text: codeText(otp), code: otp }),
     }),
     signal: AbortSignal.timeout(15000),
   });
@@ -71,6 +76,7 @@ export async function deliverInviteEmail(
     scope.kind === "console"
       ? "Você agora administra o Console da Anuntech."
       : `Você agora tem acesso à empresa ${scope.companyName} no Console da Anuntech.`;
+  const inviteText = `${accessLine}\n\nPara entrar, abra ${loginUrl} e informe este e-mail (${email}). Um código chega por e-mail para confirmar.\n\nSe você não esperava este e-mail, pode ignorá-lo.\n\nAnuntech`;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     redirect: "error",
@@ -83,7 +89,8 @@ export async function deliverInviteEmail(
       from: process.env.EMAIL_FROM,
       to: [email],
       subject: "Seu acesso ao Console da Anuntech",
-      text: `${accessLine}\n\nPara entrar, abra ${loginUrl} e informe este e-mail (${email}). Um código chega por e-mail para confirmar.\n\nSe você não esperava este e-mail, pode ignorá-lo.\n\nAnuntech`,
+      text: inviteText,
+      html: brandEmailHtml({ subject: "Seu acesso ao Console da Anuntech", title: "Bem-vindo ao Console", text: inviteText, url: loginUrl, action: { label: "Entrar no Console", url: loginUrl } }),
     }),
     signal: AbortSignal.timeout(15000),
   });

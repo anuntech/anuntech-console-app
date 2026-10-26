@@ -1,4 +1,5 @@
 import "server-only";
+import { brandEmailHtml } from "@/lib/email/brand-email";
 import { randomUUID } from "node:crypto";
 import { and, eq, isNotNull, or } from "drizzle-orm";
 import { accountEmails, memberships, user } from "@/db/schema";
@@ -18,7 +19,13 @@ export async function sendClientMail(input: { to: string; subject: string; text:
       "Content-Type": "application/json",
       "Idempotency-Key": `${input.tag}-${input.key ? `${input.key}-${input.to}` : randomUUID()}`,
     },
-    body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [input.to], subject: input.subject, text: input.text }),
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM,
+      to: [input.to],
+      subject: input.subject,
+      text: input.text,
+      html: brandEmailHtml({ subject: input.subject, text: input.text }),
+    }),
     signal: AbortSignal.timeout(15000),
   });
   const result = await res.json().catch(() => null);

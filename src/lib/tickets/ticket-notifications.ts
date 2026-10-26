@@ -1,4 +1,5 @@
 import "server-only";
+import { brandEmailHtml } from "@/lib/email/brand-email";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNotNull, ne, lt, lte, sql } from "drizzle-orm";
 import { after } from "next/server";
@@ -63,6 +64,11 @@ export async function enqueueTicketNotice(
     timeStyle: "short",
     timeZone: APP_TIME_ZONE,
   }).format(new Date());
+  // The text and its brand layout: the movement is the title, the ticket is in the details.
+  const mail = (text: string, audience: "client" | "staff") => ({
+    text,
+    html: brandEmailHtml({ subject: `${movement} · ${ticket.subject}`, title: movement, text, url: base, audience }),
+  });
   const queued: (typeof ticketNotices.$inferInsert)[] = [];
   for (const { key, preferences } of recipients) {
     if (
@@ -91,7 +97,10 @@ export async function enqueueTicketNotice(
           from: process.env.EMAIL_FROM || "",
           to: email,
           subject: `${movement} · ${ticket.subject}`,
-          text: `${movement}${extra}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nConsole da Anuntech`,
+          ...mail(
+            `${movement}${extra}\n\nCliente: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhar no Console: ${base}/chamados/${ticket.id}\n\nConsole da Anuntech`,
+            key === "console:tickets" ? "staff" : "client",
+          ),
         },
       });
     }
@@ -140,10 +149,12 @@ export async function enqueueTicketNotice(
         from: process.env.EMAIL_FROM || "",
         to: authorEmail,
         subject: `${movement} · ${ticket.subject}`,
-        text:
+        ...mail(
           author?.kind === "movement"
             ? `${movement}${extra}\n\nA equipe da Anuntech atualizou o seu chamado.\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nPor: ${actorName}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`
             : `${movement}\n\nRecebemos o seu chamado e a equipe da Anuntech já foi avisada.${extra}\n\nEmpresa: ${company.name}\nChamado: ${ticket.subject}\nData: ${when} (São Paulo)\n\nAcompanhe e responda no Console: ${base}/chamados/${ticket.id}\n\nAnuntech`,
+          "client",
+        ),
       },
     });
   if (queued.length)
