@@ -428,7 +428,7 @@ export default function Bookmarks() {
       ) : null}
       {first && items.length > 0 ? (
         <Text variant="caption" tone="muted" style={{ marginHorizontal: space.gutter + 16 }}>
-          {first.total === 1 ? "1 bookmark" : `${first.total} bookmarks`}
+          {first.total === 1 ? "1 item" : `${first.total} itens`}
         </Text>
       ) : null}
     </View>
