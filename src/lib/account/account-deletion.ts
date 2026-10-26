@@ -1,4 +1,5 @@
 import "server-only";
+import { brandEmailHtml } from "@/lib/email/brand-email";
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq, gt, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import {
@@ -353,6 +354,7 @@ export async function deleteAccount(
 }
 
 async function sendDeletionNotice(email: string) {
+  const deletedText = `Sua conta no Console da Anuntech foi excluída a seu pedido.\n\nApagamos seu nome, e-mails, telefone, foto, sessões e conversas com o assistente. Os registros da empresa em que você participou (chamados, assinaturas de contrato, horas e faturas) continuam com o autor "Conta excluída", como a lei exige.\n\nSe não foi você, responda este e-mail.\n\nAnuntech`;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     redirect: "error",
@@ -365,7 +367,8 @@ async function sendDeletionNotice(email: string) {
       from: process.env.EMAIL_FROM,
       to: [email],
       subject: "Sua conta no Console da Anuntech foi excluída",
-      text: `Sua conta no Console da Anuntech foi excluída a seu pedido.\n\nApagamos seu nome, e-mails, telefone, foto, sessões e conversas com o assistente. Os registros da empresa em que você participou (chamados, assinaturas de contrato, horas e faturas) continuam com o autor "Conta excluída", como a lei exige.\n\nSe não foi você, responda este e-mail.\n\nAnuntech`,
+      html: brandEmailHtml({ subject: "Sua conta no Console da Anuntech foi excluída", title: "Sua conta foi excluída", text: deletedText }),
+      text: deletedText,
     }),
     signal: AbortSignal.timeout(15000),
   });

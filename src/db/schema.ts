@@ -946,6 +946,7 @@ export type TicketNoticePayload = {
   to: string;
   subject?: string;
   text?: string;
+  html?: string;
   templateId?: string;
   parameters?: Record<string, string>;
   senderId?: string;

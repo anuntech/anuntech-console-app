@@ -1,8 +1,9 @@
 import "server-only";
+import { brandEmailHtml } from "@/lib/email/brand-email";
 import { randomUUID } from "node:crypto";
 import { longDateLabel } from "../format";
 
-async function send(input: { to: string; subject: string; text: string; tag: string }) {
+async function send(input: { to: string; subject: string; text: string; tag: string; eyebrow?: string; audience?: "client" | "staff" }) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     redirect: "error",
@@ -16,6 +17,7 @@ async function send(input: { to: string; subject: string; text: string; tag: str
       to: [input.to],
       subject: input.subject,
       text: input.text,
+      html: brandEmailHtml({ subject: input.subject, text: input.text, eyebrow: input.eyebrow, audience: input.audience }),
     }),
     signal: AbortSignal.timeout(15000),
   });
@@ -44,6 +46,7 @@ export async function deliverContractNotice(
   await send({
     to: email,
     tag: "contract",
+    eyebrow: "Para assinar",
     subject: `${input.kind === "amendment" ? "Aditivo" : "Contrato"} para assinatura: ${input.title}`,
     text: `A Anuntech enviou o ${noun} "${input.title}" para ${input.companyName}.${again}\n\nLeia e assine pelo Console: ${input.url}\n\nVocê assina com o seu acesso ao Console, que confirma sua identidade pelo e-mail ou WhatsApp cadastrado.\n\nAnuntech`,
   });
@@ -67,6 +70,8 @@ export async function deliverContractExpiryNotice(
   await send({
     to: email,
     tag: "contract-expiry",
+    eyebrow: expired ? "Contrato vencido" : "Contrato vencendo",
+    audience: "staff",
     subject: `${expired ? "Contrato vencido" : "Contrato vencendo"}: ${input.title}`,
     text: `O contrato "${input.title}" com ${input.companyName} ${when} (${longDateLabel(input.endsAt)}).\n\n${expired ? "Se a relação continua, registre a renovação por aditivo ou crie um novo contrato." : "Para renovar, crie um aditivo de prorrogação ou um novo contrato antes do fim da vigência."}${input.renewUrl ? `\n\nA prorrogação já sai preenchida, com a nova vigência: ${input.renewUrl}` : ""}\n\nAbrir no Console: ${input.url}\n\nConsole da Anuntech`,
   });
