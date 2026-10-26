@@ -5,9 +5,9 @@ import { and, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { auditEvents, bookmarkFolders, bookmarks, fileUploads, shareLinks, user } from "@/db/schema";
 import { db } from "../db";
-import type { Actor } from "../access/access";
+import { actorForSession, type Actor } from "../access/access";
 import { bookmarkFor } from "../bookmarks/bookmarks";
-import { loadFolder, manages } from "../bookmarks/bookmark-core";
+import { companyAllowed, loadFolder, manages } from "../bookmarks/bookmark-core";
 import { descendantIds, folderPath } from "../bookmarks/folder-tree";
 import { sendClientMail } from "../notifications/client-mail";
 import { reserveHourly } from "../http/hourly-limit";
@@ -19,6 +19,7 @@ import {
   bytesLabel,
   cleanFileName,
   partCountFor,
+  partLengthFor,
   partSizeFor,
   storageKeyFor,
   uploadRefusal,
@@ -57,16 +58,47 @@ export async function passwordMatches(password: string, stored: string) {
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
-/** The cookie that keeps a password-protected link open in a browser; it changes if the password does. */
+/**
+ * The cookie that keeps a password-protected link open in a browser: its end
+ * is inside the signed value (a copied cookie stops too), and it changes if
+ * the password does.
+ */
+export const UNLOCK_HOURS = 12;
 export const unlockCookieName = (link: Pick<ShareLink, "id">) => `console-link-${link.id.slice(0, 8)}`;
-export const unlockValue = (link: Pick<ShareLink, "id" | "passwordHash">) =>
-  createHmac("sha256", process.env.BETTER_AUTH_SECRET!).update(`share:${link.id}:${link.passwordHash ?? ""}`).digest("base64url");
-export const unlocked = (link: ShareLink, cookie: string | undefined) => !link.passwordHash || cookie === unlockValue(link);
+const unlockSignature = (link: Pick<ShareLink, "id" | "passwordHash">, until: number) =>
+  createHmac("sha256", process.env.BETTER_AUTH_SECRET!).update(`share:${link.id}:${link.passwordHash ?? ""}:${until}`).digest("base64url");
+export const unlockValue = (link: Pick<ShareLink, "id" | "passwordHash">, now = Date.now()) => {
+  const until = Math.floor(now / 1000) + UNLOCK_HOURS * 3600;
+  return `${until}.${unlockSignature(link, until)}`;
+};
+export function unlocked(link: ShareLink, cookie: string | undefined, now = Date.now()) {
+  if (!link.passwordHash) return true;
+  const [until, signature] = (cookie ?? "").split(".");
+  if (!/^\d+$/.test(until ?? "") || !signature || Number(until) * 1000 <= now) return false;
+  const expected = Buffer.from(unlockSignature(link, Number(until)));
+  const given = Buffer.from(signature);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
 
+/**
+ * The link of an address. A link works only while whoever made it could still
+ * make it: removed from the company, without the right to edit, or with the
+ * account deleted, the link reads as turned off (and opens again if the right
+ * comes back).
+ */
 export async function linkByToken(token: string) {
   if (!TOKEN.test(token)) return null;
   const [link] = await db.select().from(shareLinks).where(eq(shareLinks.tokenHash, hashToken(token)));
-  return link ?? null;
+  if (!link) return null;
+  if (link.revokedAt || (await creatorStillShares(link))) return link;
+  return { ...link, revokedAt: new Date() };
+}
+
+async function creatorStillShares(link: ShareLink) {
+  const [creator] = await db.select().from(user).where(eq(user.id, link.createdBy));
+  if (!creator) return false;
+  const actor = (await actorForSession({ user: creator } as Parameters<typeof actorForSession>[0], { assisted: false })) as Actor;
+  return !!(await shareTarget(actor, link.kind, link.bookmarkId ?? "", link.folderId ?? ""));
 }
 
 /** The files a download link opens: the item, or the folder's and its subfolders', with the path below it. */
@@ -115,7 +147,8 @@ async function shareTarget(actor: Actor, kind: ShareKind, bookmarkId: string, fo
   }
   if (!folderId) return null;
   const folder = await loadFolder(folderId);
-  if (!folder || !manages(actor, folder)) return null;
+  // The owner of a folder in a company they left manages nothing there any more.
+  if (!folder || !companyAllowed(actor, folder.companyId) || !manages(actor, folder)) return null;
   return { companyId: folder.companyId, folderId: folder.id, bookmarkId: null, title: folder.name };
 }
 
@@ -152,15 +185,18 @@ export async function createShareLinkAs(actor: Actor, raw: unknown): Promise<{ e
   });
   let mailed = "";
   if (input.email) {
-    const who = actor.user.name || actor.user.email;
+    // A name or title that looks like an address stays out: the Console's e-mail never carries a link it did not make.
+    const plain = (text: string) => (/https?:|www\.|[\w-]\.[a-z]{2,}(?:[\/:?#]|\b)/i.test(text) ? null : text);
+    const who = plain(actor.user.name ?? "") || "Uma pessoa";
+    const what = plain(link.title);
     const lines =
       input.kind === "download"
-        ? [`${who} compartilhou com você “${link.title}” pelo Console da Anuntech.`, `Para baixar: ${url}`]
-        : [`${who} pediu que você envie arquivos para “${link.title}” pelo Console da Anuntech.`, `Para enviar: ${url}`];
+        ? [`${who} compartilhou com você ${what ? `“${what}”` : "arquivos"} pelo Console da Anuntech.`, `Para baixar: ${url}`]
+        : [`${who} pediu que você envie arquivos${what ? ` para “${what}”` : ""} pelo Console da Anuntech.`, `Para enviar: ${url}`];
     if (link.expiresAt) lines.push(`O link vale até ${link.expiresAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`);
     if (link.passwordHash) lines.push("Ele tem senha: peça a senha a quem enviou.");
     try {
-      await sendClientMail({ to: input.email, subject: input.kind === "download" ? `Arquivos compartilhados: ${link.title}` : `Envie arquivos: ${link.title}`, text: [...lines, "Equipe Anuntech"].join("\n\n"), tag: "share-link", key: link.id });
+      await sendClientMail({ to: input.email, subject: input.kind === "download" ? (what ? `Arquivos compartilhados: ${what}` : "Arquivos compartilhados com você") : what ? `Envie arquivos: ${what}` : "Pedido de arquivos", text: [...lines, "Equipe Anuntech"].join("\n\n"), tag: "share-link", key: link.id });
       mailed = ` O link foi por e-mail para ${input.email}.`;
     } catch {
       mailed = " O e-mail não saiu: copie o link e envie por outro canal.";
@@ -243,16 +279,16 @@ export async function startVisitorUpload(link: ShareLink, raw: unknown, ip: stri
   const parsed = visitorStart.safeParse(raw);
   if (!parsed.success) return fail(parsed.error.issues[0].message);
   const input = parsed.data;
-  const blocked = requestRefusal(input.fileName);
+  const blocked = requestRefusal(cleanFileName(input.fileName));
   if (blocked) return fail(blocked);
   // The company's space; Anuntech's own, with no quota, takes at most 5 GB through one link.
   const quota = await spaceQuota(link.companyId);
-  const used =
-    quota === null
-      ? Number((await db.select({ n: sql<string>`coalesce(sum(${fileUploads.size}), 0)` }).from(fileUploads).where(and(eq(fileUploads.shareLinkId, link.id), inArray(fileUploads.status, ["uploading", "completed", "used"]))))[0].n)
-      : await spaceUsage(link.companyId);
-  const refusal = uploadRefusal({ size: input.size, used, quota: quota ?? REQUEST_CAP });
-  if (refusal) return fail(quota === null ? `Este link recebe até ${bytesLabel(REQUEST_CAP)}. Fale com quem pediu.` : "O espaço de quem pediu acabou. Fale com quem enviou o link.", 413);
+  const linkUsed = async (tx: Pick<typeof db, "select"> = db) =>
+    Number((await tx.select({ n: sql<string>`coalesce(sum(${fileUploads.size}), 0)` }).from(fileUploads).where(and(eq(fileUploads.shareLinkId, link.id), inArray(fileUploads.status, ["uploading", "completed", "used"]))))[0].n);
+  const full = quota === null ? `Este link recebe até ${bytesLabel(REQUEST_CAP)}. Fale com quem pediu.` : "O espaço de quem pediu acabou. Fale com quem enviou o link.";
+  const refused = async (tx?: Pick<typeof db, "select">) =>
+    uploadRefusal({ size: input.size, used: quota === null ? await linkUsed(tx) : await spaceUsage(link.companyId, tx), quota: quota ?? REQUEST_CAP });
+  if (await refused()) return fail(full, 413);
   const id = crypto.randomUUID();
   const secret = randomBytes(24).toString("base64url");
   const key = storageKeyFor(link.companyId, id);
@@ -264,22 +300,32 @@ export async function startVisitorUpload(link: ShareLink, raw: unknown, ip: stri
   } catch {
     return fail("Não foi possível começar o envio agora. Tente de novo em alguns minutos.", 502);
   }
-  await db.insert(fileUploads).values({
-    id,
-    actorId: link.createdBy,
-    companyId: link.companyId,
-    folderId: link.folderId,
-    fileName: cleanFileName(input.fileName),
-    mime,
-    size: input.size,
-    partSize,
-    storageKey: key,
-    multipartId,
-    expiresAt: new Date(Date.now() + UPLOAD_TTL_HOURS * 3600_000),
-    shareLinkId: link.id,
-    visitorSecretHash: hashSecret(secret),
-    senderName: input.senderName || null,
+  // Checked again under the space's lock (the same one as the signed-in uploads), so uploads at once cannot all take the last gigabytes.
+  const taken = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`arquivos:${link.companyId ?? "anuntech"}`}))`);
+    if (await refused(tx)) return false;
+    await tx.insert(fileUploads).values({
+      id,
+      actorId: link.createdBy,
+      companyId: link.companyId,
+      folderId: link.folderId,
+      fileName: cleanFileName(input.fileName),
+      mime,
+      size: input.size,
+      partSize,
+      storageKey: key,
+      multipartId,
+      expiresAt: new Date(Date.now() + UPLOAD_TTL_HOURS * 3600_000),
+      shareLinkId: link.id,
+      visitorSecretHash: hashSecret(secret),
+      senderName: input.senderName || null,
+    });
+    return true;
   });
+  if (!taken) {
+    await abortMultipart(key, multipartId).catch(() => undefined);
+    return fail(full, 413);
+  }
   return { ok: true, value: { id, secret, partSize, partCount: partCountFor(input.size, partSize) } };
 }
 
@@ -298,14 +344,14 @@ export async function signVisitorParts(link: ShareLink, uploadId: string, raw: {
   if (!row || row.status !== "uploading" || row.expiresAt <= new Date()) return fail("Não encontrado.", 404);
   const parsed = z.array(z.number().int().min(1).max(partCountFor(row.size, row.partSize))).min(1).max(PART_URL_BATCH).safeParse(raw.parts);
   if (!parsed.success) return fail("Partes inválidas.");
-  return { ok: true, value: await Promise.all(parsed.data.map(async (partNumber) => ({ partNumber, url: await partUrl(row.storageKey, row.multipartId, partNumber) }))) };
+  return { ok: true, value: await Promise.all(parsed.data.map(async (partNumber) => ({ partNumber, url: await partUrl(row.storageKey, row.multipartId, partNumber, partLengthFor(row.size, row.partSize, partNumber)) }))) };
 }
 
 /** Every part sent: R2 joins them, the size is checked, and the file lands in the link's folder as an item. */
 export async function finishVisitorUpload(link: ShareLink, uploadId: string, raw: { secret?: unknown; parts?: unknown }): Promise<Result<{ title: string }>> {
   if (shareState(link) !== "active") return fail("Este link não recebe mais arquivos.", 410);
   const row = await visitorUpload(link, uploadId, raw.secret);
-  if (!row || row.status !== "uploading") return fail("Não encontrado.", 404);
+  if (!row || row.status !== "uploading" || row.expiresAt <= new Date()) return fail("Não encontrado.", 404);
   const count = partCountFor(row.size, row.partSize);
   const parsed = z.array(z.object({ partNumber: z.number().int().min(1).max(count), etag: z.string().min(1).max(200) })).length(count, "O envio não terminou: faltam partes.").safeParse(raw.parts);
   if (!parsed.success) return fail(parsed.error.issues[0].message);
@@ -319,8 +365,11 @@ export async function finishVisitorUpload(link: ShareLink, uploadId: string, raw
       return fail("O arquivo chegou com um tamanho diferente do informado. Envie de novo.");
     }
   } catch {
+    // Whether R2 joined the parts or not, nothing stays behind.
     await abortMultipart(row.storageKey, row.multipartId).catch(() => undefined);
-    return fail("Não foi possível concluir o envio agora. Tente de novo.", 502);
+    await deleteObject(row.storageKey).catch(() => undefined);
+    await db.update(fileUploads).set({ status: "aborted" }).where(eq(fileUploads.id, row.id));
+    return fail("Não foi possível concluir o envio agora. Envie de novo.", 502);
   }
   const title = (row.fileName.replace(/\.[^.]+$/, "") || row.fileName).slice(0, 160);
   const item = await db.transaction(async (tx) => {

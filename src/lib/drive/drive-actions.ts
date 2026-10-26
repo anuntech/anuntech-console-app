@@ -10,7 +10,7 @@ import { db } from "../db";
 import { DEFAULT_COMPANY_QUOTA_BYTES, bytesLabel } from "./drive-rules";
 import { cookies, headers } from "next/headers";
 import { reserveHourly } from "../http/hourly-limit";
-import { createShareLinkAs, linkByToken, passwordMatches, revokeShareLinkAs, shareLinksFor, unlockCookieName, unlockValue } from "./share-links";
+import { UNLOCK_HOURS, createShareLinkAs, linkByToken, passwordMatches, revokeShareLinkAs, shareLinksFor, unlockCookieName, unlockValue } from "./share-links";
 import { SHARE_LIMITS } from "./share-rules";
 
 const GB = 1024 ** 3;
@@ -72,8 +72,10 @@ export async function unlockShareLink(_: ActionState, form: FormData): Promise<A
   const link = await linkByToken(token);
   if (!link?.passwordHash) return { error: "Link não encontrado." };
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (!(await reserveHourly("share-password", `${link.id}:${ip}`, SHARE_LIMITS.password))) return { error: "Muitas tentativas nesta hora. Tente de novo mais tarde." };
+  // Per browser address and per link, so changing addresses does not buy more guesses.
+  if (!(await reserveHourly("share-password", `${link.id}:${ip}`, SHARE_LIMITS.password)) || !(await reserveHourly("share-password-link", link.id, SHARE_LIMITS.passwordPerLink)))
+    return { error: "Muitas tentativas nesta hora. Tente de novo mais tarde." };
   if (!(await passwordMatches(password, link.passwordHash))) return { error: "Senha incorreta." };
-  (await cookies()).set(unlockCookieName(link), unlockValue(link), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 12 * 3600 });
+  (await cookies()).set(unlockCookieName(link), unlockValue(link), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: UNLOCK_HOURS * 3600 });
   return { success: "Link aberto." };
 }

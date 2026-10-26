@@ -6,6 +6,7 @@ import {
   bytesLabel,
   cleanFileName,
   partCountFor,
+  partLengthFor,
   partSizeFor,
   storageKeyFor,
   uploadRefusal,
@@ -28,6 +29,9 @@ test("parts are 16 MB, larger only so a file never needs more than 9,000 of them
   assert.equal(partSizeFor(20 * MB), 16 * MB);
   assert.equal(partCountFor(20 * MB), 2);
   assert.equal(partCountFor(1), 1);
+  assert.equal(partLengthFor(20 * MB, 16 * MB, 1), 16 * MB);
+  assert.equal(partLengthFor(20 * MB, 16 * MB, 2), 4 * MB);
+  assert.equal(partLengthFor(1, 16 * MB, 1), 1);
   const big = MAX_FILE_BYTES;
   assert.ok(partCountFor(big) <= 9000, String(partCountFor(big)));
   assert.ok(partSizeFor(big) <= 5 * GB && partSizeFor(big) % MB === 0);

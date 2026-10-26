@@ -4,6 +4,7 @@ import { bookmarks } from "@/db/schema";
 import { db } from "@/lib/db";
 import { downloadUrl } from "@/lib/drive/r2";
 import { countDownload, linkByToken, linkFiles, unlockCookieName, unlocked } from "@/lib/drive/share-links";
+import { shareState } from "@/lib/drive/share-rules";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const back = (token: string, request: Request) => Response.redirect(new URL(`/compartilhado/${token}`, request.url), 303);
@@ -17,6 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   const { token, id } = await params;
   const link = await linkByToken(token);
   if (!link || link.kind !== "download" || !UUID.test(id)) return new Response(null, { status: 404 });
+  if (shareState(link) !== "active") return back(token, request);
   if (!unlocked(link, (await cookies()).get(unlockCookieName(link))?.value)) return back(token, request);
   if (!(await linkFiles(link)).some((file) => file.id === id)) return new Response(null, { status: 404 });
   const [file] = await db

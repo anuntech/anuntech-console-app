@@ -44,8 +44,10 @@ export const shareClosedText: Record<Exclude<ShareState, "active">, string> = {
 const BLOCKED = new Set(["exe", "msi", "bat", "cmd", "com", "scr", "pif", "vbs", "vbe", "js", "jse", "wsf", "wsh", "ps1", "psm1", "sh", "apk", "app", "dmg", "pkg", "jar", "hta", "cpl", "msc", "lnk", "reg", "iso"]);
 
 export function requestRefusal(fileName: string) {
-  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
-  return fileName.includes(".") && BLOCKED.has(ext) ? "Por segurança, programas e scripts não são aceitos por este link. Envie em .zip ou fale com quem pediu." : null;
+  // As the file will be named: no control characters, and no trailing dots or spaces (Windows drops them).
+  const name = fileName.replace(/[\u0000-\u001f\u007f]/g, "").replace(/[\s.]+$/, "");
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  return name.includes(".") && BLOCKED.has(ext) ? "Por segurança, programas e scripts não são aceitos por este link. Envie em .zip ou fale com quem pediu." : null;
 }
 
 /** Password rules for a link: optional, 6 to 100 characters. */
@@ -56,5 +58,5 @@ export function passwordRefusal(password: string) {
   return null;
 }
 
-/** Visitors' tries per hour: a password, a download, an upload. */
-export const SHARE_LIMITS = { password: 10, download: 120, upload: 60, email: 30 } as const;
+/** Visitors' tries per hour: a password (per address and per link), a download, an upload; e-mails per person. */
+export const SHARE_LIMITS = { password: 10, passwordPerLink: 60, download: 120, upload: 60, email: 30 } as const;

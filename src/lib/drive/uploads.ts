@@ -13,6 +13,7 @@ import {
   bytesLabel,
   cleanFileName,
   partCountFor,
+  partLengthFor,
   partSizeFor,
   storageKeyFor,
   uploadRefusal,
@@ -141,7 +142,7 @@ export async function signParts(actor: Actor, uploadId: string, raw: unknown): P
   const count = partCountFor(row.size, row.partSize);
   const parsed = z.array(z.number().int().min(1).max(count)).min(1).max(PART_URL_BATCH).safeParse(raw);
   if (!parsed.success) return fail("Partes inválidas.");
-  const urls = await Promise.all(parsed.data.map(async (partNumber) => ({ partNumber, url: await partUrl(row.storageKey, row.multipartId, partNumber) })));
+  const urls = await Promise.all(parsed.data.map(async (partNumber) => ({ partNumber, url: await partUrl(row.storageKey, row.multipartId, partNumber, partLengthFor(row.size, row.partSize, partNumber)) })));
   return { ok: true, value: urls };
 }
 
@@ -169,6 +170,8 @@ export async function finishUpload(actor: Actor, uploadId: string, raw: unknown)
     }
   } catch (error) {
     console.error("[arquivos] finish failed", error instanceof StorageError ? error.message : error);
+    // Joined but not checked: nothing is left in R2 that no row will ever remove.
+    await deleteObject(row.storageKey).catch(() => undefined);
     return fail("Não foi possível concluir o envio agora. Tente de novo.", 502);
   }
   await db.update(fileUploads).set({ status: "completed" }).where(and(eq(fileUploads.id, row.id), eq(fileUploads.status, "uploading")));

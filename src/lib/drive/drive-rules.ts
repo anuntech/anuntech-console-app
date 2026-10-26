@@ -27,6 +27,9 @@ export function partSizeFor(size: number) {
 
 export const partCountFor = (size: number, partSize = partSizeFor(size)) => Math.max(1, Math.ceil(size / partSize));
 
+/** The exact bytes of one part (the last one takes the rest): R2 refuses a part of any other length. */
+export const partLengthFor = (size: number, partSize: number, partNumber: number) => Math.min(partSize, size - (partNumber - 1) * partSize);
+
 /** "512 KB", "3,4 MB", "1,2 GB". */
 export function bytesLabel(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;

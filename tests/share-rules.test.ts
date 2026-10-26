@@ -29,3 +29,10 @@ test("a link's password is optional, 6 to 100 characters", () => {
   assert.match(passwordRefusal("x".repeat(101)) ?? "", /100/);
   assert.ok(EXPIRY_CHOICES.some((c) => c.value === ""));
 });
+
+test("the blocked check reads the name as it will be saved", () => {
+  assert.ok(requestRefusal("evil.exe\u0001"));
+  assert.ok(requestRefusal("evil.exe."));
+  assert.ok(requestRefusal("evil.exe . "));
+  assert.equal(requestRefusal("relatorio.pdf."), null);
+});

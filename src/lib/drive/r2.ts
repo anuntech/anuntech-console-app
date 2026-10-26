@@ -57,14 +57,18 @@ export async function startMultipart(key: string, contentType: string) {
   return uploadId;
 }
 
-/** Where the browser PUTs one part; valid for an hour. */
-export async function partUrl(key: string, uploadId: string, partNumber: number) {
+/**
+ * Where the browser PUTs one part; valid for an hour. The part's length is
+ * signed, so R2 refuses (403) a part bigger or smaller than the upload said:
+ * nobody declares 1 byte and parks gigabytes in the bucket.
+ */
+export async function partUrl(key: string, uploadId: string, partNumber: number, length: number) {
   const { client, base } = need();
   const url = new URL(objectUrl(base, key));
   url.searchParams.set("partNumber", String(partNumber));
   url.searchParams.set("uploadId", uploadId);
   url.searchParams.set("X-Amz-Expires", "3600");
-  return (await client.sign(url, { method: "PUT", aws: { signQuery: true } })).url;
+  return (await client.sign(url, { method: "PUT", headers: { "content-length": String(length) }, aws: { signQuery: true, allHeaders: true } })).url;
 }
 
 export async function completeMultipart(key: string, uploadId: string, parts: { partNumber: number; etag: string }[]) {

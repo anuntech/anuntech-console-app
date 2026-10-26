@@ -187,6 +187,12 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   ok(vDone.status === 200 && received?.folder_id === inbox && received.company_id === ids.a && received.owner_id === people.manager.id && r2.objects.get(received.storage_key)?.equals(sent), "O arquivo chega na pasta, no nome de quem pediu");
   ok(!!(await one("select 1 as ok from console_audit_events where action='bookmark.received' and entity_id=$1 and details->>'sender'='Marina'", [received.id])), "O recebimento fica registrado com o nome de quem enviou");
   ok(!(await visitor(`/enviar/${ask}`)).text.includes(`comprovante-${marker}`), "Quem envia não vê o que já está na pasta");
+  // Whoever made the link lost the right (left the company, account deleted): the link reads as turned off.
+  const maker = (await one("select created_by from console_share_links where folder_id=$1", [inbox])).created_by;
+  await db.query("update console_share_links set created_by=$2 where folder_id=$1", [inbox, people.outsider.id]);
+  ok((await visitor(`/enviar/${ask}`)).text.includes("desligado") && (await pub("/api/publico/envios", { token: ask, fileName: "c.pdf", size: 10 })).status === 410, "Sem o direito de quem criou, o link para");
+  await db.query("update console_share_links set created_by=$2 where folder_id=$1", [inbox, maker]);
+  ok(!(await share("outsider", { kind: "request", bookmarkId: "", folderId: inbox, expiresInDays: "7", password: "", maxDownloads: "", email: "" })), "Quem não é da empresa não cria link da pasta");
   await db.query("update console_share_links set expires_at = now() - interval '1 minute' where folder_id=$1", [inbox]);
   ok((await pub("/api/publico/envios", { token: ask, fileName: "b.pdf", size: 10 })).status === 410 && (await visitor(`/enviar/${ask}`)).text.includes("venceu"), "Vencido, o pedido não recebe mais");
 
