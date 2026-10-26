@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { bookmarks, companies, fileUploads } from "@/db/schema";
 import { db } from "../db";
@@ -17,7 +17,7 @@ import {
   storageKeyFor,
   uploadRefusal,
 } from "./drive-rules";
-import { abortMultipart, completeMultipart, deleteObject, objectSize, partUrl, startMultipart, StorageError } from "./r2";
+import { abortMultipart, completeMultipart, deleteObject, objectSize, partUrl, removeStoredFiles, startMultipart, StorageError } from "./r2";
 
 /*
  * A file's way into Arquivos: started here (access, size, quota), sent by
@@ -179,4 +179,18 @@ export async function cancelUpload(actor: Actor, uploadId: string): Promise<Uplo
   if (row.status === "completed") await deleteObject(row.storageKey).catch(() => undefined);
   await db.update(fileUploads).set({ status: "aborted" }).where(eq(fileUploads.id, row.id));
   return { ok: true, value: null };
+}
+
+/**
+ * The daily routine's second part: uploads past their time that never became
+ * an item. A finished one left its object in R2 (removed here); an unfinished
+ * one is aborted by the bucket's lifecycle rule. The rows go either way.
+ */
+export async function clearStaleUploads(now = new Date()) {
+  const stale = await db
+    .delete(fileUploads)
+    .where(and(lt(fileUploads.expiresAt, now), inArray(fileUploads.status, ["uploading", "completed", "aborted"])))
+    .returning({ storageKey: fileUploads.storageKey, status: fileUploads.status });
+  await removeStoredFiles(stale.filter((u) => u.status === "completed").map((u) => u.storageKey));
+  return stale.length;
 }

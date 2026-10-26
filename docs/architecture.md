@@ -229,6 +229,7 @@ Crons da Vercel (`vercel.json`), todos protegidos por `CRON_SECRET` e envolvidos
 | `/api/cron/recurring-billing` | a cada 5 min | Emite as recorrências cuja data de emissão chegou e, nas mensais, o período seguinte de uma fatura recém-paga (`earlyIssueAllowed` em `billing/recurrence.ts`); agenda os lembretes, envia os avisos de cobrança e confere as entregas, inclusive dos alertas da equipe; põe na fila o push "Fatura em atraso" (uma vez por fatura, no 5º dia) |
 | `/api/cron/contract-expiry` | diário, 11:00 UTC | Avisa contratos perto do fim e vencidos |
 | `/api/cron/client-notices` | diário, 12:00 UTC | Avisos automáticos ao cliente ligados em Automações: relatório do banco de horas, lembretes de orçamento, contrato e chamado, entregas para revisar e o resumo semanal (segundas) |
+| `/api/cron/arquivos` | diário, 07:00 UTC | Esvazia da lixeira de Arquivos o que passou de 30 dias (com o arquivo no R2) e apaga os envios concluídos que nunca viraram item |
 | `/api/cron/ops-digest` | diário, 11:30 UTC | Resumo da manhã para a equipe (emissões, pagamentos, falhas, emissões que vão falhar, dívidas expiradas, atrasos, contratos, rotinas, certificado e os seguimentos), o IPCA do dia e, no 1º dia útil, o fechamento do mês |
 
 Avisos também são processados logo após a ação, com `after()`; o cron garante a retomada.

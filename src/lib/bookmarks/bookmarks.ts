@@ -63,6 +63,8 @@ export type BookmarkView = {
   createdAt: string;
   /** Last change (a whiteboard's last stroke); busts the preview's cache. */
   updatedAt?: string;
+  /** In the trash since then; only in the Lixeira view. */
+  deletedAt?: string;
 };
 /** `company`: "all", "internal" (Anuntech's own) or a company id. */
 export type BookmarkQuery = { folder: string; search: string; company: string };
@@ -79,7 +81,8 @@ export function bookmarkQuery(
     (company === "internal" && scope.admin) ||
     (UUID.test(company) && (scope.admin || scope.companyIds.includes(company.toLowerCase())));
   return {
-    folder: folder === "root" || UUID.test(folder) ? folder : "all",
+    // "lixeira": what was deleted in the last 30 days, to restore or delete for good.
+    folder: folder === "root" || folder === "lixeira" || UUID.test(folder) ? folder : "all",
     search: scalar("q").trim().slice(0, 160),
     company: companyOk ? (company === "internal" ? company : company.toLowerCase()) : "all",
   };
@@ -142,7 +145,7 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
     db
       .select({ folderId: bookmarks.folderId, n: sql<number>`count(*)::int` })
       .from(bookmarks)
-      .where(inArray(bookmarks.folderId, ids))
+      .where(and(inArray(bookmarks.folderId, ids), isNull(bookmarks.deletedAt)))
       .groupBy(bookmarks.folderId),
     db
       .select({
@@ -183,13 +186,17 @@ export async function bookmarksFor(
   folderIds: string[],
   query: BookmarkQuery,
   paging: PageQuery = { page: 1, pageSize: DEFAULT_PAGE_SIZE },
-): Promise<{ items: BookmarkView[]; rootCount: number; total: number; matching: number; page: number }> {
-  const visible = and(
+): Promise<{ items: BookmarkView[]; rootCount: number; total: number; matching: number; page: number; trashCount: number }> {
+  // Everything the viewer may see, the trash included; the lists and counts below take the trash out.
+  const reachable = and(
     companyCondition(bookmarks.companyId, scope, query.company),
     or(isNull(bookmarks.folderId), folderIds.length ? inArray(bookmarks.folderId, folderIds) : sql`false`),
   );
-  const narrowed =
-    query.folder === "root"
+  const visible = and(reachable, isNull(bookmarks.deletedAt));
+  const trash = query.folder === "lixeira";
+  const narrowed = trash
+    ? and(reachable, isNotNull(bookmarks.deletedAt))
+    : query.folder === "root"
       ? and(visible, isNull(bookmarks.folderId))
       : query.folder !== "all"
         ? folderIds.includes(query.folder)
@@ -208,12 +215,13 @@ export async function bookmarksFor(
   // falls back to the last one instead of showing an empty list.
   const [counts] = await db
     .select({
-      root: sql<number>`count(*) filter (where ${bookmarks.folderId} is null)::int`,
-      total: sql<number>`count(*)::int`,
+      root: sql<number>`count(*) filter (where ${bookmarks.folderId} is null and ${bookmarks.deletedAt} is null)::int`,
+      total: sql<number>`count(*) filter (where ${bookmarks.deletedAt} is null)::int`,
+      trash: sql<number>`count(*) filter (where ${bookmarks.deletedAt} is not null)::int`,
       matching: sql<number>`count(*) filter (where ${matchingWhere})::int`,
     })
     .from(bookmarks)
-    .where(visible);
+    .where(reachable);
   const matching = counts?.matching ?? 0;
   const shown = clampPage(paging, matching);
   const items = matching
@@ -233,21 +241,24 @@ export async function bookmarksFor(
           ownerId: bookmarks.ownerId,
           createdAt: bookmarks.createdAt,
           updatedAt: bookmarks.updatedAt,
+          deletedAt: bookmarks.deletedAt,
         })
         .from(bookmarks)
         .where(matchingWhere)
         // The id breaks ties between bookmarks saved in the same instant, so no
-        // row repeats or goes missing across pages.
-        .orderBy(desc(bookmarks.createdAt), desc(bookmarks.id))
+        // row repeats or goes missing across pages. The trash goes by when each was deleted.
+        .orderBy(trash ? desc(bookmarks.deletedAt) : desc(bookmarks.createdAt), desc(bookmarks.id))
         .limit(shown.pageSize)
         .offset(offsetOf(shown))
     : [];
   return {
-    items: items.map((item) => ({
+    items: items.map(({ deletedAt, ...item }) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
+      ...(deletedAt ? { deletedAt: deletedAt.toISOString() } : {}),
     })),
+    trashCount: counts?.trash ?? 0,
     rootCount: counts?.root ?? 0,
     total: counts?.total ?? 0,
     matching,
@@ -354,7 +365,7 @@ export type BookmarkRecord = {
  * company, theirs, or shared with them. Null reads as "does not exist".
  * The same rule as `/api/bookmarks/[id]`, which downloads the file.
  */
-export async function bookmarkFor(actor: Actor, bookmarkId: string): Promise<BookmarkRecord | null> {
+export async function bookmarkFor(actor: Actor, bookmarkId: string, { trashed = false } = {}): Promise<BookmarkRecord | null> {
   const [item] = await db
     .select({
       id: bookmarks.id,
@@ -380,7 +391,8 @@ export async function bookmarkFor(actor: Actor, bookmarkId: string): Promise<Boo
         eq(bookmarkFolderShares.userId, actor.user.id),
       ),
     )
-    .where(eq(bookmarks.id, bookmarkId));
+    // An item in the trash does not open, download or change; only the trash's own actions reach it.
+    .where(and(eq(bookmarks.id, bookmarkId), trashed ? isNotNull(bookmarks.deletedAt) : isNull(bookmarks.deletedAt)));
   if (!item) return null;
   const inCompany = item.companyId ? canAccess(actor, item.companyId, "overview") : actor.admin;
   const folderOpen =

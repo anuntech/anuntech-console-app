@@ -69,3 +69,12 @@ test("the preview shows pictures, PDFs, video, audio and text; anything else is 
   assert.equal(previewOf("instalador.exe"), null);
   assert.equal(previewOf(null), null);
 });
+
+test("the trash keeps an item 30 days and counts them down", async () => {
+  const { TRASH_DAYS, trashDaysLeft } = await import("../src/lib/drive/drive-rules");
+  const now = new Date("2026-10-26T12:00:00Z");
+  assert.equal(TRASH_DAYS, 30);
+  assert.equal(trashDaysLeft(now, now), 29);
+  assert.equal(trashDaysLeft(new Date("2026-09-27T12:00:00Z"), now), 0);
+  assert.equal(trashDaysLeft(new Date("2026-01-01T00:00:00Z"), now), 0);
+});

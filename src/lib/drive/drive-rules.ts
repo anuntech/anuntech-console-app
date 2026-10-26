@@ -100,3 +100,12 @@ export function previewOf(fileName: string | null | undefined, size?: number | n
   if (preview.kind === "text" && (size ?? 0) > TEXT_PREVIEW_BYTES) return null;
   return preview;
 }
+
+/** Days an item stays in the trash before it is gone for good, files in R2 included. */
+export const TRASH_DAYS = 30;
+
+/** Whole days left before the trash empties itself of this item (0 on the last day). */
+export function trashDaysLeft(deletedAt: Date | string, now = new Date()) {
+  const gone = new Date(deletedAt).getTime() + TRASH_DAYS * 86_400_000;
+  return Math.max(0, Math.ceil((gone - now.getTime()) / 86_400_000) - 1);
+}

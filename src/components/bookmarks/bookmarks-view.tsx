@@ -18,9 +18,11 @@ import {
   PlusIcon,
   PresentationIcon,
   Share2Icon,
+  RotateCcwIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react";
+import { TRASH_DAYS, trashDaysLeft } from "@/lib/drive/drive-rules";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,7 +60,7 @@ import {
 } from "@/components/console/list-view";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
-import { moveBookmark, deleteBookmark } from "@/lib/bookmarks/bookmark-actions";
+import { moveBookmark, deleteBookmark, purgeBookmark, restoreBookmark } from "@/lib/bookmarks/bookmark-actions";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { ListLayout } from "@/lib/list-layout";
@@ -76,7 +78,7 @@ export type BookmarksViewData = {
   folders: FolderView[];
   items: BookmarkView[];
   query: BookmarkQuery;
-  counts: { root: number; total: number };
+  counts: { root: number; total: number; trash?: number };
   /**
    * The page shown; `total` is what the folder and the search leave. Optional
    * so fixtures without it still type: they show `items` as a single page.
@@ -165,6 +167,29 @@ function useBookmarkMove() {
   return { submit, form };
 }
 
+/** "Excluída há 3 dias · some em 27 dias", under an item in the trash. */
+const trashNote = (deletedAt: string) => {
+  const left = trashDaysLeft(deletedAt);
+  return left === 0 ? "some hoje" : `some em ${left === 1 ? "1 dia" : `${left} dias`}`;
+};
+
+/** "Restaurar", from the trash, through one hidden form (no confirmation: nothing is lost). */
+function useBookmarkRestore() {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [id, setId] = useState("");
+  const submit = (next: string) =>
+    setTimeout(() => {
+      flushSync(() => setId(next));
+      formRef.current?.requestSubmit();
+    }, 0);
+  const form = (
+    <ServerForm ref={formRef} action={restoreBookmark}>
+      <input type="hidden" name="id" value={id} />
+    </ServerForm>
+  );
+  return { submit, form };
+}
+
 function NavItem({
   active,
   href: to,
@@ -222,6 +247,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   const [editor, setEditor] = useState<BookmarkEditor | null>(null);
   const [folderEditor, setFolderEditor] = useState<FolderEditor | null>(null);
   const [removing, setRemoving] = useState<BookmarkView | null>(null);
+  const [purging, setPurging] = useState<BookmarkView | null>(null);
+  const { submit: restore, form: restoreForm } = useBookmarkRestore();
+  // The trash: what was deleted in the last 30 days, to restore or delete for good; nothing opens from it.
+  const inTrash = query.folder === "lixeira";
   const [view, chooseView] = useListLayout("bookmarks", data.view ?? "grid");
   const { submit: move, form: moveForm } = useBookmarkMove();
   const folderById = new Map(folders.map((folder) => [folder.id, folder]));
@@ -242,7 +271,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     viewer.admin ||
     item.ownerId === viewer.id ||
     (item.folderId ? folderById.get(item.folderId)?.ownerId === viewer.id : false);
-  const createIn = query.folder !== "all" && query.folder !== "root" ? query.folder : "";
+  const createIn = query.folder !== "all" && query.folder !== "root" && query.folder !== "lixeira" ? query.folder : "";
   // A new item lands in the company being looked at, or the folder's company.
   const createCompany = current
     ? (current.companyId ?? "")
@@ -299,15 +328,36 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       kindOf(item) === "board" ? "Lousa" : item.url ? linkHost(item.url) : item.fileName,
       kindOf(item) === "file" && item.fileSize ? fileSizeLabel(item.fileSize) : null,
       withCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
+      item.deletedAt ? trashNote(item.deletedAt) : null,
     ]
       .filter(Boolean)
       .join(" · ");
   // A file opens in the preview when the Console can show it; anything else downloads.
   const [previewing, setPreviewing] = useState<BookmarkView | null>(null);
   const download = (item: BookmarkView) => (canPreview(item) ? setPreviewing(item) : downloadBookmark(item));
+  // Where a click goes; in the trash, nowhere (it has to come back first).
+  const hrefOf = (item: BookmarkView) => (inTrash ? undefined : kindOf(item) === "board" ? boardHref(item.id) : item.url);
+  const openOf = (item: BookmarkView) => (inTrash || kindOf(item) === "board" || item.url ? undefined : () => download(item));
 
   /** The "…" menu of a bookmark, the same in the list and in the grid. */
-  const actionsFor = (item: BookmarkView) => (
+  const actionsFor = (item: BookmarkView) =>
+    inTrash ? (
+      canEdit(item) ? (
+        <>
+          <DropdownMenuItem onSelect={() => restore(item.id)}>
+            <RotateCcwIcon />
+            Restaurar
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => later(() => setPurging(item))}>
+            <Trash2Icon />
+            Excluir de vez
+          </DropdownMenuItem>
+        </>
+      ) : (
+        <DropdownMenuItem disabled>Só quem adicionou ou o dono da pasta restaura</DropdownMenuItem>
+      )
+    ) : (
     <>
       {kindOf(item) === "board" ? (
         <DropdownMenuItem asChild>
@@ -375,7 +425,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         </>
       )}
     </>
-  );
+    );
 
   const table = (
     <Table>
@@ -399,14 +449,14 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           return (
             <LinkRow
               key={item.id}
-              href={board ? boardHref(item.id) : item.url}
+              href={hrefOf(item)}
               external={!board}
-              onOpen={board || item.url ? undefined : () => download(item)}
+              onOpen={openOf(item)}
             >
               <PrimaryCell
-                href={board ? boardHref(item.id) : item.url}
+                href={hrefOf(item)}
                 external={!board}
-                onOpen={board || item.url ? undefined : () => download(item)}
+                onOpen={openOf(item)}
                 leading={<Tile item={item} />}
                 title={item.title}
                 subtitle={subtitle || undefined}
@@ -443,9 +493,9 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         return (
           <GridCard
             key={item.id}
-            href={board ? boardHref(item.id) : item.url}
+            href={hrefOf(item)}
             external={!board}
-            onOpen={board || item.url ? undefined : () => download(item)}
+            onOpen={openOf(item)}
             leading={<Tile item={item} large />}
             title={item.title}
             subtitle={subtitleFor(item, showCompany) || undefined}
@@ -484,7 +534,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     <>
       <PageHeader
         className="mb-4"
-        title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Arquivos"}
+        title={current ? current.name : query.folder === "root" ? "Sem pasta" : inTrash ? "Lixeira" : "Arquivos"}
         count={paging.total}
         // A folder says whose it is (when there are several companies) and, only
         // when it is not open to the whole company, who sees it.
@@ -517,6 +567,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             >
               <NativeSelectOption value="all">Todos os bookmarks</NativeSelectOption>
               <NativeSelectOption value="root">Sem pasta</NativeSelectOption>
+              <NativeSelectOption value="lixeira">Lixeira</NativeSelectOption>
               {folders.length > 0 && (
                 <NativeSelectOptGroup label="Pastas">
                   {folders.map((folder) => (
@@ -544,6 +595,13 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 icon={<FolderIcon className="opacity-60" />}
                 label="Sem pasta"
                 count={counts.root}
+              />
+              <NavItem
+                active={inTrash}
+                href={href(state, { folder: "lixeira" })}
+                icon={<Trash2Icon className="opacity-60" />}
+                label="Lixeira"
+                count={counts.trash || undefined}
               />
             </ul>
             <p className="mt-5 mb-1.5 px-2.5 text-caption font-medium text-muted-foreground">Pastas</p>
@@ -686,13 +744,27 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           onOpenChange={(open) => !open && setRemoving(null)}
           action={deleteBookmark}
           fields={{ id: removing.id }}
-          title="Excluir bookmark?"
-          description={`"${removing.title}" sai da lista${deleteNote(removing)}. Isso não pode ser desfeito.`}
-          confirmLabel="Excluir"
+          title="Mover para a lixeira?"
+          description={`"${removing.title}" vai para a lixeira${deleteNote(removing)} e fica lá por ${TRASH_DAYS} dias. Até lá, dá para restaurar.`}
+          confirmLabel="Mover para a lixeira"
           destructive
           onSuccess={() => setRemoving(null)}
         />
       )}
+      {purging && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setPurging(null)}
+          action={purgeBookmark}
+          fields={{ id: purging.id }}
+          title="Excluir de vez?"
+          description={`"${purging.title}" sai do Console${deleteNote(purging)}, e o espaço volta para a empresa. Isso não pode ser desfeito.`}
+          confirmLabel="Excluir de vez"
+          destructive
+          onSuccess={() => setPurging(null)}
+        />
+      )}
+      {restoreForm}
       {moveForm}
     </>
   );

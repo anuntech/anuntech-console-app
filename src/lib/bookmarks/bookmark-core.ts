@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -18,6 +18,7 @@ import type { ActionState } from "../action-state";
 import { BOOKMARK_FILE, limitLabel } from "../tickets/attachment-rules";
 import { claimUpload } from "../drive/upload-claim";
 import { removeStoredFiles } from "../drive/r2";
+import { TRASH_DAYS } from "../drive/drive-rules";
 
 /*
  * The bookmark rules behind the web's actions (bookmark-actions.ts, which read
@@ -83,7 +84,7 @@ export async function usable(actor: Actor, folder: Folder) {
 }
 
 /** Staff, the person who saved it, or the owner of its folder. */
-async function editableBookmark(actor: Actor, bookmarkId: string) {
+async function editableBookmark(actor: Actor, bookmarkId: string, { trashed = false } = {}) {
   const [item] = await db
     .select({
       id: bookmarks.id,
@@ -97,7 +98,8 @@ async function editableBookmark(actor: Actor, bookmarkId: string) {
     })
     .from(bookmarks)
     .leftJoin(bookmarkFolders, eq(bookmarkFolders.id, bookmarks.folderId))
-    .where(eq(bookmarks.id, bookmarkId));
+    // The trash's own actions (restore, delete for good) reach trashed items; the rest never do.
+    .where(and(eq(bookmarks.id, bookmarkId), trashed ? isNotNull(bookmarks.deletedAt) : isNull(bookmarks.deletedAt)));
   if (!item) return null;
   if (actor.admin || item.ownerId === actor.user.id || item.folderOwner === actor.user.id)
     return item;
@@ -351,17 +353,61 @@ export async function moveBookmarkAs(actor: Actor, input: { id: unknown; folderI
   }
 }
 
+/** "Excluir": into the trash for TRASH_DAYS, with the file kept in R2 until then. */
 export async function deleteBookmarkAs(actor: Actor, input: { id: unknown }): Promise<ActionState> {
   try {
     const bookmarkId = id.parse(input.id);
     const item = await editableBookmark(actor, bookmarkId);
     if (!item) return blocked;
+    await db.update(bookmarks).set({ deletedAt: new Date(), deletedBy: actor.user.id }).where(and(eq(bookmarks.id, bookmarkId), isNull(bookmarks.deletedAt)));
+    await audit(actor, "bookmark.trashed", bookmarkId, item.companyId, { title: item.title });
+    refresh();
+    return { success: `Movido para a lixeira. Fica lá por ${TRASH_DAYS} dias.` };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Back from the trash, to its folder (or Sem pasta, when the folder is gone). */
+export async function restoreBookmarkAs(actor: Actor, input: { id: unknown }): Promise<ActionState> {
+  try {
+    const bookmarkId = id.parse(input.id);
+    const item = await editableBookmark(actor, bookmarkId, { trashed: true });
+    if (!item) return blocked;
+    await db.update(bookmarks).set({ deletedAt: null, deletedBy: null }).where(eq(bookmarks.id, bookmarkId));
+    await audit(actor, "bookmark.restored", bookmarkId, item.companyId, { title: item.title });
+    refresh();
+    return { success: "Restaurado." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Gone for good, its file in R2 too; only from the trash. */
+export async function purgeBookmarkAs(actor: Actor, input: { id: unknown }): Promise<ActionState> {
+  try {
+    const bookmarkId = id.parse(input.id);
+    const item = await editableBookmark(actor, bookmarkId, { trashed: true });
+    if (!item) return blocked;
     const [removed] = await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId)).returning({ storageKey: bookmarks.storageKey });
     await removeStoredFiles([removed?.storageKey]);
     await audit(actor, "bookmark.deleted", bookmarkId, item.companyId, { title: item.title });
     refresh();
-    return { success: "Bookmark excluído." };
+    return { success: "Excluído de vez." };
   } catch (error) {
     return failure(error);
   }
+}
+
+/**
+ * The daily routine: what has been in the trash for TRASH_DAYS goes for good,
+ * files included. Returns how many left.
+ */
+export async function emptyExpiredTrash(now = new Date()) {
+  const removed = await db
+    .delete(bookmarks)
+    .where(lt(bookmarks.deletedAt, new Date(now.getTime() - TRASH_DAYS * 86_400_000)))
+    .returning({ storageKey: bookmarks.storageKey });
+  await removeStoredFiles(removed.map((r) => r.storageKey));
+  return removed.length;
 }

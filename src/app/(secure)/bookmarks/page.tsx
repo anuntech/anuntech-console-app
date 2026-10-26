@@ -26,10 +26,11 @@ export default async function Bookmarks({
   if (
     query.folder !== "all" &&
     query.folder !== "root" &&
+    query.folder !== "lixeira" &&
     !folders.some((folder) => folder.id === query.folder)
   )
     query.folder = "all";
-  const [{ items, rootCount, total, matching, page }, companies] = await Promise.all([
+  const [{ items, rootCount, total, matching, page, trashCount }, companies] = await Promise.all([
     bookmarksFor(
       scope,
       folders.map((folder) => folder.id),
@@ -55,7 +56,7 @@ export default async function Bookmarks({
         folders,
         items,
         query,
-        counts: { root: rootCount, total },
+        counts: { root: rootCount, total, trash: trashCount },
         paging: {
           page,
           pageSize: paging.pageSize,

@@ -1168,6 +1168,9 @@ export const bookmarks = pgTable(
     mime: text("mime"),
     board: jsonb("board"),
     preview: bytea("preview"),
+    /** In the trash since then (lib/drive/drive-rules.ts, TRASH_DAYS); gone for good after it. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: text("deleted_by").references(() => user.id),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1175,6 +1178,7 @@ export const bookmarks = pgTable(
     index("console_bookmark_owner_idx").on(t.ownerId),
     index("console_bookmark_folder_idx").on(t.folderId),
     index("console_bookmark_company_idx").on(t.companyId),
+    index("console_bookmark_deleted_idx").on(t.deletedAt),
   ],
 );
 

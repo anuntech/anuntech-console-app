@@ -111,7 +111,35 @@ export async function runArquivosTests({ database: db, ids, request, submitForm,
   const page2 = await one("select id from console_bookmarks where title='Página' and company_id=$1", [ids.a]);
   ok((await request(`/api/bookmarks/${page2.id}/ver`, "manager")).status === 404, "HTML não abre na prévia, só baixa");
 
-  // Deleting the bookmark removes the object from R2.
+  // Fase 2b: "Excluir" moves to the trash, the file kept in R2; restore brings it back; only "Excluir de vez" or 30 days remove it.
+  const cron = (path) => request(path, undefined, { headers: { Authorization: "Bearer test-cron-secret" } });
   await submitForm("/bookmarks", "admin", "admin", { action: "deleteBookmark" }, { id: saved.id });
-  ok(!(await one("select 1 as ok from console_bookmarks where id=$1", [saved.id])) && !r2.objects.has(`anuntech/${upload.id}`), "Excluir o bookmark tira o arquivo do R2");
+  let trashed = await one("select deleted_at, deleted_by from console_bookmarks where id=$1", [saved.id]);
+  ok(!!trashed?.deleted_at && r2.objects.has(`anuntech/${upload.id}`), "Excluir manda para a lixeira e o arquivo continua no R2");
+  ok((await request(`/api/bookmarks/${saved.id}`, "admin")).status === 404, "Item na lixeira não baixa");
+  ok(!(await request("/bookmarks?q=" + encodeURIComponent(marker), "admin")).text.includes(`Vídeo ${marker}`), "Item na lixeira sai da lista");
+  const trashPage = await request("/bookmarks?pasta=lixeira", "admin");
+  ok(trashPage.text.includes(`Vídeo ${marker}`), "Item aparece na Lixeira");
+  await submitForm("/bookmarks", "admin", "manager", { action: "restoreBookmark" }, { id: saved.id });
+  await submitForm("/bookmarks", "admin", "manager", { action: "purgeBookmark" }, { id: saved.id });
+  ok(!!(await one("select deleted_at from console_bookmarks where id=$1", [saved.id]))?.deleted_at, "Cliente não restaura nem apaga item do espaço da Anuntech");
+  await submitForm("/bookmarks", "admin", "admin", { action: "restoreBookmark" }, { id: saved.id });
+  ok(!(await one("select deleted_at from console_bookmarks where id=$1", [saved.id]))?.deleted_at && (await request(`/api/bookmarks/${saved.id}`, "admin")).status === 302, "Restaurar traz o item de volta, e ele baixa de novo");
+  await submitForm("/bookmarks", "admin", "admin", { action: "purgeBookmark" }, { id: saved.id });
+  ok(!!(await one("select 1 as ok from console_bookmarks where id=$1", [saved.id])), "Excluir de vez só vale para o que está na lixeira");
+  await submitForm("/bookmarks", "admin", "admin", { action: "deleteBookmark" }, { id: saved.id });
+  await submitForm("/bookmarks", "admin", "admin", { action: "purgeBookmark" }, { id: saved.id });
+  ok(!(await one("select 1 as ok from console_bookmarks where id=$1", [saved.id])) && !r2.objects.has(`anuntech/${upload.id}`), "Excluir de vez tira o item e o arquivo do R2");
+
+  // The daily routine: 30 days in the trash and it is gone; a finished upload never saved is cleared too.
+  await submitForm("/bookmarks", "manager", "manager", { action: "deleteBookmark" }, { id: photo.id });
+  const photoKey = (await one("select storage_key from console_bookmarks where id=$1", [photo.id])).storage_key;
+  await db.query("update console_bookmarks set deleted_at = now() - interval '31 days' where id=$1", [photo.id]);
+  const orphanBytes = randomBytes(1000);
+  started = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "esquecido.bin", size: orphanBytes.length });
+  await sendParts("manager", started.data, orphanBytes);
+  await db.query("update console_file_uploads set expires_at = now() - interval '1 hour' where id=$1", [started.data.id]);
+  const run = await cron("/api/cron/arquivos");
+  ok(run.status === 200 && !(await one("select 1 as ok from console_bookmarks where id=$1", [photo.id])) && !r2.objects.has(photoKey), "Depois de 30 dias na lixeira, a rotina apaga o item e o arquivo");
+  ok(!(await one("select 1 as ok from console_file_uploads where id=$1", [started.data.id])) && !r2.objects.has(`${ids.a}/${started.data.id}`), "Envio concluído e nunca salvo some na rotina, com o arquivo");
 }

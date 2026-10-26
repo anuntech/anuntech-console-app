@@ -149,7 +149,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               "Clique em “…” no bookmark.",
               "“Editar” muda o “Título”, o “Link” (em bookmark de link) e a “Pasta”. Clique em “Salvar”.",
               "“Mover para” leva o bookmark para outra pasta que você vê ou para “Sem pasta”.",
-              "“Excluir” pergunta “Excluir bookmark?” e apaga quando você clica em “Excluir”. O mesmo botão aparece dentro de “Editar bookmark”.",
+              "“Excluir” pergunta “Mover para a lixeira?” e move quando você confirma. O mesmo botão aparece dentro de “Editar bookmark”.",
             ],
           },
           {
@@ -160,10 +160,28 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             kind: "p",
             text: "O arquivo de um bookmark não pode ser trocado: em “Editar” você muda só o título e a pasta. Para trocar o arquivo, exclua o bookmark e adicione de novo.",
           },
+        ],
+      },
+      {
+        title: "Lixeira",
+        blocks: [
+          {
+            kind: "p",
+            text: "O que você exclui vai para a “Lixeira”, na coluna da esquerda (no celular, no seletor de pastas), e fica lá por 30 dias, com o arquivo, o link ou o desenho. Cada item mostra quantos dias faltam. Na lixeira, nada abre nem baixa.",
+          },
+          {
+            kind: "list",
+            items: [
+              "“Restaurar”, no menu “…”, devolve o item para a pasta onde estava, ou para “Sem pasta” se a pasta foi excluída.",
+              "“Excluir de vez” apaga o item e o arquivo na hora. Isso não tem volta.",
+              "Depois de 30 dias, o item sai da lixeira sozinho, para sempre.",
+              "Restaurar e excluir de vez ficam com quem adicionou o item, com quem criou a pasta e com a equipe da Anuntech.",
+            ],
+          },
           {
             kind: "note",
             tone: "attention",
-            text: "Excluir não tem volta. O bookmark sai da lista junto com o arquivo ou com o desenho da lousa, e não pode ser recuperado.",
+            text: "Os arquivos da lixeira continuam ocupando o espaço da empresa até saírem. Para liberar espaço na hora, use “Excluir de vez”.",
           },
         ],
       },
@@ -201,7 +219,11 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "O espaço da empresa acabou. O que faço?",
-        a: "Exclua os arquivos que não usa mais: o espaço volta na hora. Se precisar de mais de 5 GB, fale com a Anuntech por um [chamado](/chamados/novo).",
+        a: "Exclua os arquivos que não usa mais e, na “Lixeira”, use “Excluir de vez”: o espaço volta na hora. O que fica na lixeira ainda ocupa espaço por até 30 dias. Se precisar de mais de 5 GB, fale com a Anuntech por um [chamado](/chamados/novo).",
+      },
+      {
+        q: "Excluí um arquivo sem querer. Dá para recuperar?",
+        a: "Sim, por 30 dias. Abra a “Lixeira”, clique em “…” no item e em “Restaurar”. Ele volta para a pasta onde estava.",
       },
       {
         q: "Como troco o arquivo de um bookmark?",
