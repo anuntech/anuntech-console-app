@@ -144,6 +144,8 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_bookmark_folder_shares.folder_id": "not null",
     "console_bookmarks.folder_id": "null",
     "console_file_uploads.folder_id": "null",
+    // Subfolders move up a level when their folder goes (bookmark-core, deleteFolderAs).
+    "console_bookmark_folders.parent_id": "null",
   });
   // Leaves: nothing points at these, so deleting their rows ends the chain.
   for (const leaf of [

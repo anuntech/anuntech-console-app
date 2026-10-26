@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
  * parts, someone else's upload, another company and another site refused;
  * deleting the bookmark removes the object.
  */
-export async function runArquivosTests({ database: db, ids, request, submitForm, ok, marker, base, r2 }) {
+export async function runArquivosTests({ database: db, ids, people, request, submitForm, ok, marker, base, r2 }) {
   const one = async (sql, values = []) => (await db.query(sql, values)).rows[0];
   const json = (who, path, body, method = "POST") =>
     request(path, who, { method, headers: { "Content-Type": "application/json", Origin: base }, body: body === undefined ? undefined : JSON.stringify(body) }).then((r) => ({
@@ -110,6 +110,39 @@ export async function runArquivosTests({ database: db, ids, request, submitForm,
   await submitForm("/bookmarks", "manager", "manager", { action: "saveBookmark" }, { companyId: ids.a, folderId: "", title: "Página", kind: "file", uploadId: started.data.id });
   const page2 = await one("select id from console_bookmarks where title='Página' and company_id=$1", [ids.a]);
   ok((await request(`/api/bookmarks/${page2.id}/ver`, "manager")).status === 404, "HTML não abre na prévia, só baixa");
+
+  // Fase 2c: folders inside folders; the inside sees what the outside sees; moving and deleting keep everything.
+  const folderId = async (name) => (await one("select id from console_bookmark_folders where name=$1", [name]))?.id;
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Cliente ${marker}`, visibility: "people" });
+  const top = await folderId(`Cliente ${marker}`);
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: "", name: `Sub ${marker}`, visibility: "company", parentId: top });
+  const sub = await one("select id, parent_id, company_id, visibility from console_bookmark_folders where name=$1", [`Sub ${marker}`]);
+  ok(sub?.parent_id === top && sub.company_id === ids.a && sub.visibility === "people", "A subpasta fica dentro da outra, na mesma empresa, e herda quem vê");
+  await submitForm("/bookmarks", "manager", "finance", { action: "createFolder" }, { companyId: ids.a, name: `Intrusa ${marker}`, visibility: "company", parentId: top });
+  ok(!(await folderId(`Intrusa ${marker}`)), "Quem não vê a pasta não cria pasta dentro dela");
+  await submitForm("/bookmarks", "manager", "manager", { action: "shareFolder" }, { id: top, visibility: "people", userIds: people.finance.id });
+  ok(!!(await one("select 1 as ok from console_bookmark_folder_shares where folder_id=$1 and user_id=$2", [sub.id, people.finance.id])), "Compartilhar a pasta leva o compartilhamento para as de dentro");
+  const subPage = await request(`/bookmarks?pasta=${sub.id}`, "finance");
+  ok(subPage.text.includes(`Sub ${marker}`) && subPage.text.includes(`Cliente ${marker}`), "Dentro da subpasta, o caminho mostra a pasta de cima");
+  await submitForm("/bookmarks", "manager", "manager", { action: "moveFolder" }, { id: top, parentId: sub.id });
+  ok((await one("select parent_id from console_bookmark_folders where id=$1", [top]))?.parent_id === null, "Uma pasta não vai para dentro dela mesma");
+  await submitForm("/bookmarks", "admin", "admin", { action: "createFolder" }, { companyId: "", name: `Interna ${marker}`, visibility: "company" });
+  await submitForm("/bookmarks", "admin", "admin", { action: "moveFolder" }, { id: sub.id, parentId: await folderId(`Interna ${marker}`) });
+  ok((await one("select parent_id from console_bookmark_folders where id=$1", [sub.id]))?.parent_id === top, "Pasta não vai para outra empresa");
+  await submitForm("/bookmarks", "manager", "finance", { action: "moveFolder" }, { id: sub.id, parentId: "" });
+  ok((await one("select parent_id from console_bookmark_folders where id=$1", [sub.id]))?.parent_id === top, "Só quem criou a pasta (ou a equipe) a move");
+  await submitForm("/bookmarks", "manager", "manager", { action: "saveBookmark" }, { companyId: ids.a, folderId: sub.id, title: `Dentro ${marker}`, url: "https://example.invalid/dentro" });
+  await submitForm("/bookmarks", "manager", "manager", { action: "deleteFolder" }, { id: sub.id });
+  ok((await one("select folder_id from console_bookmarks where title=$1", [`Dentro ${marker}`]))?.folder_id === top, "Excluir a subpasta leva o que tinha dentro para a pasta de cima");
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: "", name: `Sub2 ${marker}`, visibility: "company", parentId: top });
+  const sub2 = await folderId(`Sub2 ${marker}`);
+  await submitForm("/bookmarks", "manager", "manager", { action: "deleteFolder" }, { id: top });
+  ok((await one("select parent_id from console_bookmark_folders where id=$1", [sub2]))?.parent_id === null && (await one("select folder_id from console_bookmarks where title=$1", [`Dentro ${marker}`]))?.folder_id === null, "Excluir a pasta de cima sobe as de dentro para o início");
+  // The suites clean their own folders (the run's cleanup removes companies, not folders).
+  const leftovers = [sub2, await folderId(`Interna ${marker}`)].filter(Boolean);
+  await db.query("update console_bookmarks set folder_id=null where folder_id=any($1::text[])", [leftovers]);
+  await db.query("delete from console_bookmark_folder_shares where folder_id=any($1::text[])", [leftovers]);
+  await db.query("delete from console_bookmark_folders where id=any($1::text[])", [leftovers]);
 
   // Fase 2b: "Excluir" moves to the trash, the file kept in R2; restore brings it back; only "Excluir de vez" or 30 days remove it.
   const cron = (path) => request(path, undefined, { headers: { Authorization: "Bearer test-cron-secret" } });

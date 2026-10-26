@@ -322,6 +322,21 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         ],
       },
       {
+        title: "Pastas dentro de pastas",
+        blocks: [
+          {
+            kind: "list",
+            items: [
+              "Abra uma pasta e clique em “Nova pasta”: a nova fica dentro dela. Dá para ir até 5 níveis, como Marca › Logo › SVG.",
+              "Uma pasta dentro de outra é vista por quem vê a pasta de cima. Mudar quem vê uma pasta, em “Compartilhar”, muda também as pastas de dentro.",
+              "Dentro de uma pasta, as pastas dela aparecem acima dos arquivos, e o topo da página mostra o caminho; clique em uma pasta do caminho para voltar até ela. Na coluna da esquerda, as pastas de dentro aparecem recuadas, abaixo da de cima.",
+              "“Mover para…”, no menu “…” da pasta, leva a pasta, com tudo o que tem dentro, para outra pasta da mesma empresa ou para o início. Quem vê passa a seguir a pasta de destino. Mover fica com quem criou a pasta e com a equipe da Anuntech.",
+              "Excluir uma pasta não apaga o que está nela: os arquivos e as pastas de dentro sobem um nível.",
+            ],
+          },
+        ],
+      },
+      {
         title: "Compartilhar com pessoas escolhidas",
         blocks: [
           {

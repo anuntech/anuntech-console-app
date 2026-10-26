@@ -2218,7 +2218,7 @@ try {
     await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
     await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
     await runSuspensionTests({ database, people, request, submitForm, sentNotices, ok, marker, companyIds });
-    await runArquivosTests({ database, ids, request, submitForm, ok, marker, base, r2 });
+    await runArquivosTests({ database, ids, people, request, submitForm, ok, marker, base, r2 });
     await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
     await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
     await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });

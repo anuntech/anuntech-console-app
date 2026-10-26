@@ -1,0 +1,3 @@
+ALTER TABLE "console_bookmark_folders" ADD COLUMN IF NOT EXISTS "parent_id" text;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "console_bookmark_folders" ADD CONSTRAINT "console_bookmark_folders_parent_id_console_bookmark_folders_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."console_bookmark_folders"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "console_bookmark_folder_parent_idx" ON "console_bookmark_folders" USING btree ("parent_id");

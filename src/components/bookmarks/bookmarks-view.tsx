@@ -23,6 +23,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { TRASH_DAYS, trashDaysLeft } from "@/lib/drive/drive-rules";
+import { folderPath, treeOrder } from "@/lib/bookmarks/folder-tree";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import {
@@ -198,6 +199,7 @@ function NavItem({
   count,
   hint,
   menu,
+  depth = 0,
 }: {
   active: boolean;
   href: string;
@@ -206,6 +208,8 @@ function NavItem({
   count?: number;
   hint?: string;
   menu?: ReactNode;
+  /** A subfolder's level, indented under its parent. */
+  depth?: number;
 }) {
   return (
     <li className="group/nav relative">
@@ -219,6 +223,7 @@ function NavItem({
             : "text-foreground hover:bg-secondary",
           menu && "pr-9",
         )}
+        style={depth ? { paddingLeft: `${0.625 + depth * 0.875}rem` } : undefined}
       >
         <span className="shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span>
         <span className="min-w-0 flex-1">
@@ -257,6 +262,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   // Names as people read them; the picker keeps the razão social to search by.
   const companyName = new Map(companies.map((company) => [company.id, companyDisplayName(company.name, company.document)]));
   const current = folderById.get(query.folder);
+  // Folders inside folders: the rail as a tree, the path to the open one, and its subfolders above its items.
+  const tree = treeOrder(folders.map((folder) => ({ ...folder, parentId: folder.parentId ?? null })));
+  const path = current ? folderPath(tree, current.id) : [];
+  const subfolders = current ? tree.filter((folder) => folder.parentId === current.id) : [];
   const manyCompanies = companies.length > 1;
   // The folder rail spans companies until one is picked; the bookmarks inside a
   // folder are all one company's, and the header names it once.
@@ -309,6 +318,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "share", folder }))}>
           <Share2Icon />
           Compartilhar
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "move", folder }))}>
+          <FolderInputIcon />
+          Mover para…
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -534,6 +547,11 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     <>
       <PageHeader
         className="mb-4"
+        crumbs={
+          path.length > 1
+            ? [{ label: "Arquivos", href: href(state, { folder: "all" }) }, ...path.slice(0, -1).map((folder) => ({ label: folder.name, href: href(state, { folder: folder.id }) }))]
+            : undefined
+        }
         title={current ? current.name : query.folder === "root" ? "Sem pasta" : inTrash ? "Lixeira" : "Arquivos"}
         count={paging.total}
         // A folder says whose it is (when there are several companies) and, only
@@ -570,8 +588,9 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               <NativeSelectOption value="lixeira">Lixeira</NativeSelectOption>
               {folders.length > 0 && (
                 <NativeSelectOptGroup label="Pastas">
-                  {folders.map((folder) => (
+                  {tree.map((folder) => (
                     <NativeSelectOption key={folder.id} value={folder.id}>
+                      {"— ".repeat(folder.depth)}
                       {folder.name}
                       {railCompany ? ` · ${companyName.get(folder.companyId ?? "") ?? ""}` : ""}
                     </NativeSelectOption>
@@ -606,9 +625,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             </ul>
             <p className="mt-5 mb-1.5 px-2.5 text-caption font-medium text-muted-foreground">Pastas</p>
             <ul className="flex flex-col gap-0.5">
-              {folders.map((folder) => (
+              {tree.map((folder) => (
                 <NavItem
                   key={folder.id}
+                  depth={folder.depth}
                   active={query.folder === folder.id}
                   href={href(state, { folder: folder.id })}
                   icon={folder.visibility === "people" ? <UsersIcon /> : <FolderIcon />}
@@ -621,7 +641,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               <li>
                 <button
                   type="button"
-                  onClick={() => setFolderEditor({ mode: "create" })}
+                  onClick={() => setFolderEditor({ mode: "create", parent: current ?? undefined })}
                   className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                 >
                   <FolderPlusIcon className="size-4" />
@@ -640,7 +660,22 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           ))}
         </aside>
 
-        <div {...bulk.dropProps} className={cn("relative min-w-0", bulk.dragging && "rounded-xl ring-2 ring-primary ring-offset-2")}>
+        <div {...bulk.dropProps} className={cn("relative flex min-w-0 flex-col gap-4", bulk.dragging && "rounded-xl ring-2 ring-primary ring-offset-2")}>
+        {subfolders.length > 0 && (
+          <nav aria-label="Pastas dentro desta" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+            {subfolders.map((folder) => (
+              <Link
+                key={folder.id}
+                href={href(state, { folder: folder.id })}
+                className="flex min-w-0 items-center gap-2.5 rounded-xl border bg-card px-3 py-2.5 text-sm transition-colors hover:border-primary/40 hover:bg-accent/40"
+              >
+                {folder.visibility === "people" ? <UsersIcon className="size-4 shrink-0 text-muted-foreground" /> : <FolderIcon className="size-4 shrink-0 text-muted-foreground" />}
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground">{folder.name}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{folder.count}</span>
+              </Link>
+            ))}
+          </nav>
+        )}
         <ListCard
           fill
           empty={items.length === 0}
@@ -655,7 +690,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 aria-label="Nova pasta"
                 title="Nova pasta"
                 className="lg:hidden"
-                onClick={() => setFolderEditor({ mode: "create" })}
+                onClick={() => setFolderEditor({ mode: "create", parent: current ?? undefined })}
               >
                 <FolderPlusIcon />
               </Button>
@@ -691,14 +726,16 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           ) : (
             <EmptyState
               art={query.search ? "busca" : "projetos"}
-              title={query.search ? "Nenhum bookmark encontrado" : "Nenhum bookmark aqui"}
+              title={query.search ? "Nada encontrado" : inTrash ? "A lixeira está vazia" : "Nada aqui ainda"}
               description={
                 query.search
                   ? "Tente outro termo ou mude os filtros."
-                  : "Guarde links e arquivos pequenos da empresa e organize em pastas."
+                  : inTrash
+                    ? `O que você excluir fica aqui por ${TRASH_DAYS} dias, para restaurar se precisar.`
+                    : "Envie arquivos, guarde links e organize tudo em pastas."
               }
               action={
-                query.search ? (
+                inTrash ? undefined : query.search ? (
                   // The folder and the company are where the person is (the rail
                   // shows it); only the search is a filter here.
                   <Button variant="outline" asChild>
@@ -734,6 +771,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       />
       <FolderDialogs
         editor={folderEditor}
+        folders={tree}
         onClose={() => setFolderEditor(null)}
         companies={companies}
         defaultCompany={createCompany}

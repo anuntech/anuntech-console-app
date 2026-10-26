@@ -7,6 +7,7 @@ import {
   purgeBookmarkAs,
   restoreBookmarkAs,
   deleteFolderAs,
+  moveFolderAs,
   moveBookmarkAs,
   renameFolderAs,
   saveBookmarkAs,
@@ -33,6 +34,11 @@ export async function renameFolder(_: ActionState, form: FormData): Promise<Acti
 }
 
 /** The folder goes away; what was inside stays with the company, loose. */
+export async function moveFolder(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  return moveFolderAs(actor, { id: form.get("id"), parentId: form.get("parentId") });
+}
+
 export async function deleteFolder(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   return deleteFolderAs(actor, { id: form.get("id") });

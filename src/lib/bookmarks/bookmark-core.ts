@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -17,6 +17,7 @@ import { personInScope, scopeOf, searchBookmarkPeople } from "./bookmarks";
 import type { ActionState } from "../action-state";
 import { BOOKMARK_FILE, limitLabel } from "../tickets/attachment-rules";
 import { claimUpload } from "../drive/upload-claim";
+import { createInRefusal, descendantIds, moveRefusal } from "./folder-tree";
 import { removeStoredFiles } from "../drive/r2";
 import { TRASH_DAYS } from "../drive/drive-rules";
 
@@ -60,6 +61,7 @@ export async function loadFolder(folderId: string) {
       ownerId: bookmarkFolders.ownerId,
       name: bookmarkFolders.name,
       visibility: bookmarkFolders.visibility,
+      parentId: bookmarkFolders.parentId,
     })
     .from(bookmarkFolders)
     .where(eq(bookmarkFolders.id, folderId));
@@ -122,13 +124,24 @@ export async function createFolderAs(
   input: Record<string, unknown>,
 ): Promise<ActionState & { id?: string }> {
   try {
-    const parsed = z.object({ name: folderName, companyId: companyField, visibility }).parse(input);
-    const companyId = parsed.companyId || null;
+    const parsed = z.object({ name: folderName, companyId: companyField, visibility, parentId: companyField }).parse(input);
+    // Inside another folder: its company, and who sees it, come from the folder above.
+    const parent = parsed.parentId ? await loadFolder(parsed.parentId) : null;
+    if (parsed.parentId && (!parent || !(await usable(actor, parent)))) return blocked;
+    const companyId = parent ? parent.companyId : parsed.companyId || null;
     if (!companyAllowed(actor, companyId)) return blocked;
-    const [folder] = await db
-      .insert(bookmarkFolders)
-      .values({ ownerId: actor.user.id, companyId, name: parsed.name, visibility: parsed.visibility })
-      .returning({ id: bookmarkFolders.id });
+    if (parent) {
+      const refusal = createInRefusal(await companyFolders(companyId), parent.id);
+      if (refusal) return { error: refusal };
+    }
+    const folder = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(bookmarkFolders)
+        .values({ ownerId: actor.user.id, companyId, name: parsed.name, visibility: parent ? parent.visibility : parsed.visibility, parentId: parent?.id ?? null })
+        .returning({ id: bookmarkFolders.id });
+      if (parent) await inheritAccess(tx, parent.id, [row.id]);
+      return row;
+    });
     await audit(actor, "bookmark_folder.created", folder.id, companyId, { name: parsed.name });
     refresh();
     return { success: "Pasta criada.", href: `/bookmarks?pasta=${folder.id}`, id: folder.id };
@@ -158,15 +171,18 @@ export async function deleteFolderAs(actor: Actor, input: { id: unknown }): Prom
     const folderId = id.parse(input.id);
     const folder = await loadFolder(folderId);
     if (!folder || !manages(actor, folder)) return blocked;
+    // What was inside, files and subfolders, moves up one level (to Sem pasta at the top).
+    const up = folder.parentId ?? null;
     await db.transaction(async (tx) => {
-      await tx.update(bookmarks).set({ folderId: null }).where(eq(bookmarks.folderId, folder.id));
-      await tx.update(fileUploads).set({ folderId: null }).where(eq(fileUploads.folderId, folder.id));
+      await tx.update(bookmarks).set({ folderId: up }).where(eq(bookmarks.folderId, folder.id));
+      await tx.update(fileUploads).set({ folderId: up }).where(eq(fileUploads.folderId, folder.id));
+      await tx.update(bookmarkFolders).set({ parentId: up }).where(eq(bookmarkFolders.parentId, folder.id));
       await tx.delete(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, folder.id));
       await tx.delete(bookmarkFolders).where(eq(bookmarkFolders.id, folder.id));
     });
     await audit(actor, "bookmark_folder.deleted", folder.id, folder.companyId, { name: folder.name });
     refresh();
-    return { success: "Pasta excluída.", href: "/bookmarks" };
+    return { success: "Pasta excluída.", href: up ? `/bookmarks?pasta=${up}` : "/bookmarks" };
   } catch (error) {
     return failure(error);
   }
@@ -206,6 +222,9 @@ export async function shareFolderAs(
         await tx
           .insert(bookmarkFolderShares)
           .values(userIds.map((userId) => ({ folderId: folder.id, userId })));
+      // The subfolders follow: who sees a folder sees what is inside it.
+      const below = descendantIds(await companyFolders(folder.companyId, tx), folder.id);
+      if (below.length) await inheritAccess(tx, folder.id, below);
     });
     await audit(actor, "bookmark_folder.shared", folder.id, folder.companyId, {
       visibility: mode,
@@ -216,6 +235,60 @@ export async function shareFolderAs(
       success:
         mode === "company" ? "Pasta aberta para toda a empresa." : "Compartilhamento atualizado.",
     };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** A space's folders, for the tree rules (folder-tree.ts). */
+async function companyFolders(companyId: string | null, executor: Pick<typeof db, "select"> = db) {
+  return executor
+    .select({ id: bookmarkFolders.id, parentId: bookmarkFolders.parentId, companyId: bookmarkFolders.companyId, name: bookmarkFolders.name })
+    .from(bookmarkFolders)
+    .where(companyId ? eq(bookmarkFolders.companyId, companyId) : isNull(bookmarkFolders.companyId));
+}
+
+/**
+ * `targets` see what `sourceId` sees: the same visibility and the same people,
+ * plus the source's owner (who created the folder above must not lose what was
+ * put inside it). Each target's own owner always sees it.
+ */
+async function inheritAccess(tx: Tx, sourceId: string, targets: string[]) {
+  const [source] = await tx.select({ visibility: bookmarkFolders.visibility, ownerId: bookmarkFolders.ownerId }).from(bookmarkFolders).where(eq(bookmarkFolders.id, sourceId));
+  if (!source || !targets.length) return;
+  const people = (await tx.select({ userId: bookmarkFolderShares.userId }).from(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, sourceId))).map((r) => r.userId);
+  const owners = await tx.select({ id: bookmarkFolders.id, ownerId: bookmarkFolders.ownerId }).from(bookmarkFolders).where(inArray(bookmarkFolders.id, targets));
+  await tx.update(bookmarkFolders).set({ visibility: source.visibility }).where(inArray(bookmarkFolders.id, targets));
+  await tx.delete(bookmarkFolderShares).where(inArray(bookmarkFolderShares.folderId, targets));
+  if (source.visibility !== "people") return;
+  const rows = owners.flatMap((target) =>
+    [...new Set([...people, source.ownerId])].filter((userId) => userId !== target.ownerId).map((userId) => ({ folderId: target.id, userId })),
+  );
+  if (rows.length) await tx.insert(bookmarkFolderShares).values(rows);
+}
+
+/** A folder into another of the same company (or to the top, ""), with its subfolders; who sees it follows the new place. */
+export async function moveFolderAs(actor: Actor, input: { id: unknown; parentId: unknown }): Promise<ActionState> {
+  try {
+    const folderId = id.parse(input.id);
+    const target = companyField.parse(input.parentId ?? "");
+    const folder = await loadFolder(folderId);
+    if (!folder || !manages(actor, folder)) return blocked;
+    if ((folder.parentId ?? "") === target) return { success: "A pasta já está aí." };
+    const into = target ? await loadFolder(target) : null;
+    if (target && (!into || !(await usable(actor, into)))) return blocked;
+    const tree = await companyFolders(folder.companyId);
+    const refusal = moveRefusal(tree, folder.id, target);
+    if (refusal) return { error: refusal };
+    await db.transaction(async (tx) => {
+      await tx.update(bookmarkFolders).set({ parentId: target || null }).where(eq(bookmarkFolders.id, folder.id));
+      if (target) await inheritAccess(tx, target, [folder.id, ...descendantIds(tree, folder.id)]);
+    });
+    await audit(actor, "bookmark_folder.moved", folder.id, folder.companyId, { name: folder.name, parentId: target || null });
+    refresh();
+    return { success: into ? `Pasta movida para “${into.name}”.` : "Pasta movida para o início." };
   } catch (error) {
     return failure(error);
   }

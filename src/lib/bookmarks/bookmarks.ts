@@ -43,6 +43,8 @@ export type FolderView = {
   ownerId: string;
   owner: string;
   visibility: "company" | "people";
+  /** The folder it sits in; null at the top. Optional so fixtures without it still type. */
+  parentId?: string | null;
   sharedWith: { id: string; name: string; image: string | null }[];
   count: number;
 };
@@ -114,6 +116,7 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
       ownerId: bookmarkFolders.ownerId,
       owner: user.name,
       visibility: bookmarkFolders.visibility,
+      parentId: bookmarkFolders.parentId,
       sharedWithMe: bookmarkFolderShares.userId,
     })
     .from(bookmarkFolders)
@@ -168,6 +171,7 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
     ownerId: row.ownerId,
     owner: row.owner,
     visibility: row.visibility,
+    parentId: row.parentId,
     sharedWith: shares
       .filter((share) => share.folderId === row.id)
       .map(({ id, name, image }) => ({ id, name, image })),

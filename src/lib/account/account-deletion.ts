@@ -294,6 +294,8 @@ export async function deleteAccount(
       const removed = await tx.delete(bookmarks).where(inArray(bookmarks.folderId, ids)).returning({ storageKey: bookmarks.storageKey });
       storedKeys.push(...removed.map((b) => b.storageKey));
       await tx.update(fileUploads).set({ folderId: null }).where(inArray(fileUploads.folderId, ids));
+      // Subfolders someone else made inside them go to the top, with what they hold.
+      await tx.update(bookmarkFolders).set({ parentId: null }).where(inArray(bookmarkFolders.parentId, ids));
       await tx.delete(bookmarkFolders).where(inArray(bookmarkFolders.id, ids));
     }
     await tx

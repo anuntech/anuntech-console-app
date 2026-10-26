@@ -1126,9 +1126,12 @@ export const bookmarkFolders = pgTable(
     visibility: text("visibility", { enum: ["company", "people"] })
       .notNull()
       .default("company"),
+    /** The folder it sits in (Arquivos' subfolders); null at the top. Who sees it copies the folder above (bookmark-core). */
+    parentId: text("parent_id").references((): AnyPgColumn => bookmarkFolders.id),
     createdAt: created(),
   },
   (t) => [
+    index("console_bookmark_folder_parent_idx").on(t.parentId),
     index("console_bookmark_folder_owner_idx").on(t.ownerId),
     index("console_bookmark_folder_company_idx").on(t.companyId),
   ],
