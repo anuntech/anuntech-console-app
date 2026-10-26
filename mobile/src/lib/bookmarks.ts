@@ -8,7 +8,9 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useQuery, type InfiniteData } from "@tanstack/react-query";
 import { api, queryClient, sessionHeaders } from "./api";
 import { CONSOLE_URL } from "./config";
-import { openAttachment } from "./files";
+import { openAttachment, openSignedFile } from "./files";
+import { fileSize } from "./format";
+import { opensOutside } from "./upload-plan";
 import { documentPicker } from "./uploads";
 export { audience, deleteNote, describe, hostOf, letterTile } from "./bookmark-text";
 
@@ -72,11 +74,13 @@ export function useBookmark(id: string) {
 export function cachedChoices() {
   const folders = new Map<string, BookmarkFolder>();
   let companies: BookmarkList["companies"] = [];
+  let largeFiles = false;
   for (const page of cachedPages()) {
     if (!companies.length) companies = page.companies;
+    largeFiles ||= !!page.largeFiles;
     for (const f of page.folders) if (!folders.has(f.id)) folders.set(f.id, f);
   }
-  return { folders: [...folders.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), companies };
+  return { folders: [...folders.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")), companies, largeFiles };
 }
 
 export const cachedFolder = (id: string) => cachedChoices().folders.find((f) => f.id === id) ?? null;
@@ -90,8 +94,9 @@ export function useBookmarkChoices() {
   return useQuery({
     queryKey: choicesKey,
     queryFn: async () => {
-      const { folders, companies } = await api.bookmarks.list({});
-      return { folders, companies };
+      const { folders, companies, largeFiles } = await api.bookmarks.list({});
+      // largeFiles: Arquivos keeps files in R2 (an older Console does not say, and keeps the 1 MB route).
+      return { folders, companies, largeFiles: !!largeFiles };
     },
     placeholderData: () => {
       const cached = cachedChoices();
@@ -117,10 +122,55 @@ export async function openBookmark(item: BookmarkTarget) {
     if (item.kind === "board")
       router.push({ pathname: "/bookmarks/[id]/lousa", params: { id: item.id, title: item.title, ...(item.updatedAt ? { v: item.updatedAt } : {}) } });
     else if (item.kind === "link" && item.url) await WebBrowser.openBrowserAsync(item.url);
+    else if (item.kind === "file") await openFile(item);
     else if (item.filePath) await openAttachment(item.filePath, item.fileName ?? item.title);
   } catch {
-    Alert.alert("Não foi possível abrir", "Confira a internet e tente de novo.");
+    cannotOpen();
   }
+}
+
+const cannotOpen = () => Alert.alert("Não foi possível abrir", "Confira a internet e tente de novo.");
+
+/**
+ * A file bookmark: one in R2 comes through the five-minute address the
+ * Console signs (bookmarks.download); a large one (over 50 MB, up to 100 GB)
+ * is not pulled into the app: the person sees its size and opens or
+ * downloads it in the browser. An older file in the database, or an older
+ * Console without bookmarks.download, goes the session's way, as before.
+ */
+async function openFile(item: BookmarkTarget) {
+  const name = item.fileName ?? item.title;
+  let file: Awaited<ReturnType<typeof api.bookmarks.download>> | null = null;
+  try {
+    file = await api.bookmarks.download({ id: item.id });
+  } catch {
+    file = null;
+  }
+  if (!file?.url) {
+    if (item.filePath) await openAttachment(item.filePath, name);
+    return;
+  }
+  if (!opensOutside(file.fileSize)) return openSignedFile(file.url, `/api/bookmarks/${item.id}`, file.fileName);
+  // The address lasts five minutes: a fresh one when the person chooses.
+  const outside = (inline: boolean) => async () => {
+    try {
+      const fresh = await api.bookmarks.download({ id: item.id, inline });
+      if (!fresh.url) return cannotOpen();
+      if (inline) await WebBrowser.openBrowserAsync(fresh.url);
+      else await Linking.openURL(fresh.url);
+    } catch {
+      cannotOpen();
+    }
+  };
+  Alert.alert(
+    "Arquivo grande",
+    `“${file.fileName}” tem ${fileSize(file.fileSize ?? 0)}. Para não ocupar o espaço do celular, ele abre no navegador, onde você vê ou baixa.`,
+    [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Baixar", onPress: () => void outside(false)() },
+      { text: "Abrir no navegador", isPreferred: true, onPress: () => void outside(true)() },
+    ],
+  );
 }
 
 /** A refusal worth showing as is (the Console's words or the same rule checked here). */
@@ -131,7 +181,8 @@ export type PickedPhoto = { uri: string; name: string; mime: string; size: numbe
 
 const settingsWord = Platform.OS === "ios" ? "nos Ajustes do iPhone" : "nas configurações do Android";
 
-async function cameraAllowed() {
+/** The camera needs the person's yes; when it was refused, the way to Settings. */
+export async function cameraAllowed() {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (permission.granted) return true;
   Alert.alert(

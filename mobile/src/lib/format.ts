@@ -9,10 +9,11 @@ const dateTime = new Intl.DateTimeFormat("pt-BR", {
 /** An instant as the web shows it in lists: "20 de out., 21:30". */
 export const when = (iso: string) => dateTime.format(new Date(iso));
 
-/** A file size in KB or MB, with a comma. */
+/** A file size in KB, MB or GB, with a comma (the web's fileSizeLabel). */
 export function fileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
 }
 
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });

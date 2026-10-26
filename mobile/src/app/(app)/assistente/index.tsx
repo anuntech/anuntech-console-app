@@ -115,7 +115,7 @@ function linkLabel(href: string): string {
     [/^\/produtos$/, "Ver produtos"],
     [/^\/apps\/[\w-]+$/, "Abrir app"],
     [/^\/bookmarks\/[\w-]+\/lousa$/, "Ver lousa"],
-    [/^\/bookmarks$/, "Ver bookmarks"],
+    [/^\/bookmarks$/, "Ver arquivos"],
     [/^\/ajuda\/[\w-]+$/, "Ler artigo"],
     [/^\/ajuda$/, "Ver ajuda"],
     [/^\/como-trabalhamos$/, "Ver como trabalhamos"],
