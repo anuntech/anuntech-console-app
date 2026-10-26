@@ -13,6 +13,8 @@ import {
   FolderIcon,
   FolderInputIcon,
   FolderPlusIcon,
+  InboxIcon,
+  LinkIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
@@ -73,6 +75,7 @@ import { letterTile, linkHost } from "@/lib/bookmarks/letter-tile";
 import { BookmarkSheet, deleteNote, type BookmarkEditor } from "./bookmark-sheet";
 import { useBulkUpload } from "./bulk-upload";
 import { FilePreview, canPreview, downloadBookmark } from "./file-preview";
+import { ShareLinkDialog, type ShareTarget } from "./share-link-dialog";
 import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
 
 export type BookmarksViewData = {
@@ -253,6 +256,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   const [folderEditor, setFolderEditor] = useState<FolderEditor | null>(null);
   const [removing, setRemoving] = useState<BookmarkView | null>(null);
   const [purging, setPurging] = useState<BookmarkView | null>(null);
+  const [sharing, setSharing] = useState<ShareTarget | null>(null);
   const { submit: restore, form: restoreForm } = useBookmarkRestore();
   // The trash: what was deleted in the last 30 days, to restore or delete for good; nothing opens from it.
   const inTrash = query.folder === "lixeira";
@@ -323,6 +327,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           <FolderInputIcon />
           Mover para…
         </DropdownMenuItem>
+        {data.largeFiles && (
+          <>
+            <DropdownMenuItem onSelect={() => later(() => setSharing({ kind: "download", folderId: folder.id, title: folder.name }))}>
+              <LinkIcon />
+              Compartilhar por link…
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => later(() => setSharing({ kind: "request", folderId: folder.id, title: folder.name }))}>
+              <InboxIcon />
+              Pedir arquivos…
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
@@ -398,6 +414,12 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             <DownloadIcon />
             Baixar arquivo
           </DropdownMenuItem>
+          {data.largeFiles && canEdit(item) && (
+            <DropdownMenuItem onSelect={() => later(() => setSharing({ kind: "download", bookmarkId: item.id, title: item.title }))}>
+              <LinkIcon />
+              Compartilhar por link…
+            </DropdownMenuItem>
+          )}
         </>
       )}
       {canEdit(item) && (
@@ -761,6 +783,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       </div>
       {bulk.tray}
       <FilePreview item={previewing} onClose={() => setPreviewing(null)} />
+      <ShareLinkDialog target={sharing} onClose={() => setSharing(null)} />
 
       <BookmarkSheet
         editor={editor}

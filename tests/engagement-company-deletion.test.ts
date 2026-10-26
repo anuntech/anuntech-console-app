@@ -82,6 +82,8 @@ test("company deletion knows every table that points at a company", () => {
     "console_file_uploads.company_id": "null",
     // Arquivos' earlier versions: their R2 keys are collected, the rows go with the bookmarks (cascade).
     "console_file_versions.company_id": "null",
+    // Links to its files stop with it.
+    "console_share_links.company_id": "null",
     // Gone with it by the database (on delete cascade): pushes still queued.
     "console_push_notices.company_id": "not null",
     // Kept, set to null: the history outlives the company.
@@ -148,6 +150,8 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_file_uploads.folder_id": "null",
     // Subfolders move up a level when their folder goes (bookmark-core, deleteFolderAs).
     "console_bookmark_folders.parent_id": "null",
+    // A folder's links go with it (on delete cascade).
+    "console_share_links.folder_id": "null",
   });
   // Leaves: nothing points at these, so deleting their rows ends the chain.
   for (const leaf of [
@@ -163,5 +167,5 @@ test("the children deleted with a company or its work are all accounted for", ()
   ])
     assert.deepEqual(pointingAt(leaf), {}, getTableConfig(leaf).name);
   // A bookmark's versions go with it, by the database (on delete cascade).
-  assert.deepEqual(pointingAt(schema.bookmarks), { "console_file_versions.bookmark_id": "not null" });
+  assert.deepEqual(pointingAt(schema.bookmarks), { "console_file_versions.bookmark_id": "not null", "console_share_links.bookmark_id": "null" });
 });

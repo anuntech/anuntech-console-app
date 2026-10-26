@@ -163,6 +163,54 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         ],
       },
       {
+        title: "Compartilhar por link",
+        blocks: [
+          {
+            kind: "p",
+            text: "Para mandar um arquivo ou uma pasta a alguém que não tem conta no Console, clique em “…” e em “Compartilhar por link…”. Quem receber o endereço vê os arquivos e baixa, sem entrar. Numa pasta, o link leva também os arquivos das pastas de dentro.",
+          },
+          {
+            kind: "list",
+            items: [
+              "“Vale por”: 1, 7 (o padrão), 30 ou 90 dias, ou “Sem prazo”.",
+              "“Limite de downloads”: depois desse número de downloads, o link para. Vazio, não tem limite.",
+              "“Senha”: opcional, de 6 a 100 caracteres. Antes da senha, a página não mostra nem o nome do que foi compartilhado. Mande a senha por outro canal, não junto do link.",
+              "“Enviar o link por e-mail”: opcional. O Console manda o endereço para a pessoa.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "Clique em “Criar link” e copie o endereço na hora: por segurança, ele não aparece de novo. Em “Links criados”, você vê cada link, até quando vale e quantos downloads teve. “Desligar” para o link na hora, mesmo para quem já tinha aberto.",
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Qualquer pessoa com o endereço abre o link. Use prazo curto, senha ou limite de downloads para arquivos sensíveis, e desligue o link quando não precisar mais.",
+          },
+        ],
+      },
+      {
+        title: "Pedir arquivos",
+        blocks: [
+          {
+            kind: "p",
+            text: "Para receber arquivos de alguém sem conta, clique em “…” numa pasta e em “Pedir arquivos…”. Escolha por quanto tempo o link vale e, se quiser, uma senha, e envie o endereço. A pessoa escreve o nome (opcional), escolhe ou arrasta os arquivos e envia. Cada arquivo chega na pasta no seu nome, com o nome de quem enviou no histórico.",
+          },
+          {
+            kind: "list",
+            items: [
+              "Quem envia não vê o que já está na pasta.",
+              "Programas e scripts (como .exe, .bat, .sh, .dmg e .apk) não são aceitos. A pessoa pode mandar em .zip.",
+              "Os arquivos recebidos ocupam o espaço da empresa. Quando o espaço acaba, o link deixa de receber.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "“Compartilhar por link” e “Pedir arquivos” ficam com quem pode editar o item ou criou a pasta, e com a equipe da Anuntech.",
+          },
+        ],
+      },
+      {
         title: "Lixeira",
         blocks: [
           {
@@ -228,6 +276,14 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       {
         q: "Como troco o arquivo de um item sem perder o anterior?",
         a: "Em “Editar”, na seção “Versões”, clique em “Enviar nova versão”. O anterior fica guardado como versão e pode ser baixado ou restaurado a qualquer momento.",
+      },
+      {
+        q: "Como mando um arquivo grande para alguém sem conta no Console?",
+        a: "No “…” do arquivo ou da pasta, clique em “Compartilhar por link…”, escolha o prazo (e, se quiser, senha e limite de downloads) e copie o endereço. Para receber arquivos de alguém, use “Pedir arquivos…” numa pasta.",
+      },
+      {
+        q: "Mandei um link para a pessoa errada. E agora?",
+        a: "Abra “Compartilhar por link…” no mesmo arquivo ou pasta e, em “Links criados”, clique em “Desligar”. O link para na hora.",
       },
       {
         q: "Sou Administrador. Posso apagar ou mudar os bookmarks de outra pessoa?",

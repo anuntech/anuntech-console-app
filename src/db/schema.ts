@@ -1216,6 +1216,38 @@ export const fileVersions = pgTable(
 );
 
 /**
+ * A link that works without an account (Arquivos, phase 3): "download" opens
+ * a file or a folder (and its subfolders); "request" lets anyone with it send
+ * files into a folder. Only the token's hash is kept, so the address shows once.
+ * Optional password (scrypt), expiry and download limit; revoked, it stops.
+ */
+export const shareLinks = pgTable(
+  "console_share_links",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    kind: text("kind", { enum: ["download", "request"] }).notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    companyId: text("company_id").references(() => companies.id),
+    folderId: text("folder_id").references(() => bookmarkFolders.id, { onDelete: "cascade" }),
+    bookmarkId: text("bookmark_id").references(() => bookmarks.id, { onDelete: "cascade" }),
+    /** What the page says above the files (the folder's or the item's name when created). */
+    title: text("title").notNull(),
+    passwordHash: text("password_hash"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    maxDownloads: integer("max_downloads"),
+    downloads: integer("downloads").notNull().default(0),
+    uploads: integer("uploads").notNull().default(0),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("console_share_link_folder_idx").on(t.folderId), index("console_share_link_bookmark_idx").on(t.bookmarkId)],
+);
+
+/**
  * A file on its way to R2: started here, sent by the browser straight to the
  * bucket in parts, and finished here, which checks the size and the quota
  * before the bookmark exists. Counts against the space's quota meanwhile.
@@ -1236,6 +1268,11 @@ export const fileUploads = pgTable(
     storageKey: text("storage_key").notNull(),
     multipartId: text("multipart_id").notNull(),
     status: text("status", { enum: ["uploading", "completed", "used", "aborted"] }).notNull().default("uploading"),
+    /** Sent through a request link (no account): the link it came by, and the secret that lets the same visitor finish it. */
+    shareLinkId: text("share_link_id").references(() => shareLinks.id, { onDelete: "cascade" }),
+    visitorSecretHash: text("visitor_secret_hash"),
+    /** The name the visitor gave, for the item's history. */
+    senderName: text("sender_name"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: created(),
   },

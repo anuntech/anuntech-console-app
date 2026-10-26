@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 
 /**
@@ -7,7 +8,7 @@ import { randomBytes } from "node:crypto";
  * parts, someone else's upload, another company and another site refused;
  * deleting the bookmark removes the object.
  */
-export async function runArquivosTests({ database: db, ids, people, request, submitForm, ok, marker, base, r2 }) {
+export async function runArquivosTests({ database: db, ids, people, request, submitForm, ok, marker, base, r2, notFoundPage }) {
   const one = async (sql, values = []) => (await db.query(sql, values)).rows[0];
   const json = (who, path, body, method = "POST") =>
     request(path, who, { method, headers: { "Content-Type": "application/json", Origin: base }, body: body === undefined ? undefined : JSON.stringify(body) }).then((r) => ({
@@ -132,6 +133,63 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   const history = (await db.query("select version, storage_key from console_file_versions where bookmark_id=$1 order by version", [photo.id])).rows;
   ok(restored.storage_key === firstKey && history.length === 1 && history[0].storage_key === afterReplace.storage_key, "Restaurar a versão traz o arquivo antigo e guarda o atual");
 
+  // Fase 3: links that work without an account. Only who edits shares; the address works once made, then stops when it should.
+  const tokenOf = (text) => text.match(/\/(?:compartilhado|enviar)\/([A-Za-z0-9_-]{43})/)?.[1] ?? null;
+  const visitor = (path, init = {}) => request(path, undefined, init);
+  // The dialog calls the action and reads what it returns (the address shows once): the suite does the same, the way Next's client does.
+  const manifest = JSON.parse(readFileSync(".next/server/server-reference-manifest.json", "utf8")).node;
+  const actionId = (name) => Object.entries(manifest).find(([, a]) => a.exportedName === name)?.[0];
+  const callAction = (who, name, args) =>
+    request("/bookmarks", who, { method: "POST", headers: { "Next-Action": actionId(name), Accept: "text/x-component", "Content-Type": "text/plain;charset=UTF-8", Origin: base }, body: JSON.stringify(args) });
+  const share = async (who, values) => tokenOf((await callAction(who, "createShareLink", [values])).text);
+  ok(!(await share("support", { kind: "download", bookmarkId: photo.id, folderId: "", expiresInDays: "7", password: "", maxDownloads: "", email: "" })), "Quem não edita o item não cria link");
+  ok(!(await share("manager", { kind: "download", bookmarkId: saved.id, folderId: "", expiresInDays: "7", password: "", maxDownloads: "", email: "" })), "Cliente não cria link de arquivo da Anuntech");
+  const once = await share("manager", { kind: "download", bookmarkId: photo.id, folderId: "", expiresInDays: "7", password: "", maxDownloads: "1", email: "" });
+  ok(!!once && !!(await one("select 1 as ok from console_share_links where bookmark_id=$1 and token_hash <> $2", [photo.id, once])), "O link é criado e o banco guarda só o hash do endereço");
+  let pageOut = await visitor(`/compartilhado/${once}`);
+  ok(pageOut.status === 200 && pageOut.text.includes("Foto da vitrine") && pageOut.text.includes("noindex"), "Quem tem o link vê o arquivo, sem conta, e a página não é indexada");
+  ok((await visitor(`/compartilhado/${once}/arquivo/${saved.id}`)).status === 404, "O link não abre um arquivo que não compartilha");
+  const viaLink = await visitor(`/compartilhado/${once}/arquivo/${photo.id}`);
+  ok(viaLink.status === 302 && (viaLink.headers.get("location") ?? "").includes("X-Amz-Signature"), "O download pelo link vai a um endereço assinado");
+  ok((await one("select downloads from console_share_links where bookmark_id=$1 and max_downloads=1", [photo.id]))?.downloads === 1 && !!(await one("select 1 as ok from console_audit_events where action='share_link.downloaded' and entity_id=$1", [photo.id])), "O download é contado e registrado");
+  ok((await visitor(`/compartilhado/${once}/arquivo/${photo.id}`)).status === 303 && (await visitor(`/compartilhado/${once}`)).text.includes("número de vezes"), "Passado o limite de downloads, o link para");
+  ok(notFoundPage(await visitor(`/compartilhado/${"x".repeat(43)}`)), "Um endereço inventado não abre nada");
+
+  const locked = await share("manager", { kind: "download", bookmarkId: photo.id, folderId: "", expiresInDays: "", password: "senha-forte", maxDownloads: "", email: "" });
+  ok(!(await visitor(`/compartilhado/${locked}`)).text.includes("Foto da vitrine") && (await visitor(`/compartilhado/${locked}/arquivo/${photo.id}`)).status === 303, "Com senha, nada abre antes de digitar a senha");
+  const wrong = await submitForm(`/compartilhado/${locked}`, undefined, undefined, { action: "unlockShareLink" }, { token: locked, password: "errada" });
+  ok(!wrong.headers.get("set-cookie")?.includes("console-link-"), "Senha errada não abre o link");
+  const right = await submitForm(`/compartilhado/${locked}`, undefined, undefined, { action: "unlockShareLink" }, { token: locked, password: "senha-forte" });
+  const unlock = (right.headers.get("set-cookie") ?? "").match(/console-link-[a-f0-9]+=[^;]+/)?.[0];
+  ok(!!unlock && (await visitor(`/compartilhado/${locked}/arquivo/${photo.id}`, { headers: { Cookie: unlock } })).status === 302, "Com a senha certa, o link abre neste navegador");
+  const lockedId = (await one("select id from console_share_links where bookmark_id=$1 and password_hash is not null", [photo.id])).id;
+  await submitForm("/bookmarks", "support", "support", { action: "revokeShareLink" }, { id: lockedId });
+  ok(!(await one("select revoked_at from console_share_links where id=$1", [lockedId])).revoked_at, "Quem não edita o item não desliga o link");
+  await submitForm("/bookmarks", "manager", "manager", { action: "revokeShareLink" }, { id: lockedId });
+  ok((await visitor(`/compartilhado/${locked}`)).text.includes("desligado") && (await visitor(`/compartilhado/${locked}/arquivo/${photo.id}`, { headers: { Cookie: unlock } })).status === 303, "Desligado, o link para na hora, mesmo para quem já tinha aberto");
+
+  // A request link: anyone with it sends files into the folder, sees nothing there, and programs are refused.
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Recebidos ${marker}`, visibility: "company" });
+  const inbox = (await one("select id from console_bookmark_folders where name=$1", [`Recebidos ${marker}`])).id;
+  const ask = await share("manager", { kind: "request", bookmarkId: "", folderId: inbox, expiresInDays: "7", password: "", maxDownloads: "", email: "" });
+  ok(!!ask && (await visitor(`/enviar/${ask}`)).text.includes(`Recebidos ${marker}`), "O pedido de arquivos abre sem conta");
+  const pub = (path, body, origin = base) => visitor(path, { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(body) }).then((r) => ({ ...r, data: (() => { try { return JSON.parse(r.text); } catch { return null; } })() }));
+  ok((await pub("/api/publico/envios", { token: ask, fileName: "instalador.exe", size: 10 })).status === 400, "Programa não entra pelo pedido de arquivos");
+  ok((await pub("/api/publico/envios", { token: ask, fileName: "a.pdf", size: 10 }, "https://example.com")).status === 403, "Envio de outro site é recusado");
+  const sent = randomBytes(1500);
+  const vStart = await pub("/api/publico/envios", { token: ask, fileName: `comprovante-${marker}.pdf`, size: sent.length, mime: "application/pdf", senderName: "Marina" });
+  ok(vStart.status === 200 && !!vStart.data.secret, "O visitante começa o envio");
+  ok((await pub(`/api/publico/envios/${vStart.data.id}/partes`, { token: ask, secret: "outro", parts: [1] })).status === 404, "Sem o segredo do envio, ninguém continua o envio de outro visitante");
+  const vSigned = await pub(`/api/publico/envios/${vStart.data.id}/partes`, { token: ask, secret: vStart.data.secret, parts: [1] });
+  const vPut = await fetch(vSigned.data[0].url, { method: "PUT", body: sent });
+  const vDone = await pub(`/api/publico/envios/${vStart.data.id}/concluir`, { token: ask, secret: vStart.data.secret, parts: [{ partNumber: 1, etag: vPut.headers.get("etag") }] });
+  const received = await one("select id, author_id as owner_id, folder_id, company_id, storage_key from console_bookmarks where file_name=$1", [`comprovante-${marker}.pdf`]);
+  ok(vDone.status === 200 && received?.folder_id === inbox && received.company_id === ids.a && received.owner_id === people.manager.id && r2.objects.get(received.storage_key)?.equals(sent), "O arquivo chega na pasta, no nome de quem pediu");
+  ok(!!(await one("select 1 as ok from console_audit_events where action='bookmark.received' and entity_id=$1 and details->>'sender'='Marina'", [received.id])), "O recebimento fica registrado com o nome de quem enviou");
+  ok(!(await visitor(`/enviar/${ask}`)).text.includes(`comprovante-${marker}`), "Quem envia não vê o que já está na pasta");
+  await db.query("update console_share_links set expires_at = now() - interval '1 minute' where folder_id=$1", [inbox]);
+  ok((await pub("/api/publico/envios", { token: ask, fileName: "b.pdf", size: 10 })).status === 410 && (await visitor(`/enviar/${ask}`)).text.includes("venceu"), "Vencido, o pedido não recebe mais");
+
   // Fase 2c: folders inside folders; the inside sees what the outside sees; moving and deleting keep everything.
   const folderId = async (name) => (await one("select id from console_bookmark_folders where name=$1", [name]))?.id;
   await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Cliente ${marker}`, visibility: "people" });
@@ -160,8 +218,10 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   await submitForm("/bookmarks", "manager", "manager", { action: "deleteFolder" }, { id: top });
   ok((await one("select parent_id from console_bookmark_folders where id=$1", [sub2]))?.parent_id === null && (await one("select folder_id from console_bookmarks where title=$1", [`Dentro ${marker}`]))?.folder_id === null, "Excluir a pasta de cima sobe as de dentro para o início");
   // The suites clean their own folders (the run's cleanup removes companies, not folders).
-  const leftovers = [sub2, await folderId(`Interna ${marker}`)].filter(Boolean);
+  const leftovers = [sub2, await folderId(`Interna ${marker}`), inbox].filter(Boolean);
   await db.query("update console_bookmarks set folder_id=null where folder_id=any($1::text[])", [leftovers]);
+  await db.query("update console_file_uploads set folder_id=null where folder_id=any($1::text[])", [leftovers]);
+  await db.query("delete from console_share_links where folder_id=any($1::text[])", [leftovers]);
   await db.query("delete from console_bookmark_folder_shares where folder_id=any($1::text[])", [leftovers]);
   await db.query("delete from console_bookmark_folders where id=any($1::text[])", [leftovers]);
 
@@ -197,4 +257,7 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   ok(run.status === 200 && !(await one("select 1 as ok from console_bookmarks where id=$1", [photo.id])) && !r2.objects.has(photoKey), "Depois de 30 dias na lixeira, a rotina apaga o item e o arquivo");
   ok(!r2.objects.has(afterReplace.storage_key) && !(await one("select 1 as ok from console_file_versions where bookmark_id=$1", [photo.id])), "As versões saem junto, do banco e do R2");
   ok(!(await one("select 1 as ok from console_file_uploads where id=$1", [started.data.id])) && !r2.objects.has(`${ids.a}/${started.data.id}`), "Envio concluído e nunca salvo some na rotina, com o arquivo");
+
+  // The links point at the company; the run's cleanup removes companies.
+  await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);
 }
