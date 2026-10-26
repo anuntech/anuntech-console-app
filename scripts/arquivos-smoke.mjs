@@ -1,0 +1,93 @@
+import { randomBytes } from "node:crypto";
+
+/**
+ * Arquivos with R2 (lib/drive): a file sent in parts straight to the bucket
+ * (the suite plays the browser), finished by the Console, saved as a bookmark
+ * and read back through a signed address; the quota, a lying size, missing
+ * parts, someone else's upload, another company and another site refused;
+ * deleting the bookmark removes the object.
+ */
+export async function runArquivosTests({ database: db, ids, request, submitForm, ok, marker, base, r2 }) {
+  const one = async (sql, values = []) => (await db.query(sql, values)).rows[0];
+  const json = (who, path, body, method = "POST") =>
+    request(path, who, { method, headers: { "Content-Type": "application/json", Origin: base }, body: body === undefined ? undefined : JSON.stringify(body) }).then((r) => ({
+      ...r,
+      data: (() => {
+        try {
+          return JSON.parse(r.text);
+        } catch {
+          return null;
+        }
+      })(),
+    }));
+  /** What the browser does: every part to its signed address, then "concluir". */
+  async function sendParts(who, upload, bytes, { skipLast = false } = {}) {
+    const numbers = Array.from({ length: upload.partCount }, (_, i) => i + 1);
+    const signed = await json(who, `/api/arquivos/envios/${upload.id}/partes`, { parts: numbers });
+    const parts = [];
+    for (const { partNumber, url } of signed.data) {
+      if (skipLast && partNumber === upload.partCount) continue;
+      const slice = bytes.subarray((partNumber - 1) * upload.partSize, partNumber * upload.partSize);
+      const put = await fetch(url, { method: "PUT", body: slice });
+      parts.push({ partNumber, etag: put.headers.get("etag") });
+    }
+    return json(who, `/api/arquivos/envios/${upload.id}/concluir`, { parts });
+  }
+
+  // A 20 MB file for Anuntech's own space goes in two parts of 16 MB and 4 MB.
+  const bytes = randomBytes(20 * 1024 * 1024);
+  let started = await json("admin", "/api/arquivos/envios", { companyId: "", folderId: "", fileName: `../video ${marker}.mov`, size: bytes.length, mime: "video/quicktime" });
+  ok(started.status === 200 && started.data.partCount === 2 && started.data.partSize === 16 * 1024 * 1024, "Um arquivo grande começa o envio em partes");
+  const upload = started.data;
+  const foreign = await json("manager", `/api/arquivos/envios/${upload.id}/partes`, { parts: [1] });
+  ok(foreign.status === 404, "Outra pessoa não continua o envio de alguém");
+  const crossSite = await request("/api/arquivos/envios", "admin", { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://example.com" }, body: "{}" });
+  ok(crossSite.status === 403, "Envio de outro site é recusado");
+  const finished = await sendParts("admin", upload, bytes);
+  ok(finished.status === 200 && r2.objects.get(`anuntech/${upload.id}`)?.equals(bytes), "As partes chegam ao R2 e o Console junta o arquivo");
+  ok(r2.requests.filter((r) => r.method === "PUT" && r.query.uploadId).every((r) => r.signedByQuery), "Cada parte vai por um endereço assinado");
+
+  await submitForm("/bookmarks", "admin", "admin", { action: "saveBookmark" }, { companyId: "", folderId: "", title: `Vídeo ${marker}`, kind: "file", uploadId: upload.id });
+  const saved = await one("select id, file_name, file_size, storage_key, content from console_bookmarks where title=$1", [`Vídeo ${marker}`]);
+  ok(saved?.storage_key === `anuntech/${upload.id}` && Number(saved.file_size) === bytes.length && saved.file_name === `video ${marker}.mov` && !saved.content, "O bookmark aponta para o arquivo no R2, sem bytes no banco");
+  await submitForm("/bookmarks", "admin", "admin", { action: "saveBookmark" }, { companyId: "", folderId: "", title: `Reuso ${marker}`, kind: "file", uploadId: upload.id });
+  ok(!(await one("select 1 as ok from console_bookmarks where title=$1", [`Reuso ${marker}`])), "Um envio vira um bookmark só uma vez");
+
+  const download = await request(`/api/bookmarks/${saved.id}`, "admin");
+  const location = download.headers.get("location") ?? "";
+  ok(download.status === 302 && location.startsWith(r2.endpoint) && location.includes("X-Amz-Signature") && location.includes("X-Amz-Expires=300"), "O download leva a um endereço assinado de 5 minutos");
+  const fetched = Buffer.from(await (await fetch(location)).arrayBuffer());
+  ok(fetched.equals(bytes), "O arquivo baixado é o mesmo que foi enviado");
+  ok((await request(`/api/bookmarks/${saved.id}`, "manager")).status === 404, "Cliente não baixa arquivo do espaço da Anuntech");
+  const page = await request("/bookmarks", "admin");
+  ok(page.text.includes("Enviar arquivos") && page.text.includes("Espaço") && page.text.includes("Arquivos"), "A tela Arquivos oferece o envio de vários arquivos e mostra o espaço");
+
+  // The client's company has 5 GB by default; a smaller quota refuses what does not fit, before anything reaches R2.
+  await db.query("update console_companies set storage_quota_bytes=$2 where id=$1", [ids.a, 1024 * 1024]);
+  const before = r2.requests.length;
+  const tooBig = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "grande.zip", size: 2 * 1024 * 1024 });
+  ok(tooBig.status === 413 && /espaço da empresa acabou/.test(tooBig.data?.error ?? "") && r2.requests.length === before, "Arquivo acima da cota da empresa é recusado antes do R2");
+  const otherCompany = await json("manager", "/api/arquivos/envios", { companyId: ids.b, folderId: "", fileName: "x.pdf", size: 1000 });
+  ok(otherCompany.status === 404, "Cliente não envia para outra empresa");
+  const anuntech = await json("manager", "/api/arquivos/envios", { companyId: "", folderId: "", fileName: "x.pdf", size: 1000 });
+  ok(anuntech.status === 404, "Cliente não envia para o espaço da Anuntech");
+  ok((await json("admin", "/api/arquivos/envios", { companyId: "", folderId: "", fileName: "x", size: 101 * 1024 ** 3 })).status === 400, "Arquivo acima de 100 GB é recusado");
+  await db.query("update console_companies set storage_quota_bytes=null where id=$1", [ids.a]);
+
+  // The client's own file: missing parts are refused; a file smaller than announced is thrown away.
+  const small = randomBytes(300 * 1024);
+  started = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "contrato.pdf", size: small.length + 10 });
+  ok(started.status === 200, "Cliente envia arquivo para a própria empresa");
+  const lying = await sendParts("manager", started.data, small);
+  ok(lying.status === 400 && !r2.objects.has(`${ids.a}/${started.data.id}`), "Tamanho diferente do informado: o arquivo é descartado");
+  const big = randomBytes(17 * 1024 * 1024);
+  started = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "fotos.zip", size: big.length });
+  const missing = await sendParts("manager", started.data, big, { skipLast: true });
+  ok(missing.status === 400 && /faltam partes/.test(missing.data?.error ?? ""), "Sem todas as partes, o envio não conclui");
+  const cancelled = await request(`/api/arquivos/envios/${started.data.id}`, "manager", { method: "DELETE", headers: { Origin: base } });
+  ok(cancelled.status === 200 && (await one("select status from console_file_uploads where id=$1", [started.data.id]))?.status === "aborted", "Cancelar libera o envio");
+
+  // Deleting the bookmark removes the object from R2.
+  await submitForm("/bookmarks", "admin", "admin", { action: "deleteBookmark" }, { id: saved.id });
+  ok(!(await one("select 1 as ok from console_bookmarks where id=$1", [saved.id])) && !r2.objects.has(`anuntech/${upload.id}`), "Excluir o bookmark tira o arquivo do R2");
+}

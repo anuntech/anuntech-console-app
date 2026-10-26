@@ -12,7 +12,7 @@ Nunca "verificar tudo". Cada área tem um auditor próprio, pessoa ou agente, qu
 | --- | --- | --- |
 | Autenticação e sessão | códigos por e-mail e WhatsApp, duas etapas, Google, sessões, volta depois de entrar, enumeração, CSRF | `lib/auth/`, `api/auth/`, `lib/access/assisted*`, `lib/access/email-actions.ts` |
 | Autorização: financeiro e administração | IDOR entre empresas, Membro × Administrador × equipe, mass assignment | `lib/access/`, `lib/billing/`, `lib/contracts/`, `lib/quotes/`, `lib/companies/`, `api/boletos`, `api/contratos`, `api/orcamentos`, `pagar/` |
-| Autorização: atendimento e projetos | idem | `lib/tickets/`, `lib/projects/`, `lib/bookmarks/`, `lib/journeys/`, `lib/account/`, `api/anexos`, `api/chamados`, `api/assistente/conversas` |
+| Autorização: atendimento e projetos | idem | `lib/tickets/`, `lib/projects/`, `lib/bookmarks/`, `lib/drive/`, `lib/journeys/`, `lib/account/`, `api/anexos`, `api/chamados`, `api/arquivos`, `api/assistente/conversas` |
 | Entrada e injeção | SQL, XSS, upload, SSRF, PDF, redirecionamento, validação, cabeçalhos | `sql\``, `execute(`, `href=`, `Content-Disposition`, `fetch(` |
 | IA | injeção de prompt direta e indireta, ferramentas, consentimento, exfiltração, custo, dados ao provedor | `lib/assistant/`, `components/assistant/page-bridge.ts`, rotas `sugestao`/`fases`, `lib/voice/` |
 | Segredos, configuração e pipeline | crons, integrações, logs, `next.config.ts`, banco, CI | `api/cron/`, `lib/integrations/`, `lib/billing/billing-publish.ts`, `.github/` |
@@ -27,6 +27,13 @@ Quando rodar: em toda mudança de autenticação, acesso, cobrança ou assistent
 | Segredos | gitleaks no histórico inteiro a cada push | ativo (`security.yml`, job `secrets`) |
 | Análise estática (SAST) | Semgrep CE (`p/typescript`, `p/nextjs`, `p/secrets`). O CodeQL exige plano pago em repositório privado | ativo (`security.yml`, job `sast`) |
 | Deploy | Deployment Checks da Vercel exigindo `Checks` e `Security` antes de promover para produção | em parte: `verify`, `secrets` e `sast` ativos desde 16/10/2026; `dependencies` espera ficar verde (ver [Pipeline](#pipeline)) |
+
+### Arquivos no R2 (26/10/2026)
+
+- Bucket privado, sem endereço público. Toda parte enviada e todo download passam por um endereço assinado pelo Console (1 hora para cada parte, 5 minutos para o download), gerado só depois da mesma conferência de acesso dos bookmarks; outra empresa responde 404.
+- As rotas `/api/arquivos/envios/*` exigem a origem do Console (`sameOrigin`), corpo JSON e sessão; um envio só continua com quem o começou. O tamanho declarado é conferido no R2 antes do item existir, e a cota é verificada sob trava do espaço.
+- A chave do objeto não leva o nome do arquivo (`<empresa>/<id>`); o nome é limpo de caminho e de caracteres de controle. O download sempre sai como anexo (`response-content-disposition`).
+- As chaves do R2 (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) ficam só nas variáveis do servidor, com permissão de leitura e escrita apenas neste bucket. A Cloudflare passa a ser suboperadora de dados de clientes (bucket na região ENAM, EUA): falta registrar na lista de suboperadores e na política de privacidade ([task.md](task.md)).
 
 ### 3. Guardrails da IA
 

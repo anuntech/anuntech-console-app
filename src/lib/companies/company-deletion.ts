@@ -28,6 +28,7 @@ import {
   timeEntries,
   userMilestones,
   engagementSuspensions,
+  fileUploads,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -40,6 +41,7 @@ import {
 import { lockCompanyNotifications } from "../notifications/notification-preferences";
 import { companyLinks, engagementLinks } from "../record-links";
 import { logDatabaseFault } from "../action-errors";
+import { removeStoredFiles } from "../drive/r2";
 
 /** A refusal whose message is safe to show; anything else gets the generic one. */
 class Refusal extends Error {}
@@ -61,6 +63,8 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
   const companyId = z.string().uuid().safeParse(form.get("id"));
   if (!companyId.success) return { error: "Empresa não encontrada." };
   try {
+    // Its files in R2 leave after the rows do (lib/drive/r2.ts).
+    const storedKeys: (string | null)[] = [];
     await db.transaction(async (tx) => {
       // A notice already being delivered to its people finishes first. Taken
       // before the row lock, in the same order as a preference change, so the
@@ -178,7 +182,14 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
       const removedBookmarks = await tx
         .delete(bookmarks)
         .where(eq(bookmarks.companyId, company.id))
-        .returning({ id: bookmarks.id });
+        .returning({ id: bookmarks.id, storageKey: bookmarks.storageKey });
+      storedKeys.push(...removedBookmarks.map((b) => b.storageKey));
+      // Uploads under way for the company, or into its folders, go with it.
+      const removedUploads = await tx
+        .delete(fileUploads)
+        .where(or(eq(fileUploads.companyId, company.id), inArray(fileUploads.folderId, itsFolders)))
+        .returning({ storageKey: fileUploads.storageKey });
+      storedKeys.push(...removedUploads.map((u) => u.storageKey));
       await tx
         .update(bookmarks)
         .set({ folderId: null })
@@ -225,6 +236,7 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
         },
       });
     });
+    await removeStoredFiles(storedKeys);
     const success = "Empresa excluída.";
     // From the company's own page, revalidating would re-render it (a 404) inside
     // this response; navigating to the list loads everything fresh.

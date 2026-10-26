@@ -149,8 +149,8 @@ export const bookmarks = {
       if (!record) throw missing();
       const [extra] = await db
         .select({
-          // octet_length reads the stored size without loading the bytes, as the list.
-          fileSize: sql<number | null>`octet_length(${bookmarkTable.content})`,
+          // The size R2 holds, or octet_length of an older file, without loading the bytes, as the list.
+          fileSize: sql<number | null>`coalesce(${bookmarkTable.fileSize}, octet_length(${bookmarkTable.content}))::float8`,
           preview: sql<boolean>`(${bookmarkTable.preview} is not null)`,
           createdAt: bookmarkTable.createdAt,
         })

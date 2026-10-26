@@ -22,6 +22,7 @@ import {
   user,
   userMilestones,
   verification,
+  fileUploads,
 } from "@/db/schema";
 import { db } from "../db";
 import { lockEnvironmentAssignments } from "../access/environment-access";
@@ -35,6 +36,7 @@ import { maskDestination, type SecurityChannel } from "../auth/security-policy";
 import { getAccountEmails } from "./account-identity";
 import { deleteProfileAvatar } from "./profile-avatar";
 import { sendOpsMail } from "../notifications/ops-alerts";
+import { removeStoredFiles } from "../drive/r2";
 
 /** What the person types to confirm, besides the code. */
 export const DELETION_WORD = "EXCLUIR";
@@ -142,6 +144,8 @@ export async function deleteAccount(
 ): Promise<DeletionResult> {
   if (!confirmsDeletion(input.confirmation))
     return { error: `Digite ${DELETION_WORD} para confirmar.` };
+  // The files of the private folders that go with the account, removed from R2 after the rows.
+  const storedKeys: (string | null)[] = [];
   const result = await db.transaction(async (tx) => {
     // Same order as invitations and contact changes: the environment lock, then the person.
     await lockEnvironmentAssignments(tx);
@@ -287,7 +291,9 @@ export async function deleteAccount(
       );
     if (privateFolders.length) {
       const ids = privateFolders.map((f) => f.id);
-      await tx.delete(bookmarks).where(inArray(bookmarks.folderId, ids));
+      const removed = await tx.delete(bookmarks).where(inArray(bookmarks.folderId, ids)).returning({ storageKey: bookmarks.storageKey });
+      storedKeys.push(...removed.map((b) => b.storageKey));
+      await tx.update(fileUploads).set({ folderId: null }).where(inArray(fileUploads.folderId, ids));
       await tx.delete(bookmarkFolders).where(inArray(bookmarkFolders.id, ids));
     }
     await tx
@@ -342,6 +348,7 @@ export async function deleteAccount(
   });
   if ("error" in result) return result;
   // Outside the transaction and best effort: the account is already gone.
+  await removeStoredFiles(storedKeys);
   if (result.image)
     await deleteProfileAvatar(result.image, current.user.id).catch(() => {});
   await sendDeletionNotice(result.previousEmail).catch(() => {});

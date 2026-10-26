@@ -897,7 +897,7 @@ export const destinations = {
   produtos: { href: "/produtos", label: "Produtos e serviços" },
   contratos: { href: "/contratos", label: "Contratos", area: "finance" as const },
   orcamentos: { href: "/orcamentos", label: "Orçamentos", area: "finance" as const },
-  bookmarks: { href: "/bookmarks", label: "Bookmarks" },
+  bookmarks: { href: "/bookmarks", label: "Arquivos" },
   conta: { href: "/conta", label: "Minha conta" },
   membros: { href: "/configuracoes/membros", label: "Membros" },
   ajuda: { href: "/ajuda", label: "Ajuda" },

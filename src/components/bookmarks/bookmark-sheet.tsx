@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { FileIcon, LinkIcon, PresentationIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,18 +14,24 @@ import { FormSheet } from "@/components/console/form-sheet";
 import { ConfirmDialog } from "@/components/console/server-form";
 import { deleteBookmark, saveBookmark, updateBookmark } from "@/lib/bookmarks/bookmark-actions";
 import { kindOf, type BookmarkKind } from "@/lib/bookmarks/board-rules";
-import { BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
+import { BOOKMARK_FILE, LARGE_BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
+import { uploadToR2, type UploadProgress } from "./r2-upload";
 import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
+import { fileSizeLabel } from "@/lib/format";
 
 export type BookmarkEditor =
   | { mode: "create"; companyId: string; folderId: string }
   | { mode: "edit"; item: BookmarkView };
 
-const fileLimit = limitLabel(BOOKMARK_FILE.maxBytes);
-const KINDS: { value: BookmarkKind; label: string; hint: string; icon: ReactNode }[] = [
+const kindsFor = (largeFiles: boolean): { value: BookmarkKind; label: string; hint: string; icon: ReactNode }[] => [
   { value: "link", label: "Link", hint: "Um endereço na web", icon: <LinkIcon /> },
-  { value: "file", label: "Arquivo", hint: `Qualquer tipo, até ${fileLimit}`, icon: <FileIcon /> },
+  {
+    value: "file",
+    label: "Arquivo",
+    hint: `Qualquer tipo, até ${limitLabel((largeFiles ? LARGE_BOOKMARK_FILE : BOOKMARK_FILE).maxBytes)}`,
+    icon: <FileIcon />,
+  },
   { value: "board", label: "Lousa", hint: "Um quadro para desenhar", icon: <PresentationIcon /> },
 ];
 
@@ -41,13 +47,18 @@ export function BookmarkSheet({
   onClose,
   folders,
   companies,
+  largeFiles = false,
 }: {
   editor: BookmarkEditor | null;
   onClose: () => void;
   folders: FolderView[];
   companies: CompanyOption[];
+  /** R2 is configured: a file goes straight to the bucket, up to 100 GB (lib/drive). */
+  largeFiles?: boolean;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
+  const uploading = useRef<AbortController | null>(null);
   const [kind, setKind] = useState<BookmarkKind>("link");
   // The sheet keeps showing what it had while it slides out after closing.
   const [shown, setShown] = useState(editor);
@@ -64,11 +75,40 @@ export function BookmarkSheet({
       ? current.companyId
       : "";
   const folderId = current?.mode === "create" ? current.folderId : (item?.folderId ?? "");
+  // Before the form posts: the file goes to R2 in parts and the form names the finished upload instead of carrying the bytes.
+  const prepare =
+    largeFiles && !item && kind === "file"
+      ? async (form: FormData) => {
+          const file = form.get("file");
+          if (!(file instanceof File) || !file.size) return form;
+          const controller = new AbortController();
+          uploading.current = controller;
+          setProgress({ sent: 0, total: file.size });
+          try {
+            const uploadId = await uploadToR2(
+              file,
+              { companyId: String(form.get("companyId") ?? ""), folderId: String(form.get("folderId") ?? "") },
+              setProgress,
+              controller.signal,
+            );
+            form.delete("file");
+            form.set("uploadId", uploadId);
+            return form;
+          } finally {
+            uploading.current = null;
+            setProgress(null);
+          }
+        }
+      : undefined;
+  const close = () => {
+    uploading.current?.abort();
+    onClose();
+  };
   return (
     <>
       <FormSheet
         open={editor !== null}
-        onOpenChange={(open) => !open && onClose()}
+        onOpenChange={(open) => !open && close()}
         size="md"
         title={item ? "Editar bookmark" : kind === "board" ? "Nova lousa" : "Novo bookmark"}
         // Only what the fields do not say: a new board opens right away; a file or a drawing is not edited here.
@@ -84,10 +124,19 @@ export function BookmarkSheet({
                 : undefined
         }
         action={item ? updateBookmark : saveBookmark}
+        prepare={prepare}
         onSuccess={onClose}
         formKey={item?.id ?? `new-${folderId}-${initialCompany}`}
         submitLabel={item ? "Salvar" : kind === "board" ? "Criar lousa" : "Adicionar bookmark"}
-        pendingLabel={item ? "Salvando…" : kind === "board" ? "Criando…" : "Adicionando…"}
+        pendingLabel={
+          item
+            ? "Salvando…"
+            : kind === "board"
+              ? "Criando…"
+              : progress
+                ? `Enviando ${Math.floor((progress.sent / Math.max(1, progress.total)) * 100)}%`
+                : "Adicionando…"
+        }
         onDelete={item ? () => setDeleting(true) : undefined}
       >
         <BookmarkFields
@@ -98,6 +147,8 @@ export function BookmarkSheet({
           folderId={folderId}
           folders={folders}
           companies={companies}
+          largeFiles={largeFiles}
+          progress={progress}
         />
       </FormSheet>
       {item && (
@@ -126,6 +177,8 @@ function BookmarkFields({
   folderId,
   folders,
   companies,
+  largeFiles,
+  progress,
 }: {
   item: BookmarkView | null;
   kind: BookmarkKind;
@@ -134,6 +187,8 @@ function BookmarkFields({
   folderId: string;
   folders: FolderView[];
   companies: CompanyOption[];
+  largeFiles: boolean;
+  progress: UploadProgress | null;
 }) {
   const [company, setCompany] = useState(initialCompany);
   const options = folders.filter((folder) => (folder.companyId ?? "") === company);
@@ -202,7 +257,7 @@ function BookmarkFields({
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium text-foreground">Tipo</legend>
             <div className="grid gap-2 sm:grid-cols-3">
-              {KINDS.map((option) => (
+              {kindsFor(largeFiles).map((option) => (
                 <label
                   key={option.value}
                   className="flex cursor-pointer items-start gap-3 rounded-lg border bg-field px-3 py-2.5 text-sm transition-colors hover:bg-accent/40 has-[:checked]:border-primary has-[:checked]:bg-accent has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50"
@@ -228,7 +283,17 @@ function BookmarkFields({
             linkField
           ) : kind === "file" ? (
             <FormField label="Arquivo" htmlFor="bookmark-file">
-              <AttachmentField id="bookmark-file" name="file" rules={BOOKMARK_FILE} />
+              <AttachmentField id="bookmark-file" name="file" rules={largeFiles ? LARGE_BOOKMARK_FILE : BOOKMARK_FILE} />
+              {progress && (
+                <div className="mt-2" role="status" aria-live="polite">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${(progress.sent / Math.max(1, progress.total)) * 100}%` }} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                    {fileSizeLabel(progress.sent)} de {fileSizeLabel(progress.total)} enviados. Não feche esta janela.
+                  </p>
+                </div>
+              )}
             </FormField>
           ) : null}
         </>

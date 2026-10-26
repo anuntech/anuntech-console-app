@@ -6,6 +6,8 @@ import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
 import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runSuspensionTests } from "./suspension-smoke.mjs";
+import { runArquivosTests } from "./arquivos-smoke.mjs";
+import { startR2Mock } from "./r2-mock.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
 import { runHelpTests } from "./help-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
@@ -79,6 +81,7 @@ const sentNotices = () => {
 };
 flags({ approved: true });
 let server;
+let r2;
 let logs = "";
 let passed = 0;
 const companyIds = [ids.a, ids.b];
@@ -265,6 +268,8 @@ try {
   // Another server on this port would answer instead of ours (unknown sessions, wrong data).
   const taken = await fetch(base, { redirect: "manual" }).then(() => true, () => false);
   assert.ok(!taken, `A porta ${port} já está em uso: feche o outro servidor ou use CONSOLE_TEST_HTTP_PORT.`);
+  // Arquivos talks to a local stand-in for R2 (scripts/r2-mock.mjs), never to the real bucket in .env.local.
+  r2 = await startR2Mock();
   server = spawn(
     process.execPath,
     [
@@ -303,6 +308,11 @@ try {
         APP_PASS_PRIVATE_KEY: passKey,
         APP_PASS_KEY_ID: passKeyId,
         CONSOLE_APP_ORIGINS: "",
+        R2_ENDPOINT: r2.endpoint,
+        R2_ACCOUNT_ID: "",
+        R2_BUCKET: "console-test",
+        R2_ACCESS_KEY_ID: "test",
+        R2_SECRET_ACCESS_KEY: "test",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -2208,6 +2218,7 @@ try {
     await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
     await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
     await runSuspensionTests({ database, people, request, submitForm, sentNotices, ok, marker, companyIds });
+    await runArquivosTests({ database, ids, request, submitForm, ok, marker, base, r2 });
     await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
     await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
     await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
@@ -2240,6 +2251,11 @@ try {
     server.kill("SIGTERM");
     await new Promise((r) => server.once("exit", r));
   }
+  await r2?.close();
+  await database.query("delete from console_file_uploads where actor_id=any($1::text[]) or company_id=any($2::text[])", [
+    Object.values(people).map((p) => p.id),
+    companyIds,
+  ]);
   await database.query(
     "delete from console_audit_events where actor_id=any($1::text[]) and company_id is null",
     [Object.values(people).map((p) => p.id)],

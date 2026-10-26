@@ -425,7 +425,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
             )}
           </Widget>
         )}
-        <Widget title="Bookmarks" action={<SeeAll href="/bookmarks" area="bookmarks" />}>
+        <Widget title="Arquivos" action={<SeeAll href="/bookmarks" area="bookmarks" />}>
           {bookmarkPage.items.length ? (
             <ul className="divide-y border-t">
               {bookmarkPage.items.map((item) => {

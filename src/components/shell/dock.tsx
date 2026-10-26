@@ -67,7 +67,7 @@ const items: {
     motion: "receipt",
     area: "finance",
   },
-  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark, motion: "bookmark" },
+  { href: "/bookmarks", label: "Arquivos", icon: Bookmark, motion: "bookmark" },
   { href: "/orcamentos", label: "Orçamentos", icon: Calculator, motion: "calculator", area: "finance" },
   { href: "/contratos", label: "Contratos", icon: Folders, motion: "folders", area: "finance" },
 ];

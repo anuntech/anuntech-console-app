@@ -31,6 +31,13 @@ export const BOOKMARK_FILE: AttachmentRules = {
   maxBytes: 1024 * 1024,
 };
 
+/** A bookmark's file sent to R2 (Arquivos, lib/drive/drive-rules.ts): up to 100 GB. */
+export const LARGE_BOOKMARK_FILE: AttachmentRules = {
+  acceptLabel: "Qualquer tipo",
+  max: 1,
+  maxBytes: 100 * 1024 ** 3,
+};
+
 /** A knowledge-base document for the assistant: plain text it can read. */
 export const KNOWLEDGE_DOCUMENT: AttachmentRules = {
   accept: [".md", ".markdown", ".txt", ".csv", "text/plain", "text/markdown", "text/csv"],
@@ -48,7 +55,7 @@ export const AVATAR_IMAGE: AttachmentRules = {
 };
 
 /** Limits read as round numbers: "20 MB", not "20,0 MB". */
-export const limitLabel = (bytes: number) => fileSizeLabel(bytes).replace(",0 MB", " MB");
+export const limitLabel = (bytes: number) => fileSizeLabel(bytes).replace(",0 MB", " MB").replace(",0 GB", " GB");
 
 /** The hint under a field, from its rules: "PDF, PNG, JPEG ou WebP · até 5 arquivos, 20 MB no total". */
 export function attachmentHint({ acceptLabel, max, maxBytes }: AttachmentRules) {

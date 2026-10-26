@@ -72,7 +72,9 @@ export function relativeLabel(
 export const fileSizeLabel = (bytes: number) =>
   bytes < 1024 * 1024
     ? `${Math.max(1, Math.ceil(bytes / 1024))} KB`
-    : `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+    : bytes < 1024 ** 3
+      ? `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`
+      : `${(bytes / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
 export function initials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
   return ((words[0]?.[0] || "") + (words[1]?.[0] || "")).toUpperCase() || "•";

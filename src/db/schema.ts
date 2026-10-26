@@ -4,6 +4,7 @@ import {
   timestamp,
   boolean,
   integer,
+  bigint,
   date,
   uniqueIndex,
   index,
@@ -170,6 +171,8 @@ export const companies = pgTable("console_companies", {
     >(),
   autoIssueNfse: boolean("auto_issue_nfse").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
+  /** Space for its files in Arquivos; null is the default (lib/drive/drive-rules.ts, 5 GB). */
+  storageQuotaBytes: bigint("storage_quota_bytes", { mode: "number" }),
   createdAt: created(),
 });
 export const memberships = pgTable(
@@ -1157,7 +1160,12 @@ export const bookmarks = pgTable(
     title: text("title").notNull(),
     url: text("url"),
     fileName: text("file_name"),
+    /** Small files from before Arquivos; new files live in R2 under `storage_key`. */
     content: bytea("content"),
+    /** The object in R2 (lib/drive/r2.ts). */
+    storageKey: text("storage_key"),
+    fileSize: bigint("file_size", { mode: "number" }),
+    mime: text("mime"),
     board: jsonb("board"),
     preview: bytea("preview"),
     createdAt: created(),
@@ -1170,6 +1178,32 @@ export const bookmarks = pgTable(
   ],
 );
 
+/**
+ * A file on its way to R2: started here, sent by the browser straight to the
+ * bucket in parts, and finished here, which checks the size and the quota
+ * before the bookmark exists. Counts against the space's quota meanwhile.
+ */
+export const fileUploads = pgTable(
+  "console_file_uploads",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => user.id),
+    companyId: text("company_id").references(() => companies.id),
+    folderId: text("folder_id").references(() => bookmarkFolders.id),
+    fileName: text("file_name").notNull(),
+    mime: text("mime"),
+    size: bigint("size", { mode: "number" }).notNull(),
+    partSize: integer("part_size").notNull(),
+    storageKey: text("storage_key").notNull(),
+    multipartId: text("multipart_id").notNull(),
+    status: text("status", { enum: ["uploading", "completed", "used", "aborted"] }).notNull().default("uploading"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: created(),
+  },
+  (t) => [index("console_file_upload_company_idx").on(t.companyId), index("console_file_upload_actor_idx").on(t.actorId)],
+);
 export const ticketUploads = pgTable("console_ticket_uploads", {
   id: text("id").primaryKey(),
   authorId: text("author_id").notNull().references(() => user.id),

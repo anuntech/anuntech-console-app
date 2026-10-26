@@ -4,8 +4,8 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
   {
     slug: "bookmarks",
     category: "bookmarks",
-    title: "Links e arquivos em Bookmarks",
-    summary: "Guarde em Bookmarks os links e os arquivos pequenos que a sua empresa usa no dia a dia, organizados em pastas.",
+    title: "Arquivos e links",
+    summary: "Guarde em Arquivos os arquivos (até 100 GB cada), os links e as lousas que a sua empresa usa e troca com a Anuntech, organizados em pastas.",
     audience: "todos",
     keywords: [
       "bookmarks",
@@ -21,7 +21,12 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       "baixar arquivo",
       "drive",
       "tamanho do arquivo",
-      "1 MB",
+      "100 GB",
+      "arquivos grandes",
+      "enviar arquivos",
+      "espaço",
+      "cota",
+      "5 GB",
       "excluir bookmark",
     ],
     sections: [
@@ -30,7 +35,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Bookmarks é o lugar da sua empresa para guardar endereços úteis, como uma pasta do Drive, um arquivo no Figma ou o painel do site, e arquivos pequenos. Cada bookmark guarda uma coisa só: um link, um arquivo ou uma [lousa](/ajuda/lousas).",
+            text: "Arquivos (antes chamado Bookmarks) é o lugar da sua empresa para guardar e trocar arquivos com a Anuntech, de qualquer tipo e até 100 GB cada, e também endereços úteis, como o painel do site ou um arquivo no Figma. Cada item guarda uma coisa só: um arquivo, um link ou uma [lousa](/ajuda/lousas).",
           },
           {
             kind: "p",
@@ -44,10 +49,28 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
-              "No computador: “Bookmarks”, no menu do Console.",
-              "No celular: toque em “Mais” e, na seção “Mais áreas”, em “Bookmarks”.",
-              "Na [Visão geral](/painel), o bloco “Bookmarks” mostra os 5 adicionados mais recentemente entre os que você pode ver. “Ver todos” abre a página.",
+              "No computador: “Arquivos”, no menu do Console.",
+              "No celular: toque em “Mais” e, na seção “Mais áreas”, em “Arquivos”.",
+              "Na [Visão geral](/painel), o bloco “Arquivos” mostra os 5 itens adicionados mais recentemente entre os que você pode ver. “Ver todos” abre a página.",
             ],
+          },
+        ],
+      },
+      {
+        title: "Enviar vários arquivos de uma vez",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Em [Arquivos](/bookmarks), abra a pasta onde os arquivos devem ficar.",
+              "Arraste os arquivos do seu computador para a lista, ou clique em “Enviar arquivos” e selecione vários.",
+              "Cada arquivo vira um item com o nome do arquivo como título. No canto da tela aparece o andamento de cada um.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Deixe a página aberta até o envio terminar. Se fechar a aba ou a conexão cair, o que não terminou é descartado e não ocupa espaço: envie de novo. Arraste arquivos, não pastas.",
           },
         ],
       },
@@ -57,12 +80,12 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "steps",
             items: [
-              "Em [Bookmarks](/bookmarks), clique em “Adicionar”. Se você estiver dentro de uma pasta, ela já vem escolhida.",
+              "Em [Arquivos](/bookmarks), clique em “Adicionar”. Se você estiver dentro de uma pasta, ela já vem escolhida.",
               "Preencha o “Título”, por exemplo: Identidade visual no Drive.",
               "Em “Tipo”, escolha “Link” ou “Arquivo”.",
               "Para um link, cole o endereço completo em “Link”, começando com https://. Para um arquivo, arraste o arquivo para o campo “Arquivo” ou clique nele para selecionar.",
               "Em “Pasta”, escolha uma pasta ou deixe “Sem pasta”.",
-              "Clique em “Adicionar bookmark”. Aparece “Bookmark salvo.”.",
+              "Clique em “Adicionar bookmark”. Um arquivo grande mostra o andamento (“Enviando 40%”); ao terminar, aparece “Bookmark salvo.”.",
             ],
           },
           {
@@ -85,7 +108,11 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               },
               {
                 term: "Arquivo",
-                text: "Qualquer tipo, até 1 MB, um arquivo por bookmark. Acima disso, aparece “Escolha um arquivo de até 1 MB.”. Para arquivos maiores, guarde no seu Drive e salve aqui o link.",
+                text: "Qualquer tipo, até 100 GB, um arquivo por item. Acima disso, aparece “Escolha um arquivo de até 100 GB.”.",
+              },
+              {
+                term: "Espaço",
+                text: "Cada empresa tem 5 GB para os seus arquivos, somando todas as pastas. A coluna da esquerda mostra quanto já foi usado (por exemplo, “1,2 GB de 5,0 GB”). Sem espaço, aparece “O espaço da empresa acabou” com quanto resta: exclua arquivos que não usa mais ou fale com a Anuntech para aumentar.",
               },
               {
                 term: "Tipo",
@@ -145,14 +172,11 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Por segurança, o arquivo de um bookmark é sempre baixado para o seu aparelho e não abre dentro do navegador. Abra o arquivo baixado no programa que você usa.",
+            text: "Por segurança, o arquivo é sempre baixado para o seu aparelho e não abre dentro do navegador. O download vai direto para a pasta de downloads, mesmo de arquivos grandes, e aparece na lista de downloads do navegador. Abra o arquivo baixado no programa que você usa.",
           },
           {
-            kind: "list",
-            items: [
-              "“Não foi possível baixar o arquivo. Confira seu acesso e tente novamente.”: recarregue a página. Se a sua sessão terminou, o Console pede para você entrar de novo. Depois, confira se o bookmark ainda aparece para você e clique outra vez.",
-              "“Não foi possível baixar o arquivo. Tente novamente.”: a conexão falhou ou o download passou de 30 segundos. Tente de novo.",
-            ],
+            kind: "p",
+            text: "Se o download não começar, recarregue a página. Se a sua sessão terminou, o Console pede para você entrar de novo. Depois, confira se o item ainda aparece para você e clique outra vez.",
           },
           {
             kind: "note",
@@ -169,7 +193,11 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "Qual o tamanho máximo de arquivo e que tipos posso guardar?",
-        a: "Qualquer tipo de arquivo, até 1 MB, um arquivo por bookmark. Para arquivos maiores, guarde no seu Drive e salve aqui o link. Uma lousa pode ter até 3 MB, contando as imagens coladas nela.",
+        a: "Qualquer tipo de arquivo, até 100 GB, um arquivo por item. Cada empresa tem 5 GB no total; a coluna da esquerda mostra quanto já foi usado. Uma lousa pode ter até 3 MB, contando as imagens coladas nela.",
+      },
+      {
+        q: "O espaço da empresa acabou. O que faço?",
+        a: "Exclua os arquivos que não usa mais: o espaço volta na hora. Se precisar de mais de 5 GB, fale com a Anuntech por um [chamado](/chamados/novo).",
       },
       {
         q: "Como troco o arquivo de um bookmark?",
@@ -192,9 +220,9 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         a: "Por segurança, o arquivo de um bookmark sempre sai como download, para nenhum conteúdo dele rodar dentro do Console. Abra o arquivo baixado no seu aparelho.",
       },
     ],
-    actions: [{ label: "Ir para Bookmarks", href: "/bookmarks" }],
+    actions: [{ label: "Ir para Arquivos", href: "/bookmarks" }],
     related: ["pastas-e-compartilhamento", "lousas", "visao-geral"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-26",
   },
   {
     slug: "pastas-e-compartilhamento",

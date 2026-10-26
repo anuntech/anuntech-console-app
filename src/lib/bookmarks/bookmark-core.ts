@@ -7,6 +7,7 @@ import {
   bookmarkFolderShares,
   bookmarkFolders,
   bookmarks,
+  fileUploads,
 } from "@/db/schema";
 import { db } from "../db";
 import { canAccess, type Actor } from "../access/access";
@@ -15,6 +16,8 @@ import { boardHref, bookmarkKinds, EMPTY_BOARD } from "./board-rules";
 import { personInScope, scopeOf, searchBookmarkPeople } from "./bookmarks";
 import type { ActionState } from "../action-state";
 import { BOOKMARK_FILE, limitLabel } from "../tickets/attachment-rules";
+import { claimUpload } from "../drive/upload-claim";
+import { removeStoredFiles } from "../drive/r2";
 
 /*
  * The bookmark rules behind the web's actions (bookmark-actions.ts, which read
@@ -155,6 +158,7 @@ export async function deleteFolderAs(actor: Actor, input: { id: unknown }): Prom
     if (!folder || !manages(actor, folder)) return blocked;
     await db.transaction(async (tx) => {
       await tx.update(bookmarks).set({ folderId: null }).where(eq(bookmarks.folderId, folder.id));
+      await tx.update(fileUploads).set({ folderId: null }).where(eq(fileUploads.folderId, folder.id));
       await tx.delete(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, folder.id));
       await tx.delete(bookmarkFolders).where(eq(bookmarkFolders.id, folder.id));
     });
@@ -241,9 +245,11 @@ export async function saveBookmarkAs(
   const kind = kindField.parse(input.kind ?? "link");
   // A whiteboard starts empty: no link and no file, whatever else the form carried.
   const uploaded = kind !== "board" && file instanceof File && file.size > 0 ? file : null;
+  // A large file went to R2 first (lib/drive/uploads.ts); the form then names the finished upload.
+  const uploadId = kind === "file" && !uploaded && typeof input.uploadId === "string" ? input.uploadId : "";
   const url = kind === "board" ? "" : fields.url;
-  if (kind !== "board" && !url && !uploaded) return { error: "Informe um link ou selecione um arquivo." };
-  if (url && uploaded) return { error: "Salve um link ou um arquivo por vez." };
+  if (kind !== "board" && !url && !uploaded && !uploadId) return { error: "Informe um link ou selecione um arquivo." };
+  if (url && (uploaded || uploadId)) return { error: "Salve um link ou um arquivo por vez." };
   if (uploaded && uploaded.size > MAX_FILE)
     return { error: `Escolha um arquivo de até ${limitLabel(MAX_FILE)}.` };
   try {
@@ -254,19 +260,29 @@ export async function saveBookmarkAs(
       companyId = folder.companyId;
     } else if (!companyAllowed(actor, companyId)) return blocked;
     const content = uploaded ? Buffer.from(await uploaded.arrayBuffer()) : null;
-    const [item] = await db
-      .insert(bookmarks)
-      .values({
-        ownerId: actor.user.id,
-        companyId,
-        folderId: fields.folderId || null,
-        title: fields.title,
-        url: url || null,
-        fileName: uploaded ? safeFileName(uploaded.name) : null,
-        content,
-        board: kind === "board" ? EMPTY_BOARD : null,
-      })
-      .returning({ id: bookmarks.id });
+    const item = await db.transaction(async (tx) => {
+      // The upload must be this person's, finished and for this same space; it is taken once.
+      const stored = uploadId ? await claimUpload(actor, uploadId, companyId, tx) : null;
+      if (uploadId && !stored) return null;
+      const [row] = await tx
+        .insert(bookmarks)
+        .values({
+          ownerId: actor.user.id,
+          companyId,
+          folderId: fields.folderId || null,
+          title: fields.title,
+          url: url || null,
+          fileName: stored ? stored.fileName : uploaded ? safeFileName(uploaded.name) : null,
+          content,
+          storageKey: stored?.storageKey ?? null,
+          fileSize: stored?.size ?? uploaded?.size ?? null,
+          mime: stored?.mime ?? (uploaded?.type || null),
+          board: kind === "board" ? EMPTY_BOARD : null,
+        })
+        .returning({ id: bookmarks.id });
+      return row;
+    });
+    if (!item) return { error: "O envio do arquivo não foi concluído. Envie de novo." };
     await audit(actor, "bookmark.created", item.id, companyId, { title: fields.title, kind });
     refresh();
     if (kind === "board") return { success: "Lousa criada.", href: boardHref(item.id), id: item.id };
@@ -340,7 +356,8 @@ export async function deleteBookmarkAs(actor: Actor, input: { id: unknown }): Pr
     const bookmarkId = id.parse(input.id);
     const item = await editableBookmark(actor, bookmarkId);
     if (!item) return blocked;
-    await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId));
+    const [removed] = await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId)).returning({ storageKey: bookmarks.storageKey });
+    await removeStoredFiles([removed?.storageKey]);
     await audit(actor, "bookmark.deleted", bookmarkId, item.companyId, { title: item.title });
     refresh();
     return { success: "Bookmark excluído." };

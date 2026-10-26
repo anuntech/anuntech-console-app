@@ -51,7 +51,7 @@ export function BoardEditor({ data }: { data: BoardEditorData }) {
     else void frame.current?.requestFullscreen();
   }, []);
   const crumbs = [
-    { label: "Bookmarks", href: "/bookmarks" },
+    { label: "Arquivos", href: "/bookmarks" },
     ...(data.folder ? [{ label: data.folder.name, href: `/bookmarks?pasta=${data.folder.id}` }] : []),
   ];
   return (

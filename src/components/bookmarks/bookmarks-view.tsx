@@ -46,7 +46,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
-import { downloadFile } from "@/components/console/download-link";
 import {
   CompanyCell,
   DownloadMenuItem,
@@ -68,6 +67,7 @@ import { companyDisplayName } from "@/lib/companies/display-name";
 import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
 import { letterTile, linkHost } from "@/lib/bookmarks/letter-tile";
 import { BookmarkSheet, deleteNote, type BookmarkEditor } from "./bookmark-sheet";
+import { useBulkUpload } from "./bulk-upload";
 import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
 
 export type BookmarksViewData = {
@@ -87,6 +87,10 @@ export type BookmarksViewData = {
   /** Companies the viewer can file under; id "" is Anuntech's own space (staff). */
   companies: CompanyOption[];
   viewer: { id: string; admin: boolean };
+  /** R2 is configured: files up to 100 GB go straight to the bucket (lib/drive). */
+  largeFiles?: boolean;
+  /** Used and total per space; quota null is Anuntech's own, without a limit. */
+  spaces?: { companyId: string | null; used: number; quota: number | null }[];
 };
 
 /* Brand and neutrals only: green, amber and red mean a state elsewhere in the
@@ -245,6 +249,8 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       : query.company !== "all"
         ? query.company
         : (companies[0]?.id ?? "");
+  // Several files at once, picked or dropped on the list (R2 only).
+  const bulk = useBulkUpload({ companyId: createCompany, folderId: createIn, enabled: !!data.largeFiles });
   const later = (fn: () => void) => setTimeout(fn, 0);
   const companyPicker = manyCompanies && (
     <CompanyField
@@ -294,8 +300,15 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     ]
       .filter(Boolean)
       .join(" · ");
-  const download = (item: BookmarkView) =>
-    void downloadFile(`/api/bookmarks/${item.id}`, item.fileName ?? item.title);
+  // Straight to the file (a large one in R2 can be gigabytes): the browser writes it to disk as it arrives, never in memory.
+  const download = (item: BookmarkView) => {
+    const link = document.createElement("a");
+    link.href = `/api/bookmarks/${item.id}`;
+    link.download = (item.fileName ?? item.title).replace(/[\\/]/g, "_");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
 
   /** The "…" menu of a bookmark, the same in the list and in the grid. */
   const actionsFor = (item: BookmarkView) => (
@@ -466,7 +479,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     <>
       <PageHeader
         className="mb-4"
-        title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Bookmarks"}
+        title={current ? current.name : query.folder === "root" ? "Sem pasta" : "Arquivos"}
         count={paging.total}
         // A folder says whose it is (when there are several companies) and, only
         // when it is not open to the whole company, who sees it.
@@ -554,8 +567,17 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               </li>
             </ul>
           </nav>
+          {data.spaces?.map((space) => (
+            <SpaceMeter
+              key={space.companyId ?? "anuntech"}
+              name={data.spaces!.length > 1 || viewer.admin ? (companyName.get(space.companyId ?? "") ?? "Anuntech") : null}
+              used={space.used}
+              quota={space.quota}
+            />
+          ))}
         </aside>
 
+        <div {...bulk.dropProps} className={cn("relative min-w-0", bulk.dragging && "rounded-xl ring-2 ring-primary ring-offset-2")}>
         <ListCard
           fill
           empty={items.length === 0}
@@ -574,6 +596,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               >
                 <FolderPlusIcon />
               </Button>
+              {bulk.picker}
               <Button onClick={() => setEditor({ mode: "create", companyId: createCompany, folderId: createIn })}>
                 <PlusIcon />
                 Adicionar
@@ -634,13 +657,16 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             />
           )}
         </ListCard>
+        </div>
       </div>
+      {bulk.tray}
 
       <BookmarkSheet
         editor={editor}
         onClose={() => setEditor(null)}
         folders={folders}
         companies={companies}
+        largeFiles={data.largeFiles}
       />
       <FolderDialogs
         editor={folderEditor}
@@ -663,5 +689,23 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       )}
       {moveForm}
     </>
+  );
+}
+
+/** How much of a space its files take; Anuntech's own has no limit. */
+function SpaceMeter({ name, used, quota }: { name: string | null; used: number; quota: number | null }) {
+  const share = quota ? Math.min(1, used / quota) : 0;
+  return (
+    <div className="hidden px-2.5 lg:block">
+      <p className="m-0 text-caption font-medium text-muted-foreground">{name ? `Espaço · ${name}` : "Espaço usado"}</p>
+      {quota !== null && (
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+          <div className={`h-full rounded-full ${share > 0.9 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${share * 100}%` }} />
+        </div>
+      )}
+      <p className="m-0 mt-1 text-xs text-muted-foreground tabular-nums">
+        {`${used ? fileSizeLabel(used) : "0 KB"} ${quota === null ? "usados, sem limite" : `de ${fileSizeLabel(quota)}`}`}
+      </p>
+    </div>
   );
 }

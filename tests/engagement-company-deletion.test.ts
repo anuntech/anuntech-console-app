@@ -78,6 +78,8 @@ test("company deletion knows every table that points at a company", () => {
     "console_automation_events.company_id": "null",
     "console_journeys.company_id": "null",
     "console_engagement_suspensions.company_id": "not null",
+    // Arquivos: uploads under way go with the company, their parts with them in R2.
+    "console_file_uploads.company_id": "null",
     // Gone with it by the database (on delete cascade): pushes still queued.
     "console_push_notices.company_id": "not null",
     // Kept, set to null: the history outlives the company.
@@ -141,6 +143,7 @@ test("the children deleted with a company or its work are all accounted for", ()
   assert.deepEqual(pointingAt(schema.bookmarkFolders), {
     "console_bookmark_folder_shares.folder_id": "not null",
     "console_bookmarks.folder_id": "null",
+    "console_file_uploads.folder_id": "null",
   });
   // Leaves: nothing points at these, so deleting their rows ends the chain.
   for (const leaf of [

@@ -4,9 +4,11 @@ import { bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmark
 import { pageCountOf, pageQuery } from "@/lib/list-query";
 import { listLayoutFor } from "@/lib/list-layout-server";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
+import { storageConfigured } from "@/lib/drive/r2";
+import { spacesFor } from "@/lib/drive/uploads";
 export const metadata: Metadata = {
-  title: "Bookmarks",
-  description: "Links e arquivos de cada empresa, em pastas abertas ou compartilhadas.",
+  title: "Arquivos",
+  description: "Arquivos, links e lousas de cada empresa, em pastas abertas ou compartilhadas.",
 };
 
 export default async function Bookmarks({
@@ -41,6 +43,12 @@ export default async function Bookmarks({
         ])
       : actor.grants.map((g) => ({ id: g.company.id, name: g.company.name, document: g.company.document })),
   ]);
+  // The space meter: the team sees Anuntech's own and the company it filtered; a client, each of its companies.
+  const spaces = await spacesFor(
+    actor.admin
+      ? [null, ...(query.company !== "all" && query.company !== "internal" ? [query.company] : [])]
+      : actor.grants.map((g) => g.company.id),
+  );
   return (
     <BookmarksView
       data={{
@@ -58,6 +66,8 @@ export default async function Bookmarks({
         view,
         companies,
         viewer: { id: actor.user.id, admin: actor.admin },
+        largeFiles: storageConfigured(),
+        spaces,
       }}
     />
   );

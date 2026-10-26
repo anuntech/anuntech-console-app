@@ -223,8 +223,8 @@ export async function bookmarksFor(
           title: bookmarks.title,
           url: bookmarks.url,
           fileName: bookmarks.fileName,
-          // octet_length reads the stored size without loading the bytes.
-          fileSize: sql<number | null>`octet_length(${bookmarks.content})`,
+          // The size R2 holds, or octet_length of an older file, without loading the bytes.
+          fileSize: sql<number | null>`coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}))::float8`,
           // Flags only: the scene and its PNG stay in the database until opened.
           board: sql<boolean>`(${bookmarks.board} is not null)`,
           preview: sql<boolean>`(${bookmarks.preview} is not null)`,
