@@ -129,9 +129,9 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             kind: "list",
             items: [
               "Em telas a partir de 1024 px de largura, a coluna da esquerda mostra “Todos”, “Sem pasta” e, em “Pastas”, cada pasta com o número de itens. Em telas menores, como no celular, escolha a pasta no seletor acima da lista, que começa em “Todos os bookmarks”.",
-              "O campo “Buscar por título ou link” procura no título e no endereço do link. Ele não procura no nome do arquivo.",
+              "O campo “Buscar por título, link ou nome do arquivo” procura no título, no endereço do link e no nome do arquivo.",
               "Os ícones “Lista” e “Grade”, ao lado da busca, mudam a forma de mostrar. A escolha fica guardada neste navegador.",
-              "Clique no bookmark: um link abre em outra aba, um arquivo é baixado e uma lousa abre no Console.",
+              "Clique no item: um link abre em outra aba, uma lousa abre no Console, e um arquivo abre na prévia quando é imagem, PDF, vídeo, áudio ou texto; os outros tipos são baixados.",
             ],
           },
           {
@@ -172,7 +172,11 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Por segurança, o arquivo é sempre baixado para o seu aparelho e não abre dentro do navegador. O download vai direto para a pasta de downloads, mesmo de arquivos grandes, e aparece na lista de downloads do navegador. Abra o arquivo baixado no programa que você usa.",
+            text: "Imagens (PNG, JPEG, GIF, WebP, AVIF, SVG), PDF, vídeos (MP4, WebM, MOV), áudios (MP3, M4A, WAV, OGG) e textos (TXT, MD, CSV, JSON, CSS, até 2 MB) abrem na prévia, dentro do Console, com o botão “Baixar” ao lado. No menu “…”, “Ver” abre a prévia e “Baixar arquivo” baixa. Os outros tipos, como páginas HTML, planilhas ou instaladores, são sempre baixados, por segurança.",
+          },
+          {
+            kind: "p",
+            text: "O download vai direto para a pasta de downloads, mesmo de arquivos grandes, e aparece na lista de downloads do navegador. Abra o arquivo baixado no programa que você usa.",
           },
           {
             kind: "p",
@@ -209,7 +213,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "Por que a busca não encontra o meu arquivo?",
-        a: "A busca procura no título do bookmark e no endereço do link, e não no nome do arquivo. Procure por uma palavra do título.",
+        a: "A busca procura no título, no endereço do link e no nome do arquivo, mas não dentro do conteúdo. Confira a empresa e a pasta escolhidas: a busca vale para o que está aberto. Tente também uma palavra menor.",
       },
       {
         q: "A lista abriu em cartões. Como vejo em linhas?",
@@ -217,7 +221,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "Por que o arquivo baixa em vez de abrir?",
-        a: "Por segurança, o arquivo de um bookmark sempre sai como download, para nenhum conteúdo dele rodar dentro do Console. Abra o arquivo baixado no seu aparelho.",
+        a: "A prévia mostra imagens, PDF, vídeos, áudios e textos de até 2 MB. Os outros tipos sempre saem como download, por segurança, para nenhum conteúdo deles rodar dentro do Console. Abra o arquivo baixado no seu aparelho.",
       },
     ],
     actions: [{ label: "Ir para Arquivos", href: "/bookmarks" }],

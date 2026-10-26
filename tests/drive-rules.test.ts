@@ -56,3 +56,16 @@ test("sizes read in the Console's words", () => {
   assert.equal(fileSizeLabel(3 * GB), "3,0 GB");
   assert.equal(fileSizeLabel(2 * MB), "2,0 MB");
 });
+
+test("the preview shows pictures, PDFs, video, audio and text; anything else is downloaded", async () => {
+  const { previewOf, TEXT_PREVIEW_BYTES } = await import("../src/lib/drive/drive-rules");
+  assert.equal(previewOf("Logo.PNG")?.kind, "image");
+  assert.equal(previewOf("manual.pdf")?.type, "application/pdf");
+  assert.equal(previewOf("vinheta.mov")?.kind, "video");
+  assert.equal(previewOf("voz.mp3")?.kind, "audio");
+  assert.equal(previewOf("leia-me.md")?.type, "text/plain; charset=utf-8");
+  assert.equal(previewOf("leia-me.md", TEXT_PREVIEW_BYTES + 1), null);
+  assert.equal(previewOf("site.html"), null);
+  assert.equal(previewOf("instalador.exe"), null);
+  assert.equal(previewOf(null), null);
+});

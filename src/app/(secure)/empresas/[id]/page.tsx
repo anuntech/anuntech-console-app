@@ -28,6 +28,8 @@ import { membershipScopes, scopeChoices } from "@/lib/access/member-scope";
 import { bankCard } from "@/lib/service-terms/hours-bank";
 import { overagesReady, reportsToSend } from "@/lib/service-terms/hours-delivery";
 import { serviceTerms } from "@/db/schema";
+import { StorageQuotaCard } from "@/components/empresas/storage-quota-card";
+import { spaceUsage } from "@/lib/drive/uploads";
 export const metadata = {
   title: "Detalhes da empresa",
   description: "Cadastro, contatos e acessos de uma empresa.",
@@ -158,6 +160,7 @@ export default async function Company({
       .from(contracts)
       .where(and(eq(contracts.companyId, id), eq(contracts.status, "signed"), eq(contracts.kind, "contract"), or(isNull(contracts.endsAt), gte(contracts.endsAt, saoPauloDate())))),
   ]);
+  const storageUsed = await spaceUsage(id);
   const termsCard = (
     <>
     <OnboardingCard steps={onboarding} />
@@ -183,6 +186,7 @@ export default async function Company({
       now={new Date().toISOString()}
     />
     </div>
+    <StorageQuotaCard companyId={id} used={storageUsed} quotaBytes={company.storageQuotaBytes ?? null} />
     {bank && (
       <HoursBankCard
         viewer="team"
