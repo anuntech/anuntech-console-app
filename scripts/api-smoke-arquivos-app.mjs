@@ -211,9 +211,11 @@ export async function arquivosAppChecks({ db, rpc, ok, marker, emailSignIn, staf
     ok((await rpc("files.signParts", { id: half.id, parts: [1] }, membro)).status === 404, "A cancelled upload takes no more parts");
     ok((await rpc("files.cancelUpload", { id: big.id }, membro)).body?.message === "Este arquivo já foi salvo.", "A saved file cannot be cancelled");
 
-    // Deleting the bookmark takes the file out of R2.
+    // Deleting from the app moves the bookmark to the web's trash: the file stays in R2 for 30 days, and nothing opens it.
     r = await rpc("bookmarks.remove", { id: videoId }, membro);
-    ok(r.status === 200 && !r2.objects.has(`${companies.own}/${big.id}`), "Deleting the file bookmark removes it from R2");
+    const gone = (await db.query("select deleted_at from console_bookmarks where id=$1", [videoId])).rows[0];
+    ok(r.status === 200 && !!gone?.deleted_at && r2.objects.has(`${companies.own}/${big.id}`), "Deleting the file bookmark moves it to the trash, the file kept for 30 days");
+    ok((await rpc("bookmarks.get", { id: videoId }, membro)).status === 404, "A bookmark in the trash is not found by the app");
   } finally {
     const ids = Object.values(companies);
     const folders = (await db.query("select id from console_bookmark_folders where company_id=any($1::text[])", [ids])).rows.map((f) => f.id);
