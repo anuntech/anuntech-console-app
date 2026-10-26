@@ -29,6 +29,7 @@ import {
   userMilestones,
   engagementSuspensions,
   fileUploads,
+  fileVersions,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -178,6 +179,9 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
         .where(eq(memberships.companyId, company.id))
         .returning({ id: memberships.id });
 
+      // Their earlier versions go with them (cascade); the keys first, for R2.
+      const versions = await tx.select({ key: fileVersions.storageKey }).from(fileVersions).where(eq(fileVersions.companyId, company.id));
+      storedKeys.push(...versions.map((v) => v.key));
       // Bookmarks: the company's own; anything else filed in its folders stays, loose.
       const removedBookmarks = await tx
         .delete(bookmarks)

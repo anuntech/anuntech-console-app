@@ -8,6 +8,7 @@ import {
   bookmarkFolders,
   bookmarks,
   fileUploads,
+  fileVersions,
 } from "@/db/schema";
 import { db } from "../db";
 import { canAccess, type Actor } from "../access/access";
@@ -462,8 +463,9 @@ export async function purgeBookmarkAs(actor: Actor, input: { id: unknown }): Pro
     const bookmarkId = id.parse(input.id);
     const item = await editableBookmark(actor, bookmarkId, { trashed: true });
     if (!item) return blocked;
+    const versions = await versionKeys([bookmarkId]);
     const [removed] = await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId)).returning({ storageKey: bookmarks.storageKey });
-    await removeStoredFiles([removed?.storageKey]);
+    await removeStoredFiles([removed?.storageKey, ...versions]);
     await audit(actor, "bookmark.deleted", bookmarkId, item.companyId, { title: item.title });
     refresh();
     return { success: "Excluído de vez." };
@@ -477,10 +479,100 @@ export async function purgeBookmarkAs(actor: Actor, input: { id: unknown }): Pro
  * files included. Returns how many left.
  */
 export async function emptyExpiredTrash(now = new Date()) {
-  const removed = await db
-    .delete(bookmarks)
-    .where(lt(bookmarks.deletedAt, new Date(now.getTime() - TRASH_DAYS * 86_400_000)))
-    .returning({ storageKey: bookmarks.storageKey });
-  await removeStoredFiles(removed.map((r) => r.storageKey));
+  const expired = lt(bookmarks.deletedAt, new Date(now.getTime() - TRASH_DAYS * 86_400_000));
+  const ids = (await db.select({ id: bookmarks.id }).from(bookmarks).where(expired)).map((r) => r.id);
+  if (!ids.length) return 0;
+  const versions = await versionKeys(ids);
+  const removed = await db.delete(bookmarks).where(inArray(bookmarks.id, ids)).returning({ storageKey: bookmarks.storageKey });
+  await removeStoredFiles([...removed.map((r) => r.storageKey), ...versions]);
   return removed.length;
+}
+
+/** The R2 keys of these bookmarks' earlier versions (their rows go with the bookmark, by cascade). */
+export async function versionKeys(bookmarkIds: string[]) {
+  if (!bookmarkIds.length) return [];
+  return (await db.select({ key: fileVersions.storageKey }).from(fileVersions).where(inArray(fileVersions.bookmarkId, bookmarkIds))).map((r) => r.key);
+}
+
+/** "Enviar nova versão": the finished upload becomes the file; the one it replaces is kept as a version. */
+export async function replaceBookmarkFileAs(actor: Actor, input: { id: unknown; uploadId: unknown }): Promise<ActionState> {
+  try {
+    const bookmarkId = id.parse(input.id);
+    const uploadId = z.string().uuid().parse(input.uploadId);
+    const item = await editableBookmark(actor, bookmarkId);
+    if (!item) return blocked;
+    const [current] = await db
+      .select({ storageKey: bookmarks.storageKey, fileName: bookmarks.fileName, fileSize: bookmarks.fileSize, mime: bookmarks.mime, ownerId: bookmarks.ownerId, updatedAt: bookmarks.updatedAt })
+      .from(bookmarks)
+      .where(eq(bookmarks.id, bookmarkId));
+    if (!current?.storageKey || !current.fileName) return { error: "Só um arquivo guardado no Arquivos ganha versões." };
+    const done = await db.transaction(async (tx) => {
+      const stored = await claimUpload(actor, uploadId, item.companyId, tx);
+      if (!stored) return null;
+      const [{ last }] = await tx.select({ last: sql<number>`coalesce(max(${fileVersions.version}), 0)::int` }).from(fileVersions).where(eq(fileVersions.bookmarkId, bookmarkId));
+      await tx.insert(fileVersions).values({
+        bookmarkId,
+        companyId: item.companyId,
+        version: last + 1,
+        fileName: current.fileName!,
+        fileSize: current.fileSize ?? 0,
+        mime: current.mime,
+        storageKey: current.storageKey!,
+        actorId: current.ownerId,
+        createdAt: current.updatedAt,
+      });
+      await tx
+        .update(bookmarks)
+        .set({ storageKey: stored.storageKey, fileSize: stored.size, mime: stored.mime, fileName: stored.fileName, updatedAt: new Date() })
+        .where(eq(bookmarks.id, bookmarkId));
+      return last + 2;
+    });
+    if (!done) return { error: "O envio do arquivo não foi concluído. Envie de novo." };
+    await audit(actor, "bookmark.version_added", bookmarkId, item.companyId, { title: item.title, version: done });
+    refresh();
+    return { success: `Nova versão salva (versão ${done}). A anterior fica em Versões.` };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** An earlier version becomes the file again; the current one goes to the versions, so nothing is lost. */
+export async function restoreVersionAs(actor: Actor, input: { id: unknown }): Promise<ActionState> {
+  try {
+    const versionId = id.parse(input.id);
+    const [version] = await db.select().from(fileVersions).where(eq(fileVersions.id, versionId));
+    if (!version) return blocked;
+    const item = await editableBookmark(actor, version.bookmarkId);
+    if (!item) return blocked;
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ storageKey: bookmarks.storageKey, fileName: bookmarks.fileName, fileSize: bookmarks.fileSize, mime: bookmarks.mime, ownerId: bookmarks.ownerId, updatedAt: bookmarks.updatedAt })
+        .from(bookmarks)
+        .where(eq(bookmarks.id, version.bookmarkId))
+        .for("update");
+      if (!current?.storageKey) throw Error();
+      const [{ last }] = await tx.select({ last: sql<number>`coalesce(max(${fileVersions.version}), 0)::int` }).from(fileVersions).where(eq(fileVersions.bookmarkId, version.bookmarkId));
+      await tx.insert(fileVersions).values({
+        bookmarkId: version.bookmarkId,
+        companyId: version.companyId,
+        version: last + 1,
+        fileName: current.fileName ?? version.fileName,
+        fileSize: current.fileSize ?? 0,
+        mime: current.mime,
+        storageKey: current.storageKey,
+        actorId: current.ownerId,
+        createdAt: current.updatedAt,
+      });
+      await tx.delete(fileVersions).where(eq(fileVersions.id, version.id));
+      await tx
+        .update(bookmarks)
+        .set({ storageKey: version.storageKey, fileSize: version.fileSize, mime: version.mime, fileName: version.fileName, updatedAt: new Date() })
+        .where(eq(bookmarks.id, version.bookmarkId));
+    });
+    await audit(actor, "bookmark.version_restored", version.bookmarkId, item.companyId, { title: item.title, version: version.version });
+    refresh();
+    return { success: `A versão ${version.version} voltou a ser o arquivo. A que estava fica em Versões.` };
+  } catch (error) {
+    return failure(error);
+  }
 }

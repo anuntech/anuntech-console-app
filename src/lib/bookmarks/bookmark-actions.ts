@@ -4,6 +4,8 @@ import type { ActionState } from "../action-state";
 import {
   createFolderAs,
   deleteBookmarkAs,
+  replaceBookmarkFileAs,
+  restoreVersionAs,
   purgeBookmarkAs,
   restoreBookmarkAs,
   deleteFolderAs,
@@ -88,6 +90,16 @@ export async function restoreBookmark(_: ActionState, form: FormData): Promise<A
 export async function purgeBookmark(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   return purgeBookmarkAs(actor, { id: form.get("id") });
+}
+
+export async function replaceBookmarkFile(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  return replaceBookmarkFileAs(actor, { id: form.get("id"), uploadId: form.get("uploadId") });
+}
+
+export async function restoreVersion(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  return restoreVersionAs(actor, { id: form.get("id") });
 }
 
 export async function deleteBookmark(_: ActionState, form: FormData): Promise<ActionState> {

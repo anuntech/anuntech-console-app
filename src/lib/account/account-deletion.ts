@@ -23,6 +23,7 @@ import {
   userMilestones,
   verification,
   fileUploads,
+  fileVersions,
 } from "@/db/schema";
 import { db } from "../db";
 import { lockEnvironmentAssignments } from "../access/environment-access";
@@ -291,6 +292,12 @@ export async function deleteAccount(
       );
     if (privateFolders.length) {
       const ids = privateFolders.map((f) => f.id);
+      const versions = await tx
+        .select({ key: fileVersions.storageKey })
+        .from(fileVersions)
+        .innerJoin(bookmarks, eq(bookmarks.id, fileVersions.bookmarkId))
+        .where(inArray(bookmarks.folderId, ids));
+      storedKeys.push(...versions.map((v) => v.key));
       const removed = await tx.delete(bookmarks).where(inArray(bookmarks.folderId, ids)).returning({ storageKey: bookmarks.storageKey });
       storedKeys.push(...removed.map((b) => b.storageKey));
       await tx.update(fileUploads).set({ folderId: null }).where(inArray(fileUploads.folderId, ids));

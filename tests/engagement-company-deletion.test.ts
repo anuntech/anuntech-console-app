@@ -80,6 +80,8 @@ test("company deletion knows every table that points at a company", () => {
     "console_engagement_suspensions.company_id": "not null",
     // Arquivos: uploads under way go with the company, their parts with them in R2.
     "console_file_uploads.company_id": "null",
+    // Arquivos' earlier versions: their R2 keys are collected, the rows go with the bookmarks (cascade).
+    "console_file_versions.company_id": "null",
     // Gone with it by the database (on delete cascade): pushes still queued.
     "console_push_notices.company_id": "not null",
     // Kept, set to null: the history outlives the company.
@@ -154,11 +156,12 @@ test("the children deleted with a company or its work are all accounted for", ()
     schema.taskAssignees,
     schema.ticketNotices,
     schema.emailDeliveries,
-    schema.bookmarks,
     schema.bookmarkFolderShares,
     schema.notificationPreferences,
     schema.journeySteps,
     schema.membershipEngagements,
   ])
     assert.deepEqual(pointingAt(leaf), {}, getTableConfig(leaf).name);
+  // A bookmark's versions go with it, by the database (on delete cascade).
+  assert.deepEqual(pointingAt(schema.bookmarks), { "console_file_versions.bookmark_id": "not null" });
 });

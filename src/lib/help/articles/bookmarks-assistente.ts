@@ -158,7 +158,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "O arquivo de um bookmark não pode ser trocado: em “Editar” você muda só o título e a pasta. Para trocar o arquivo, exclua o bookmark e adicione de novo.",
+            text: "Para trocar o arquivo, abra “Editar” e, em “Versões”, clique em “Enviar nova versão”. O arquivo novo passa a ser o do item e o anterior fica guardado como “Versão 1”, “Versão 2” e assim por diante. Em cada versão, o botão de download baixa aquele arquivo e o de restaurar faz ele voltar a ser o atual (o que estava vira uma versão, nada se perde). Enviar e restaurar versões fica com quem pode editar o item. As versões ocupam o espaço da empresa e saem junto com o item quando ele é excluído de vez.",
           },
         ],
       },
@@ -226,8 +226,8 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         a: "Sim, por 30 dias. Abra a “Lixeira”, clique em “…” no item e em “Restaurar”. Ele volta para a pasta onde estava.",
       },
       {
-        q: "Como troco o arquivo de um bookmark?",
-        a: "Não dá para trocar o arquivo de um bookmark que já existe. Em “Editar” você muda só o título e a pasta. Exclua o bookmark e adicione de novo com o arquivo novo.",
+        q: "Como troco o arquivo de um item sem perder o anterior?",
+        a: "Em “Editar”, na seção “Versões”, clique em “Enviar nova versão”. O anterior fica guardado como versão e pode ser baixado ou restaurado a qualquer momento.",
       },
       {
         q: "Sou Administrador. Posso apagar ou mudar os bookmarks de outra pessoa?",

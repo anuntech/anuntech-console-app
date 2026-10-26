@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
-import { bookmarks, companies, fileUploads } from "@/db/schema";
+import { bookmarks, companies, fileUploads, fileVersions } from "@/db/schema";
 import { db } from "../db";
 import type { Actor } from "../access/access";
 import { companyAllowed, loadFolder, usable } from "../bookmarks/bookmark-core";
@@ -31,7 +31,7 @@ const fail = (error: string, status = 400): UploadResult<never> => ({ ok: false,
 const notFound = () => fail("Não encontrado.", 404);
 
 type Executor = Pick<typeof db, "select">;
-const spaceIs = (column: typeof bookmarks.companyId | typeof fileUploads.companyId, companyId: string | null) =>
+const spaceIs = (column: typeof bookmarks.companyId | typeof fileUploads.companyId | typeof fileVersions.companyId, companyId: string | null) =>
   companyId ? eq(column, companyId) : isNull(column);
 
 /** Bytes a space holds: its files (in R2 and the older ones in the database) and the uploads under way. */
@@ -40,11 +40,15 @@ export async function spaceUsage(companyId: string | null, executor: Executor = 
     .select({ n: sql<string>`coalesce(sum(coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}), 0)), 0)` })
     .from(bookmarks)
     .where(spaceIs(bookmarks.companyId, companyId));
+  const [versions] = await executor
+    .select({ n: sql<string>`coalesce(sum(${fileVersions.fileSize}), 0)` })
+    .from(fileVersions)
+    .where(spaceIs(fileVersions.companyId, companyId));
   const [pending] = await executor
     .select({ n: sql<string>`coalesce(sum(${fileUploads.size}), 0)` })
     .from(fileUploads)
     .where(and(spaceIs(fileUploads.companyId, companyId), inArray(fileUploads.status, ["uploading", "completed"]), gt(fileUploads.expiresAt, new Date())));
-  return Number(files.n) + Number(pending.n);
+  return Number(files.n) + Number(versions.n) + Number(pending.n);
 }
 
 /** A company's space; Anuntech's own (null) has no limit. */

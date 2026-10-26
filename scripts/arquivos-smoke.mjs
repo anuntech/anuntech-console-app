@@ -111,6 +111,27 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   const page2 = await one("select id from console_bookmarks where title='Página' and company_id=$1", [ids.a]);
   ok((await request(`/api/bookmarks/${page2.id}/ver`, "manager")).status === 404, "HTML não abre na prévia, só baixa");
 
+  // Fase 2d: a new version replaces the file and keeps the old one; an old one comes back; all of them count.
+  const firstKey = (await one("select storage_key from console_bookmarks where id=$1", [photo.id])).storage_key;
+  const second = randomBytes(3000);
+  started = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: `foto-${marker}-v2.png`, size: second.length, mime: "image/png" });
+  await sendParts("manager", started.data, second);
+  await submitForm("/bookmarks", "manager", "support", { action: "replaceBookmarkFile" }, { id: photo.id, uploadId: started.data.id });
+  ok((await one("select storage_key from console_bookmarks where id=$1", [photo.id])).storage_key === firstKey, "Só quem pode editar envia nova versão");
+  await submitForm("/bookmarks", "manager", "manager", { action: "replaceBookmarkFile" }, { id: photo.id, uploadId: started.data.id });
+  const afterReplace = await one("select storage_key, file_size, file_name from console_bookmarks where id=$1", [photo.id]);
+  const kept = await one("select id, version, storage_key from console_file_versions where bookmark_id=$1", [photo.id]);
+  ok(afterReplace.storage_key !== firstKey && Number(afterReplace.file_size) === second.length && kept?.storage_key === firstKey && kept.version === 1, "Nova versão vira o arquivo e a anterior fica como versão 1");
+  const listed = await json("manager", `/api/bookmarks/${photo.id}/versoes`, undefined, "GET");
+  ok(listed.status === 200 && listed.data.versions.length === 1 && listed.data.editable === true, "A lista de versões mostra a anterior");
+  ok((await request(`/api/bookmarks/${photo.id}/versoes`, "outsider")).status !== 200, "Pessoa de fora não vê as versões");
+  const oldDownload = await request(`/api/bookmarks/${photo.id}/versoes/${kept.id}`, "manager");
+  ok(oldDownload.status === 302 && Buffer.from(await (await fetch(oldDownload.headers.get("location"))).arrayBuffer()).equals(picture), "A versão antiga baixa com o conteúdo dela");
+  await submitForm("/bookmarks", "manager", "manager", { action: "restoreVersion" }, { id: kept.id });
+  const restored = await one("select storage_key from console_bookmarks where id=$1", [photo.id]);
+  const history = (await db.query("select version, storage_key from console_file_versions where bookmark_id=$1 order by version", [photo.id])).rows;
+  ok(restored.storage_key === firstKey && history.length === 1 && history[0].storage_key === afterReplace.storage_key, "Restaurar a versão traz o arquivo antigo e guarda o atual");
+
   // Fase 2c: folders inside folders; the inside sees what the outside sees; moving and deleting keep everything.
   const folderId = async (name) => (await one("select id from console_bookmark_folders where name=$1", [name]))?.id;
   await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Cliente ${marker}`, visibility: "people" });
@@ -174,5 +195,6 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   await db.query("update console_file_uploads set expires_at = now() - interval '1 hour' where id=$1", [started.data.id]);
   const run = await cron("/api/cron/arquivos");
   ok(run.status === 200 && !(await one("select 1 as ok from console_bookmarks where id=$1", [photo.id])) && !r2.objects.has(photoKey), "Depois de 30 dias na lixeira, a rotina apaga o item e o arquivo");
+  ok(!r2.objects.has(afterReplace.storage_key) && !(await one("select 1 as ok from console_file_versions where bookmark_id=$1", [photo.id])), "As versões saem junto, do banco e do R2");
   ok(!(await one("select 1 as ok from console_file_uploads where id=$1", [started.data.id])) && !r2.objects.has(`${ids.a}/${started.data.id}`), "Envio concluído e nunca salvo some na rotina, com o arquivo");
 }

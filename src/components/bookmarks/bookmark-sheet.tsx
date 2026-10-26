@@ -16,6 +16,7 @@ import { deleteBookmark, saveBookmark, updateBookmark } from "@/lib/bookmarks/bo
 import { kindOf, type BookmarkKind } from "@/lib/bookmarks/board-rules";
 import { BOOKMARK_FILE, LARGE_BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
 import { uploadToR2, type UploadProgress } from "./r2-upload";
+import { FileVersions } from "./file-versions";
 import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
 import { fileSizeLabel } from "@/lib/format";
@@ -237,17 +238,20 @@ function BookmarkFields({
       </FormField>
       {item ? (
         itemKind === "file" ? (
-          <div>
-            <p className="mb-1.5 text-sm leading-none font-medium">Arquivo</p>
-            <FileChips>
-              <li>
-                <FileChip
-                  file={{ name: item.fileName ?? item.title, size: item.fileSize }}
-                  href={`/api/bookmarks/${item.id}`}
-                />
-              </li>
-            </FileChips>
-          </div>
+          <>
+            <div>
+              <p className="mb-1.5 text-sm leading-none font-medium">Arquivo</p>
+              <FileChips>
+                <li>
+                  <FileChip
+                    file={{ name: item.fileName ?? item.title, size: item.fileSize }}
+                    href={`/api/bookmarks/${item.id}`}
+                  />
+                </li>
+              </FileChips>
+            </div>
+            {largeFiles && <FileVersions item={item} />}
+          </>
         ) : itemKind === "board" ? null : (
           linkField
         )

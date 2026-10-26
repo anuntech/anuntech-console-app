@@ -1186,6 +1186,36 @@ export const bookmarks = pgTable(
 );
 
 /**
+ * The earlier files of a bookmark (Arquivos' versions): "Enviar nova versão"
+ * keeps the file it replaces here, in R2 under its own key. The bookmark row
+ * always holds the current one. Gone with the bookmark (cascade); their R2
+ * objects are removed by whoever deletes it.
+ */
+export const fileVersions = pgTable(
+  "console_file_versions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    bookmarkId: text("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    /** The bookmark's space, so the quota and a company's deletion reach versions without a join. */
+    companyId: text("company_id").references(() => companies.id),
+    version: integer("version").notNull(),
+    fileName: text("file_name").notNull(),
+    fileSize: bigint("file_size", { mode: "number" }).notNull(),
+    mime: text("mime"),
+    storageKey: text("storage_key").notNull(),
+    /** Who sent this version (who replaced it is in the audit log). */
+    actorId: text("actor_id").references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("console_file_version_unique").on(t.bookmarkId, t.version),
+    index("console_file_version_company_idx").on(t.companyId),
+  ],
+);
+
+/**
  * A file on its way to R2: started here, sent by the browser straight to the
  * bucket in parts, and finished here, which checks the size and the quota
  * before the bookmark exists. Counts against the space's quota meanwhile.
