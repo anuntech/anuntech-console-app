@@ -6,7 +6,9 @@ import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   BookmarkIcon,
+  DownloadIcon,
   ExternalLinkIcon,
+  EyeIcon,
   FileIcon,
   FolderIcon,
   FolderInputIcon,
@@ -48,7 +50,6 @@ import {
 import { EmptyState, PageHeader } from "@/components/console/page-header";
 import {
   CompanyCell,
-  DownloadMenuItem,
   LinkRow,
   ListCard,
   ListPagination,
@@ -68,6 +69,7 @@ import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/li
 import { letterTile, linkHost } from "@/lib/bookmarks/letter-tile";
 import { BookmarkSheet, deleteNote, type BookmarkEditor } from "./bookmark-sheet";
 import { useBulkUpload } from "./bulk-upload";
+import { FilePreview, canPreview, downloadBookmark } from "./file-preview";
 import { FolderDialogs, type CompanyOption, type FolderEditor } from "./folder-dialogs";
 
 export type BookmarksViewData = {
@@ -300,15 +302,9 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     ]
       .filter(Boolean)
       .join(" · ");
-  // Straight to the file (a large one in R2 can be gigabytes): the browser writes it to disk as it arrives, never in memory.
-  const download = (item: BookmarkView) => {
-    const link = document.createElement("a");
-    link.href = `/api/bookmarks/${item.id}`;
-    link.download = (item.fileName ?? item.title).replace(/[\\/]/g, "_");
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
+  // A file opens in the preview when the Console can show it; anything else downloads.
+  const [previewing, setPreviewing] = useState<BookmarkView | null>(null);
+  const download = (item: BookmarkView) => (canPreview(item) ? setPreviewing(item) : downloadBookmark(item));
 
   /** The "…" menu of a bookmark, the same in the list and in the grid. */
   const actionsFor = (item: BookmarkView) => (
@@ -328,9 +324,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           </a>
         </DropdownMenuItem>
       ) : (
-        <DownloadMenuItem href={`/api/bookmarks/${item.id}`} filename={item.fileName ?? item.title}>
-          Baixar arquivo
-        </DownloadMenuItem>
+        <>
+          {canPreview(item) && (
+            <DropdownMenuItem onSelect={() => later(() => setPreviewing(item))}>
+              <EyeIcon />
+              Ver
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={() => downloadBookmark(item)}>
+            <DownloadIcon />
+            Baixar arquivo
+          </DropdownMenuItem>
+        </>
       )}
       {canEdit(item) && (
         <>
@@ -608,7 +613,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             <SearchField
               value={query.search}
               onChange={(search) => go({ search })}
-              placeholder="Buscar por título ou link"
+              placeholder="Buscar por título, link ou nome do arquivo"
               className="min-w-0 flex-1 max-sm:basis-full"
             />
           }
@@ -660,6 +665,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         </div>
       </div>
       {bulk.tray}
+      <FilePreview item={previewing} onClose={() => setPreviewing(null)} />
 
       <BookmarkSheet
         editor={editor}

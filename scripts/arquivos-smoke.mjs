@@ -87,6 +87,30 @@ export async function runArquivosTests({ database: db, ids, request, submitForm,
   const cancelled = await request(`/api/arquivos/envios/${started.data.id}`, "manager", { method: "DELETE", headers: { Origin: base } });
   ok(cancelled.status === 200 && (await one("select status from console_file_uploads where id=$1", [started.data.id]))?.status === "aborted", "Cancelar libera o envio");
 
+  // Fase 2a: the team sets the space; the search finds file names; a picture opens in the preview, a page never.
+  await submitForm(`/empresas/${ids.a}`, "admin", "manager", { action: "setStorageQuota" }, { companyId: ids.a, quotaGb: "50" });
+  ok((await one("select storage_quota_bytes from console_companies where id=$1", [ids.a]))?.storage_quota_bytes === null, "Cliente não muda o espaço da empresa");
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "setStorageQuota" }, { companyId: ids.a, quotaGb: "50" });
+  ok(Number((await one("select storage_quota_bytes from console_companies where id=$1", [ids.a]))?.storage_quota_bytes) === 50 * 1024 ** 3, "A equipe muda o espaço da empresa em GB");
+  ok((await request(`/empresas/${ids.a}`, "admin")).text.includes("Espaço em Arquivos"), "A página da empresa mostra o espaço em Arquivos");
+  await submitForm(`/empresas/${ids.a}`, "admin", "admin", { action: "setStorageQuota" }, { companyId: ids.a, quotaGb: "" });
+  ok((await one("select storage_quota_bytes from console_companies where id=$1", [ids.a]))?.storage_quota_bytes === null, "Vazio volta ao padrão");
+  const picture = randomBytes(2048);
+  started = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: `foto-${marker}.png`, size: picture.length, mime: "image/png" });
+  await sendParts("manager", started.data, picture);
+  await submitForm("/bookmarks", "manager", "manager", { action: "saveBookmark" }, { companyId: ids.a, folderId: "", title: "Foto da vitrine", kind: "file", uploadId: started.data.id });
+  const photo = await one("select id from console_bookmarks where title='Foto da vitrine' and company_id=$1", [ids.a]);
+  ok((await request(`/bookmarks?q=foto-${marker}`, "manager")).text.includes("Foto da vitrine"), "A busca encontra pelo nome do arquivo");
+  const view = await request(`/api/bookmarks/${photo.id}/ver`, "manager");
+  const viewAt = view.headers.get("location") ?? "";
+  ok(view.status === 302 && viewAt.includes("response-content-type=image%2Fpng") && viewAt.includes("inline"), "A prévia abre a imagem no Console, com o tipo certo");
+  ok((await request(`/api/bookmarks/${photo.id}/ver`, "outsider")).status !== 302, "Pessoa de fora não vê a prévia");
+  started = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "pagina.html", size: 10 });
+  await sendParts("manager", started.data, Buffer.from("<b>oi</b>!"));
+  await submitForm("/bookmarks", "manager", "manager", { action: "saveBookmark" }, { companyId: ids.a, folderId: "", title: "Página", kind: "file", uploadId: started.data.id });
+  const page2 = await one("select id from console_bookmarks where title='Página' and company_id=$1", [ids.a]);
+  ok((await request(`/api/bookmarks/${page2.id}/ver`, "manager")).status === 404, "HTML não abre na prévia, só baixa");
+
   // Deleting the bookmark removes the object from R2.
   await submitForm("/bookmarks", "admin", "admin", { action: "deleteBookmark" }, { id: saved.id });
   ok(!(await one("select 1 as ok from console_bookmarks where id=$1", [saved.id])) && !r2.objects.has(`anuntech/${upload.id}`), "Excluir o bookmark tira o arquivo do R2");

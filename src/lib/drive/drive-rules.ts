@@ -63,3 +63,40 @@ export function cleanFileName(name: string) {
   const clean = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   return (clean || "arquivo").slice(0, 200);
 }
+
+export type PreviewKind = "image" | "pdf" | "video" | "audio" | "text";
+
+/** What the Console shows without a download, by extension; the content type it is served with. */
+const PREVIEWS: Record<string, { kind: PreviewKind; type: string }> = {
+  png: { kind: "image", type: "image/png" },
+  jpg: { kind: "image", type: "image/jpeg" },
+  jpeg: { kind: "image", type: "image/jpeg" },
+  gif: { kind: "image", type: "image/gif" },
+  webp: { kind: "image", type: "image/webp" },
+  avif: { kind: "image", type: "image/avif" },
+  // Shown in an <img>, where an SVG's scripts never run.
+  svg: { kind: "image", type: "image/svg+xml" },
+  pdf: { kind: "pdf", type: "application/pdf" },
+  mp4: { kind: "video", type: "video/mp4" },
+  webm: { kind: "video", type: "video/webm" },
+  mov: { kind: "video", type: "video/quicktime" },
+  mp3: { kind: "audio", type: "audio/mpeg" },
+  m4a: { kind: "audio", type: "audio/mp4" },
+  wav: { kind: "audio", type: "audio/wav" },
+  ogg: { kind: "audio", type: "audio/ogg" },
+  txt: { kind: "text", type: "text/plain; charset=utf-8" },
+  md: { kind: "text", type: "text/plain; charset=utf-8" },
+  csv: { kind: "text", type: "text/plain; charset=utf-8" },
+  json: { kind: "text", type: "text/plain; charset=utf-8" },
+  css: { kind: "text", type: "text/plain; charset=utf-8" },
+};
+/** Text shown on screen up to this size; a larger one is downloaded. */
+export const TEXT_PREVIEW_BYTES = 2 * 1024 * 1024;
+
+export function previewOf(fileName: string | null | undefined, size?: number | null) {
+  const ext = (fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
+  const preview = PREVIEWS[ext];
+  if (!preview) return null;
+  if (preview.kind === "text" && (size ?? 0) > TEXT_PREVIEW_BYTES) return null;
+  return preview;
+}

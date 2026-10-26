@@ -96,12 +96,14 @@ export async function objectSize(key: string) {
 }
 
 /** A download address valid for five minutes, saved under its own name. */
-export async function downloadUrl(key: string, fileName: string, inline = false) {
+export async function downloadUrl(key: string, fileName: string, inline = false, contentType?: string) {
   const { client, base } = need();
   const url = new URL(objectUrl(base, key));
   url.searchParams.set("X-Amz-Expires", "300");
   url.searchParams.set("response-content-disposition", `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(fileName)}`);
   url.searchParams.set("response-cache-control", "private, no-store");
+  // A preview is served with the type that matches its extension, so the browser shows it and guesses nothing.
+  if (contentType) url.searchParams.set("response-content-type", contentType);
   return (await client.sign(url, { method: "GET", aws: { signQuery: true } })).url;
 }
 

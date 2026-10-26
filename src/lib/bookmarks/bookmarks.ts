@@ -201,7 +201,7 @@ export async function bookmarksFor(
     and(
       narrowed,
       search
-        ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`))
+        ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`), ilike(bookmarks.fileName, `%${search}%`))
         : undefined,
     ) ?? sql`true`;
   // Counted first, so a page past the end (after a delete or a narrower search)
