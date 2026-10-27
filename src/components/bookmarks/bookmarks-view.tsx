@@ -382,7 +382,9 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         ? query.company
         : (companies[0]?.id ?? "");
   // Several files at once, picked or dropped on the list (R2 only).
-  const bulk = useBulkUpload({ companyId: createCompany, folderId: createIn, enabled: !!data.largeFiles });
+  // A folder set to "Só ver e baixar" takes items only from its owner and the team.
+  const canAddHere = !current || current.adds !== "owner" || viewer.admin || current.ownerId === viewer.id;
+  const bulk = useBulkUpload({ companyId: createCompany, folderId: createIn, enabled: !!data.largeFiles && canAddHere });
   const later = (fn: () => void) => setTimeout(fn, 0);
   const companyPicker = manyCompanies && (
     <CompanyField
@@ -926,11 +928,13 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                   </a>
                 </Button>
               )}
-              {bulk.picker}
-              <Button onClick={() => setEditor({ mode: "create", companyId: createCompany, folderId: createIn })}>
-                <PlusIcon />
-                Adicionar
-              </Button>
+              {canAddHere && bulk.picker}
+              {canAddHere && (
+                <Button onClick={() => setEditor({ mode: "create", companyId: createCompany, folderId: createIn })}>
+                  <PlusIcon />
+                  Adicionar
+                </Button>
+              )}
             </>
           }
           layout={<ViewToggle view={view} onChange={chooseView} />}
@@ -1004,7 +1008,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                       Limpar filtros
                     </Link>
                   </Button>
-                ) : (
+                ) : canAddHere ? (
                   <Button
                     onClick={() =>
                       setEditor({ mode: "create", companyId: createCompany, folderId: createIn })
@@ -1013,7 +1017,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                     <PlusIcon />
                     Adicionar
                   </Button>
-                )
+                ) : null
               }
             />
           )}

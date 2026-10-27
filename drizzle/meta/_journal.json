@@ -393,6 +393,13 @@
       "when": 1793065583241,
       "tag": "0055_auditoria_por_item",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793067044168,
+      "tag": "0056_arquivos_quem_adiciona",
+      "breakpoints": true
     }
   ]
 }

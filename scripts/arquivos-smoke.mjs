@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from "node:crypto";
  * parts, someone else's upload, another company and another site refused;
  * deleting the bookmark removes the object.
  */
-export async function runArquivosTests({ database: db, ids, people, request, submitForm, ok, marker, base, r2, notFoundPage, aiFile }) {
+export async function runArquivosTests({ database: db, ids, people, request, submitForm, ok, marker, base, r2, notFoundPage, aiFile, sentNotices }) {
   const one = async (sql, values = []) => (await db.query(sql, values)).rows[0];
   const json = (who, path, body, method = "POST") =>
     request(path, who, { method, headers: { "Content-Type": "application/json", Origin: base }, body: body === undefined ? undefined : JSON.stringify(body) }).then((r) => ({
@@ -475,6 +475,30 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   ok(Number((await one("select count(*) as n from console_bookmarks where id=any($1::text[]) and deleted_at is not null", [[copied.id, loose]])).n) === 2, "Vários itens vão juntos para a lixeira");
   await db.query("update console_bookmarks set folder_id=null where folder_id=$1", [batchFolder]);
   await db.query("delete from console_bookmark_folders where id=$1", [batchFolder]);
+
+  // Fase 5d: a folder can be "only see and download"; whoever is added to a folder hears about it by e-mail.
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Só ver ${marker}`, visibility: "company" });
+  const viewOnly = (await one("select id from console_bookmark_folders where name=$1", [`Só ver ${marker}`])).id;
+  const mailsBefore = sentNotices().length;
+  await submitForm("/bookmarks", "manager", "manager", { action: "shareFolder" }, { id: viewOnly, visibility: "people", userIds: [people.finance.id], adds: "owner" });
+  ok((await one("select adds, visibility from console_bookmark_folders where id=$1", [viewOnly])).adds === "owner", "A pasta fica “só ver e baixar”");
+  await submitForm("/bookmarks", "finance", "finance", { action: "saveBookmark" }, { companyId: ids.a, folderId: viewOnly, title: `Tentativa ${marker}`, kind: "link", url: "https://example.com/x" });
+  ok(!(await one("select 1 as ok from console_bookmarks where title=$1", [`Tentativa ${marker}`])), "Quem só vê não adiciona itens na pasta");
+  await submitForm("/bookmarks", "manager", "manager", { action: "saveBookmark" }, { companyId: ids.a, folderId: viewOnly, title: `Do dono ${marker}`, kind: "link", url: "https://example.com/y" });
+  ok(!!(await one("select 1 as ok from console_bookmarks where title=$1", [`Do dono ${marker}`])), "O dono continua adicionando");
+  let shareMail = null;
+  for (let i = 0; i < 40 && !shareMail; i++) {
+    shareMail = sentNotices().slice(mailsBefore).find((n) => n.channel === "email" && JSON.stringify(n.payload).includes(`Só ver ${marker}`));
+    if (!shareMail) await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  ok(!!shareMail && JSON.stringify(shareMail.payload).includes(people.finance.email) && JSON.stringify(shareMail.payload).includes(`/bookmarks?pasta=${viewOnly}`), "Quem foi incluído na pasta recebe o aviso por e-mail com o link");
+  const mailsAfter = sentNotices().length;
+  await submitForm("/bookmarks", "manager", "manager", { action: "shareFolder" }, { id: viewOnly, visibility: "people", userIds: [people.finance.id], adds: "owner" });
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  ok(!sentNotices().slice(mailsAfter).some((n) => JSON.stringify(n.payload).includes(`Só ver ${marker}`)), "Salvar de novo não manda o aviso outra vez");
+  await db.query("delete from console_bookmarks where folder_id=$1", [viewOnly]);
+  await db.query("delete from console_bookmark_folder_shares where folder_id=$1", [viewOnly]);
+  await db.query("delete from console_bookmark_folders where id=$1", [viewOnly]);
 
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);

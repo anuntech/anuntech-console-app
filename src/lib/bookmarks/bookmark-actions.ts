@@ -55,6 +55,7 @@ export async function shareFolder(_: ActionState, form: FormData): Promise<Actio
     id: form.get("id"),
     visibility: form.get("visibility"),
     userIds: form.getAll("userIds"),
+    adds: form.get("adds"),
   });
 }
 

@@ -396,7 +396,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Quem vê uma pasta também pode adicionar bookmarks nela.",
+            text: "Quem vê uma pasta também pode adicionar itens nela, a não ser que quem criou a pasta escolha, em “Compartilhar”, a opção “Só ver e baixar” em “Quem vê pode”. Aí só quem criou a pasta e a equipe da Anuntech adicionam. Quem você incluir numa pasta “Só pessoas escolhidas” recebe um e-mail com o link para ela.",
           },
           {
             kind: "p",

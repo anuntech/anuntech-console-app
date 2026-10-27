@@ -67,7 +67,7 @@ function ShareForm({ folder, onClose }: { folder: FolderView; onClose: () => voi
       <input type="hidden" name="id" value={folder.id} />
       <DialogHeader>
         <DialogTitle>Compartilhar “{folder.name}”</DialogTitle>
-        <DialogDescription>Quem vê a pasta também pode adicionar bookmarks nela.</DialogDescription>
+        <DialogDescription>Quem vê e o que pode fazer. Quem você incluir recebe um aviso por e-mail.</DialogDescription>
       </DialogHeader>
       <FormError />
       <div className="grid gap-5">
@@ -79,6 +79,12 @@ function ShareForm({ folder, onClose }: { folder: FolderView; onClose: () => voi
             <SharePeoplePicker id="share-people" folderId={folder.id} initial={folder.sharedWith} />
           </FormField>
         )}
+        <FormField label="Quem vê pode" htmlFor="share-adds">
+          <NativeSelect id="share-adds" name="adds" defaultValue={folder.adds ?? "viewers"}>
+            <NativeSelectOption value="viewers">Ver, baixar e adicionar itens</NativeSelectOption>
+            <NativeSelectOption value="owner">Só ver e baixar</NativeSelectOption>
+          </NativeSelect>
+        </FormField>
       </div>
       <DialogFooter>
         <DialogClose asChild>

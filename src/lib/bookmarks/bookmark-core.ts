@@ -1,10 +1,13 @@
 import "server-only";
 import { and, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { sendClientMail } from "../notifications/client-mail";
 import { z } from "zod";
 import {
   auditEvents,
   bookmarkFolderShares,
+  user,
   bookmarkFolders,
   bookmarks,
   fileUploads,
@@ -68,6 +71,7 @@ export async function loadFolder(folderId: string) {
       origin: bookmarkFolders.origin,
       area: bookmarkFolders.area,
       engagementId: bookmarkFolders.engagementId,
+      adds: bookmarkFolders.adds,
     })
     .from(bookmarkFolders)
     .where(eq(bookmarkFolders.id, folderId));
@@ -94,6 +98,8 @@ export async function gateKeeps(fromFolderId: string | null, target: Folder | nu
 export async function usable(actor: Actor, folder: Folder) {
   if (!companyAllowed(actor, folder.companyId)) return false;
   if (!gateOpen(gateViewerOf(actor), folder)) return false;
+  // "Só ver e baixar": only the owner and the team add to it.
+  if (folder.adds === "owner" && !actor.admin && folder.ownerId !== actor.user.id) return false;
   if (actor.admin || folder.visibility === "company" || folder.ownerId === actor.user.id) return true;
   const [share] = await db
     .select({ userId: bookmarkFolderShares.userId })
@@ -223,11 +229,13 @@ export async function deleteFolderAs(actor: Actor, input: { id: unknown }): Prom
 /** Who sees the folder: the whole company, or only chosen people (`userIds`, up to 50). */
 export async function shareFolderAs(
   actor: Actor,
-  input: { id: unknown; visibility: unknown; userIds: unknown[] },
+  input: { id: unknown; visibility: unknown; userIds: unknown[]; adds?: unknown },
 ): Promise<ActionState> {
   try {
     const folderId = id.parse(input.id);
     const mode = visibility.parse(input.visibility ?? "company");
+    // Absent (the app's older screens), who adds stays as it was.
+    const adds = input.adds === undefined || input.adds === null || input.adds === "" ? undefined : z.enum(["viewers", "owner"]).parse(input.adds);
     const userIds =
       mode === "people"
         ? [
@@ -245,10 +253,13 @@ export async function shareFolderAs(
     for (const userId of userIds)
       if (!(await personInScope(userId, folder.companyId)))
         return { error: "Uma das pessoas escolhidas não participa desta empresa." };
+    const before = new Set(
+      (await db.select({ userId: bookmarkFolderShares.userId }).from(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, folder.id))).map((r) => r.userId),
+    );
     await db.transaction(async (tx) => {
       await tx
         .update(bookmarkFolders)
-        .set({ visibility: mode })
+        .set({ visibility: mode, ...(adds ? { adds } : {}) })
         .where(eq(bookmarkFolders.id, folder.id));
       await tx.delete(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, folder.id));
       if (userIds.length)
@@ -262,7 +273,11 @@ export async function shareFolderAs(
     await audit(actor, "bookmark_folder.shared", folder.id, folder.companyId, {
       visibility: mode,
       people: userIds.length,
+      ...(adds ? { adds } : {}),
     });
+    // Who just got the folder hears about it by e-mail (after the answer; a failed e-mail never undoes the share).
+    const added = userIds.filter((userId) => !before.has(userId));
+    if (added.length) after(() => tellSharedWith(actor, { id: folder.id, name: folder.name }, added));
     refresh();
     return {
       success:
@@ -290,7 +305,7 @@ async function companyFolders(companyId: string | null, executor: Pick<typeof db
  */
 async function inheritAccess(tx: Tx, sourceId: string, targets: string[]) {
   const [source] = await tx
-    .select({ visibility: bookmarkFolders.visibility, ownerId: bookmarkFolders.ownerId, area: bookmarkFolders.area, engagementId: bookmarkFolders.engagementId })
+    .select({ visibility: bookmarkFolders.visibility, ownerId: bookmarkFolders.ownerId, area: bookmarkFolders.area, engagementId: bookmarkFolders.engagementId, adds: bookmarkFolders.adds })
     .from(bookmarkFolders)
     .where(eq(bookmarkFolders.id, sourceId));
   if (!source || !targets.length) return;
@@ -300,7 +315,7 @@ async function inheritAccess(tx: Tx, sourceId: string, targets: string[]) {
     await tx.update(bookmarkFolders).set({ engagementId: source.engagementId }).where(and(inArray(bookmarkFolders.id, targets), isNull(bookmarkFolders.engagementId)));
   const people = (await tx.select({ userId: bookmarkFolderShares.userId }).from(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, sourceId))).map((r) => r.userId);
   const owners = await tx.select({ id: bookmarkFolders.id, ownerId: bookmarkFolders.ownerId }).from(bookmarkFolders).where(inArray(bookmarkFolders.id, targets));
-  await tx.update(bookmarkFolders).set({ visibility: source.visibility }).where(inArray(bookmarkFolders.id, targets));
+  await tx.update(bookmarkFolders).set({ visibility: source.visibility, adds: source.adds }).where(inArray(bookmarkFolders.id, targets));
   await tx.delete(bookmarkFolderShares).where(inArray(bookmarkFolderShares.folderId, targets));
   if (source.visibility !== "people") return;
   const rows = owners.flatMap((target) =>
@@ -627,5 +642,27 @@ export async function restoreVersionAs(actor: Actor, input: { id: unknown }): Pr
     return { success: `A versão ${version.version} voltou a ser o arquivo. A que estava fica em Versões.` };
   } catch (error) {
     return failure(error);
+  }
+}
+
+/** "Kauan compartilhou a pasta “Marca” com você": one e-mail per person just added. */
+async function tellSharedWith(actor: Actor, folder: { id: string; name: string }, userIds: string[]) {
+  const people = await db.select({ id: user.id, email: user.email, name: user.name }).from(user).where(inArray(user.id, userIds));
+  const who = actor.user.name || "Uma pessoa";
+  const base = process.env.BETTER_AUTH_URL?.replace(/\/$/, "") || "https://console.anuntech.com";
+  for (const person of people) {
+    if (!person.email || person.email.endsWith("@invalid")) continue;
+    await sendClientMail({
+      to: person.email,
+      subject: `${who} compartilhou a pasta “${folder.name}” com você`,
+      text: [
+        `Olá${person.name ? `, ${person.name.split(" ")[0]}` : ""}.`,
+        `${who} compartilhou a pasta “${folder.name}” com você no Console da Anuntech.`,
+        `Para abrir: ${base}/bookmarks?pasta=${folder.id}`,
+        "Equipe Anuntech",
+      ].join("\n\n"),
+      tag: "folder-share",
+      key: `${folder.id}-${person.id}`,
+    }).catch(() => console.error("[arquivos] share e-mail failed", folder.id));
   }
 }

@@ -55,6 +55,8 @@ export type FolderView = {
   parentId?: string | null;
   /** Kept by the Console (contracts, deliveries): nobody deletes, moves or shares it. */
   system?: boolean;
+  /** "owner": who sees it only sees and downloads; its owner and the team add. Optional so fixtures without it still type. */
+  adds?: "viewers" | "owner";
   sharedWith: { id: string; name: string; image: string | null }[];
   count: number;
 };
@@ -148,6 +150,7 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
       origin: bookmarkFolders.origin,
       area: bookmarkFolders.area,
       engagementId: bookmarkFolders.engagementId,
+      adds: bookmarkFolders.adds,
       sharedWithMe: bookmarkFolderShares.userId,
     })
     .from(bookmarkFolders)
@@ -206,6 +209,7 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
     visibility: row.visibility,
     parentId: row.parentId,
     ...(row.origin ? { system: true } : {}),
+    adds: row.adds,
     sharedWith: shares
       .filter((share) => share.folderId === row.id)
       .map(({ id, name, image }) => ({ id, name, image })),

@@ -1141,6 +1141,8 @@ export const bookmarkFolders = pgTable(
     area: text("area", { enum: ["finance"] }),
     /** On top of who sees it: only who sees this project (a Member may see only some). */
     engagementId: text("engagement_id").references(() => engagements.id),
+    /** Who adds items: everyone who sees it ("viewers", as always) or only its owner and the team ("owner": see and download only). */
+    adds: text("adds", { enum: ["viewers", "owner"] }).notNull().default("viewers"),
     createdAt: created(),
   },
   (t) => [
