@@ -472,6 +472,23 @@ globalThis.fetch = async function (input, init) {
       }),
     );
   }
+  // A draft contract's open fields (lib/contracts/contract-field-ai.ts): each asked key gets an answer;
+  // one about hosting is missing (a question for the client), one ending in "nenhum" is the default.
+  if (system.startsWith("Você ajuda a equipe da Anuntech a preencher os campos")) {
+    record({ contractFields: true, model, scrubbed: !/[\w.+-]+@[\w-]+\./.test(firstUser), ...privacy(body.providerOptions) });
+    const keys = [...firstUser.matchAll(/^- ([a-z_]+) \(/gm)].map((m) => m[1]);
+    return whole(
+      JSON.stringify({
+        campos: keys.map((key) =>
+          /hospedagem/.test(key)
+            ? { key, valor: "", fonte: "falta", motivo: "Onde o sistema vai rodar e quem paga a nuvem?", confira: true }
+            : /componentes|ativos/.test(key)
+              ? { key, valor: "nenhum", fonte: "padrão", motivo: "O projeto não cita", confira: true }
+              : { key, valor: `Valor de teste para ${key}`, fonte: "orçamento", motivo: "Fases do orçamento", confira: false },
+        ),
+      }),
+    );
+  }
   // Arquivos' tag suggestion (lib/drive/file-tags.ts): ETIQUETA-PROPOSTA in the text reads as a proposal; anything else, none.
   // Records whether contacts and documents were taken out before the text left.
   if (system.startsWith("Você classifica arquivos")) {

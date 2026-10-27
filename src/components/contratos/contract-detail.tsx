@@ -398,7 +398,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-5">
                   <FormError />
-                  <ContractFieldsPanel bodyRef={bodyRef} initialBody={c.body} suggestions={c.fieldSuggestions} />
+                  <ContractFieldsPanel contractId={c.id} bodyRef={bodyRef} initialBody={c.body} suggestions={c.fieldSuggestions} />
                   <div>
                     <Label htmlFor="contract-title" className="mb-1.5">
                       Título

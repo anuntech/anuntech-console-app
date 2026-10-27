@@ -92,6 +92,14 @@ export async function contractFieldSuggestions(
     const source = `Orçamento ${quoteNumberLabel(quote.year, quote.seq)} · ${quote.title}, ${quote.status === "accepted" ? "aceito" : "enviado, sem resposta"}`;
     const totals = quoteTotals(quote.content);
     offer("numero_proposta", quoteNumberLabel(quote.year, quote.seq), source);
+    // The approved proposal as the contract names it: number, title, when it went out and when it was accepted.
+    offer(
+      "proposta_aprovada",
+      `Orçamento ${quoteNumberLabel(quote.year, quote.seq)}, "${quote.title}", enviado em ${longDateLabel(quote.publishedAt ?? quote.createdAt)}${
+        quote.status === "accepted" && quote.decidedAt ? ` e aceito em ${longDateLabel(quote.decidedAt)}${quote.decidedName ? ` por ${quote.decidedName}` : ""}` : ""
+      }`,
+      source,
+    );
     offer("data_proposta", longDateLabel(quote.publishedAt ?? quote.createdAt), source);
     offer("valor", totals.totalCents ? currency(totals.totalCents) : null, source);
     offer("valor_hora", quote.content.hourlyRateCents ? currency(quote.content.hourlyRateCents) : null, source);
@@ -115,10 +123,18 @@ export async function contractFieldSuggestions(
   }
   offer("responsavel_anuntech", author.name, "Você");
   offer("email_responsavel_anuntech", author.email, "Você");
+  // Who answers for the client: the company's first Administrador, else who accepted the proposal.
+  // Without a separate e-mail field, the one field takes both ("Nome e e-mail do responsável").
   const manager = managers[0];
-  if (manager) {
-    offer("responsavel_cliente", manager.name, "Administrador da empresa no Console");
-    offer("email_responsavel_cliente", manager.email, "Administrador da empresa no Console");
+  const accepted = quote?.status === "accepted" && quote.decidedParty === "client" && quote.decidedEmail
+    ? { name: quote.decidedName, email: quote.decidedEmail }
+    : null;
+  const person = manager ?? accepted;
+  if (person) {
+    const source = manager ? "Administrador da empresa no Console" : "Quem aceitou o orçamento";
+    const both = wanted.has("email_responsavel_cliente") ? null : `${person.name ? `${person.name}, ` : ""}${person.email}`;
+    offer("responsavel_cliente", both ?? person.name, source);
+    offer("email_responsavel_cliente", person.email, source);
   }
   return out;
 }
