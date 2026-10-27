@@ -158,6 +158,12 @@ function decide(messages) {
     const target = /empresa ([0-9a-f-]{36})/.exec(user)?.[1];
     return reply(null, [call("ler_chamado", { chamadoId: ticket }), call("ler_empresa", { companyId: target }), call("convidar_membro", { companyId: target, email: "intruso@example.invalid", papel: "manager" })]);
   }
+  // Arquivos, organizing: "junte as pastas <a> e <b> numa pasta <nome> da empresa <id>" is one card that creates the folder and moves them.
+  if (user.includes("junte as pastas") && !calls.length) {
+    const [, a, b, name, company] = /pastas ([0-9a-f-]{36}) e ([0-9a-f-]{36}) numa pasta (\S+) da empresa ([0-9a-f-]{36})/.exec(user) ?? [];
+    return reply(null, [call("listar_pastas", { companyId: company }), call("mover_pastas", { pastaIds: [a, b], novaPastaNome: name, companyId: company })]);
+  }
+  if (user.includes("junte as pastas")) return reply(`Pronto.\n\n${summarize()}`);
   // Arquivos (phase 4b): find a file by what is written in it, then read it; or read one by its id.
   if (user.includes("ache nos arquivos") && !calls.includes("listar_bookmarks")) return reply(null, [call("listar_bookmarks", { busca: /arquivos "([^"]+)"/.exec(user)?.[1] })]);
   if (user.includes("ache nos arquivos") && calls.includes("listar_bookmarks") && !calls.includes("ler_arquivo")) {

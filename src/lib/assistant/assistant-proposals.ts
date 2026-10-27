@@ -7,6 +7,7 @@ import { assistantConversations, assistantMessages, assistantProposals, auditEve
 import { saoPauloDate } from "../dates";
 import { runTool, ToolError, type ClientAction } from "./assistant-tools";
 import { callHash, PROPOSAL_TTL_MS, proposalDetails, proposalLabel } from "./proposal-rules";
+import { arquivosNames } from "./assistant-tools-arquivos";
 import type { ProposalCard } from "./assistant-stream";
 
 /*
@@ -84,6 +85,8 @@ async function referenceNames(actor: Actor, args: Record<string, unknown>) {
       if (!row || !canAccess(actor, row.companyId, "finance")) throw missing(what);
       names[id] = `${row.label} · ${row.company}`;
     }
+  // Arquivos: folders and items by their names (assistant-tools-arquivos.ts).
+  Object.assign(names, await arquivosNames({ actor }, args));
   return names;
 }
 

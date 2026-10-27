@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { engagementLabels, priorityLabels, roleLabels, ticketLabels } from "../format";
 import { taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
 import { ticketImpactLabels, ticketKindLabels } from "../tickets/ticket-intake";
+import { tagLabels as TAG_NAMES } from "../drive/tag-rules";
 
 /*
  * Pure rules for the assistant's confirmation cards: how a tool call is
@@ -53,8 +54,19 @@ export const proposalLabels: Record<string, string> = {
   cadastrar_empresa: "Cadastrar uma empresa",
   atualizar_empresa: "Alterar o cadastro da empresa",
   convidar_membro: "Dar acesso a uma pessoa",
-  criar_bookmark: "Guardar um bookmark",
-  criar_pasta_de_bookmarks: "Criar uma pasta de bookmarks",
+  criar_bookmark: "Guardar um link em Arquivos",
+  criar_pasta_de_bookmarks: "Criar uma pasta em Arquivos",
+  mover_pastas: "Mover pastas de Arquivos",
+  mover_itens: "Mover itens de Arquivos",
+  renomear_pasta: "Renomear a pasta",
+  renomear_item: "Renomear o item",
+  etiquetar_itens: "Mudar a etiqueta dos itens",
+  copiar_item: "Copiar o item",
+  mandar_para_lixeira: "Mandar itens para a lixeira (dá para restaurar por 30 dias)",
+  restaurar_itens: "Restaurar itens da lixeira",
+  excluir_pasta: "Excluir a pasta (o que está dentro sobe um nível)",
+  compartilhar_pasta: "Mudar quem vê a pasta",
+  criar_link_externo: "Criar um link que abre sem conta",
   criar_item_do_catalogo: "Cadastrar um item no catálogo",
   vincular_item_do_catalogo: "Vincular um item do catálogo à empresa",
   criar_contrato_rascunho: "Criar um contrato em rascunho",
@@ -80,6 +92,16 @@ const fieldLabels: Record<string, string> = {
   comentarioId: "Comentário",
   catalogItemId: "Item do catálogo",
   pastaId: "Pasta",
+  pastaIds: "Pastas",
+  destinoId: "Para",
+  dentroDeId: "Dentro de",
+  novaPastaNome: "Nova pasta",
+  itemIds: "Itens",
+  bookmarkId: "Item",
+  quemVe: "Quem vê",
+  quemVePode: "Quem vê pode",
+  validadeDias: "Vale por (dias)",
+  limiteDownloads: "Limite de downloads",
   templateId: "Modelo",
   valorReais: "Valor (R$)",
   taxaHoraReais: "Taxa/hora (R$)",
@@ -123,6 +145,9 @@ const valueLabels: Record<string, Record<string, Record<string, string>>> = {
   convidar_membro: { papel: roleLabels },
   criar_item_do_catalogo: { tipo: { product: "Produto", service: "Serviço" }, intervalo: intervalValues },
   vincular_item_do_catalogo: { intervalo: intervalValues },
+  etiquetar_itens: { etiqueta: { ...TAG_NAMES, nenhuma: "Sem etiqueta" } },
+  compartilhar_pasta: { quemVe: { company: "Toda a empresa", people: "Só as pessoas escolhidas" }, quemVePode: { viewers: "Ver, baixar e adicionar", owner: "Só ver e baixar" } },
+  criar_link_externo: { tipo: { download: "Baixar", pedido: "Pedir arquivos" } },
 };
 
 const MAX_VALUE = 1500;

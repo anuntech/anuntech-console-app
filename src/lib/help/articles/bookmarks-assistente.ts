@@ -792,8 +792,8 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
                 text: "Criar, mover, alterar e excluir tarefas e comentar nelas, com as mesmas regras do quadro: uma tarefa criada por você entra no Backlog como pedido, só a equipe conclui uma tarefa, a coloca em Revisão ou a tira de Concluído, só quem criou a tarefa pode excluí-la e só quem escreveu um comentário pode editá-lo ou excluí-lo.",
               },
               {
-                term: "Bookmarks",
-                text: "Guardar um link, numa pasta se você quiser, e criar uma pasta. Uma pasta criada por ele fica visível para toda a empresa; para restringir, use “Compartilhar” na pasta. Arquivos e lousas você adiciona em [Bookmarks](/bookmarks).",
+                term: "Arquivos",
+                text: "Organizar Arquivos como você faria na tela: criar pastas (também dentro de outras), juntar várias pastas numa só, mover itens, renomear, trocar a etiqueta, copiar, mandar para a lixeira e restaurar, excluir uma pasta, mudar quem vê e criar um link externo. Por exemplo: “junte as pastas de marca numa pasta Anuntech” ou “mande para a lixeira os PDFs antigos da pasta Propostas”. Cada mudança aparece num cartão com os nomes das pastas e dos itens, e só acontece quando você confirma. O assistente só mexe no que você poderia mexer. Enviar arquivos você faz em [Arquivos](/bookmarks).",
               },
               {
                 term: "Preencher a tela",

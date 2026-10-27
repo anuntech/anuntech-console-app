@@ -49,6 +49,7 @@ import { fileTextOf } from "../drive/file-index";
 import { MARK_CLOSE, MARK_OPEN } from "../drive/text-excerpt";
 import { TEXT_MAX_CHARS } from "../drive/text-rules";
 import { TAG_SLUGS, tagLabels } from "../drive/tag-rules";
+import { arquivosTools } from "./assistant-tools-arquivos";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid" ? "paga" : status === "cancelled" ? "cancelada" : status === "draft" ? "rascunho (não emitida)" : dueDate < today ? "vencida" : "em aberto";
@@ -270,15 +271,22 @@ const listBookmarks = tool({
   name: "listar_bookmarks",
   area: "bookmarks",
   description:
-    "Os itens de Arquivos (arquivos, links e lousas) que a pessoa vê, com pasta e empresa. A busca procura no título, no endereço, no nome do arquivo e também no texto dentro de PDFs, Word, Excel, PowerPoint e textos (palavras inteiras, sem acento); quando achou no texto, devolve o trecho. Filtra também por etiqueta (contrato, proposta, nota-fiscal, boleto, comprovante, relatorio, apresentacao, planilha, marca, foto, video, documento-pessoal, ata, briefing). Para ler ou resumir um arquivo, use ler_arquivo com o bookmarkId.",
-  input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), etiqueta: z.enum(TAG_SLUGS).optional(), limite: limit(20) }),
-  run: async (ctx, { companyId, busca, etiqueta, limite }) => {
+    "Os itens de Arquivos (arquivos, links e lousas) que a pessoa vê, com pasta e empresa. A busca procura no título, no endereço, no nome do arquivo e também no texto dentro de PDFs, Word, Excel, PowerPoint e textos (palavras inteiras, sem acento); quando achou no texto, devolve o trecho. Com pastaId, só o que está naquela pasta (sem-pasta para os soltos, lixeira para os excluídos). Filtra também por etiqueta (contrato, proposta, nota-fiscal, boleto, comprovante, relatorio, apresentacao, planilha, marca, foto, video, documento-pessoal, ata, briefing). Para ler ou resumir um arquivo, use ler_arquivo com o bookmarkId.",
+  input: z.object({
+    companyId: id.optional(),
+    busca: z.string().trim().max(80).optional(),
+    etiqueta: z.enum(TAG_SLUGS).optional(),
+    /** A folder id (listar_pastas), "sem-pasta" or "lixeira". */
+    pastaId: z.union([id, z.literal("sem-pasta"), z.literal("lixeira")]).optional(),
+    limite: limit(20),
+  }),
+  run: async (ctx, { companyId, busca, etiqueta, pastaId, limite }) => {
     const { actor } = ctx;
     if (companyId && !canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
     // The rule of the Bookmarks page: folders shared with chosen people stay out for everyone else.
     const scope = bookmarkScope(actor);
     const folders = await foldersFor(scope, companyId ?? "all");
-    const page = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: busca ?? "", company: companyId ?? "all", tag: etiqueta ?? "" }, { page: 1, pageSize: limite });
+    const page = await bookmarksFor(scope, folders.map((f) => f.id), { folder: pastaId === "sem-pasta" ? "root" : (pastaId ?? "all"), search: busca ?? "", company: companyId ?? "all", tag: etiqueta ?? "" }, { page: 1, pageSize: limite });
     const folderName = new Map(folders.map((f) => [f.id, f.name]));
     const companyName = new Map(folders.flatMap((f) => (f.companyId && f.company ? [[f.companyId, f.company] as const] : [])));
     const missing = [...new Set(page.items.map((b) => b.companyId).filter((c): c is string => !!c && !companyName.has(c)))];
@@ -701,11 +709,12 @@ const addBookmark = tool({
 const addBookmarkFolder = tool({
   name: "criar_pasta_de_bookmarks",
   area: "bookmarks",
-  description: "Cria uma pasta de bookmarks numa empresa (ou no espaço da Anuntech, só equipe).",
-  input: z.object({ nome: z.string().trim().min(1).max(80), companyId: id.optional() }),
+  description:
+    "Cria uma pasta em Arquivos numa empresa (ou no espaço da Anuntech, só equipe), ou dentro de outra pasta (pastaId, de listar_pastas: a empresa e quem vê vêm dela).",
+  input: z.object({ nome: z.string().trim().min(1).max(80), companyId: id.optional(), pastaId: id.optional() }),
   write: true,
   run: async (_ctx, input) => {
-    const state = await submit(createFolder, { name: input.nome, companyId: input.companyId ?? "", visibility: "company" });
+    const state = await submit(createFolder, { name: input.nome, companyId: input.companyId ?? "", visibility: "company", parentId: input.pastaId ?? "" });
     return { result: { criada: true, link: state.href ?? "/bookmarks" }, summary: `Criei a pasta "${input.nome}"` };
   },
 });
@@ -888,6 +897,7 @@ const logHours = tool({
 });
 
 export const extraTools = [
+  ...arquivosTools,
   readCompany,
   readProject,
   readTask,
