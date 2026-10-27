@@ -75,6 +75,7 @@ import {
 import { ContractStatusBadge, ContractTermBadge } from "./contract-badges";
 import { ContractText } from "./contract-text";
 import { ContractFieldsPanel, type FieldSuggestions } from "./contract-fields-panel";
+import { ContractAiReview } from "./contract-ai-review";
 import { HelpLink } from "@/components/console/help-link";
 import {
   ClientRoundCard,
@@ -399,6 +400,7 @@ export function ContractDetail({ data }: { data: ContractDetailData }) {
                 <CardContent className="flex flex-col gap-5">
                   <FormError />
                   <ContractFieldsPanel contractId={c.id} bodyRef={bodyRef} initialBody={c.body} suggestions={c.fieldSuggestions} />
+                  <ContractAiReview contractId={c.id} />
                   <div>
                     <Label htmlFor="contract-title" className="mb-1.5">
                       Título

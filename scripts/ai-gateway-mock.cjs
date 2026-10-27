@@ -472,6 +472,18 @@ globalThis.fetch = async function (input, init) {
       }),
     );
   }
+  // A draft contract's review (lib/contracts/contract-review-ai.ts): two points, the low one first so the sort shows.
+  if (system.startsWith("Você revisa o rascunho de um contrato")) {
+    record({ contractReview: true, model, scrubbed: !/[\w.+-]+@[\w-]+\./.test(firstUser), ...privacy(body.providerOptions) });
+    return whole(
+      JSON.stringify({
+        pontos: [
+          { titulo: "Detalhe de teste", onde: "Cláusula 1", problema: "Texto de teste.", sugestao: "Ajuste de teste.", gravidade: "baixa" },
+          { titulo: "Valor diferente do orçamento", onde: "Anexo II", problema: "O valor não bate.", sugestao: "Use o total do orçamento.", gravidade: "alta" },
+        ],
+      }),
+    );
+  }
   // A draft contract's open fields (lib/contracts/contract-field-ai.ts): each asked key gets an answer;
   // one about hosting is missing (a question for the client), one ending in "nenhum" is the default.
   if (system.startsWith("Você ajuda a equipe da Anuntech a preencher os campos")) {
