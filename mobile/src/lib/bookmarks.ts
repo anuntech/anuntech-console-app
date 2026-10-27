@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import * as Clipboard from "expo-clipboard";
 import { Alert, Linking, Platform } from "react-native";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -7,6 +8,8 @@ import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useQuery, type InfiniteData } from "@tanstack/react-query";
 import { api, queryClient, sessionHeaders } from "./api";
+import { authClient } from "./auth";
+import { itemLink } from "./bookmark-text";
 import { CONSOLE_URL } from "./config";
 import { openAttachment, openSignedFile } from "./files";
 import { fileSize } from "./format";
@@ -33,6 +36,8 @@ export const refreshBookmarks = () =>
   Promise.all([
     queryClient.invalidateQueries({ queryKey: bookmarksKey }),
     queryClient.invalidateQueries({ queryKey: choicesKey }),
+    // The item a viewer shows (bookmarks.get), renamed or edited.
+    queryClient.invalidateQueries({ queryKey: ["bookmark"] }),
   ]);
 
 /** The pages of every bookmarks list already loaded, newest first. */
@@ -103,6 +108,50 @@ export function useBookmarkChoices() {
       return cached.companies.length ? cached : undefined;
     },
   });
+}
+
+/** The session cookie, for what the Console serves only with it (a board's picture, an older file). */
+export function useSessionCookie() {
+  const [cookie, setCookie] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(authClient.getCookie()).then((value) => live && setCookie(value || null));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return cookie;
+}
+
+/**
+ * The star turned on or off in every list and item already loaded, at once
+ * (bookmarks.star then confirms, and the lists come again for the counts).
+ */
+export function markStarred(id: string, starred: boolean) {
+  queryClient.setQueriesData<InfiniteData<BookmarkList>>({ queryKey: bookmarksKey }, (data) =>
+    data
+      ? { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.map((item) => (item.id === id ? { ...item, starred } : item)) })) }
+      : data,
+  );
+  queryClient.setQueryData<Bookmark>(["bookmark", id], (item) => (item ? { ...item, starred } : item));
+}
+
+/** "Copiar link": the item's address in the Console (?abrir=), which opens only for who already sees it. */
+export const copyItemLink = (id: string) => Clipboard.setStringAsync(itemLink(CONSOLE_URL, id));
+export const COPIED_LINK = "Link copiado. Só abre para quem já tem acesso ao item.";
+
+/*
+ * The files of the list the viewer was opened from, in its order, for its
+ * arrows (the web's FilePreview `items`). Kept here, not in the route, so a
+ * long list does not travel in the address.
+ */
+let viewerFiles: string[] = [];
+export const filesForViewer = () => viewerFiles;
+
+/** Opens a file in the app's viewer, among the files of the list it came from. */
+export function openFileViewer(item: Pick<Bookmark, "id">, files: Pick<Bookmark, "id" | "kind">[] = []) {
+  viewerFiles = files.filter((f) => f.kind === "file").map((f) => f.id);
+  router.push({ pathname: "/bookmarks/[id]/ver", params: { id: item.id } });
 }
 
 /** Where a whiteboard opens on the web, to draw. */

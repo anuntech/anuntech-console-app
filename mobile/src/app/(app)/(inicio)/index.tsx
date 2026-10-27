@@ -27,7 +27,8 @@ import { civilDate } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { shownMoney, spokenMoney, useMoneyHidden } from "@/lib/money-hidden";
 import { openProduct } from "@/lib/product-open";
-import { openBookmark } from "@/lib/bookmarks";
+import { openBookmark, openFileViewer } from "@/lib/bookmarks";
+import { FileThumb } from "@/components/file-thumb";
 import { HeaderIconButton } from "@/lib/stack";
 import type { ToneName } from "@/lib/status";
 import { easeOut } from "@/lib/motion";
@@ -477,12 +478,18 @@ export default function Home() {
                 <ListRow
                   key={b.id}
                   leading={
-                    <IconTile icon={b.kind === "board" ? "scribble.variable" : b.kind === "link" ? "bookmark.fill" : "doc.fill"} color="gray" />
+                    // A file shows its picture (or its kind), as in Arquivos.
+                    b.kind === "file" ? (
+                      <FileThumb item={b} />
+                    ) : (
+                      <IconTile icon={b.kind === "board" ? "scribble.variable" : "bookmark.fill"} color="gray" />
+                    )
                   }
                   title={b.title}
                   subtitle={where || undefined}
                   trailing={b.kind === "link" ? "external" : "chevron"}
-                  onPress={() => void openBookmark(b)}
+                  // A file opens in the viewer, among the files shown here.
+                  onPress={() => (b.kind === "file" ? openFileViewer(b, o.bookmarks) : void openBookmark(b))}
                 />
               );
             })}

@@ -203,6 +203,21 @@ A web transformou Bookmarks em Arquivos, com arquivos de até 100 GB no R2 (0357
 - ⚪ Gravar vídeo pela câmera dentro do app: o texto de permissão do microfone fala só de ditado, e mudá-lo pede versão nova nas lojas. Vídeos vêm da galeria.
 - ⚪ Envio em segundo plano: se o app sai da tela o envio pode parar; o app avisa e a pessoa toca em "Enviar de novo" (o envio abandonado expira no Console). Envio em segundo plano de verdade pede módulo nativo.
 
+
+## Arquivos (27/10)
+
+A web passou a mostrar cada arquivo no cartão e ganhou o que um drive tem (f2bda19) e o medidor de armazenamento (8affb0a). No app:
+
+- [x] **C1** Miniatura de cada foto na linha da lista e no Início: `bookmarks.list`, `bookmarks.get` e `overview.get` trazem `thumbUrl` (endereço assinado de 5 minutos para a WebP pequena, `lib/drive/thumb-url.ts`, a mesma busca da rota `/api/bookmarks/<id>/miniatura`); sem miniatura, o ícone do tipo (PDF, planilha, vídeo…), como a web. O app não usa a rota com o cookie porque ela redireciona para o R2 e o celular mandaria a sessão junto.
+- [x] **C2** Estrela de cada pessoa: `bookmarks.star` (`starBookmarkAs`, o mesmo núcleo do menu da web) no menu da linha, no visualizador e no cabeçalho dele; chips "Recentes" e "Com estrela · N" ao lado das pastas (`folder: "estrela" | "recentes"`, `starredCount`).
+- [x] **C3** Visualizador de arquivo (`/bookmarks/<id>/ver`): todo arquivo abre nele, com a foto (toque para tela cheia com zoom), o vídeo tocando no app (builds com o player), o começo do texto de um documento ou o tipo grande; setas e deslizar para o arquivo anterior/próximo da lista ("2 de 14"); "Detalhes" como a web (tipo, tamanho, pasta, empresa, etiqueta, adicionado por, datas); "Baixar", estrela, "Copiar link", "Renomear", "Editar" e "Compartilhar por link".
+- [x] **C4** "Renomear" (só o título, por `bookmarks.update`, como o diálogo da web) e "Copiar link" (`<Console>/bookmarks?abrir=<id>`, só abre para quem já tem acesso) no menu de cada item; o menu agora aparece para todos (estrela e link), com as ações de edição só para quem pode. No Android o menu virou uma folha com todas as ações. `console-paths.ts` leva `/bookmarks?abrir=<id>` ao visualizador, então o link abre no app quando chega por dentro dele (assistente, Ajuda, links do app).
+- [x] **C5** "Armazenamento" no lugar de "Espaço usado": barra dividida em fotos e vídeos, documentos e outros (tons do violeta), preenchida até o limite da empresa com a porcentagem e o que sobra, vermelha acima de 90%; o espaço da Anuntech, sem limite, mostra só a divisão; o nome do espaço só quando há mais de um (`parts` opcional em `spaces`).
+- [x] **C6** Testes: `scripts/api-smoke-arquivos-cards.mjs` (estrela por pessoa, outra empresa 404, Membro fora da pasta, "Recentes" só do próprio e por 30 dias, renomear, divisão do espaço, miniatura assinada) e `tests/mobile-bookmark-text.test.ts`, `tests/mobile-upload-plan.test.ts` (tipos iguais aos da web, setas, detalhes, medidor).
+- ⚪ Link copiado aberto fora do app (e-mail, WhatsApp): `/bookmarks` não está nos links do app (`APP_LINK_PATHS`); incluir pede o filtro de links do Android em `app.config.ts`, que é nativo (versão nova nas lojas). Até lá abre no navegador, no Console.
+- ⚪ Primeiro quadro do vídeo e página do documento na linha da lista: a linha tem 32 pontos e tirar o quadro pede um player por linha; a lista mostra o ícone do tipo e o visualizador mostra o vídeo e a página.
+- ⚪ Grade de cartões, botões que aparecem ao passar o mouse e setas do teclado (← →): no celular é a lista, o menu da linha e o deslizar no visualizador.
+
 ---
 
 ## Publicação

@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { audience, deleteNote, describe, hostOf, letterTile } from "../mobile/src/lib/bookmark-text";
+import {
+  audience,
+  deleteNote,
+  describe,
+  extensionOf,
+  fileDetails,
+  fileTypeOf,
+  hostOf,
+  itemLink,
+  letterTile,
+  neighbours,
+  showsPage,
+  viewChips,
+  type FileGroup,
+} from "../mobile/src/lib/bookmark-text";
+import { extensionOf as webExtensionOf, fileTypeOf as webFileTypeOf, showsPage as webShowsPage } from "../src/lib/bookmarks/file-types";
+import { consoleTarget } from "../mobile/src/lib/console-paths";
 import { LETTER_TONES, letterTile as webLetterTile } from "../src/lib/bookmarks/letter-tile";
 
 const folder = { visibility: "people" as const, ownerId: "u1", owner: "Ana", sharedWith: [] as unknown[] };
@@ -87,4 +103,71 @@ test("the app's tags, types and orders are the web's", async () => {
   assert.equal(trashNote("2026-10-27T10:00:00Z", now), "some em 30 dias");
   assert.equal(trashNote("2026-09-27T13:00:00Z", now), "some em 1 dia");
   assert.equal(trashNote("2026-09-01T00:00:00Z", now), "some hoje");
+});
+
+test("a file's kind and badge are the web's (file-types.ts)", () => {
+  const names = ["foto.JPG", "video.mov", "a.b.pdf", "planilha.xlsx", "deck.key", "notas.md", "pacote.tar.gz", "logo.fig", "script.py", "musica.m4a", "sem-extensao", "", null, undefined, "arquivo.desconhecido", "x.verylongextension"];
+  for (const name of names) {
+    assert.deepEqual(fileTypeOf(name), webFileTypeOf(name), String(name));
+    assert.equal(extensionOf(name), webExtensionOf(name), String(name));
+  }
+  assert.deepEqual(fileTypeOf("contrato.pdf"), { group: "pdf", label: "PDF" });
+  assert.deepEqual(fileTypeOf("sem-extensao"), { group: "other", label: "ARQUIVO" });
+  const groups: FileGroup[] = ["image", "video", "audio", "pdf", "document", "sheet", "slides", "archive", "code", "design", "other"];
+  for (const group of groups) assert.equal(showsPage(group), webShowsPage(group), group);
+});
+
+test("\"Copiar link\" is the web's ?abrir= address, and the app opens it on the item", () => {
+  const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+  assert.equal(itemLink("https://console.anuntech.com", id), `https://console.anuntech.com/bookmarks?abrir=${id}`);
+  assert.equal(itemLink("http://localhost:3000/", id), `http://localhost:3000/bookmarks?abrir=${id}`);
+  const reach = { finance: false, managed: false };
+  assert.deepEqual(consoleTarget(`/bookmarks?abrir=${id}`, reach), { kind: "app", href: `/bookmarks/${id}/ver` });
+  assert.deepEqual(consoleTarget(`/bookmarks?abrir=${id.toUpperCase()}`, reach), { kind: "app", href: `/bookmarks/${id}/ver` });
+  assert.deepEqual(consoleTarget("/bookmarks?abrir=../conta", reach), { kind: "app", href: "/bookmarks" });
+});
+
+test("the viewer's arrows go through the list's files", () => {
+  assert.deepEqual(neighbours(["a", "b", "c"], "b"), { at: 1, previous: "a", next: "c", label: "2 de 3" });
+  assert.deepEqual(neighbours(["a", "b", "c"], "a"), { at: 0, previous: null, next: "b", label: "1 de 3" });
+  assert.deepEqual(neighbours(["a", "b", "c"], "c"), { at: 2, previous: "b", next: null, label: "3 de 3" });
+  assert.deepEqual(neighbours(["a"], "a"), { at: 0, previous: null, next: null, label: null });
+  assert.deepEqual(neighbours(["a", "b"], "z"), { at: -1, previous: null, next: null, label: null });
+});
+
+test("the viewer's details are the web's, in its order", () => {
+  const item = {
+    fileName: "obra.jpg",
+    fileSize: 2 * 1024 * 1024,
+    folderId: "f1",
+    companyId: "c1",
+    tag: "foto",
+    ownerName: "Ana",
+    createdAt: "2026-10-20T12:00:00.000Z",
+    updatedAt: "2026-10-21T12:00:00.000Z",
+  };
+  const details = fileDetails(item, (id) => (id === "f1" ? "Obra" : undefined), (id) => (id === "c1" ? "Padaria" : undefined));
+  assert.deepEqual(
+    details.map(([term]) => term),
+    ["Tipo", "Tamanho", "Pasta", "Empresa", "Etiqueta", "Adicionado por", "Adicionado em", "Alterado em"],
+  );
+  assert.deepEqual(details.slice(0, 6), [
+    ["Tipo", "JPG"],
+    ["Tamanho", "2,0 MB"],
+    ["Pasta", "Obra"],
+    ["Empresa", "Padaria"],
+    ["Etiqueta", "Foto"],
+    ["Adicionado por", "Ana"],
+  ]);
+  const loose = fileDetails({ ...item, folderId: null, companyId: null, tag: null, ownerName: null, fileSize: null }, () => undefined, () => undefined);
+  assert.deepEqual(loose.slice(1, 6).map(([, value]) => value), ["—", "Sem pasta", "Anuntech", "—", "—"]);
+});
+
+test("\"Recentes\" and \"Com estrela\" chips, with the stars counted", () => {
+  assert.deepEqual(viewChips(0), [
+    { value: "recentes", label: "Recentes" },
+    { value: "estrela", label: "Com estrela" },
+  ]);
+  assert.equal(viewChips(3)[1].label, "Com estrela · 3");
+  assert.equal(viewChips(undefined)[1].label, "Com estrela");
 });

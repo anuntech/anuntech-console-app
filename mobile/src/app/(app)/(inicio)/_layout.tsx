@@ -42,15 +42,18 @@ export default function HomeLayout() {
       <Stack.Screen name="orcamentos/index" options={{ title: "Orçamentos", headerLargeTitle: true }} />
       <Stack.Screen name="orcamentos/[id]" options={{ title: "" }} />
       <Stack.Screen name="bookmarks/index" options={{ title: "Arquivos", headerLargeTitle: true }} />
-      {/* Adding, editing, moving and the folder forms open as sheets; the board opens full size. */}
+      {/* Adding, editing, renaming, moving and the folder forms open as sheets; the board opens full size. */}
       <Stack.Screen name="bookmarks/novo" options={{ title: "Adicionar", ...sheet }} />
       <Stack.Screen name="bookmarks/[id]/editar" options={{ title: "Editar", ...sheet }} />
+      <Stack.Screen name="bookmarks/[id]/renomear" options={{ title: "Renomear", ...sheet }} />
       <Stack.Screen name="bookmarks/links" options={{ title: "Compartilhar por link", ...sheet }} />
       <Stack.Screen name="bookmarks/mover-pasta" options={{ title: "Mover pasta", ...sheet }} />
       <Stack.Screen name="bookmarks/[id]/mover" options={{ title: "Mover para", ...sheet }} />
       <Stack.Screen name="bookmarks/pasta" options={{ title: "Nova pasta", ...sheet }} />
       <Stack.Screen name="bookmarks/compartilhar" options={{ title: "Compartilhar", ...sheet }} />
       <Stack.Screen name="bookmarks/[id]/lousa" options={{ title: "Lousa", headerTransparent: false }} />
+      {/* A file, as the web's viewer: the picture or the page, its details, and the list's other files. */}
+      <Stack.Screen name="bookmarks/[id]/ver" options={{ title: "" }} />
       <Stack.Screen name="produtos/index" options={{ title: "Produtos e serviços", headerLargeTitle: true }} />
       <Stack.Screen name="produtos/[id]" options={{ title: "" }} />
       <Stack.Screen name="produtos/app/[id]" options={{ title: "" }} />
