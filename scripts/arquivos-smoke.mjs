@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
  * parts, someone else's upload, another company and another site refused;
  * deleting the bookmark removes the object.
  */
-export async function runArquivosTests({ database: db, ids, people, request, submitForm, ok, marker, base, r2, notFoundPage }) {
+export async function runArquivosTests({ database: db, ids, people, request, submitForm, ok, marker, base, r2, notFoundPage, aiFile }) {
   const one = async (sql, values = []) => (await db.query(sql, values)).rows[0];
   const json = (who, path, body, method = "POST") =>
     request(path, who, { method, headers: { "Content-Type": "application/json", Origin: base }, body: body === undefined ? undefined : JSON.stringify(body) }).then((r) => ({
@@ -313,6 +313,36 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   const textRun = await cron("/api/cron/arquivos-texto");
   ok(textRun.status === 200 && (await one("select status from console_file_texts where bookmark_id=$1", [brief]))?.status === "done", "A rotina lê os arquivos que ficaram sem texto");
   ok((await request("/api/cron/arquivos-texto", undefined)).status === 401, "A rotina pede a chave");
+
+  // Fase 4c: a tag suggested from the name and the text; the model only when no rule fits; a person's choice stays.
+  const tagOf = async (id, until = (row) => row?.tag_source) => {
+    for (let i = 0; i < 60; i++) {
+      const row = await one("select tag, tag_source from console_bookmarks where id=$1", [id]);
+      if (until(row)) return row;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return null;
+  };
+  ok((await tagOf(brief))?.tag === "briefing", "O Briefing recebe a etiqueta pelo nome");
+  ok((await tagOf(contract))?.tag === "contrato" && (await one("select tag_source from console_bookmarks where id=$1", [contract])).tag_source === "auto", "O Contrato recebe a etiqueta sugerida");
+  const notes = `Notas soltas da equipe ${marker}. ${"Conversamos sobre prazos e escopo do próximo trimestre. ".repeat(6)} ETIQUETA-PROPOSTA contato maria@example.com, CPF 123.456.789-09.`;
+  const loose = await saveFile("manager", ids.a, `Notas ${marker}`, "notas.txt", Buffer.from(notes), "text/plain");
+  ok((await tagOf(loose))?.tag === "proposta", "Sem regra que sirva, a IA escolhe uma etiqueta da lista");
+  const tagCalls = readFileSync(aiFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((e) => e.fileTag);
+  ok(tagCalls.length > 0 && tagCalls.every((e) => e.scrubbed && e.zeroDataRetention === true && e.disallowPromptTraining === true), "O texto vai à IA sem e-mail e CPF, por provedor que não guarda nem treina");
+  const listed4c = await request("/bookmarks?etiqueta=briefing", "manager");
+  ok(listed4c.text.includes(`Briefing ${marker}`) && !listed4c.text.includes(`Contrato ${marker}`) && listed4c.text.includes("Todas as etiquetas"), "A lista filtra por etiqueta");
+  await submitForm("/bookmarks", "manager", "support", { action: "updateBookmark" }, { id: contract, title: `Contrato ${marker}`, url: "", folderId: "", tag: "relatorio" });
+  ok((await one("select tag from console_bookmarks where id=$1", [contract])).tag === "contrato", "Só quem edita o item troca a etiqueta");
+  await submitForm("/bookmarks", "manager", "manager", { action: "updateBookmark" }, { id: brief, title: `Briefing ${marker}`, url: "", folderId: "", tag: "briefing" });
+  ok((await one("select tag_source from console_bookmarks where id=$1", [brief])).tag_source === "auto", "Salvar sem trocar a etiqueta mantém a sugestão");
+  await submitForm("/bookmarks", "manager", "manager", { action: "updateBookmark" }, { id: contract, title: `Contrato ${marker}`, url: "", folderId: "", tag: "" });
+  ok((await one("select tag, tag_source from console_bookmarks where id=$1", [contract])).tag_source === "person", "Tirar a etiqueta vale como escolha da pessoa");
+  await submitForm("/bookmarks", "manager", "manager", { action: "replaceBookmarkFile" }, { id: contract, uploadId: await sendFile("manager", ids.a, "contrato-v3.pdf", await pdfOf("CONTRATO DE PRESTAÇÃO DE SERVIÇOS. A CONTRATANTE..."), "application/pdf") });
+  await textOf(contract, (row) => row?.text?.includes("CONTRATANTE"));
+  ok((await one("select tag, tag_source from console_bookmarks where id=$1", [contract])).tag === null, "Uma nova versão não muda a etiqueta que a pessoa escolheu");
+  await submitForm("/bookmarks", "manager", "manager", { action: "updateBookmark" }, { id: brief, title: `Briefing ${marker}`, url: "", folderId: "", tag: "inventada" });
+  ok((await one("select tag from console_bookmarks where id=$1", [brief])).tag === "briefing", "Etiqueta fora da lista é recusada");
 
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);

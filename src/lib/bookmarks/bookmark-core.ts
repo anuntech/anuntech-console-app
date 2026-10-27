@@ -10,6 +10,7 @@ import {
   fileUploads,
   fileVersions,
 } from "@/db/schema";
+import { TAG_SLUGS } from "../drive/tag-rules";
 import { db } from "../db";
 import { canAccess, type Actor } from "../access/access";
 import { bookmarkInput, safeFileName } from "./bookmark-validation";
@@ -379,6 +380,12 @@ export async function updateBookmarkAs(actor: Actor, input: Record<string, unkno
     if (!item) return blocked;
     const keepsContent = !!item.fileName || item.board;
     if (!keepsContent && !fields.url) return { error: "Informe um link." };
+    // The tag changes only when the form brings one that differs: saving the title keeps the Console's suggestion as it is.
+    const tagInput = "tag" in input ? z.union([z.enum(TAG_SLUGS), z.literal("")]).safeParse(input.tag ?? "") : null;
+    if (tagInput && !tagInput.success) return { error: "Escolha uma etiqueta da lista." };
+    const [current] = await db.select({ tag: bookmarks.tag }).from(bookmarks).where(eq(bookmarks.id, bookmarkId));
+    const chosen = tagInput?.success ? tagInput.data || null : undefined;
+    const tagChange = chosen !== undefined && chosen !== (current?.tag ?? null) ? { tag: chosen, tagSource: "person" as const } : {};
     let companyId = item.companyId;
     if (fields.folderId && fields.folderId !== item.folderId) {
       const folder = await loadFolder(fields.folderId);
@@ -392,10 +399,11 @@ export async function updateBookmarkAs(actor: Actor, input: Record<string, unkno
         url: keepsContent ? null : fields.url,
         folderId: fields.folderId || null,
         companyId,
+        ...tagChange,
         updatedAt: new Date(),
       })
       .where(eq(bookmarks.id, bookmarkId));
-    await audit(actor, "bookmark.updated", bookmarkId, companyId, { title: fields.title });
+    await audit(actor, "bookmark.updated", bookmarkId, companyId, { title: fields.title, ...("tag" in tagChange ? { tag: tagChange.tag } : {}) });
     refresh();
     return { success: "Bookmark atualizado." };
   } catch (error) {

@@ -422,7 +422,7 @@ globalThis.fetch = async function (input, init) {
       answers.intent = choose("intent", intent);
       if (questions.destino) answers.destino = choose("destino", destino);
     }
-    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul|clique|bot[aã]o/ };
+    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta|arquivo/, tela: /preench|tela|formul|clique|bot[aã]o/ };
     for (const [key, pattern] of Object.entries(areaWords)) if (questions[`area_${key}`]) answers[`area_${key}`] = { type: "boolean", probability: pattern.test(message) ? 0.9 : 0.1 };
     // A new ticket read by its text: "parou" or "fora do ar" reads as a stopped system.
     if (questions.tipo) {
@@ -465,6 +465,12 @@ globalThis.fetch = async function (input, init) {
         stack: ["Next.js"],
       }),
     );
+  }
+  // Arquivos' tag suggestion (lib/drive/file-tags.ts): ETIQUETA-PROPOSTA in the text reads as a proposal; anything else, none.
+  // Records whether contacts and documents were taken out before the text left.
+  if (system.startsWith("Você classifica arquivos")) {
+    record({ fileTag: true, model, scrubbed: !/[\w.+-]+@[\w-]+\.|\d{3}\.\d{3}\.\d{3}-\d{2}/.test(firstUser), ...privacy(body.providerOptions) });
+    return whole(JSON.stringify({ etiqueta: firstUser.includes("ETIQUETA-PROPOSTA") ? "proposta" : "nenhuma" }));
   }
   // The project journey's drafts (lib/journeys/journey-ai.ts): one-shot prompts matched by their opening words.
   const journey = journeyAnswer(system, firstUser);

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { TRASH_DAYS, trashDaysLeft } from "@/lib/drive/drive-rules";
 import { excerptPieces } from "@/lib/drive/text-excerpt";
+import { tagLabels, type TagSlug } from "@/lib/drive/tag-rules";
 import { folderPath, treeOrder } from "@/lib/bookmarks/folder-tree";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,8 @@ export type BookmarksViewData = {
   largeFiles?: boolean;
   /** Used and total per space; quota null is Anuntech's own, without a limit. */
   spaces?: { companyId: string | null; used: number; quota: number | null }[];
+  /** The tags of what the folder shows, with how many items each, for the filter. */
+  tags?: { tag: TagSlug; count: number }[];
 };
 
 /* Brand and neutrals only: green, amber and red mean a state elsewhere in the
@@ -150,6 +153,7 @@ function href(state: ListState, patch: Partial<ListState>) {
   if (next.company !== "all") params.set("empresa", next.company);
   if (next.folder !== "all") params.set("pasta", next.folder);
   if (next.search) params.set("q", next.search);
+  if (next.tag) params.set("etiqueta", next.tag);
   setPageParams(params, next);
   return listHref("/bookmarks", params);
 }
@@ -355,6 +359,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   /** Link host or file name and size; the company too when the list spans several and has no column for it. */
   const subtitleFor = (item: BookmarkView, withCompany: boolean) => {
     const line = [
+      item.tag ? tagLabels[item.tag] : null,
       kindOf(item) === "board" ? "Lousa" : item.url ? linkHost(item.url) : item.fileName,
       kindOf(item) === "file" && item.fileSize ? fileSizeLabel(item.fileSize) : null,
       withCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
@@ -709,6 +714,27 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             ))}
           </nav>
         )}
+        {!inTrash && (data.tags?.length || query.tag) ? (
+          <nav aria-label="Filtrar por etiqueta" className="flex flex-wrap gap-1.5">
+            {[{ tag: "" as const, count: null }, ...(data.tags ?? [])].map(({ tag, count }) => {
+              const active = (query.tag ?? "") === tag;
+              return (
+                <Link
+                  key={tag || "todas"}
+                  href={href(state, { tag })}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs transition-colors",
+                    active ? "border-primary bg-accent font-medium text-primary" : "bg-card text-foreground hover:border-primary/40",
+                  )}
+                >
+                  {tag ? tagLabels[tag] : "Todas as etiquetas"}
+                  {count !== null && <span className="ml-1.5 tabular-nums text-muted-foreground">{count}</span>}
+                </Link>
+              );
+            })}
+          </nav>
+        ) : null}
         <ListCard
           fill
           empty={items.length === 0}

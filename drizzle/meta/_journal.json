@@ -372,6 +372,13 @@
       "when": 1793058917530,
       "tag": "0052_arquivos_texto",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793060239399,
+      "tag": "0053_arquivos_etiquetas",
+      "breakpoints": true
     }
   ]
 }

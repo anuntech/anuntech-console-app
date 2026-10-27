@@ -48,6 +48,7 @@ import { bookmarkFor, bookmarksFor, foldersFor, scopeOf as bookmarkScope } from 
 import { fileTextOf } from "../drive/file-index";
 import { MARK_CLOSE, MARK_OPEN } from "../drive/text-excerpt";
 import { TEXT_MAX_CHARS } from "../drive/text-rules";
+import { TAG_SLUGS, tagLabels } from "../drive/tag-rules";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid" ? "paga" : status === "cancelled" ? "cancelada" : status === "draft" ? "rascunho (não emitida)" : dueDate < today ? "vencida" : "em aberto";
@@ -269,15 +270,15 @@ const listBookmarks = tool({
   name: "listar_bookmarks",
   area: "bookmarks",
   description:
-    "Os itens de Arquivos (arquivos, links e lousas) que a pessoa vê, com pasta e empresa. A busca procura no título, no endereço, no nome do arquivo e também no texto dentro de PDFs, Word, Excel, PowerPoint e textos (palavras inteiras, sem acento); quando achou no texto, devolve o trecho. Para ler ou resumir um arquivo, use ler_arquivo com o bookmarkId.",
-  input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), limite: limit(20) }),
-  run: async (ctx, { companyId, busca, limite }) => {
+    "Os itens de Arquivos (arquivos, links e lousas) que a pessoa vê, com pasta e empresa. A busca procura no título, no endereço, no nome do arquivo e também no texto dentro de PDFs, Word, Excel, PowerPoint e textos (palavras inteiras, sem acento); quando achou no texto, devolve o trecho. Filtra também por etiqueta (contrato, proposta, nota-fiscal, boleto, comprovante, relatorio, apresentacao, planilha, marca, foto, video, documento-pessoal, ata, briefing). Para ler ou resumir um arquivo, use ler_arquivo com o bookmarkId.",
+  input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), etiqueta: z.enum(TAG_SLUGS).optional(), limite: limit(20) }),
+  run: async (ctx, { companyId, busca, etiqueta, limite }) => {
     const { actor } = ctx;
     if (companyId && !canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
     // The rule of the Bookmarks page: folders shared with chosen people stay out for everyone else.
     const scope = bookmarkScope(actor);
     const folders = await foldersFor(scope, companyId ?? "all");
-    const page = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: busca ?? "", company: companyId ?? "all" }, { page: 1, pageSize: limite });
+    const page = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: busca ?? "", company: companyId ?? "all", tag: etiqueta ?? "" }, { page: 1, pageSize: limite });
     const folderName = new Map(folders.map((f) => [f.id, f.name]));
     const companyName = new Map(folders.flatMap((f) => (f.companyId && f.company ? [[f.companyId, f.company] as const] : [])));
     const missing = [...new Set(page.items.map((b) => b.companyId).filter((c): c is string => !!c && !companyName.has(c)))];
@@ -291,6 +292,7 @@ const listBookmarks = tool({
         url: b.url,
         arquivo: b.fileName,
         tamanho: b.fileSize ? fileSizeLabel(b.fileSize) : null,
+        etiqueta: b.tag ? tagLabels[b.tag] : null,
         lousa: !!b.board,
         pasta: b.folderId ? (folderName.get(b.folderId) ?? null) : null,
         empresa: b.companyId ? (companyName.get(b.companyId) ?? null) : "Anuntech",

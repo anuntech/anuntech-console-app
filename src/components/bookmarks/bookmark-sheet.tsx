@@ -20,6 +20,7 @@ import { FileVersions } from "./file-versions";
 import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
 import { fileSizeLabel } from "@/lib/format";
+import { TAGS } from "@/lib/drive/tag-rules";
 
 export type BookmarkEditor =
   | { mode: "create"; companyId: string; folderId: string }
@@ -317,6 +318,22 @@ function BookmarkFields({
           ))}
         </NativeSelect>
       </FormField>
+      {item && (
+        <FormField
+          label="Etiqueta"
+          htmlFor="bookmark-tag"
+          hint={item.tagSource === "auto" && item.tag ? "Sugerida pelo Console a partir do nome e do conteúdo. Troque se não servir." : "Para filtrar a lista por tipo de documento."}
+        >
+          <NativeSelect id="bookmark-tag" name="tag" defaultValue={item.tag ?? ""}>
+            <NativeSelectOption value="">Sem etiqueta</NativeSelectOption>
+            {TAGS.map((tag) => (
+              <NativeSelectOption key={tag.slug} value={tag.slug}>
+                {tag.label}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </FormField>
+      )}
     </>
   );
 }

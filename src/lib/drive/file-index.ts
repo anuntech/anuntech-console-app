@@ -5,6 +5,7 @@ import { bookmarks, fileTexts } from "@/db/schema";
 import { db } from "../db";
 import { getObject, storageConfigured } from "./r2";
 import { extractFileText, type Extracted } from "./text-extract";
+import { tagFile } from "./file-tags";
 import { TEXT_SOURCE_MAX_BYTES, textKindOf } from "./text-rules";
 
 /*
@@ -43,12 +44,12 @@ async function save(bookmarkId: string, source: string, outcome: Extracted | { s
     });
 }
 
-type Pending = { id: string; file_name: string; storage_key: string | null; size: number | null; source: string };
+type Pending = { id: string; title: string; file_name: string; storage_key: string | null; size: number | null; source: string };
 
 /** The files still without text (the newest first), or only `bookmarkId` if it is one of them. */
 async function pendingFiles(limit: number, bookmarkId?: string) {
   const result = await db.execute<Pending>(sql`
-    select ${bookmarks.id} as id, ${bookmarks.fileName} as file_name, ${bookmarks.storageKey} as storage_key,
+    select ${bookmarks.id} as id, ${bookmarks.title} as title, ${bookmarks.fileName} as file_name, ${bookmarks.storageKey} as storage_key,
       coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}))::float8 as size, ${sourceOf} as source
     from ${bookmarks}
     left join ${fileTexts} on ${fileTexts.bookmarkId} = ${bookmarks.id}
@@ -62,22 +63,29 @@ async function pendingFiles(limit: number, bookmarkId?: string) {
   return result.rows;
 }
 
-async function readOne(file: Pending) {
-  if (!textKindOf(file.file_name)) return save(file.id, file.source, { status: "skipped", reason: "Tipo de arquivo sem texto para a busca." });
-  if ((file.size ?? 0) > TEXT_SOURCE_MAX_BYTES) return save(file.id, file.source, { status: "skipped", reason: "Arquivo grande demais para ler o texto." });
+async function extract(file: Pending): Promise<Extracted | { status: "failed"; reason: string }> {
+  if (!textKindOf(file.file_name)) return { status: "skipped", reason: "Tipo de arquivo sem texto para a busca." };
+  if ((file.size ?? 0) > TEXT_SOURCE_MAX_BYTES) return { status: "skipped", reason: "Arquivo grande demais para ler o texto." };
   try {
     const bytes = file.storage_key
       ? storageConfigured()
         ? await getObject(file.storage_key)
         : null
       : ((await db.select({ content: bookmarks.content }).from(bookmarks).where(eq(bookmarks.id, file.id)))[0]?.content ?? null);
-    if (!bytes) return save(file.id, file.source, { status: "failed", reason: "Arquivo não encontrado no armazenamento." });
-    await save(file.id, file.source, await extractFileText(new Uint8Array(bytes), file.file_name));
+    if (!bytes) return { status: "failed", reason: "Arquivo não encontrado no armazenamento." };
+    return await extractFileText(new Uint8Array(bytes), file.file_name);
   } catch (error) {
     // Never the text or the file in the log: only which item and why.
     console.error("[arquivos] text failed", file.id, error instanceof Error ? error.message.slice(0, 200) : "erro");
-    await save(file.id, file.source, { status: "failed", reason: "Não foi possível ler o texto deste arquivo." });
+    return { status: "failed", reason: "Não foi possível ler o texto deste arquivo." };
   }
+}
+
+/** Reads one file, keeps its text and suggests its tag (lib/drive/file-tags.ts), now that the text is known. */
+async function readOne(file: Pending) {
+  const outcome = await extract(file);
+  await save(file.id, file.source, outcome);
+  if (outcome.status !== "failed") await tagFile({ id: file.id, title: file.title, fileName: file.file_name }, outcome.status === "done" ? outcome.text : null);
 }
 
 /** Reads the files still without text (the newest first) until `limit` or the time runs out; returns how many were read. */

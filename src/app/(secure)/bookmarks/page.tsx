@@ -30,7 +30,7 @@ export default async function Bookmarks({
     !folders.some((folder) => folder.id === query.folder)
   )
     query.folder = "all";
-  const [{ items, rootCount, total, matching, page, trashCount }, companies] = await Promise.all([
+  const [{ items, rootCount, total, matching, page, trashCount, tags }, companies] = await Promise.all([
     bookmarksFor(
       scope,
       folders.map((folder) => folder.id),
@@ -69,6 +69,7 @@ export default async function Bookmarks({
         viewer: { id: actor.user.id, admin: actor.admin },
         largeFiles: storageConfigured(),
         spaces,
+        tags,
       }}
     />
   );

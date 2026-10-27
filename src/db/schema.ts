@@ -1174,11 +1174,16 @@ export const bookmarks = pgTable(
     /** In the trash since then (lib/drive/drive-rules.ts, TRASH_DAYS); gone for good after it. */
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     deletedBy: text("deleted_by").references(() => user.id),
+    /** One of lib/drive/tag-rules.ts TAGS, or none. */
+    tag: text("tag"),
+    /** "auto": the Console's suggestion (changes with the file); "person": someone chose, even none, and it stays. */
+    tagSource: text("tag_source", { enum: ["auto", "person"] }),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("console_bookmark_owner_idx").on(t.ownerId),
+    index("console_bookmark_tag_idx").on(t.tag),
     index("console_bookmark_folder_idx").on(t.folderId),
     index("console_bookmark_company_idx").on(t.companyId),
     index("console_bookmark_deleted_idx").on(t.deletedAt),

@@ -163,6 +163,28 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         ],
       },
       {
+        title: "Etiquetas",
+        blocks: [
+          {
+            kind: "p",
+            text: "Cada arquivo pode ter uma etiqueta: Contrato, Proposta, Nota fiscal, Boleto, Comprovante, Relatório, Apresentação, Planilha, Marca e logo, Foto, Vídeo, Documento pessoal, Ata ou Briefing. O Console sugere uma sozinho, pelo nome, pelo tipo e pelo começo do texto do arquivo, alguns segundos depois de salvar. A etiqueta aparece ao lado do nome do arquivo.",
+          },
+          {
+            kind: "list",
+            items: [
+              "Acima da lista, clique numa etiqueta para ver só os itens com ela. “Todas as etiquetas” volta a mostrar tudo.",
+              "Para trocar ou tirar, abra “Editar” e escolha em “Etiqueta”. A sua escolha fica, mesmo quando chega uma nova versão do arquivo.",
+              "Trocar a etiqueta fica com quem pode editar o item.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Quando o nome e o tipo não bastam, a IA do Console lê o título e o começo do texto, sem e-mails, telefones e documentos, para escolher uma etiqueta da lista. O provedor não guarda o texto nem treina com ele.",
+          },
+        ],
+      },
+      {
         title: "Compartilhar por link",
         blocks: [
           {

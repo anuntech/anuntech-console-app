@@ -25,6 +25,7 @@ import {
 import { canAccess, type Actor } from "../access/access";
 import { contentQuery } from "../drive/text-search";
 import { MARK_CLOSE, MARK_OPEN } from "../drive/text-excerpt";
+import { isTag, type TagSlug, type TagSource } from "../drive/tag-rules";
 import { getAccountEmails } from "../account/account-identity";
 import { hasConsoleStaffAccess } from "../access/console-members";
 import { db } from "../db";
@@ -70,11 +71,14 @@ export type BookmarkView = {
   updatedAt?: string;
   /** In the trash since then; only in the Lixeira view. */
   deletedAt?: string;
-  /** Where a search found its words inside the file, between MARK_OPEN and MARK_CLOSE (lib/drive/text-rules.ts). */
+  /** Where a search found its words inside the file, between MARK_OPEN and MARK_CLOSE (lib/drive/text-excerpt.ts). */
   excerpt?: string;
+  /** Its tag (lib/drive/tag-rules.ts) and who set it; optional so fixtures without it still type. */
+  tag?: TagSlug | null;
+  tagSource?: TagSource | null;
 };
-/** `company`: "all", "internal" (Anuntech's own) or a company id. */
-export type BookmarkQuery = { folder: string; search: string; company: string };
+/** `company`: "all", "internal" (Anuntech's own) or a company id; `tag`: one of the tags, or every item. */
+export type BookmarkQuery = { folder: string; search: string; company: string; tag?: TagSlug | "" };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function bookmarkQuery(
@@ -91,6 +95,7 @@ export function bookmarkQuery(
     // "lixeira": what was deleted in the last 30 days, to restore or delete for good.
     folder: folder === "root" || folder === "lixeira" || UUID.test(folder) ? folder : "all",
     search: scalar("q").trim().slice(0, 160),
+    tag: isTag(scalar("etiqueta")) ? (scalar("etiqueta") as TagSlug) : "",
     company: companyOk ? (company === "internal" ? company : company.toLowerCase()) : "all",
   };
 }
@@ -195,7 +200,7 @@ export async function bookmarksFor(
   folderIds: string[],
   query: BookmarkQuery,
   paging: PageQuery = { page: 1, pageSize: DEFAULT_PAGE_SIZE },
-): Promise<{ items: BookmarkView[]; rootCount: number; total: number; matching: number; page: number; trashCount: number }> {
+): Promise<{ items: BookmarkView[]; rootCount: number; total: number; matching: number; page: number; trashCount: number; tags: { tag: TagSlug; count: number }[] }> {
   // Everything the viewer may see, the trash included; the lists and counts below take the trash out.
   const reachable = and(
     companyCondition(bookmarks.companyId, scope, query.company),
@@ -219,9 +224,11 @@ export async function bookmarksFor(
     typed.length >= 3
       ? sql`exists (select 1 from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id} and ${fileTexts.search} @@ ${contentQuery(typed)})`
       : undefined;
+  const tagged = query.tag && !trash ? eq(bookmarks.tag, query.tag) : undefined;
   const matchingWhere =
     and(
       narrowed,
+      tagged,
       search
         ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`), ilike(bookmarks.fileName, `%${search}%`), inContent)
         : undefined,
@@ -238,6 +245,14 @@ export async function bookmarksFor(
     .from(bookmarks)
     .where(reachable);
   const matching = counts?.matching ?? 0;
+  // The tags of what the folder shows (before the tag and the search), for the filter.
+  const tags = trash
+    ? []
+    : await db
+        .select({ tag: bookmarks.tag, count: sql<number>`count(*)::int` })
+        .from(bookmarks)
+        .where(and(narrowed, isNotNull(bookmarks.tag)))
+        .groupBy(bookmarks.tag);
   const shown = clampPage(paging, matching);
   const items = matching
     ? await db
@@ -257,6 +272,8 @@ export async function bookmarksFor(
           createdAt: bookmarks.createdAt,
           updatedAt: bookmarks.updatedAt,
           deletedAt: bookmarks.deletedAt,
+          tag: bookmarks.tag,
+          tagSource: bookmarks.tagSource,
           // The passage of the file with the words, highlighted; the typed words and the accentless ones both count.
           excerpt: inContent
             ? sql<string | null>`(select ts_headline('portuguese', ${fileTexts.text}, ${contentQuery(typed)} || websearch_to_tsquery('portuguese', ${typed}), ${`MaxWords=24, MinWords=10, MaxFragments=1, StartSel=${MARK_OPEN}, StopSel=${MARK_CLOSE}`}) from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id} and ${fileTexts.search} @@ ${contentQuery(typed)})`
@@ -271,14 +288,16 @@ export async function bookmarksFor(
         .offset(offsetOf(shown))
     : [];
   return {
-    items: items.map(({ deletedAt, excerpt, ...item }) => ({
+    items: items.map(({ deletedAt, excerpt, tag, ...item }) => ({
       ...item,
+      tag: isTag(tag) ? tag : null,
       ...(excerpt ? { excerpt } : {}),
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
       ...(deletedAt ? { deletedAt: deletedAt.toISOString() } : {}),
     })),
     trashCount: counts?.trash ?? 0,
+    tags: tags.flatMap((t) => (isTag(t.tag) ? [{ tag: t.tag, count: t.count }] : [])).sort((a, b) => b.count - a.count),
     rootCount: counts?.root ?? 0,
     total: counts?.total ?? 0,
     matching,
