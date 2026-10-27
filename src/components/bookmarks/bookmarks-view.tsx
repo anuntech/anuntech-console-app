@@ -7,6 +7,7 @@ import { Fragment, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   BookmarkIcon,
+  ChevronRightIcon,
   ClockIcon,
   CopyIcon,
   InfoIcon,
@@ -258,6 +259,7 @@ function NavItem({
   hint,
   menu,
   depth = 0,
+  toggle,
   onDropItems,
 }: {
   active: boolean;
@@ -269,6 +271,8 @@ function NavItem({
   menu?: ReactNode;
   /** A subfolder's level, indented under its parent. */
   depth?: number;
+  /** A folder row: room for the arrow, and the arrow itself when it has subfolders. */
+  toggle?: { open: boolean; onToggle: () => void; label: string } | "leaf";
   /** Items dragged from the list land here (Arquivos: "Mover" by dragging). */
   onDropItems?: (ids: string[]) => void;
 }) {
@@ -303,7 +307,7 @@ function NavItem({
             : "text-foreground hover:bg-secondary",
           menu && "pr-9",
         )}
-        style={depth ? { paddingLeft: `${0.625 + depth * 0.875}rem` } : undefined}
+        style={toggle ? { paddingLeft: `${1.75 + depth * 0.875}rem` } : depth ? { paddingLeft: `${0.625 + depth * 0.875}rem` } : undefined}
       >
         <span className="shrink-0 text-muted-foreground [&_svg]:size-4">{icon}</span>
         <span className="min-w-0 flex-1">
@@ -314,6 +318,18 @@ function NavItem({
           <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
         )}
       </Link>
+      {toggle && toggle !== "leaf" && (
+        <button
+          type="button"
+          onClick={toggle.onToggle}
+          aria-expanded={toggle.open}
+          aria-label={`${toggle.open ? "Recolher" : "Expandir"} ${toggle.label}`}
+          className="absolute top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          style={{ left: `${0.25 + depth * 0.875}rem` }}
+        >
+          <ChevronRightIcon className={cn("size-3.5 transition-transform", toggle.open && "rotate-90")} />
+        </button>
+      )}
       {menu && (
         <span className="absolute top-1/2 right-1 -translate-y-1/2 opacity-0 transition-opacity group-hover/nav:opacity-100 focus-within:opacity-100 data-[state=open]:opacity-100">
           {menu}
@@ -321,6 +337,44 @@ function NavItem({
       )}
     </li>
   );
+}
+
+const EXPANDED_KEY = "bookmarks-folders-open";
+const expandedListeners = new Set<() => void>();
+type Folding = Record<string, boolean>;
+let expandedCache: { raw: string | null; map: Folding } = { raw: null, map: {} };
+function readExpanded(): Folding {
+  const raw = typeof window === "undefined" ? null : window.localStorage.getItem(EXPANDED_KEY);
+  if (raw !== expandedCache.raw) {
+    let map: Folding = {};
+    try {
+      const parsed = JSON.parse(raw ?? "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+        map = Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === "boolean")) as Folding;
+    } catch {}
+    expandedCache = { raw, map };
+  }
+  return expandedCache.map;
+}
+const noExpanded: Folding = {};
+/** Which folders someone opened or folded in the rail, kept in this browser. */
+function useExpandedFolders() {
+  const set = React.useSyncExternalStore(
+    (onChange) => {
+      expandedListeners.add(onChange);
+      return () => expandedListeners.delete(onChange);
+    },
+    readExpanded,
+    () => noExpanded,
+  );
+  const toggle = (id: string, open: boolean) => {
+    const next = { ...readExpanded(), [id]: open };
+    try {
+      window.localStorage.setItem(EXPANDED_KEY, JSON.stringify(next));
+    } catch {}
+    expandedListeners.forEach((listener) => listener());
+  };
+  return [set, toggle] as const;
 }
 
 export function BookmarksView({ data }: { data: BookmarksViewData }) {
@@ -346,6 +400,19 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   // Folders inside folders: the rail as a tree, the path to the open one, and its subfolders above its items.
   const tree = treeOrder(folders.map((folder) => ({ ...folder, parentId: folder.parentId ?? null })));
   const path = current ? folderPath(tree, current.id) : [];
+  // The rail folds: a folder starts folded unless the open one is inside it; what someone opens or folds is remembered here.
+  const [expanded, toggleFolder] = useExpandedFolders();
+  const parents = new Set(tree.map((folder) => folder.parentId).filter(Boolean));
+  const onPath = new Set(path.map((folder) => folder.id));
+  const isOpen = (id: string) => expanded[id] ?? (onPath.has(id) && id !== current?.id);
+  const visible = (() => {
+    const shown = new Set<string>();
+    return tree.filter((folder) => {
+      const show = !folder.parentId || (shown.has(folder.parentId) && isOpen(folder.parentId));
+      if (show) shown.add(folder.id);
+      return show;
+    });
+  })();
   const subfolders = current ? tree.filter((folder) => folder.parentId === current.id) : [];
   const manyCompanies = companies.length > 1;
   // The folder rail spans companies until one is picked; the bookmarks inside a
@@ -836,10 +903,11 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             </ul>
             <p className="mt-5 mb-1.5 px-2.5 text-caption font-medium text-muted-foreground">Pastas</p>
             <ul className="flex flex-col gap-0.5">
-              {tree.map((folder) => (
+              {visible.map((folder) => (
                 <NavItem
                   key={folder.id}
                   depth={folder.depth}
+                  toggle={parents.has(folder.id) ? { open: isOpen(folder.id), onToggle: () => toggleFolder(folder.id, !isOpen(folder.id)), label: folder.name } : "leaf"}
                   active={query.folder === folder.id}
                   href={href(state, { folder: folder.id })}
                   icon={folder.visibility === "people" ? <UsersIcon /> : <FolderIcon />}
