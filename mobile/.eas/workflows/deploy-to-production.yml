@@ -12,6 +12,10 @@ jobs:
     name: Fingerprint
     type: fingerprint
     environment: production
+    # Same APP_ENV as the production build profile (eas.json): app.config.ts reads it,
+    # so without it the fingerprint is the development app's and never matches a store build.
+    env:
+      APP_ENV: production
   get_android_build:
     name: Check for an Android build
     needs: [fingerprint]
@@ -59,6 +63,10 @@ jobs:
     needs: [get_android_build]
     if: ${{ needs.get_android_build.outputs.build_id }}
     type: update
+    environment: production
+    # Without it the update would carry the development config (a Console on localhost).
+    env:
+      APP_ENV: production
     params:
       branch: production
       platform: android
@@ -67,6 +75,10 @@ jobs:
     needs: [get_ios_build]
     if: ${{ needs.get_ios_build.outputs.build_id }}
     type: update
+    environment: production
+    # Without it the update would carry the development config (a Console on localhost).
+    env:
+      APP_ENV: production
     params:
       branch: production
       platform: ios
