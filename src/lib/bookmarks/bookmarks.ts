@@ -60,6 +60,7 @@ export type FolderView = {
   /** "owner": who sees it only sees and downloads; its owner and the team add. Optional so fixtures without it still type. */
   adds?: "viewers" | "owner";
   sharedWith: { id: string; name: string; image: string | null }[];
+  /** Files inside, subfolders included (the ones this viewer sees). */
   count: number;
 };
 export type BookmarkView = {
@@ -209,7 +210,21 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
       .where(inArray(bookmarkFolderShares.folderId, ids))
       .orderBy(asc(user.name)),
   ]);
-  const countOf = new Map(counts.map((row) => [row.folderId, row.n]));
+  // A folder counts what is inside it, subfolders included: "Anuntech" with 9 files in "Marca" says 9.
+  // Only the folders this viewer sees add up, so a hidden subfolder does not show through.
+  const direct = new Map(counts.map((row) => [row.folderId, row.n]));
+  const childrenOf = new Map<string, string[]>();
+  for (const row of rows) if (row.parentId) childrenOf.set(row.parentId, [...(childrenOf.get(row.parentId) ?? []), row.id]);
+  const total = new Map<string, number>();
+  const countIn = (id: string, seen: Set<string>): number => {
+    if (total.has(id)) return total.get(id)!;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const n = (direct.get(id) ?? 0) + (childrenOf.get(id) ?? []).reduce((sum, child) => sum + countIn(child, seen), 0);
+    total.set(id, n);
+    return n;
+  };
+  const countOf = new Map(rows.map((row) => [row.id, countIn(row.id, new Set())]));
   return rows.map((row) => ({
     id: row.id,
     name: row.name,
