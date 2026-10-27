@@ -82,3 +82,13 @@ test("the trash keeps an item 30 days and counts them down", async () => {
   assert.equal(trashDaysLeft(new Date("2026-09-27T12:00:00Z"), now), 0);
   assert.equal(trashDaysLeft(new Date("2026-01-01T00:00:00Z"), now), 0);
 });
+
+test("a file's kind for its card, by the extension", async () => {
+  const { fileTypeOf, showsPage } = await import("../src/lib/bookmarks/file-types");
+  assert.deepEqual(fileTypeOf("Contrato.PDF"), { group: "pdf", label: "PDF" });
+  assert.deepEqual(fileTypeOf("foto.heic"), { group: "image", label: "HEIC" });
+  assert.deepEqual(fileTypeOf("planilha.xlsx"), { group: "sheet", label: "XLSX" });
+  assert.deepEqual(fileTypeOf("LEIAME"), { group: "other", label: "ARQUIVO" });
+  assert.deepEqual(fileTypeOf(null), { group: "other", label: "ARQUIVO" });
+  assert.ok(showsPage("pdf") && showsPage("document") && !showsPage("image") && !showsPage("video"));
+});

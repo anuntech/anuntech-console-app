@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { accessibleCompanies, getActor } from "@/lib/access/access";
-import { bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
+import { bookmarkFor, bookmarkQuery, bookmarksFor, foldersFor, scopeOf } from "@/lib/bookmarks/bookmarks";
 import { pageCountOf, pageQuery } from "@/lib/list-query";
 import { listLayoutFor } from "@/lib/list-layout-server";
 import { BookmarksView } from "@/components/bookmarks/bookmarks-view";
@@ -27,10 +27,12 @@ export default async function Bookmarks({
     query.folder !== "all" &&
     query.folder !== "root" &&
     query.folder !== "lixeira" &&
+    query.folder !== "estrela" &&
+    query.folder !== "recentes" &&
     !folders.some((folder) => folder.id === query.folder)
   )
     query.folder = "all";
-  const [{ items, rootCount, total, matching, page, trashCount, tags }, companies] = await Promise.all([
+  const [{ items, rootCount, total, matching, page, trashCount, starredCount, tags }, companies] = await Promise.all([
     bookmarksFor(
       scope,
       folders.map((folder) => folder.id),
@@ -44,6 +46,21 @@ export default async function Bookmarks({
         ])
       : actor.grants.map((g) => ({ id: g.company.id, name: g.company.name, document: g.company.document })),
   ]);
+  // "Copiar link": ?abrir=<id> opens that item, if the person sees it (the same check as its download).
+  const asked = typeof params.abrir === "string" && /^[0-9a-f-]{36}$/i.test(params.abrir) ? await bookmarkFor(actor, params.abrir) : null;
+  const opened = asked
+    ? (items.find((item) => item.id === asked.id) ?? {
+        id: asked.id,
+        title: asked.title,
+        url: asked.url,
+        fileName: asked.fileName,
+        folderId: asked.folderId,
+        companyId: asked.companyId,
+        ownerId: asked.ownerId,
+        createdAt: asked.updatedAt.toISOString(),
+        updatedAt: asked.updatedAt.toISOString(),
+      })
+    : undefined;
   // The space meter: the team sees Anuntech's own and the company it filtered; a client, each of its companies.
   const spaces = await spacesFor(
     actor.admin
@@ -56,7 +73,7 @@ export default async function Bookmarks({
         folders,
         items,
         query,
-        counts: { root: rootCount, total, trash: trashCount },
+        counts: { root: rootCount, total, trash: trashCount, starred: starredCount },
         paging: {
           page,
           pageSize: paging.pageSize,
@@ -70,6 +87,7 @@ export default async function Bookmarks({
         largeFiles: storageConfigured(),
         spaces,
         tags,
+        opened,
       }}
     />
   );

@@ -3,7 +3,8 @@ import { after } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { bookmarks, fileTexts } from "@/db/schema";
 import { db } from "../db";
-import { getObject, storageConfigured } from "./r2";
+import { getObject, putObject, storageConfigured } from "./r2";
+import { THUMB_SOURCE_MAX_BYTES, makeThumbnail, thumbKeyOf, thumbable } from "./thumbnails";
 import { extractFileText, type Extracted } from "./text-extract";
 import { tagFile } from "./file-tags";
 import { TEXT_SOURCE_MAX_BYTES, textKindOf } from "./text-rules";
@@ -13,18 +14,26 @@ import { TEXT_SOURCE_MAX_BYTES, textKindOf } from "./text-rules";
  * it is saved (and again when a new version replaces it), by `indexSoon`
  * right after the request and by the routine every 15 minutes for whatever
  * is left (older files, a failed read). Only Console code reads the files;
- * the text stays in the database, next to who may see the item.
+ * the text stays in the database, next to who may see the item. The same
+ * read makes a photo's card picture (thumbnails.ts), so the file is
+ * downloaded once.
  */
+
+/** The image extensions the routine makes a card picture for, as SQL (the same as thumbnails.ts). */
+const THUMB_PATTERN = "\\.(jpe?g|png|webp|gif|avif|tiff?|bmp|svg)$";
 
 const MAX_ATTEMPTS = 3;
 /** The file a row was read from: the R2 key, or the item itself for an older file kept in the database. */
 const sourceOf = sql<string>`coalesce(${bookmarks.storageKey}, 'db:' || ${bookmarks.id})`;
 
 
-async function save(bookmarkId: string, source: string, outcome: Extracted | { status: "failed"; reason: string }) {
+type ThumbStatus = "done" | "none" | "failed";
+
+async function save(bookmarkId: string, source: string, outcome: Extracted | { status: "failed"; reason: string }, thumbStatus: ThumbStatus) {
   const values = {
     bookmarkId,
     sourceKey: source,
+    thumbStatus,
     status: outcome.status,
     text: outcome.status === "done" ? outcome.text : null,
     reason: outcome.status === "done" ? null : outcome.reason,
@@ -57,34 +66,55 @@ async function pendingFiles(limit: number, bookmarkId?: string) {
       and (${bookmarks.storageKey} is not null or ${bookmarks.content} is not null)
       ${bookmarkId ? sql`and ${bookmarks.id} = ${bookmarkId}` : sql``}
       and (${fileTexts.bookmarkId} is null or ${fileTexts.sourceKey} <> ${sourceOf}
-        or (${fileTexts.status} = 'failed' and ${fileTexts.attempts} < ${MAX_ATTEMPTS} and ${fileTexts.extractedAt} < now() - interval '30 minutes'))
+        or (${fileTexts.status} = 'failed' and ${fileTexts.attempts} < ${MAX_ATTEMPTS} and ${fileTexts.extractedAt} < now() - interval '30 minutes')
+        -- A photo read before the card pictures existed gets its picture.
+        or (${fileTexts.thumbStatus} is null and ${bookmarks.storageKey} is not null and lower(${bookmarks.fileName}) ~ ${THUMB_PATTERN}))
     order by ${bookmarks.updatedAt} desc
     limit ${limit}`);
   return result.rows;
 }
 
-async function extract(file: Pending): Promise<Extracted | { status: "failed"; reason: string }> {
-  if (!textKindOf(file.file_name)) return { status: "skipped", reason: "Tipo de arquivo sem texto para a busca." };
-  if ((file.size ?? 0) > TEXT_SOURCE_MAX_BYTES) return { status: "skipped", reason: "Arquivo grande demais para ler o texto." };
-  try {
-    const bytes = file.storage_key
-      ? storageConfigured()
-        ? await getObject(file.storage_key)
-        : null
-      : ((await db.select({ content: bookmarks.content }).from(bookmarks).where(eq(bookmarks.id, file.id)))[0]?.content ?? null);
-    if (!bytes) return { status: "failed", reason: "Arquivo não encontrado no armazenamento." };
-    return await extractFileText(new Uint8Array(bytes), file.file_name);
-  } catch (error) {
-    // Never the text or the file in the log: only which item and why.
-    console.error("[arquivos] text failed", file.id, error instanceof Error ? error.message.slice(0, 200) : "erro");
-    return { status: "failed", reason: "Não foi possível ler o texto deste arquivo." };
-  }
+async function bytesOf(file: Pending) {
+  if (file.storage_key) return storageConfigured() ? getObject(file.storage_key) : null;
+  const [row] = await db.select({ content: bookmarks.content }).from(bookmarks).where(eq(bookmarks.id, file.id));
+  return row?.content ? new Uint8Array(row.content) : null;
 }
 
-/** Reads one file, keeps its text and suggests its tag (lib/drive/file-tags.ts), now that the text is known. */
+/** Reads one file once: its text (and tag, now that the text is known) and, for a photo, its card picture. */
 async function readOne(file: Pending) {
-  const outcome = await extract(file);
-  await save(file.id, file.source, outcome);
+  const size = file.size ?? 0;
+  const wantsText = !!textKindOf(file.file_name) && size <= TEXT_SOURCE_MAX_BYTES;
+  const wantsThumb = !!file.storage_key && storageConfigured() && thumbable(file.file_name) && size <= THUMB_SOURCE_MAX_BYTES;
+  let bytes: Uint8Array | null = null;
+  if (wantsText || wantsThumb)
+    try {
+      bytes = await bytesOf(file);
+    } catch (error) {
+      // Never the text or the file in the log: only which item and why.
+      console.error("[arquivos] read failed", file.id, error instanceof Error ? error.message.slice(0, 200) : "erro");
+    }
+  let outcome: Extracted | { status: "failed"; reason: string };
+  if (!textKindOf(file.file_name)) outcome = { status: "skipped", reason: "Tipo de arquivo sem texto para a busca." };
+  else if (!wantsText) outcome = { status: "skipped", reason: "Arquivo grande demais para ler o texto." };
+  else if (!bytes) outcome = { status: "failed", reason: "Arquivo não encontrado no armazenamento." };
+  else
+    try {
+      outcome = await extractFileText(bytes, file.file_name);
+    } catch (error) {
+      console.error("[arquivos] text failed", file.id, error instanceof Error ? error.message.slice(0, 200) : "erro");
+      outcome = { status: "failed", reason: "Não foi possível ler o texto deste arquivo." };
+    }
+  let thumb: ThumbStatus = "none";
+  if (wantsThumb)
+    try {
+      if (!bytes) throw new Error("sem bytes");
+      await putObject(thumbKeyOf(file.storage_key!), await makeThumbnail(bytes), "image/webp");
+      thumb = "done";
+    } catch (error) {
+      console.error("[arquivos] thumbnail failed", file.id, error instanceof Error ? error.message.slice(0, 200) : "erro");
+      thumb = "failed";
+    }
+  await save(file.id, file.source, outcome, thumb);
   if (outcome.status !== "failed") await tagFile({ id: file.id, title: file.title, fileName: file.file_name }, outcome.status === "done" ? outcome.text : null);
 }
 

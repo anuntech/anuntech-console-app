@@ -169,5 +169,5 @@ test("the children deleted with a company or its work are all accounted for", ()
   ])
     assert.deepEqual(pointingAt(leaf), {}, getTableConfig(leaf).name);
   // A bookmark's versions and its text go with it, by the database (on delete cascade).
-  assert.deepEqual(pointingAt(schema.bookmarks), { "console_file_texts.bookmark_id": "not null", "console_file_versions.bookmark_id": "not null", "console_share_links.bookmark_id": "null" });
+  assert.deepEqual(pointingAt(schema.bookmarks), { "console_bookmark_stars.bookmark_id": "not null", "console_file_texts.bookmark_id": "not null", "console_file_versions.bookmark_id": "not null", "console_share_links.bookmark_id": "null" });
 });

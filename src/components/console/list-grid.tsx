@@ -90,6 +90,10 @@ export function CardGrid({ children, className }: { children: ReactNode; classNa
 const InCard = createContext(false);
 /** True inside a GridCard: `RowActions` then draws only its button, without a table cell. */
 export const useInCard = () => useContext(InCard);
+/** For a card drawn elsewhere (Arquivos' file card): its row menus render as in a GridCard, not as a table cell. */
+export function InCardScope({ children }: { children: ReactNode }) {
+  return <InCard.Provider value={true}>{children}</InCard.Provider>;
+}
 
 /** The tile at the start of a card: an icon or initials on a soft square. */
 export function CardTile({ children, className }: { children: ReactNode; className?: string }) {

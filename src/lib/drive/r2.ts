@@ -156,7 +156,9 @@ export async function deleteObject(key: string) {
  * Never blocks the deletion; a file left behind is only space, logged by key.
  */
 export async function removeStoredFiles(keys: (string | null | undefined)[]) {
-  const present = keys.filter((key): key is string => !!key);
+  // Each file's card picture (thumbs/<key>.webp, lib/drive/thumbnails.ts) goes with it; a missing one is fine.
+  const files = keys.filter((key): key is string => !!key);
+  const present = [...files, ...files.filter((key) => !key.startsWith("thumbs/")).map((key) => `thumbs/${key}.webp`)];
   if (!present.length || !storageConfigured()) return;
   await Promise.all(
     present.map((key) => deleteObject(key).catch((error) => console.error("[arquivos] delete failed", key, error instanceof Error ? error.message : error))),

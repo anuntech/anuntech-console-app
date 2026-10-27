@@ -931,6 +931,8 @@ export const auditEvents = pgTable(
     index("console_audit_company_idx").on(t.companyId),
     // One item's history (Arquivos' activity), newest first.
     index("console_audit_entity_idx").on(t.entityId, t.createdAt),
+    // What one person did lately (Arquivos' "Recentes").
+    index("console_audit_actor_idx").on(t.actorId, t.createdAt),
   ],
 );
 export const emailDeliveries = pgTable("console_email_deliveries", {
@@ -1210,6 +1212,21 @@ export const bookmarks = pgTable(
   ],
 );
 
+/** A file a person marked with a star (Arquivos' "Com estrela"); only theirs, gone with the item. */
+export const bookmarkStars = pgTable(
+  "console_bookmark_stars",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    bookmarkId: text("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.bookmarkId] }), index("console_bookmark_star_item_idx").on(t.bookmarkId)],
+);
+
 const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
 
 /**
@@ -1230,6 +1247,8 @@ export const fileTexts = pgTable(
     text: text("text"),
     reason: text("reason"),
     attempts: integer("attempts").notNull().default(0),
+    /** The picture on the file's card (lib/drive/thumbnails.ts), in R2 under `thumbs/<source key>.webp`: made, none for this kind, or failed. */
+    thumbStatus: text("thumb_status", { enum: ["done", "none", "failed"] }),
     search: tsvector("search").generatedAlwaysAs(
       sql`to_tsvector('portuguese'::regconfig, lower(translate(coalesce("text", ''), 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ', 'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY')))`,
     ),

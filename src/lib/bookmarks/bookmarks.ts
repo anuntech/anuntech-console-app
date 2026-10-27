@@ -15,6 +15,8 @@ import {
   accountEmails,
   bookmarkFolderShares,
   bookmarkFolders,
+  auditEvents,
+  bookmarkStars,
   bookmarks,
   companies,
   fileTexts,
@@ -81,6 +83,14 @@ export type BookmarkView = {
   deletedAt?: string;
   /** Where a search found its words inside the file, between MARK_OPEN and MARK_CLOSE (lib/drive/text-excerpt.ts). */
   excerpt?: string;
+  /** The card's picture is ready (/api/bookmarks/<id>/miniatura); optional so fixtures without it still type. */
+  thumb?: boolean;
+  /** The start of a document's text, drawn on its card as a page. */
+  page?: string;
+  /** The viewer starred it. */
+  starred?: boolean;
+  /** Who added it. */
+  ownerName?: string | null;
   /** Its tag (lib/drive/tag-rules.ts) and who set it; optional so fixtures without it still type. */
   tag?: TagSlug | null;
   tagSource?: TagSource | null;
@@ -110,7 +120,8 @@ export function bookmarkQuery(
     (UUID.test(company) && (scope.admin || scope.companyIds.includes(company.toLowerCase())));
   return {
     // "lixeira": what was deleted in the last 30 days, to restore or delete for good.
-    folder: folder === "root" || folder === "lixeira" || UUID.test(folder) ? folder : "all",
+    // "estrela": what the viewer starred; "recentes": what they added, changed or opened in 30 days.
+    folder: folder === "root" || folder === "lixeira" || folder === "estrela" || folder === "recentes" || UUID.test(folder) ? folder : "all",
     search: scalar("q").trim().slice(0, 160),
     tag: isTag(scalar("etiqueta")) ? (scalar("etiqueta") as TagSlug) : "",
     kind: isKindFilter(scalar("tipo")) ? (scalar("tipo") as KindFilter) : "",
@@ -228,7 +239,16 @@ export async function bookmarksFor(
   folderIds: string[],
   query: BookmarkQuery,
   paging: PageQuery = { page: 1, pageSize: DEFAULT_PAGE_SIZE },
-): Promise<{ items: BookmarkView[]; rootCount: number; total: number; matching: number; page: number; trashCount: number; tags: { tag: TagSlug; count: number }[] }> {
+): Promise<{
+  items: BookmarkView[];
+  rootCount: number;
+  total: number;
+  matching: number;
+  page: number;
+  trashCount: number;
+  starredCount: number;
+  tags: { tag: TagSlug; count: number }[];
+}> {
   // Everything the viewer may see, the trash included; the lists and counts below take the trash out.
   const reachable = and(
     companyCondition(bookmarks.companyId, scope, query.company),
@@ -236,9 +256,17 @@ export async function bookmarksFor(
   );
   const visible = and(reachable, isNull(bookmarks.deletedAt));
   const trash = query.folder === "lixeira";
+  const starredByMe = sql`exists (select 1 from ${bookmarkStars} where ${bookmarkStars.bookmarkId} = ${bookmarks.id} and ${bookmarkStars.userId} = ${scope.userId})`;
+  /** When the viewer last added, changed or opened it, in 30 days ("Recentes"). */
+  const lastTouched = sql`(select max(${auditEvents.createdAt}) from ${auditEvents} where ${auditEvents.actorId} = ${scope.userId} and ${auditEvents.entityId} = ${bookmarks.id} and ${auditEvents.createdAt} > now() - interval '30 days' and ${auditEvents.action} in ('bookmark.created', 'bookmark.updated', 'bookmark.downloaded', 'bookmark.version_added', 'bookmark.board_edited'))`;
+  const recent = query.folder === "recentes";
   const narrowed = trash
     ? and(reachable, isNotNull(bookmarks.deletedAt))
-    : query.folder === "root"
+    : query.folder === "estrela"
+      ? and(visible, starredByMe)
+      : recent
+        ? and(visible, sql`${lastTouched} is not null`)
+        : query.folder === "root"
       ? and(visible, isNull(bookmarks.folderId))
       : query.folder !== "all"
         ? folderIds.includes(query.folder)
@@ -282,6 +310,7 @@ export async function bookmarksFor(
       root: sql<number>`count(*) filter (where ${bookmarks.folderId} is null and ${bookmarks.deletedAt} is null)::int`,
       total: sql<number>`count(*) filter (where ${bookmarks.deletedAt} is null)::int`,
       trash: sql<number>`count(*) filter (where ${bookmarks.deletedAt} is not null)::int`,
+      starred: sql<number>`count(*) filter (where ${bookmarks.deletedAt} is null and ${starredByMe})::int`,
       matching: sql<number>`count(*) filter (where ${matchingWhere})::int`,
     })
     .from(bookmarks)
@@ -316,18 +345,26 @@ export async function bookmarksFor(
           deletedAt: bookmarks.deletedAt,
           tag: bookmarks.tag,
           tagSource: bookmarks.tagSource,
+          ownerName: user.name,
+          starred: sql<boolean>`${starredByMe}`,
+          // The card's picture and page: from the reading routine, for the file as it is now.
+          thumb: sql<boolean>`coalesce((select ${fileTexts.thumbStatus} = 'done' and ${fileTexts.sourceKey} = ${bookmarks.storageKey} from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id}), false)`,
+          page: sql<string | null>`(select left(${fileTexts.text}, 420) from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id} and ${fileTexts.status} = 'done')`,
           // The passage of the file with the words, highlighted; the typed words and the accentless ones both count.
           excerpt: inContent
             ? sql<string | null>`(select ts_headline('portuguese', ${fileTexts.text}, ${contentQuery(typed)} || websearch_to_tsquery('portuguese', ${typed}), ${`MaxWords=24, MinWords=10, MaxFragments=1, StartSel=${MARK_OPEN}, StopSel=${MARK_CLOSE}`}) from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id} and ${fileTexts.search} @@ ${contentQuery(typed)})`
             : sql<null>`null`,
         })
         .from(bookmarks)
+        .leftJoin(user, eq(user.id, bookmarks.ownerId))
         .where(matchingWhere)
         // The id breaks ties between bookmarks saved in the same instant, so no
         // row repeats or goes missing across pages. The trash goes by when each was deleted.
         .orderBy(
           ...(trash
             ? [desc(bookmarks.deletedAt)]
+            : recent && !query.sort
+              ? [sql`${lastTouched} desc nulls last`]
             : query.sort === "antigos"
               ? [asc(bookmarks.createdAt)]
               : query.sort === "nome"
@@ -341,8 +378,11 @@ export async function bookmarksFor(
         .offset(offsetOf(shown))
     : [];
   return {
-    items: items.map(({ deletedAt, excerpt, tag, ...item }) => ({
+    items: items.map(({ deletedAt, excerpt, tag, page, thumb, starred, ...item }) => ({
       ...item,
+      ...(thumb ? { thumb: true } : {}),
+      ...(page ? { page } : {}),
+      ...(starred ? { starred: true } : {}),
       tag: isTag(tag) ? tag : null,
       ...(excerpt ? { excerpt } : {}),
       createdAt: item.createdAt.toISOString(),
@@ -350,6 +390,7 @@ export async function bookmarksFor(
       ...(deletedAt ? { deletedAt: deletedAt.toISOString() } : {}),
     })),
     trashCount: counts?.trash ?? 0,
+    starredCount: counts?.starred ?? 0,
     tags: tags.flatMap((t) => (isTag(t.tag) ? [{ tag: t.tag, count: t.count }] : [])).sort((a, b) => b.count - a.count),
     rootCount: counts?.root ?? 0,
     total: counts?.total ?? 0,

@@ -500,6 +500,31 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   await db.query("delete from console_bookmark_folder_shares where folder_id=$1", [viewOnly]);
   await db.query("delete from console_bookmark_folders where id=$1", [viewOnly]);
 
+  // Cards: a photo gets its small picture in R2 (read with its text), stars are each person's, "Recentes" and "Copiar link".
+  const sharp = (await import("sharp")).default;
+  const png = await sharp({ create: { width: 1600, height: 1200, channels: 3, background: { r: 110, g: 86, b: 255 } } }).png().toBuffer();
+  const photoId = await saveFile("manager", ids.a, `Foto ${marker}`, "vitrine.png", png, "image/png");
+  const thumbRow = await textOf(photoId, (row) => !!row);
+  const photoKey = (await one("select storage_key from console_bookmarks where id=$1", [photoId])).storage_key;
+  const thumbState = (await one("select thumb_status from console_file_texts where bookmark_id=$1", [photoId]))?.thumb_status;
+  const small = r2.objects.get(`thumbs/${photoKey}.webp`);
+  const meta = small ? await sharp(small).metadata() : null;
+  ok(!!thumbRow && thumbState === "done" && meta?.format === "webp" && meta.width === 480, "A foto ganha a miniatura do cartão, pequena, no R2");
+  const thumbAnswer = await request(`/api/bookmarks/${photoId}/miniatura`, "manager");
+  ok(thumbAnswer.status === 302 && (thumbAnswer.headers.get("location") ?? "").includes(encodeURIComponent(`thumbs/${photoKey}.webp`).replace(/%2F/g, "/")), "A miniatura abre por endereço assinado");
+  ok((await request(`/api/bookmarks/${photoId}/miniatura`, "outsider")).status === 404, "Pessoa de fora não vê a miniatura");
+  ok((await request(`/bookmarks?empresa=${ids.a}`, "manager")).text.includes(`/api/bookmarks/${photoId}/miniatura`), "O cartão mostra a foto direto");
+  await submitForm("/bookmarks", "manager", "manager", { action: "toggleStar" }, { id: photoId });
+  ok((await request("/bookmarks?pasta=estrela", "manager")).text.includes(`Foto ${marker}`) && !(await request("/bookmarks?pasta=estrela", "finance")).text.includes(`Foto ${marker}`), "A estrela é de cada pessoa");
+  await submitForm("/bookmarks", "manager", "manager", { action: "toggleStar" }, { id: photoId });
+  ok(!(await one("select 1 as ok from console_bookmark_stars where bookmark_id=$1", [photoId])), "Clicar de novo tira a estrela");
+  await request(`/api/bookmarks/${photoId}`, "finance");
+  ok((await request("/bookmarks?pasta=recentes", "finance")).text.includes(`Foto ${marker}`), "“Recentes” mostra o que a pessoa abriu");
+  ok((await request(`/bookmarks?abrir=${photoId}`, "manager")).text.includes(`Foto ${marker}`) && !(await request(`/bookmarks?abrir=${photoId}`, "outsider")).text.includes(`Foto ${marker}`), "O link copiado abre o item só para quem tem acesso");
+  await submitForm("/bookmarks", "manager", "manager", { action: "deleteBookmark" }, { id: photoId });
+  await submitForm("/bookmarks", "manager", "manager", { action: "purgeBookmark" }, { id: photoId });
+  ok(!r2.objects.has(photoKey) && !r2.objects.has(`thumbs/${photoKey}.webp`), "Excluir de vez leva a miniatura junto");
+
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);
 }

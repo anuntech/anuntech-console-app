@@ -7,11 +7,15 @@ import { Fragment, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   BookmarkIcon,
+  ClockIcon,
   CopyIcon,
+  InfoIcon,
+  Link2Icon,
+  StarIcon,
+  TypeIcon,
   DownloadIcon,
   ExternalLinkIcon,
   EyeIcon,
-  FileIcon,
   FolderIcon,
   FolderInputIcon,
   FolderPlusIcon,
@@ -31,6 +35,10 @@ import { excerptPieces } from "@/lib/drive/text-excerpt";
 import { KIND_FILTERS, SORTS, type KindFilter, type SortOrder } from "@/lib/bookmarks/list-filters";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemsDialog, type ItemsMove } from "./items-dialog";
+import { FileCard, GROUP_ICONS, quickIcons } from "./file-card";
+import { RenameDialog } from "./rename-dialog";
+import { fileTypeOf } from "@/lib/bookmarks/file-types";
+import { toast } from "@/components/shell/notifications";
 import { tagLabels, type TagSlug } from "@/lib/drive/tag-rules";
 import { folderPath, treeOrder } from "@/lib/bookmarks/folder-tree";
 import { cn } from "@/lib/cn";
@@ -70,11 +78,11 @@ import {
 } from "@/components/console/list-view";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
-import { moveBookmark, moveBookmarks, deleteBookmark, purgeBookmark, restoreBookmark, trashBookmarks } from "@/lib/bookmarks/bookmark-actions";
+import { moveBookmark, moveBookmarks, deleteBookmark, purgeBookmark, restoreBookmark, toggleStar, trashBookmarks } from "@/lib/bookmarks/bookmark-actions";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { ListLayout } from "@/lib/list-layout";
-import { CardGrid, GridCard, useListLayout, ViewToggle } from "@/components/console/list-grid";
+import { useListLayout, ViewToggle } from "@/components/console/list-grid";
 import { dateTimeLabel, fileSizeLabel, relativeLabel } from "@/lib/format";
 import { companyDisplayName } from "@/lib/companies/display-name";
 import { DEFAULT_PAGE_SIZE, listHref, setPageParams, type PageQuery } from "@/lib/list-query";
@@ -89,7 +97,7 @@ export type BookmarksViewData = {
   folders: FolderView[];
   items: BookmarkView[];
   query: BookmarkQuery;
-  counts: { root: number; total: number; trash?: number };
+  counts: { root: number; total: number; trash?: number; starred?: number };
   /**
    * The page shown; `total` is what the folder and the search leave. Optional
    * so fixtures without it still type: they show `items` as a single page.
@@ -106,6 +114,8 @@ export type BookmarksViewData = {
   largeFiles?: boolean;
   /** Used and total per space; quota null is Anuntech's own, without a limit. */
   spaces?: { companyId: string | null; used: number; quota: number | null }[];
+  /** An item to open on arrival (?abrir=, from "Copiar link"). */
+  opened?: BookmarkView;
   /** The tags of what the folder shows, with how many items each, for the filter. */
   tags?: { tag: TagSlug; count: number }[];
 };
@@ -127,12 +137,21 @@ function Tile({ item, large = false }: { item: BookmarkView; large?: boolean }) 
         <PresentationIcon className={large ? "size-5" : "size-4"} />
       </span>
     );
-  if (!item.url)
+  if (!item.url) {
+    const type = fileTypeOf(item.fileName);
+    if (type.group === "image" && item.thumb)
+      return (
+        // The photo's small WebP (lib/drive/thumbnails.ts), through a short-lived signed address.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={`/api/bookmarks/${item.id}/miniatura`} alt="" loading="lazy" className={cn("shrink-0 border object-cover", size)} />
+      );
+    const Icon = GROUP_ICONS[type.group];
     return (
       <span className={cn("flex shrink-0 items-center justify-center bg-secondary text-muted-foreground", size)}>
-        <FileIcon className={large ? "size-5" : "size-4"} />
+        <Icon className={large ? "size-5" : "size-4"} />
       </span>
     );
+  }
   const { letter, tone } = letterTile(item.url);
   return (
     <span
@@ -360,6 +379,15 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       return next;
     });
   const [itemsMove, setItemsMove] = useState<ItemsMove | null>(null);
+  const { submit: star, form: starForm } = useItemsAction(toggleStar, () => undefined);
+  const [renaming, setRenaming] = useState<BookmarkView | null>(null);
+  /** The item's address in the Console, for someone who already has access (outside, use "Compartilhar por link"). */
+  const copyLink = (item: BookmarkView) => {
+    void navigator.clipboard
+      .writeText(`${window.location.origin}/bookmarks?abrir=${item.id}`)
+      .then(() => toast.success("Link copiado. Só abre para quem já tem acesso ao item."))
+      .catch(() => toast.error("Não foi possível copiar."));
+  };
   const { submit: moveMany, form: moveManyForm } = useItemsAction(moveBookmarks, clearSelection);
   const [trashingMany, setTrashingMany] = useState(false);
   /** A row's drag carries the selection when the row is in it, or the row alone. */
@@ -474,8 +502,11 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     );
   };
   // A file opens in the preview when the Console can show it; anything else downloads.
-  const [previewing, setPreviewing] = useState<BookmarkView | null>(null);
-  const download = (item: BookmarkView) => (canPreview(item) ? setPreviewing(item) : downloadBookmark(item));
+  // "Copiar link" lands here with ?abrir=<id>: the item opens in the viewer (or its whiteboard, or its link).
+  const [previewing, setPreviewing] = useState<BookmarkView | null>(data.opened && kindOf(data.opened) === "file" ? data.opened : null);
+  // Every file opens in the viewer: the picture or the page when the Console can show it, its details and "Baixar" otherwise.
+  const download = (item: BookmarkView) => setPreviewing(item);
+  const files = items.filter((item) => kindOf(item) === "file");
   // Where a click goes; in the trash, nowhere (it has to come back first).
   const hrefOf = (item: BookmarkView) => (inTrash ? undefined : kindOf(item) === "board" ? boardHref(item.id) : item.url);
   const openOf = (item: BookmarkView) => (inTrash || kindOf(item) === "board" || item.url ? undefined : () => download(item));
@@ -526,6 +557,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             <DownloadIcon />
             Baixar arquivo
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => later(() => setPreviewing(item))}>
+            <InfoIcon />
+            Detalhes
+          </DropdownMenuItem>
           {data.largeFiles && canEdit(item) && (
             <DropdownMenuItem onSelect={() => later(() => setSharing({ kind: "download", bookmarkId: item.id, title: item.title }))}>
               <LinkIcon />
@@ -534,9 +569,21 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           )}
         </>
       )}
+      <DropdownMenuItem onSelect={() => star([item.id])}>
+        <StarIcon className={cn(item.starred && "fill-current text-primary")} />
+        {item.starred ? "Tirar a estrela" : "Marcar com estrela"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => copyLink(item)}>
+        <Link2Icon />
+        Copiar link
+      </DropdownMenuItem>
       {canEdit(item) && (
         <>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => later(() => setRenaming(item))}>
+            <TypeIcon />
+            Renomear
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => later(() => setEditor({ mode: "edit", item }))}>
             <PencilIcon />
             Editar
@@ -648,60 +695,49 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     </Table>
   );
 
+  /** "4,2 MB · há 3 h", and the folder or the company when the list spans several. */
+  const cardMeta = (item: BookmarkView) =>
+    [
+      item.deletedAt ? trashNote(item.deletedAt) : null,
+      kindOf(item) === "file" && item.fileSize ? fileSizeLabel(item.fileSize) : kindOf(item) === "board" ? "Lousa" : null,
+      relativeLabel(item.updatedAt ?? item.createdAt, now),
+      folderColumn && item.folderId ? (folderById.get(item.folderId)?.name ?? null) : null,
+      showCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  /** The buttons on a card's picture: see, download, share by link. */
+  const quickOf = (item: BookmarkView) =>
+    inTrash || kindOf(item) !== "file"
+      ? undefined
+      : [
+          ...(canPreview(item) ? [{ label: "Ver", icon: quickIcons.preview, onClick: () => setPreviewing(item) }] : []),
+          { label: "Baixar", icon: quickIcons.download, onClick: () => downloadBookmark(item) },
+          ...(data.largeFiles && canEdit(item)
+            ? [{ label: "Compartilhar por link", icon: quickIcons.link, onClick: () => setSharing({ kind: "download", bookmarkId: item.id, title: item.title }) }]
+            : []),
+        ];
   const grid = (
-    <CardGrid>
-      {items.map((item) => {
-        const folder = item.folderId ? folderById.get(item.folderId) : undefined;
-        const board = kindOf(item) === "board";
-        return (
-          <GridCard
-            key={item.id}
-            href={hrefOf(item)}
-            external={!board}
-            onOpen={openOf(item)}
-            onDragStart={dragOf(item)}
-            leading={
-              <span className="relative z-10 flex flex-col items-center gap-2">
-                <Tile item={item} large />
-                <Checkbox
-                  aria-label={`Selecionar ${item.title}`}
-                  checked={selected.has(item.id)}
-                  onCheckedChange={() => toggle(item.id)}
-                  className={cn(!selected.size && "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100")}
-                />
-              </span>
-            }
-            title={item.title}
-            subtitle={subtitleFor(item, showCompany) || undefined}
-            actions={<RowActions label={item.title}>{actionsFor(item)}</RowActions>}
-            footer={
-              <>
-                {folderColumn && folder && (
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <FolderIcon aria-hidden="true" className="size-3.5 shrink-0" />
-                    <span className="truncate">{folder.name}</span>
-                  </span>
-                )}
-                <time dateTime={item.createdAt} title={dateTimeLabel(item.createdAt)} className="ml-auto shrink-0">
-                  {relativeLabel(item.createdAt, now)}
-                </time>
-              </>
-            }
-          >
-            {board && item.preview && (
-              // The PNG is private and changes with every stroke: a plain image, no optimizer.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={`/api/bookmarks/${item.id}/preview?v=${encodeURIComponent(item.updatedAt ?? "")}`}
-                alt=""
-                loading="lazy"
-                className="aspect-[16/9] w-full rounded-md border bg-white object-contain"
-              />
-            )}
-          </GridCard>
-        );
-      })}
-    </CardGrid>
+    <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(13.5rem,1fr))] gap-3 p-4">
+      {items.map((item) => (
+        <FileCard
+          key={item.id}
+          item={item}
+          href={hrefOf(item)}
+          external={kindOf(item) !== "board"}
+          onOpen={openOf(item)}
+          selected={selected.has(item.id)}
+          selecting={selected.size > 0}
+          onToggle={() => toggle(item.id)}
+          onDragStart={dragOf(item)}
+          onStar={inTrash ? undefined : () => star([item.id])}
+          quick={quickOf(item)}
+          badge={item.tag ? tagLabels[item.tag] : null}
+          meta={cardMeta(item)}
+          actions={<RowActions label={item.title}>{actionsFor(item)}</RowActions>}
+        />
+      ))}
+    </ul>
   );
 
   return (
@@ -768,6 +804,19 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 icon={<BookmarkIcon />}
                 label="Todos"
                 // No count: it is the number beside the title whenever this view is open.
+              />
+              <NavItem
+                active={query.folder === "recentes"}
+                href={href(state, { folder: "recentes" })}
+                icon={<ClockIcon className="opacity-60" />}
+                label="Recentes"
+              />
+              <NavItem
+                active={query.folder === "estrela"}
+                href={href(state, { folder: "estrela" })}
+                icon={<StarIcon className="opacity-60" />}
+                label="Com estrela"
+                count={counts.starred || undefined}
               />
               <NavItem
                 active={query.folder === "root"}
@@ -981,7 +1030,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               pageSize={paging.pageSize}
               total={paging.total}
               pageCount={paging.pageCount}
-              noun={["bookmark", "bookmarks"]}
+              noun={["item", "itens"]}
               hrefFor={(patch) => href(state, patch)}
             />
           }
@@ -1025,7 +1074,46 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
         </div>
       </div>
       {bulk.tray}
-      <FilePreview item={previewing} onClose={() => setPreviewing(null)} />
+      <FilePreview
+        item={previewing}
+        items={files}
+        onNavigate={setPreviewing}
+        onClose={() => setPreviewing(null)}
+        details={
+          previewing
+            ? [
+                ["Tipo", fileTypeOf(previewing.fileName).label],
+                ["Tamanho", previewing.fileSize ? fileSizeLabel(previewing.fileSize) : "—"],
+                ["Pasta", previewing.folderId ? (folderById.get(previewing.folderId)?.name ?? "—") : "Sem pasta"],
+                ["Empresa", previewing.companyId ? (companyName.get(previewing.companyId) ?? "—") : "Anuntech"],
+                ["Etiqueta", previewing.tag ? tagLabels[previewing.tag] : "—"],
+                ["Adicionado por", previewing.ownerName ?? "—"],
+                ["Adicionado em", dateTimeLabel(previewing.createdAt)],
+                ["Alterado em", dateTimeLabel(previewing.updatedAt ?? previewing.createdAt)],
+              ]
+            : []
+        }
+        actions={
+          previewing && !inTrash ? (
+            <>
+              {data.largeFiles && canEdit(previewing) && (
+                <Button variant="outline" size="sm" onClick={() => setSharing({ kind: "download", bookmarkId: previewing.id, title: previewing.title })}>
+                  <LinkIcon />
+                  Compartilhar
+                </Button>
+              )}
+              {canEdit(previewing) && (
+                <Button variant="outline" size="sm" onClick={() => setEditor({ mode: "edit", item: previewing })}>
+                  <PencilIcon />
+                  Editar
+                </Button>
+              )}
+            </>
+          ) : null
+        }
+      />
+      <RenameDialog item={renaming} onClose={() => setRenaming(null)} />
+      {starForm}
       <ShareLinkDialog target={sharing} onClose={() => setSharing(null)} />
       <ItemsDialog
         target={itemsMove}

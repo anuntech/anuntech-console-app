@@ -10,6 +10,7 @@ import {
   auditEvents,
   bookmarkFolderShares,
   bookmarkFolders,
+  bookmarkStars,
   bookmarks,
   companies,
   consoleStaffMembers,
@@ -305,6 +306,8 @@ export async function deleteAccount(
       await tx.update(bookmarkFolders).set({ parentId: null }).where(inArray(bookmarkFolders.parentId, ids));
       await tx.delete(bookmarkFolders).where(inArray(bookmarkFolders.id, ids));
     }
+    // The stars were the person's own marks.
+    await tx.delete(bookmarkStars).where(eq(bookmarkStars.userId, person.id));
     await tx
       .delete(verification)
       .where(
