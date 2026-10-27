@@ -61,7 +61,7 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   ok(fetched.equals(bytes), "O arquivo baixado é o mesmo que foi enviado");
   ok((await request(`/api/bookmarks/${saved.id}`, "manager")).status === 404, "Cliente não baixa arquivo do espaço da Anuntech");
   const page = await request("/bookmarks", "admin");
-  ok(page.text.includes("Enviar arquivos") && page.text.includes("Espaço") && page.text.includes("Arquivos"), "A tela Arquivos oferece o envio de vários arquivos e mostra o espaço");
+  ok(page.text.includes("Enviar arquivos") && page.text.includes("Armazenamento") && page.text.includes("Arquivos"), "A tela Arquivos oferece o envio de vários arquivos e mostra o espaço");
 
   // The client's company has 5 GB by default; a smaller quota refuses what does not fit, before anything reaches R2.
   await db.query("update console_companies set storage_quota_bytes=$2 where id=$1", [ids.a, 1024 * 1024]);

@@ -871,6 +871,7 @@ export default async function Preview({
     ],
     viewer: { id: "u1", admin: true },
     largeFiles: true,
+    spaces: [{ companyId: null, used: 1_780_000, quota: null, parts: { media: 1_100_000, documents: 520_000, other: 160_000 } }],
   };
   const contractRows = [
     {

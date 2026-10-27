@@ -113,7 +113,7 @@ export type BookmarksViewData = {
   /** R2 is configured: files up to 100 GB go straight to the bucket (lib/drive). */
   largeFiles?: boolean;
   /** Used and total per space; quota null is Anuntech's own, without a limit. */
-  spaces?: { companyId: string | null; used: number; quota: number | null }[];
+  spaces?: { companyId: string | null; used: number; quota: number | null; parts?: { media: number; documents: number; other: number } }[];
   /** An item to open on arrival (?abrir=, from "Copiar link"). */
   opened?: BookmarkView;
   /** The tags of what the folder shows, with how many items each, for the filter. */
@@ -865,9 +865,11 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           {data.spaces?.map((space) => (
             <SpaceMeter
               key={space.companyId ?? "anuntech"}
-              name={data.spaces!.length > 1 || viewer.admin ? (companyName.get(space.companyId ?? "") ?? "Anuntech") : null}
+              // A name only to tell several spaces apart: in one, the screen already says whose it is.
+              name={data.spaces!.length > 1 ? (companyName.get(space.companyId ?? "") ?? "Anuntech") : null}
               used={space.used}
               quota={space.quota}
+              parts={space.parts}
             />
           ))}
         </aside>
@@ -1186,19 +1188,66 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
 }
 
 /** How much of a space its files take; Anuntech's own has no limit. */
-function SpaceMeter({ name, used, quota }: { name: string | null; used: number; quota: number | null }) {
-  const share = quota ? Math.min(1, used / quota) : 0;
+type SpaceParts = { media: number; documents: number; other: number };
+const PART_LOOKS: [keyof SpaceParts, string, string][] = [
+  ["media", "Fotos e vídeos", "bg-primary"],
+  ["documents", "Documentos", "bg-primary/55"],
+  ["other", "Outros", "bg-primary/25"],
+];
+
+/**
+ * "Armazenamento": what the space holds, split into photos and videos,
+ * documents and the rest, on a bar that fills up to the company's limit (the
+ * space without a limit, Anuntech's own, shows only the split). The space's
+ * name only when there are several on the screen.
+ */
+function SpaceMeter({ name, used, quota, parts }: { name: string | null; used: number; quota: number | null; parts?: SpaceParts }) {
+  const full = quota ? used / quota : 0;
+  // With a limit, the bar is the limit; without, it is what is used.
+  const whole = quota ?? used;
+  const split = parts ?? { media: 0, documents: 0, other: used };
+  const left = quota ? Math.max(0, quota - used) : null;
   return (
-    <div className="hidden px-2.5 lg:block">
-      <p className="m-0 text-caption font-medium text-muted-foreground">{name ? `Espaço · ${name}` : "Espaço usado"}</p>
-      {quota !== null && (
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-          <div className={`h-full rounded-full ${share > 0.9 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${share * 100}%` }} />
-        </div>
-      )}
-      <p className="m-0 mt-1 text-xs text-muted-foreground tabular-nums">
-        {`${used ? fileSizeLabel(used) : "0 KB"} ${quota === null ? "usados, sem limite" : `de ${fileSizeLabel(quota)}`}`}
+    <div className="hidden rounded-lg border bg-card px-3 py-3 lg:block">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="m-0 text-xs font-medium text-foreground">{name ?? "Armazenamento"}</p>
+        {quota !== null && <span className={cn("text-xs tabular-nums", full > 0.9 ? "text-destructive" : "text-muted-foreground")}>{Math.min(100, Math.round(full * 100))}%</span>}
+      </div>
+      <div
+        className="mt-2 flex h-2 overflow-hidden rounded-full bg-muted"
+        role="meter"
+        aria-label={name ? `Armazenamento de ${name}` : "Armazenamento"}
+        aria-valuemin={0}
+        aria-valuemax={whole || 1}
+        aria-valuenow={used}
+        aria-valuetext={`${fileSizeLabel(used)}${quota ? ` de ${fileSizeLabel(quota)}` : ""}`}
+      >
+        {whole > 0 &&
+          PART_LOOKS.map(([key, , look]) =>
+            split[key] > 0 ? (
+              <div
+                key={key}
+                className={cn("h-full first:rounded-l-full last:rounded-r-full", quota && full > 0.9 ? "bg-destructive" : look)}
+                style={{ width: `${Math.max(1.5, (split[key] / whole) * 100)}%` }}
+              />
+            ) : null,
+          )}
+      </div>
+      <p className="m-0 mt-1.5 text-xs text-foreground tabular-nums">
+        {used ? fileSizeLabel(used) : "0 KB"}
+        <span className="text-muted-foreground">{quota === null ? " usados, sem limite" : ` de ${fileSizeLabel(quota)} · ${fileSizeLabel(left!)} livres`}</span>
       </p>
+      {used > 0 && (
+        <ul className="m-0 mt-2 grid list-none gap-1 p-0">
+          {PART_LOOKS.filter(([key]) => split[key] > 0).map(([key, label, look]) => (
+            <li key={key} className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", look)} />
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+              <span className="tabular-nums">{fileSizeLabel(split[key])}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

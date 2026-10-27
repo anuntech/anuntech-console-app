@@ -65,8 +65,32 @@ export async function spaceQuota(companyId: string | null, executor: Executor = 
 }
 
 /** Used and total for each company the viewer sees (and Anuntech's space for the team). */
+/** The extensions of the meter's two named parts; the rest (and versions, uploads under way) is "Outros". */
+const MEDIA = "\\.(jpe?g|png|gif|webp|heic|heif|avif|svg|tiff?|bmp|mp4|mov|m4v|webm|avi|mkv|wmv)$";
+const DOCUMENTS = "\\.(pdf|docx?|odt|rtf|txt|md|pages|xlsx?|xlsm|csv|tsv|ods|numbers|pptx?|key|odp)$";
+
+/** What a space's files are made of, in bytes, for the storage meter (counted as spaceUsage counts). */
+async function spaceParts(companyId: string | null, used: number) {
+  const size = sql`coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}), 0)`;
+  const [row] = await db
+    .select({
+      media: sql<string>`coalesce(sum(${size}) filter (where lower(${bookmarks.fileName}) ~ ${MEDIA}), 0)`,
+      documents: sql<string>`coalesce(sum(${size}) filter (where lower(${bookmarks.fileName}) ~ ${DOCUMENTS}), 0)`,
+    })
+    .from(bookmarks)
+    .where(and(spaceIs(bookmarks.companyId, companyId), isNull(bookmarks.origin)));
+  const media = Number(row?.media ?? 0);
+  const documents = Number(row?.documents ?? 0);
+  return { media, documents, other: Math.max(0, used - media - documents) };
+}
+
 export async function spacesFor(companyIds: (string | null)[]) {
-  return Promise.all(companyIds.map(async (companyId) => ({ companyId, used: await spaceUsage(companyId), quota: await spaceQuota(companyId) })));
+  return Promise.all(
+    companyIds.map(async (companyId) => {
+      const used = await spaceUsage(companyId);
+      return { companyId, used, quota: await spaceQuota(companyId), parts: await spaceParts(companyId, used) };
+    }),
+  );
 }
 
 const startInput = z.object({
