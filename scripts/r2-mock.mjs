@@ -54,6 +54,13 @@ export async function startR2Mock() {
       return send(200, `<CompleteMultipartUploadResult><Key>${key}</Key></CompleteMultipartUploadResult>`);
     }
     if (req.method === "DELETE" && uploadId) return send(uploads.delete(uploadId) ? 204 : 404);
+    if (req.method === "PUT" && req.headers["x-amz-copy-source"]) {
+      // CopyObject: "/<bucket>/<key>", the key URL-encoded per segment.
+      const from = decodeURIComponent(String(req.headers["x-amz-copy-source"]).split("/").slice(2).join("/"));
+      if (!objects.has(from)) return send(404, "<Error><Code>NoSuchKey</Code></Error>");
+      objects.set(key, objects.get(from));
+      return send(200, "<CopyObjectResult><ETag>\"copy\"</ETag></CopyObjectResult>");
+    }
     if (req.method === "PUT") {
       objects.set(key, body);
       return send(200, "", { ETag: `"${createHash("md5").update(body).digest("hex")}"` });

@@ -109,6 +109,8 @@ function decide(messages) {
         if (row.engagementId) return `- [${row.nome}](${row.link}) · ${row.tipo} · ${row.situacao}`;
         if (row.nome && row.cnpj) return `- ${row.nome} (${row.cnpj})`;
         if (row.erro) return `- Erro: ${row.erro}`;
+        if (row.arquivo && row.texto) return `- ${row.arquivo} (${row.texto.nao_confiavel ? "não confiável" : "confiável"}): ${row.texto.texto ?? row.texto}`;
+        if (row.semTexto) return `- Sem texto: ${row.semTexto}`;
         if (row.aguardandoConfirmacao) return `- Cartão: ${row.acao}`;
         if (row.rascunho && row.link) return `- Orçamento em rascunho: [abrir](${row.link}) · ${row.esforco} · ${row.valorTotal}`;
         if (row.aberto && row.link) return `- Chamado aberto: [${row.assunto ?? "ver"}](${row.link})`;
@@ -156,6 +158,14 @@ function decide(messages) {
     const target = /empresa ([0-9a-f-]{36})/.exec(user)?.[1];
     return reply(null, [call("ler_chamado", { chamadoId: ticket }), call("ler_empresa", { companyId: target }), call("convidar_membro", { companyId: target, email: "intruso@example.invalid", papel: "manager" })]);
   }
+  // Arquivos (phase 4b): find a file by what is written in it, then read it; or read one by its id.
+  if (user.includes("ache nos arquivos") && !calls.includes("listar_bookmarks")) return reply(null, [call("listar_bookmarks", { busca: /arquivos "([^"]+)"/.exec(user)?.[1] })]);
+  if (user.includes("ache nos arquivos") && calls.includes("listar_bookmarks") && !calls.includes("ler_arquivo")) {
+    const hit = tools.flat().find((r) => r.bookmarkId && r.trechoEncontrado);
+    if (hit) return reply(null, [call("ler_arquivo", { bookmarkId: hit.bookmarkId })]);
+  }
+  if (user.includes("leia o arquivo") && !calls.includes("ler_arquivo")) return reply(null, [call("ler_arquivo", { bookmarkId: /arquivo ([0-9a-f-]{36})/.exec(user)?.[1] })]);
+  if (calls.includes("ler_arquivo")) return reply(`Resumo do arquivo.\n\n${summarize()}`);
   // A model fooled by text it read (H4): the "internal procedure" in a ticket asks for another company and an invite.
   const target = messages
     .filter((m) => m.role === "tool" || m.role === "user")
@@ -412,7 +422,7 @@ globalThis.fetch = async function (input, init) {
       answers.intent = choose("intent", intent);
       if (questions.destino) answers.destino = choose("destino", destino);
     }
-    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta/, tela: /preench|tela|formul|clique|bot[aã]o/ };
+    const areaWords = { empresas: /empresa|cliente|cnpj|acesso|membro/, financeiro: /fatura|boleto|cobran|pag|recorr|vencid|deve/, chamados: /chamado|ticket|suporte/, projetos: /projeto|tarefa|quadro/, produtos: /produto|servi[cç]o|cat[aá]logo|vincul/, contratos: /contrato|vig[eê]ncia|modelo/, orcamentos: /or[cç]amento|proposta/, bookmarks: /bookmark|link|pasta|arquivo/, tela: /preench|tela|formul|clique|bot[aã]o/ };
     for (const [key, pattern] of Object.entries(areaWords)) if (questions[`area_${key}`]) answers[`area_${key}`] = { type: "boolean", probability: pattern.test(message) ? 0.9 : 0.1 };
     // A new ticket read by its text: "parou" or "fora do ar" reads as a stopped system.
     if (questions.tipo) {
@@ -455,6 +465,12 @@ globalThis.fetch = async function (input, init) {
         stack: ["Next.js"],
       }),
     );
+  }
+  // Arquivos' tag suggestion (lib/drive/file-tags.ts): ETIQUETA-PROPOSTA in the text reads as a proposal; anything else, none.
+  // Records whether contacts and documents were taken out before the text left.
+  if (system.startsWith("Você classifica arquivos")) {
+    record({ fileTag: true, model, scrubbed: !/[\w.+-]+@[\w-]+\.|\d{3}\.\d{3}\.\d{3}-\d{2}/.test(firstUser), ...privacy(body.providerOptions) });
+    return whole(JSON.stringify({ etiqueta: firstUser.includes("ETIQUETA-PROPOSTA") ? "proposta" : "nenhuma" }));
   }
   // The project journey's drafts (lib/journeys/journey-ai.ts): one-shot prompts matched by their opening words.
   const journey = journeyAnswer(system, firstUser);

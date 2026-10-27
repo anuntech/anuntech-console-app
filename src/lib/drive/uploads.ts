@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
-import { bookmarks, companies, fileUploads } from "@/db/schema";
+import { bookmarks, companies, fileUploads, fileVersions } from "@/db/schema";
 import { db } from "../db";
 import type { Actor } from "../access/access";
 import { companyAllowed, loadFolder, usable } from "../bookmarks/bookmark-core";
@@ -13,11 +13,12 @@ import {
   bytesLabel,
   cleanFileName,
   partCountFor,
+  partLengthFor,
   partSizeFor,
   storageKeyFor,
   uploadRefusal,
 } from "./drive-rules";
-import { abortMultipart, completeMultipart, deleteObject, objectSize, partUrl, startMultipart, StorageError } from "./r2";
+import { abortMultipart, completeMultipart, deleteObject, objectSize, partUrl, removeStoredFiles, startMultipart, StorageError } from "./r2";
 
 /*
  * A file's way into Arquivos: started here (access, size, quota), sent by
@@ -31,20 +32,29 @@ const fail = (error: string, status = 400): UploadResult<never> => ({ ok: false,
 const notFound = () => fail("Não encontrado.", 404);
 
 type Executor = Pick<typeof db, "select">;
-const spaceIs = (column: typeof bookmarks.companyId | typeof fileUploads.companyId, companyId: string | null) =>
+const spaceIs = (column: typeof bookmarks.companyId | typeof fileUploads.companyId | typeof fileVersions.companyId, companyId: string | null) =>
   companyId ? eq(column, companyId) : isNull(column);
 
-/** Bytes a space holds: its files (in R2 and the older ones in the database) and the uploads under way. */
+/**
+ * Bytes a space holds: its files (in R2 and the older ones in the database)
+ * and the uploads under way. The copies the Console files itself (signed
+ * contracts, deliveries: lib/drive/console-files.ts) are not the company's to
+ * spend, so they are left out.
+ */
 export async function spaceUsage(companyId: string | null, executor: Executor = db) {
   const [files] = await executor
     .select({ n: sql<string>`coalesce(sum(coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}), 0)), 0)` })
     .from(bookmarks)
-    .where(spaceIs(bookmarks.companyId, companyId));
+    .where(and(spaceIs(bookmarks.companyId, companyId), isNull(bookmarks.origin)));
+  const [versions] = await executor
+    .select({ n: sql<string>`coalesce(sum(${fileVersions.fileSize}), 0)` })
+    .from(fileVersions)
+    .where(spaceIs(fileVersions.companyId, companyId));
   const [pending] = await executor
     .select({ n: sql<string>`coalesce(sum(${fileUploads.size}), 0)` })
     .from(fileUploads)
     .where(and(spaceIs(fileUploads.companyId, companyId), inArray(fileUploads.status, ["uploading", "completed"]), gt(fileUploads.expiresAt, new Date())));
-  return Number(files.n) + Number(pending.n);
+  return Number(files.n) + Number(versions.n) + Number(pending.n);
 }
 
 /** A company's space; Anuntech's own (null) has no limit. */
@@ -55,8 +65,32 @@ export async function spaceQuota(companyId: string | null, executor: Executor = 
 }
 
 /** Used and total for each company the viewer sees (and Anuntech's space for the team). */
+/** The extensions of the meter's two named parts; the rest (and versions, uploads under way) is "Outros". */
+const MEDIA = "\\.(jpe?g|png|gif|webp|heic|heif|avif|svg|tiff?|bmp|mp4|mov|m4v|webm|avi|mkv|wmv)$";
+const DOCUMENTS = "\\.(pdf|docx?|odt|rtf|txt|md|pages|xlsx?|xlsm|csv|tsv|ods|numbers|pptx?|key|odp)$";
+
+/** What a space's files are made of, in bytes, for the storage meter (counted as spaceUsage counts). */
+async function spaceParts(companyId: string | null, used: number) {
+  const size = sql`coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}), 0)`;
+  const [row] = await db
+    .select({
+      media: sql<string>`coalesce(sum(${size}) filter (where lower(${bookmarks.fileName}) ~ ${MEDIA}), 0)`,
+      documents: sql<string>`coalesce(sum(${size}) filter (where lower(${bookmarks.fileName}) ~ ${DOCUMENTS}), 0)`,
+    })
+    .from(bookmarks)
+    .where(and(spaceIs(bookmarks.companyId, companyId), isNull(bookmarks.origin)));
+  const media = Number(row?.media ?? 0);
+  const documents = Number(row?.documents ?? 0);
+  return { media, documents, other: Math.max(0, used - media - documents) };
+}
+
 export async function spacesFor(companyIds: (string | null)[]) {
-  return Promise.all(companyIds.map(async (companyId) => ({ companyId, used: await spaceUsage(companyId), quota: await spaceQuota(companyId) })));
+  return Promise.all(
+    companyIds.map(async (companyId) => {
+      const used = await spaceUsage(companyId);
+      return { companyId, used, quota: await spaceQuota(companyId), parts: await spaceParts(companyId, used) };
+    }),
+  );
 }
 
 const startInput = z.object({
@@ -137,7 +171,7 @@ export async function signParts(actor: Actor, uploadId: string, raw: unknown): P
   const count = partCountFor(row.size, row.partSize);
   const parsed = z.array(z.number().int().min(1).max(count)).min(1).max(PART_URL_BATCH).safeParse(raw);
   if (!parsed.success) return fail("Partes inválidas.");
-  const urls = await Promise.all(parsed.data.map(async (partNumber) => ({ partNumber, url: await partUrl(row.storageKey, row.multipartId, partNumber) })));
+  const urls = await Promise.all(parsed.data.map(async (partNumber) => ({ partNumber, url: await partUrl(row.storageKey, row.multipartId, partNumber, partLengthFor(row.size, row.partSize, partNumber)) })));
   return { ok: true, value: urls };
 }
 
@@ -165,6 +199,8 @@ export async function finishUpload(actor: Actor, uploadId: string, raw: unknown)
     }
   } catch (error) {
     console.error("[arquivos] finish failed", error instanceof StorageError ? error.message : error);
+    // Joined but not checked: nothing is left in R2 that no row will ever remove.
+    await deleteObject(row.storageKey).catch(() => undefined);
     return fail("Não foi possível concluir o envio agora. Tente de novo.", 502);
   }
   await db.update(fileUploads).set({ status: "completed" }).where(and(eq(fileUploads.id, row.id), eq(fileUploads.status, "uploading")));
@@ -179,4 +215,18 @@ export async function cancelUpload(actor: Actor, uploadId: string): Promise<Uplo
   if (row.status === "completed") await deleteObject(row.storageKey).catch(() => undefined);
   await db.update(fileUploads).set({ status: "aborted" }).where(eq(fileUploads.id, row.id));
   return { ok: true, value: null };
+}
+
+/**
+ * The daily routine's second part: uploads past their time that never became
+ * an item. A finished one left its object in R2 (removed here); an unfinished
+ * one is aborted by the bucket's lifecycle rule. The rows go either way.
+ */
+export async function clearStaleUploads(now = new Date()) {
+  const stale = await db
+    .delete(fileUploads)
+    .where(and(lt(fileUploads.expiresAt, now), inArray(fileUploads.status, ["uploading", "completed", "aborted"])))
+    .returning({ storageKey: fileUploads.storageKey, status: fileUploads.status });
+  await removeStoredFiles(stale.filter((u) => u.status === "completed").map((u) => u.storageKey));
+  return stale.length;
 }

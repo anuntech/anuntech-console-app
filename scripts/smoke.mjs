@@ -693,7 +693,7 @@ try {
     await submitForm("/bookmarks", "support", "finance", { action: "deleteBookmark" }, { id: bookmark.id });
     ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 1, "Outro membro não remove bookmark de terceiro");
     await submitForm("/bookmarks", "support", "support", { action: "deleteBookmark" }, { id: bookmark.id });
-    ok((await database.query("select id from console_bookmarks where id=$1", [bookmark.id])).rowCount === 0, "Autor pode remover seu bookmark");
+    ok((await database.query("select id from console_bookmarks where id=$1 and deleted_at is not null", [bookmark.id])).rowCount === 1, "Autor pode remover seu bookmark (vai para a lixeira)");
     const boardTitle = `Lousa ${marker}`;
     await submitForm("/bookmarks", "support", "support", { action: "saveBookmark" }, { companyId: ids.a, engagementId: "", title: boardTitle, url: "", kind: "board" });
     const board = (await database.query("select id, board from console_bookmarks where title=$1", [boardTitle])).rows[0];
@@ -2218,7 +2218,7 @@ try {
     await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
     await runBillingExtrasTests({ database, ids, people, request, submitForm, sentNotices, flags, ok, marker });
     await runSuspensionTests({ database, people, request, submitForm, sentNotices, ok, marker, companyIds });
-    await runArquivosTests({ database, ids, request, submitForm, ok, marker, base, r2 });
+    await runArquivosTests({ database, ids, people, request, submitForm, ok, marker, base, r2, notFoundPage, aiFile, sentNotices });
     await runJourneyTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });
     await runAppsTests({ database, ids, people, request, ok, marker, base, notFoundPage, passKeyId });
     await runCatalogIconTests({ database, ids, people, request, submitForm, ok, marker, base, notFoundPage });

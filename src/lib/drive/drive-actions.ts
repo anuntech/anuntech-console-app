@@ -8,6 +8,10 @@ import type { ActionState } from "../action-state";
 import { DATABASE_FAILURE, logDatabaseFault } from "../action-errors";
 import { db } from "../db";
 import { DEFAULT_COMPANY_QUOTA_BYTES, bytesLabel } from "./drive-rules";
+import { cookies, headers } from "next/headers";
+import { reserveHourly } from "../http/hourly-limit";
+import { UNLOCK_HOURS, createShareLinkAs, linkByToken, passwordMatches, revokeShareLinkAs, shareLinksFor, unlockCookieName, unlockValue } from "./share-links";
+import { SHARE_LIMITS } from "./share-rules";
 
 const GB = 1024 ** 3;
 
@@ -40,4 +44,38 @@ export async function setStorageQuota(_: ActionState, form: FormData): Promise<A
   revalidatePath(`/empresas/${parsed.data.companyId}`);
   revalidatePath("/bookmarks");
   return { success: `Espaço em Arquivos: ${bytesLabel(quota ?? DEFAULT_COMPANY_QUOTA_BYTES)}${quota === null ? " (o padrão)" : ""}.` };
+}
+
+/** "Compartilhar por link…" and "Pedir arquivos…": returns the address once (only its hash is kept). */
+export async function createShareLink(input: Record<string, string> | ActionState | null, form?: FormData) {
+  const actor = await getActor();
+  // Called from the dialog with an object, or posted as a form (the integration suite).
+  const result = await createShareLinkAs(actor, form ? Object.fromEntries(form) : input);
+  if (result.url) revalidatePath("/bookmarks");
+  return result;
+}
+
+export async function listShareLinks(target: { bookmarkId?: string; folderId?: string }) {
+  const actor = await getActor();
+  return shareLinksFor(actor, target);
+}
+
+export async function revokeShareLink(linkId: string | ActionState | null, form?: FormData) {
+  const actor = await getActor();
+  return revokeShareLinkAs(actor, form ? String(form.get("id") ?? "") : String(linkId ?? ""));
+}
+
+/** A visitor types a link's password: right, and the link stays open in that browser for 12 hours. */
+export async function unlockShareLink(_: ActionState, form: FormData): Promise<ActionState> {
+  const token = String(form.get("token") ?? "");
+  const password = String(form.get("password") ?? "");
+  const link = await linkByToken(token);
+  if (!link?.passwordHash) return { error: "Link não encontrado." };
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  // Per browser address and per link, so changing addresses does not buy more guesses.
+  if (!(await reserveHourly("share-password", `${link.id}:${ip}`, SHARE_LIMITS.password)) || !(await reserveHourly("share-password-link", link.id, SHARE_LIMITS.passwordPerLink)))
+    return { error: "Muitas tentativas nesta hora. Tente de novo mais tarde." };
+  if (!(await passwordMatches(password, link.passwordHash))) return { error: "Senha incorreta." };
+  (await cookies()).set(unlockCookieName(link), unlockValue(link), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: UNLOCK_HOURS * 3600 });
+  return { success: "Link aberto." };
 }

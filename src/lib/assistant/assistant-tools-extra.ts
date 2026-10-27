@@ -39,12 +39,16 @@ import { saveCompanyMember } from "../access/members-actions";
 import { logTime } from "../service-terms/hours-actions";
 import { addressLabel } from "../companies/company-billing";
 import { formatDocument, formatPhone } from "../companies/company-input";
-import { currency, engagementLabels, priorityLabels, roleLabels, ticketLabels } from "../format";
+import { currency, engagementLabels, fileSizeLabel, priorityLabels, roleLabels, ticketLabels } from "../format";
 import { quoteTotals, type QuoteContent } from "../quotes/quote-model";
 import { estimateLabel, minutesToHours, TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
 import { civilDate, id, limit, reais, resolvePeople, scopeOf, submit, tool, ToolError, untrusted, within, fold } from "./assistant-tools-kit";
 import { projectPeople } from "../projects/tasks";
-import { bookmarksFor, foldersFor, scopeOf as bookmarkScope } from "../bookmarks/bookmarks";
+import { bookmarkFor, bookmarksFor, foldersFor, scopeOf as bookmarkScope } from "../bookmarks/bookmarks";
+import { fileTextOf } from "../drive/file-index";
+import { MARK_CLOSE, MARK_OPEN } from "../drive/text-excerpt";
+import { TEXT_MAX_CHARS } from "../drive/text-rules";
+import { TAG_SLUGS, tagLabels } from "../drive/tag-rules";
 
 const invoiceSituation = (status: string, dueDate: string, today: string) =>
   status === "paid" ? "paga" : status === "cancelled" ? "cancelada" : status === "draft" ? "rascunho (não emitida)" : dueDate < today ? "vencida" : "em aberto";
@@ -256,18 +260,25 @@ const listSubscriptions = tool({
   },
 });
 
+// Text inside a file (lib/drive/file-index.ts) is someone's writing; Anuntech's own space also receives files from outside (request links).
+const fileOrigin = (companyId: string | null) => companyId ?? "anuntech:arquivos";
+const unmarked = (excerpt: string) => excerpt.replaceAll(MARK_OPEN, "").replaceAll(MARK_CLOSE, "");
+/** How much of a file's text goes to the model at a time (about 8,000 tokens); `inicio` asks for the next part. */
+const FILE_TEXT_PART = 30_000;
+
 const listBookmarks = tool({
   name: "listar_bookmarks",
   area: "bookmarks",
-  description: "Os bookmarks (links, arquivos e lousas guardados) que a pessoa vê, com pasta e empresa; aceita uma busca por título ou endereço.",
-  input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), limite: limit(20) }),
-  run: async (ctx, { companyId, busca, limite }) => {
+  description:
+    "Os itens de Arquivos (arquivos, links e lousas) que a pessoa vê, com pasta e empresa. A busca procura no título, no endereço, no nome do arquivo e também no texto dentro de PDFs, Word, Excel, PowerPoint e textos (palavras inteiras, sem acento); quando achou no texto, devolve o trecho. Filtra também por etiqueta (contrato, proposta, nota-fiscal, boleto, comprovante, relatorio, apresentacao, planilha, marca, foto, video, documento-pessoal, ata, briefing). Para ler ou resumir um arquivo, use ler_arquivo com o bookmarkId.",
+  input: z.object({ companyId: id.optional(), busca: z.string().trim().max(80).optional(), etiqueta: z.enum(TAG_SLUGS).optional(), limite: limit(20) }),
+  run: async (ctx, { companyId, busca, etiqueta, limite }) => {
     const { actor } = ctx;
     if (companyId && !canAccess(actor, companyId, "overview")) throw new ToolError("Você não tem acesso a essa empresa.");
     // The rule of the Bookmarks page: folders shared with chosen people stay out for everyone else.
     const scope = bookmarkScope(actor);
     const folders = await foldersFor(scope, companyId ?? "all");
-    const page = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: busca ?? "", company: companyId ?? "all" }, { page: 1, pageSize: limite });
+    const page = await bookmarksFor(scope, folders.map((f) => f.id), { folder: "all", search: busca ?? "", company: companyId ?? "all", tag: etiqueta ?? "" }, { page: 1, pageSize: limite });
     const folderName = new Map(folders.map((f) => [f.id, f.name]));
     const companyName = new Map(folders.flatMap((f) => (f.companyId && f.company ? [[f.companyId, f.company] as const] : [])));
     const missing = [...new Set(page.items.map((b) => b.companyId).filter((c): c is string => !!c && !companyName.has(c)))];
@@ -280,12 +291,50 @@ const listBookmarks = tool({
         titulo: b.companyId ? untrusted(ctx, b.companyId, `título do bookmark ${b.id}`, b.title) : b.title,
         url: b.url,
         arquivo: b.fileName,
+        tamanho: b.fileSize ? fileSizeLabel(b.fileSize) : null,
+        etiqueta: b.tag ? tagLabels[b.tag] : null,
         lousa: !!b.board,
         pasta: b.folderId ? (folderName.get(b.folderId) ?? null) : null,
         empresa: b.companyId ? (companyName.get(b.companyId) ?? null) : "Anuntech",
+        trechoEncontrado: b.excerpt ? untrusted(ctx, fileOrigin(b.companyId), `trecho do arquivo ${b.id}`, unmarked(b.excerpt)) : undefined,
         link: b.board ? `/bookmarks/${b.id}/lousa` : (b.url ?? `/api/bookmarks/${b.id}`),
       })),
-      summary: "Consultei os bookmarks",
+      summary: busca ? `Busquei "${busca}" em Arquivos` : "Consultei os arquivos",
+    };
+  },
+});
+
+const readFile = tool({
+  name: "ler_arquivo",
+  area: "bookmarks",
+  description:
+    "O texto de dentro de um arquivo de Arquivos (PDF, Word, Excel, PowerPoint, LibreOffice, HTML ou texto), para responder sobre ele ou resumir. Use o bookmarkId de listar_bookmarks. Textos longos vêm em partes: se `continua` vier com um número, chame de novo com `inicio` igual a ele para ler o resto. Imagens, vídeos e PDFs escaneados não têm texto.",
+  input: z.object({ bookmarkId: id, inicio: z.number().int().min(0).default(0) }),
+  run: async (ctx, { bookmarkId, inicio }) => {
+    const item = await bookmarkFor(ctx.actor, bookmarkId);
+    if (!item) throw new ToolError("Arquivo não encontrado, ou você não tem acesso a ele.");
+    if (!item.fileName) throw new ToolError("Este item é um link ou uma lousa, não um arquivo.");
+    const found = await fileTextOf(item.id);
+    const link = `/bookmarks?q=${encodeURIComponent(item.title)}`;
+    if (!found || found.status !== "done" || !found.text)
+      return {
+        result: { titulo: item.title, arquivo: item.fileName, semTexto: found?.reason ?? "O texto deste arquivo ainda não foi lido. Tente de novo em alguns minutos.", link },
+        summary: `Abri "${item.title}", sem texto para ler`,
+      };
+    const part = found.text.slice(inicio, inicio + FILE_TEXT_PART);
+    const next = inicio + FILE_TEXT_PART < found.text.length ? inicio + FILE_TEXT_PART : null;
+    return {
+      result: {
+        titulo: item.companyId ? untrusted(ctx, item.companyId, `título do bookmark ${item.id}`, item.title) : item.title,
+        arquivo: item.fileName,
+        texto: untrusted(ctx, fileOrigin(item.companyId), `texto do arquivo ${item.id}`, part),
+        caracteres: found.text.length,
+        continua: next,
+        // The search keeps the first 100,000 characters (about 40 pages) of a very long file.
+        aviso: found.text.length >= TEXT_MAX_CHARS ? "O Console guarda só o começo dos arquivos muito longos (cerca de 40 páginas)." : undefined,
+        link,
+      },
+      summary: `Li "${item.title}"`,
     };
   },
 });
@@ -845,6 +894,7 @@ export const extraTools = [
   readInvoice,
   listSubscriptions,
   listBookmarks,
+  readFile,
   listCatalog,
   listContractTemplates,
   listBillingNotices,

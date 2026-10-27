@@ -1,0 +1,4 @@
+ALTER TABLE "console_bookmarks" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "console_bookmarks" ADD COLUMN IF NOT EXISTS "deleted_by" text;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "console_bookmarks" ADD CONSTRAINT "console_bookmarks_deleted_by_console_user_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."console_user"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN null; END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "console_bookmark_deleted_idx" ON "console_bookmarks" USING btree ("deleted_at");

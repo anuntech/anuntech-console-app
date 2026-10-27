@@ -170,7 +170,7 @@ export async function bookmarksChecks({ db, rpc, ok, marker, emailSignIn, staff,
     ok(refused(await rpc("bookmarks.remove", { id: loose }, peer), blocked), "A colleague cannot delete someone else's bookmark");
     ok((await rpc("bookmarks.remove", { id: loose }, elsewhere)).status === 404, "Deleting another company's bookmark answers 404");
     r = await rpc("bookmarks.remove", { id: loose }, membro);
-    ok(r.status === 200 && r.body.message === "Bookmark excluído." && !(await row(loose)), "The author deletes the bookmark");
+    ok(r.status === 200 && r.body.message === "Movido para a lixeira. Fica lá por 30 dias." && !!(await row(loose))?.deleted_at, "The author deletes the bookmark (into the trash)");
 
     // Paging beyond one page.
     const many = Array.from({ length: 27 }, () => randomUUID());

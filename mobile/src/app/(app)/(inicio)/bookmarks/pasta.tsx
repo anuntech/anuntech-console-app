@@ -21,11 +21,12 @@ type Visibility = "company" | "people";
 
 /** "Nova pasta" (company, name, who sees it) or, with `id`, "Renomear pasta" (only the name). */
 export default function FolderScreen() {
-  const params = useLocalSearchParams<{ id?: string; companyId?: string }>();
+  const params = useLocalSearchParams<{ id?: string; companyId?: string; parentId?: string }>();
   const choices = useBookmarkChoices();
   const loading = useDelayed(choices.isPending);
   const folder = params.id ? choices.data?.folders.find((f) => f.id === params.id) : undefined;
   const title = params.id ? "Renomear pasta" : "Nova pasta";
+  const parent = params.parentId ? choices.data?.folders.find((f) => f.id === params.parentId) : undefined;
   if (params.id && choices.data && (!folder || !folder.manages))
     return (
       <>
@@ -48,7 +49,8 @@ export default function FolderScreen() {
           key={folder?.id ?? "new"}
           folder={folder ? { id: folder.id, name: folder.name } : null}
           companies={choices.data.companies}
-          initialCompany={params.companyId ?? ""}
+          initialCompany={parent?.companyId ?? params.companyId ?? ""}
+          parent={parent ? { id: parent.id, name: parent.name } : null}
         />
       ) : (
         <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ paddingTop: space.sm, gap: space.block }}>
@@ -68,10 +70,13 @@ function FolderForm({
   folder,
   companies,
   initialCompany,
+  parent,
 }: {
   folder: { id: string; name: string } | null;
   companies: { id: string; name: string }[];
   initialCompany: string;
+  /** Inside this folder: its company, and who sees it, come from it. */
+  parent: { id: string; name: string } | null;
 }) {
   const [name, setName] = useState(folder?.name ?? "");
   const [picked, setCompany] = useState(companies.some((c) => c.id === initialCompany) ? initialCompany : "");
@@ -82,7 +87,7 @@ function FolderForm({
     mutationFn: () =>
       folder
         ? api.bookmarks.renameFolder({ id: folder.id, name: name.trim() })
-        : api.bookmarks.createFolder({ companyId, name: name.trim(), visibility }),
+        : api.bookmarks.createFolder({ companyId, name: name.trim(), visibility, parentId: parent?.id ?? "" }),
     onSuccess: async ({ message }) => {
       haptic.success();
       showFlash(message);
@@ -120,9 +125,9 @@ function FolderForm({
         contentContainerStyle={{ paddingTop: space.sm, gap: space.block, paddingBottom: space.xxl }}
       >
         <Text variant="subhead" tone="muted" style={{ marginHorizontal: space.gutter + 4 }}>
-          {folder ? "Só o nome muda." : "Reúna os bookmarks de uma empresa."}
+          {folder ? "Só o nome muda." : parent ? `Dentro de “${parent.name}”. Quem vê segue a pasta de cima.` : "Reúna os arquivos, links e lousas de uma empresa."}
         </Text>
-        {!folder ? <CompanyPicker companies={companies} value={companyId} onChange={setCompany} /> : null}
+        {!folder && !parent ? <CompanyPicker companies={companies} value={companyId} onChange={setCompany} /> : null}
         <View style={{ paddingHorizontal: space.gutter }}>
           <Field
             label="Nome"
@@ -135,7 +140,7 @@ function FolderForm({
             invalid={tried && !name.trim()}
           />
         </View>
-        {!folder ? (
+        {!folder && !parent ? (
           <Section header="Quem vê" footer="Pessoas escolhidas você define depois, em Compartilhar." inset={space.gutter} indent={space.lg}>
             {option("company", "Todos da empresa")}
             {option("people", "Só pessoas escolhidas")}

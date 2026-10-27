@@ -1,5 +1,5 @@
 "use client";
-import { useRef, type MouseEvent, type ReactNode } from "react";
+import { useRef, type DragEvent, type MouseEvent, type ReactNode } from "react";
 import { useFillViewport } from "@/components/console/fill-viewport";
 import { useInCard } from "@/components/console/list-grid";
 import Link from "next/link";
@@ -165,8 +165,11 @@ export function LinkRow({
   external = false,
   onOpen,
   className,
+  onDragStart,
   children,
 }: {
+  /** The row can be dragged (Arquivos: onto a folder); the handler fills the drag's data. */
+  onDragStart?: (event: DragEvent<HTMLTableRowElement>) => void;
   /** Without a destination (and no `onOpen`) the row is a plain row. */
   href?: string | null;
   /** Opens the record in place instead (a sheet, a download). */
@@ -197,9 +200,10 @@ export function LinkRow({
     if (event.metaKey || event.ctrlKey) return void window.open(href, "_blank");
     router.push(href);
   };
-  if (!href && !onOpen) return <TableRow className={className}>{children}</TableRow>;
+  const drag = onDragStart ? { draggable: true, onDragStart } : {};
+  if (!href && !onOpen) return <TableRow className={className} {...drag}>{children}</TableRow>;
   return (
-    <TableRow className={cn("cursor-pointer", className)} onPointerDownCapture={noteMenu} onClick={open}>
+    <TableRow className={cn("cursor-pointer", className)} onPointerDownCapture={noteMenu} onClick={open} {...drag}>
       {children}
     </TableRow>
   );

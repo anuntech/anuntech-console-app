@@ -63,7 +63,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             kind: "steps",
             items: [
               "Em [Arquivos](/bookmarks), abra a pasta onde os arquivos devem ficar.",
-              "Arraste os arquivos do seu computador para a lista, ou clique em “Enviar arquivos” e selecione vários.",
+              "Arraste os arquivos do seu computador para a lista, ou clique em “Enviar” e selecione vários.",
               "Cada arquivo vira um item com o nome do arquivo como título. No canto da tela aparece o andamento de cada um.",
             ],
           },
@@ -129,8 +129,15 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             kind: "list",
             items: [
               "Em telas a partir de 1024 px de largura, a coluna da esquerda mostra “Todos”, “Sem pasta” e, em “Pastas”, cada pasta com o número de itens. Em telas menores, como no celular, escolha a pasta no seletor acima da lista, que começa em “Todos os bookmarks”.",
-              "O campo “Buscar por título, link ou nome do arquivo” procura no título, no endereço do link e no nome do arquivo.",
+              "O campo “Buscar pelo nome ou pelo que está escrito no arquivo” procura no título, no endereço do link, no nome do arquivo e no texto de dentro de PDFs, documentos do Word, planilhas do Excel, apresentações do PowerPoint, arquivos do LibreOffice e textos. Para buscar no texto, digite pelo menos 3 letras; acentos não fazem diferença. Quando a palavra está dentro do arquivo, o item mostra o trecho com ela destacada.",
+              "Ao lado da busca, “Todos os tipos” filtra por arquivos, links, lousas, PDF, imagens, vídeos, documentos, planilhas ou apresentações; “Mais recentes” muda a ordem (mais antigos, nome ou tamanho); e “Só os meus” mostra só o que você adicionou.",
               "Os ícones “Lista” e “Grade”, ao lado da busca, mudam a forma de mostrar. A escolha fica guardada neste navegador.",
+              "Na “Grade”, cada cartão mostra o arquivo: fotos aparecem direto (o Console prepara uma miniatura alguns segundos depois do envio), vídeos mostram o primeiro quadro, PDFs e documentos mostram o começo da página, e os outros tipos mostram o ícone com a extensão. Ao passar o mouse, aparecem os botões de ver, baixar e compartilhar por link.",
+              "Clique na estrela de um cartão (ou em “Marcar com estrela”, no menu “…”) para achar o item depois em “Com estrela”, na coluna da esquerda. A estrela é só sua. “Recentes” mostra o que você adicionou, mudou ou abriu nos últimos 30 dias.",
+              "Clicar num arquivo abre a prévia com os detalhes ao lado (tipo, tamanho, pasta, etiqueta, quem adicionou e quando). As setas, ou as teclas ← e →, passam para o arquivo anterior e o próximo da lista. Arquivos sem prévia mostram o ícone e o botão “Baixar”.",
+              "No menu “…”: “Renomear” muda só o nome, e “Copiar link” copia o endereço do item no Console, que só abre para quem já tem acesso. Para mandar a alguém sem conta, use “Compartilhar por link”.",
+              "Para fazer algo com vários itens, marque a caixa ao lado de cada um (na grade, ela aparece ao passar o mouse). Na barra que aparece em cima: “Baixar” (vários arquivos vêm num .zip), “Mover para…” e “Lixeira”. Você também pode arrastar um item, ou os marcados, até uma pasta na coluna da esquerda.",
+              "“Copiar para…”, no menu “…” do item, faz uma cópia numa pasta que você escolher, inclusive de outra empresa sua. O original fica onde está, e o arquivo copiado ocupa o espaço da empresa de destino.",
               "Clique no item: um link abre em outra aba, uma lousa abre no Console, e um arquivo abre na prévia quando é imagem, PDF, vídeo, áudio ou texto; os outros tipos são baixados.",
             ],
           },
@@ -149,21 +156,129 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
               "Clique em “…” no bookmark.",
               "“Editar” muda o “Título”, o “Link” (em bookmark de link) e a “Pasta”. Clique em “Salvar”.",
               "“Mover para” leva o bookmark para outra pasta que você vê ou para “Sem pasta”.",
-              "“Excluir” pergunta “Excluir bookmark?” e apaga quando você clica em “Excluir”. O mesmo botão aparece dentro de “Editar bookmark”.",
+              "“Excluir” pergunta “Mover para a lixeira?” e move quando você confirma. O mesmo botão aparece dentro de “Editar bookmark”.",
             ],
           },
           {
             kind: "p",
-            text: "Editar, mover e excluir ficam com quem adicionou o bookmark, com quem criou a pasta onde ele está e com a equipe da Anuntech. As outras pessoas veem no menu só a opção de abrir ou baixar. Ser Administrador da empresa não dá esse direito em Bookmarks.",
+            text: "Em “Editar”, a seção “Atividade” mostra quem adicionou, editou, enviou versão, criou link, baixou e o que chegou pelo link externo, com data e hora. Ela aparece para quem pode editar o item. Editar, mover e excluir ficam com quem adicionou o bookmark, com quem criou a pasta onde ele está e com a equipe da Anuntech. As outras pessoas veem no menu só a opção de abrir ou baixar. Ser Administrador da empresa não dá esse direito em Bookmarks.",
           },
           {
             kind: "p",
-            text: "O arquivo de um bookmark não pode ser trocado: em “Editar” você muda só o título e a pasta. Para trocar o arquivo, exclua o bookmark e adicione de novo.",
+            text: "Para trocar o arquivo, abra “Editar” e, em “Versões”, clique em “Enviar nova versão”. O arquivo novo passa a ser o do item e o anterior fica guardado como “Versão 1”, “Versão 2” e assim por diante. Em cada versão, o botão de download baixa aquele arquivo e o de restaurar faz ele voltar a ser o atual (o que estava vira uma versão, nada se perde). Enviar e restaurar versões fica com quem pode editar o item. As versões ocupam o espaço da empresa e saem junto com o item quando ele é excluído de vez.",
+          },
+        ],
+      },
+      {
+        title: "Contratos e entregas que chegam sozinhos",
+        blocks: [
+          {
+            kind: "p",
+            text: "Alguns arquivos o Console guarda sozinho na sua empresa, em até 15 minutos:",
+          },
+          {
+            kind: "list",
+            items: [
+              "Na pasta “Contratos”, o PDF de cada contrato assinado por todos. Ela só aparece para os Administradores da empresa, que são quem vê os contratos no Console.",
+              "Na pasta “Entregas”, uma pasta por projeto, com os arquivos das tarefas que chegaram em Revisão ou foram concluídas. Cada pasta de projeto só aparece para quem vê aquele projeto.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "São cópias: o contrato e a tarefa continuam onde estão, e as cópias não ocupam o espaço da empresa. Essas pastas são mantidas pelo Console, então não podem ser excluídas, movidas nem compartilhadas. Pastas criadas dentro delas seguem a mesma regra de quem vê, e o que está nelas só pode ir para outra pasta com a mesma regra. Se o projeto for excluído, a pasta dele e as cópias saem junto. Antes, a equipe tira os arquivos que alguém tenha colocado ali.",
+          },
+        ],
+      },
+      {
+        title: "Etiquetas",
+        blocks: [
+          {
+            kind: "p",
+            text: "Cada arquivo pode ter uma etiqueta: Contrato, Proposta, Nota fiscal, Boleto, Comprovante, Relatório, Apresentação, Planilha, Marca e logo, Foto, Vídeo, Documento pessoal, Ata ou Briefing. O Console sugere uma sozinho, pelo nome, pelo tipo e pelo começo do texto do arquivo, alguns segundos depois de salvar. A etiqueta aparece ao lado do nome do arquivo.",
+          },
+          {
+            kind: "list",
+            items: [
+              "Acima da lista, clique numa etiqueta para ver só os itens com ela. “Todas as etiquetas” volta a mostrar tudo.",
+              "Para trocar ou tirar, abra “Editar” e escolha em “Etiqueta”. A sua escolha fica, mesmo quando chega uma nova versão do arquivo.",
+              "Trocar a etiqueta fica com quem pode editar o item.",
+            ],
           },
           {
             kind: "note",
             tone: "attention",
-            text: "Excluir não tem volta. O bookmark sai da lista junto com o arquivo ou com o desenho da lousa, e não pode ser recuperado.",
+            text: "Quando o nome e o tipo não bastam, a IA do Console lê o título e o começo do texto, sem e-mails, telefones e documentos, para escolher uma etiqueta da lista. O provedor não guarda o texto nem treina com ele.",
+          },
+        ],
+      },
+      {
+        title: "Compartilhar por link",
+        blocks: [
+          {
+            kind: "p",
+            text: "Para mandar um arquivo ou uma pasta a alguém que não tem conta no Console, clique em “…” e em “Compartilhar por link…”. Quem receber o endereço vê os arquivos e baixa, sem entrar. Numa pasta, o link leva também os arquivos das pastas de dentro.",
+          },
+          {
+            kind: "list",
+            items: [
+              "“Vale por”: 1, 7 (o padrão), 30 ou 90 dias, ou “Sem prazo”.",
+              "“Limite de downloads”: depois desse número de downloads, o link para. Vazio, não tem limite.",
+              "“Senha”: opcional, de 6 a 100 caracteres. Antes da senha, a página não mostra nem o nome do que foi compartilhado. Mande a senha por outro canal, não junto do link.",
+              "“Enviar o link por e-mail”: opcional. O Console manda o endereço para a pessoa.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "Num link de pasta, quem recebe também pode baixar tudo de uma vez em .zip, com “Baixar tudo (.zip)”; isso conta como um download no limite. Clique em “Criar link” e copie o endereço na hora: por segurança, ele não aparece de novo. Em “Links criados”, você vê cada link, até quando vale e quantos downloads teve. “Desligar” para o link na hora, mesmo para quem já tinha aberto.",
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Qualquer pessoa com o endereço abre o link. Use prazo curto, senha ou limite de downloads para arquivos sensíveis, e desligue o link quando não precisar mais.",
+          },
+        ],
+      },
+      {
+        title: "Pedir arquivos",
+        blocks: [
+          {
+            kind: "p",
+            text: "Para receber arquivos de alguém sem conta, clique em “…” numa pasta e em “Pedir arquivos…”. Escolha por quanto tempo o link vale e, se quiser, uma senha, e envie o endereço. A pessoa escreve o nome (opcional), escolhe ou arrasta os arquivos e envia. Cada arquivo chega na pasta no seu nome, com o nome de quem enviou no histórico.",
+          },
+          {
+            kind: "list",
+            items: [
+              "Quem envia não vê o que já está na pasta.",
+              "Programas e scripts (como .exe, .bat, .sh, .dmg e .apk) não são aceitos. A pessoa pode mandar em .zip.",
+              "Os arquivos recebidos ocupam o espaço da empresa. Quando o espaço acaba, o link deixa de receber.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "“Compartilhar por link” e “Pedir arquivos” ficam com quem pode editar o item ou criou a pasta, e com a equipe da Anuntech.",
+          },
+        ],
+      },
+      {
+        title: "Lixeira",
+        blocks: [
+          {
+            kind: "p",
+            text: "O que você exclui vai para a “Lixeira”, na coluna da esquerda (no celular, no seletor de pastas), e fica lá por 30 dias, com o arquivo, o link ou o desenho. Cada item mostra quantos dias faltam. Na lixeira, nada abre nem baixa.",
+          },
+          {
+            kind: "list",
+            items: [
+              "“Restaurar”, no menu “…”, devolve o item para a pasta onde estava, ou para “Sem pasta” se a pasta foi excluída.",
+              "“Excluir de vez” apaga o item e o arquivo na hora. Isso não tem volta.",
+              "Depois de 30 dias, o item sai da lixeira sozinho, para sempre.",
+              "Restaurar e excluir de vez ficam com quem adicionou o item, com quem criou a pasta e com a equipe da Anuntech.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Os arquivos da lixeira continuam ocupando o espaço da empresa até saírem. Para liberar espaço na hora, use “Excluir de vez”.",
           },
         ],
       },
@@ -177,6 +292,10 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "p",
             text: "O download vai direto para a pasta de downloads, mesmo de arquivos grandes, e aparece na lista de downloads do navegador. Abra o arquivo baixado no programa que você usa.",
+          },
+          {
+            kind: "p",
+            text: "Para baixar uma pasta inteira, abra a pasta e clique no ícone de download ao lado de “Adicionar”. Vem um arquivo .zip com os arquivos dela e das pastas de dentro que você vê, na mesma organização. O .zip vai até 3,5 GB e 2.000 arquivos; acima disso, baixe as pastas de dentro uma de cada vez. Links e lousas não entram no .zip.",
           },
           {
             kind: "p",
@@ -201,11 +320,23 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "O espaço da empresa acabou. O que faço?",
-        a: "Exclua os arquivos que não usa mais: o espaço volta na hora. Se precisar de mais de 5 GB, fale com a Anuntech por um [chamado](/chamados/novo).",
+        a: "Exclua os arquivos que não usa mais e, na “Lixeira”, use “Excluir de vez”: o espaço volta na hora. O que fica na lixeira ainda ocupa espaço por até 30 dias. Se precisar de mais de 5 GB, fale com a Anuntech por um [chamado](/chamados/novo).",
       },
       {
-        q: "Como troco o arquivo de um bookmark?",
-        a: "Não dá para trocar o arquivo de um bookmark que já existe. Em “Editar” você muda só o título e a pasta. Exclua o bookmark e adicione de novo com o arquivo novo.",
+        q: "Excluí um arquivo sem querer. Dá para recuperar?",
+        a: "Sim, por 30 dias. Abra a “Lixeira”, clique em “…” no item e em “Restaurar”. Ele volta para a pasta onde estava.",
+      },
+      {
+        q: "Como troco o arquivo de um item sem perder o anterior?",
+        a: "Em “Editar”, na seção “Versões”, clique em “Enviar nova versão”. O anterior fica guardado como versão e pode ser baixado ou restaurado a qualquer momento.",
+      },
+      {
+        q: "Como mando um arquivo grande para alguém sem conta no Console?",
+        a: "No “…” do arquivo ou da pasta, clique em “Compartilhar por link…”, escolha o prazo (e, se quiser, senha e limite de downloads) e copie o endereço. Para receber arquivos de alguém, use “Pedir arquivos…” numa pasta.",
+      },
+      {
+        q: "Mandei um link para a pessoa errada. E agora?",
+        a: "Abra “Compartilhar por link…” no mesmo arquivo ou pasta e, em “Links criados”, clique em “Desligar”. O link para na hora.",
       },
       {
         q: "Sou Administrador. Posso apagar ou mudar os bookmarks de outra pessoa?",
@@ -213,7 +344,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "Por que a busca não encontra o meu arquivo?",
-        a: "A busca procura no título, no endereço do link e no nome do arquivo, mas não dentro do conteúdo. Confira a empresa e a pasta escolhidas: a busca vale para o que está aberto. Tente também uma palavra menor.",
+        a: "Confira a empresa e a pasta escolhidas: a busca vale para o que está aberto. Dentro dos arquivos, a busca procura palavras inteiras (em “contrato”, acha também “contratos”), então tente a palavra completa ou outra parecida. O texto de um arquivo novo entra na busca alguns segundos depois de salvar. Imagens, vídeos, PDFs escaneados (que são fotos de páginas) e arquivos acima de 50 MB não têm o texto lido; nesses, busque pelo título ou pelo nome do arquivo. De arquivos muito longos, a busca lê as primeiras 40 páginas, mais ou menos.",
       },
       {
         q: "A lista abriu em cartões. Como vejo em linhas?",
@@ -269,7 +400,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Quem vê uma pasta também pode adicionar bookmarks nela.",
+            text: "Quem vê uma pasta também pode adicionar itens nela, a não ser que quem criou a pasta escolha, em “Compartilhar”, a opção “Só ver e baixar” em “Quem vê pode”. Aí só quem criou a pasta e a equipe da Anuntech adicionam. Quem você incluir numa pasta “Só pessoas escolhidas” recebe um e-mail com o link para ela.",
           },
           {
             kind: "p",
@@ -296,6 +427,21 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "p",
             text: "O nome é obrigatório e tem até 80 caracteres. Uma pasta “Só pessoas escolhidas” sem ninguém escolhido fica só com você, e o cabeçalho mostra “Só você”.",
+          },
+        ],
+      },
+      {
+        title: "Pastas dentro de pastas",
+        blocks: [
+          {
+            kind: "list",
+            items: [
+              "Abra uma pasta e clique em “Nova pasta”: a nova fica dentro dela. Dá para ir até 5 níveis, como Marca › Logo › SVG.",
+              "Uma pasta dentro de outra é vista por quem vê a pasta de cima. Mudar quem vê uma pasta, em “Compartilhar”, muda também as pastas de dentro.",
+              "Dentro de uma pasta, as pastas dela aparecem acima dos arquivos, e o topo da página mostra o caminho; clique em uma pasta do caminho para voltar até ela. Na coluna da esquerda, as pastas de dentro aparecem recuadas, abaixo da de cima.",
+              "“Mover para…”, no menu “…” da pasta, leva a pasta, com tudo o que tem dentro, para outra pasta da mesma empresa ou para o início. Quem vê passa a seguir a pasta de destino. Mover fica com quem criou a pasta e com a equipe da Anuntech.",
+              "Excluir uma pasta não apaga o que está nela: os arquivos e as pastas de dentro sobem um nível.",
+            ],
           },
         ],
       },
@@ -635,7 +781,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             items: [
               {
                 term: "Consultar",
-                text: "Chamados e as últimas mensagens de cada um, projetos, tarefas e comentários, produtos e serviços, os bookmarks que você vê na página Bookmarks, os dados da empresa, a sua conta, os artigos desta Ajuda e as informações sobre a Anuntech. O Administrador também consulta faturas, boletos, Pix, recorrências, totais, contratos, orçamentos e quem tem acesso à empresa.",
+                text: "Chamados e as últimas mensagens de cada um, projetos, tarefas e comentários, produtos e serviços, os itens que você vê em Arquivos (o assistente acha um arquivo pelo nome ou pelo que está escrito nele e lê o texto de PDFs, Word, Excel, PowerPoint e textos para responder ou resumir, por exemplo “ache o contrato da Espaço Absolut” ou “o que diz a ata de outubro?”), os dados da empresa, a sua conta, os artigos desta Ajuda e as informações sobre a Anuntech. O Administrador também consulta faturas, boletos, Pix, recorrências, totais, contratos, orçamentos e quem tem acesso à empresa.",
               },
               {
                 term: "Abrir e responder chamados",

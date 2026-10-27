@@ -80,6 +80,10 @@ test("company deletion knows every table that points at a company", () => {
     "console_engagement_suspensions.company_id": "not null",
     // Arquivos: uploads under way go with the company, their parts with them in R2.
     "console_file_uploads.company_id": "null",
+    // Arquivos' earlier versions: their R2 keys are collected, the rows go with the bookmarks (cascade).
+    "console_file_versions.company_id": "null",
+    // Links to its files stop with it.
+    "console_share_links.company_id": "null",
     // Gone with it by the database (on delete cascade): pushes still queued.
     "console_push_notices.company_id": "not null",
     // Kept, set to null: the history outlives the company.
@@ -97,6 +101,8 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_tasks.engagement_id": "not null",
     "console_service_terms.engagement_id": "null",
     "console_engagement_suspensions.engagement_id": "not null",
+    // Its deliveries' folder in Arquivos, with the copies inside (lib/drive/console-files.ts removeProjectFiles).
+    "console_bookmark_folders.engagement_id": "null",
     // Kept, unlinked.
     "console_tickets.engagement_id": "null",
     "console_time_entries.engagement_id": "null",
@@ -144,6 +150,10 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_bookmark_folder_shares.folder_id": "not null",
     "console_bookmarks.folder_id": "null",
     "console_file_uploads.folder_id": "null",
+    // Subfolders move up a level when their folder goes (bookmark-core, deleteFolderAs).
+    "console_bookmark_folders.parent_id": "null",
+    // A folder's links go with it (on delete cascade).
+    "console_share_links.folder_id": "null",
   });
   // Leaves: nothing points at these, so deleting their rows ends the chain.
   for (const leaf of [
@@ -152,11 +162,12 @@ test("the children deleted with a company or its work are all accounted for", ()
     schema.taskAssignees,
     schema.ticketNotices,
     schema.emailDeliveries,
-    schema.bookmarks,
     schema.bookmarkFolderShares,
     schema.notificationPreferences,
     schema.journeySteps,
     schema.membershipEngagements,
   ])
     assert.deepEqual(pointingAt(leaf), {}, getTableConfig(leaf).name);
+  // A bookmark's versions and its text go with it, by the database (on delete cascade).
+  assert.deepEqual(pointingAt(schema.bookmarks), { "console_bookmark_stars.bookmark_id": "not null", "console_file_texts.bookmark_id": "not null", "console_file_versions.bookmark_id": "not null", "console_share_links.bookmark_id": "null" });
 });

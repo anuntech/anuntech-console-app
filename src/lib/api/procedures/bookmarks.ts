@@ -1,6 +1,6 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
-import { bookmarkFolders, bookmarks as bookmarkTable } from "@/db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { bookmarkFolders, bookmarks as bookmarkTable, fileVersions, shareLinks, user } from "@/db/schema";
 import { db } from "../../db";
 import { accessibleCompanies, type Actor } from "../../access/access";
 import { avatarView } from "../../account/avatar-view";
@@ -15,13 +15,22 @@ import {
   loadFolder,
   manages,
   moveBookmarkAs,
+  moveFolderAs,
+  purgeBookmarkAs,
   renameFolderAs,
+  replaceBookmarkFileAs,
+  restoreBookmarkAs,
+  restoreVersionAs,
   saveBookmarkAs,
   searchPeopleAs,
   shareFolderAs,
   updateBookmarkAs,
   usable,
 } from "../../bookmarks/bookmark-core";
+import { bookmarkActivity, recordDownload } from "../../drive/activity";
+import { copyBookmarkAs } from "../../bookmarks/bookmark-copy";
+import { indexSoon } from "../../drive/file-index";
+import { createShareLinkAs, revokeShareLinkAs, shareLinksFor } from "../../drive/share-links";
 import { downloadUrl, storageConfigured } from "../../drive/r2";
 import { spacesFor } from "../../drive/uploads";
 import { api } from "../server";
@@ -46,9 +55,17 @@ async function visibleFolder(actor: Actor, id: string) {
   if (!folder || !(await usable(actor, folder))) throw missing();
   return folder;
 }
-async function visibleBookmark(actor: Actor, id: string) {
-  if (!(await bookmarkFor(actor, id))) throw missing();
+async function visibleBookmark(actor: Actor, id: string, trashed = false) {
+  if (!(await bookmarkFor(actor, id, { trashed }))) throw missing();
 }
+/** The company of a version's file, for the guard. */
+const versionCompany = async ({ versionId }: { versionId: string }) =>
+  (await db.select({ companyId: fileVersions.companyId }).from(fileVersions).where(eq(fileVersions.id, versionId)))[0]?.companyId;
+/** The company of what a link shares (a file or a folder). */
+const shareTargetCompany = async (input: { bookmarkId: string; folderId: string }) =>
+  input.bookmarkId ? bookmarkCompany({ id: input.bookmarkId }) : input.folderId ? folderCompany({ id: input.folderId }) : null;
+const linkCompany = async ({ id }: { id: string }) =>
+  (await db.select({ companyId: shareLinks.companyId }).from(shareLinks).where(eq(shareLinks.id, id)))[0]?.companyId;
 
 /** Where the person files bookmarks: their companies (the team: every active one; Anuntech's own space stays on the web). */
 async function companiesFor(actor: Actor) {
@@ -81,6 +98,10 @@ function itemView(item: BookmarkView, editable: boolean) {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt ?? item.createdAt,
     editable,
+    tag: item.tag ?? null,
+    tagSource: item.tagSource ?? null,
+    ...(item.excerpt ? { excerpt: item.excerpt } : {}),
+    ...(item.deletedAt ? { deletedAt: item.deletedAt } : {}),
   };
 }
 
@@ -97,12 +118,15 @@ export const bookmarks = {
     .handler(async ({ input, context }) => {
       const { actor } = context;
       const scope = scopeOf(actor);
-      const query = bookmarkQuery({ pasta: input.folder, q: input.search, empresa: input.company }, scope);
+      const query = bookmarkQuery(
+        { pasta: input.folder, q: input.search, empresa: input.company, etiqueta: input.tag, tipo: input.kind, ordem: input.sort, meus: input.mine ? "1" : "" },
+        scope,
+      );
       const folders = await foldersFor(scope, query.company);
       // A folder that went away (or was never visible) shows everything, as on the web.
-      if (query.folder !== "all" && query.folder !== "root" && !folders.some((f) => f.id === query.folder))
+      if (query.folder !== "all" && query.folder !== "root" && query.folder !== "lixeira" && !folders.some((f) => f.id === query.folder))
         query.folder = "all";
-      const [{ items, rootCount, matching, page }, companies] = await Promise.all([
+      const [{ items, rootCount, matching, page, tags, trashCount }, companies] = await Promise.all([
         bookmarksFor(
           scope,
           folders.map((f) => f.id),
@@ -121,7 +145,8 @@ export const bookmarks = {
             )
           : undefined;
       const names = new Map(companies.map((c) => [c.id, c.name]));
-      const folderOwner = new Map(folders.map((f) => [f.id, f.ownerId]));
+      // The Console's own folders (contracts, deliveries) give their owner nothing.
+      const folderOwner = new Map(folders.map((f) => [f.id, f.system ? null : f.ownerId]));
       return {
         folders: folders.map((f) => ({
           id: f.id,
@@ -133,8 +158,13 @@ export const bookmarks = {
           ownerId: f.ownerId,
           owner: f.owner,
           sharedWith: f.sharedWith.map(person),
-          manages: actor.admin || f.ownerId === actor.user.id,
+          manages: actor.admin || (f.ownerId === actor.user.id && !f.system),
+          parentId: f.parentId ?? null,
+          ...(f.system ? { system: true } : {}),
+          adds: f.adds ?? "viewers",
         })),
+        tags,
+        trashCount,
         items: items.map((item) =>
           itemView(
             item,
@@ -210,6 +240,7 @@ export const bookmarks = {
         .from(bookmarkTable)
         .where(eq(bookmarkTable.id, item.id));
       if (!stored) throw missing();
+      if (!input.inline) await recordDownload(context.actor, item);
       // A file in R2 is read from there through a five-minute address; an older one through filePath, with the session.
       const url = stored.key && storageConfigured() ? await downloadUrl(stored.key, item.fileName, input.inline) : null;
       return { url, fileName: item.fileName, fileSize: stored.fileSize };
@@ -235,7 +266,8 @@ export const bookmarks = {
       return answer(await deleteBookmarkAs(context.actor, input));
     }),
   createFolder: api.bookmarks.createFolder
-    .use(guard({ area: "overview", company: (input: { companyId: string }) => input.companyId }))
+    // Inside a folder, the folder's company (createFolderAs takes it from there).
+    .use(guard({ area: "overview", company: (input: { companyId: string; parentId: string }) => (input.parentId ? folderCompany({ id: input.parentId }) : input.companyId) }))
     .handler(async ({ input, context }) => {
       const result = await createFolderAs(context.actor, input);
       const { message } = answer(result);
@@ -267,4 +299,97 @@ export const bookmarks = {
       if (!manages(context.actor, folder)) return { people: [] };
       return { people: (await searchPeopleAs(context.actor, input.folderId, input.query)).map(person) };
     }),
+  moveFolder: api.bookmarks.moveFolder
+    .use(guard({ area: "overview", company: folderCompany }))
+    .handler(async ({ input, context }) => {
+      await visibleFolder(context.actor, input.id);
+      return answer(await moveFolderAs(context.actor, input));
+    }),
+  restore: api.bookmarks.restore
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      await visibleBookmark(context.actor, input.id, true);
+      return answer(await restoreBookmarkAs(context.actor, input));
+    }),
+  purge: api.bookmarks.purge
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      await visibleBookmark(context.actor, input.id, true);
+      return answer(await purgeBookmarkAs(context.actor, input));
+    }),
+  copy: api.bookmarks.copy
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      await visibleBookmark(context.actor, input.id);
+      if (input.folderId) await visibleFolder(context.actor, input.folderId);
+      const result = answer(await copyBookmarkAs(context.actor, input));
+      indexSoon();
+      return result;
+    }),
+  versions: api.bookmarks.versions
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      const item = await bookmarkFor(context.actor, input.id);
+      if (!item?.fileName) throw missing();
+      const rows = await db
+        .select({ id: fileVersions.id, version: fileVersions.version, fileName: fileVersions.fileName, fileSize: fileVersions.fileSize, createdAt: fileVersions.createdAt, by: user.name })
+        .from(fileVersions)
+        .leftJoin(user, eq(user.id, fileVersions.actorId))
+        .where(eq(fileVersions.bookmarkId, item.id))
+        .orderBy(desc(fileVersions.version));
+      return { editable: item.editable, versions: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), by: r.by ?? null })) };
+    }),
+  downloadVersion: api.bookmarks.downloadVersion
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      const item = await bookmarkFor(context.actor, input.id);
+      if (!item || !storageConfigured()) throw missing();
+      const [version] = await db
+        .select({ key: fileVersions.storageKey, fileName: fileVersions.fileName, version: fileVersions.version })
+        .from(fileVersions)
+        .where(and(eq(fileVersions.id, input.versionId), eq(fileVersions.bookmarkId, item.id)));
+      if (!version) throw missing();
+      await recordDownload(context.actor, item, { version: version.version });
+      return { url: await downloadUrl(version.key, version.fileName), fileName: version.fileName };
+    }),
+  restoreVersion: api.bookmarks.restoreVersion
+    .use(guard({ area: "overview", company: versionCompany }))
+    .handler(async ({ input, context }) => {
+      const result = answer(await restoreVersionAs(context.actor, { id: input.versionId }));
+      indexSoon();
+      return result;
+    }),
+  replaceFile: api.bookmarks.replaceFile
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      await visibleBookmark(context.actor, input.id);
+      const result = answer(await replaceBookmarkFileAs(context.actor, input));
+      indexSoon();
+      return result;
+    }),
+  activity: api.bookmarks.activity
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      const rows = await bookmarkActivity(context.actor, input.id);
+      if (!rows) throw missing();
+      return { activity: rows };
+    }),
+  shareLinks: api.bookmarks.shareLinks
+    .use(guard({ area: "overview", company: shareTargetCompany }))
+    .handler(async ({ input, context }) => {
+      const links = await shareLinksFor(context.actor, { bookmarkId: input.bookmarkId, folderId: input.folderId });
+      if (!links) throw missing();
+      return { links };
+    }),
+  createShareLink: api.bookmarks.createShareLink
+    .use(guard({ area: "overview", company: shareTargetCompany }))
+    .handler(async ({ input, context }) => {
+      const result = await createShareLinkAs(context.actor, { ...input, expiresInDays: String(input.expiresInDays), maxDownloads: String(input.maxDownloads) });
+      // A refusal answers like every action here (answer throws it to the app).
+      if (result.error || !result.url) answer({ error: result.error ?? "Não foi possível criar o link." });
+      return { message: result.success ?? "Link criado.", url: result.url! };
+    }),
+  revokeShareLink: api.bookmarks.revokeShareLink
+    .use(guard({ area: "overview", company: linkCompany }))
+    .handler(async ({ input, context }) => answer(await revokeShareLinkAs(context.actor, input.id))),
 };

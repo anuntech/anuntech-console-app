@@ -5,7 +5,8 @@ import { PART_URL_BATCH } from "@/lib/drive/drive-rules";
  * Sends a file to R2 the way Arquivos keeps it (lib/drive/uploads.ts): the
  * Console starts the upload and signs each part; the browser PUTs the parts
  * straight to the bucket, a few at a time, and asks the Console to finish.
- * Returns the upload's id, which the bookmark form then names.
+ * The same parts, two doors: the signed-in person's (/api/arquivos/envios)
+ * and a request link's visitor (/api/publico/envios).
  */
 
 export type UploadTarget = { companyId: string; folderId: string };
@@ -44,22 +45,22 @@ function putPart(url: string, blob: Blob, onBytes: (loaded: number) => void, sig
   });
 }
 
-export async function uploadToR2(file: File, target: UploadTarget, onProgress: (progress: UploadProgress) => void, signal: AbortSignal) {
-  const started = await api<{ id: string; partSize: number; partCount: number }>(
-    "/api/arquivos/envios",
-    "POST",
-    { companyId: target.companyId, folderId: target.folderId, fileName: file.name, size: file.size, mime: file.type },
-    signal,
-  );
-  const { id, partSize, partCount } = started;
+type Door = {
+  start: () => Promise<{ id: string; partSize: number; partCount: number }>;
+  sign: (id: string, parts: number[]) => Promise<{ partNumber: number; url: string }[]>;
+  finish: (id: string, parts: { partNumber: number; etag: string }[]) => Promise<unknown>;
+  cancel: (id: string) => void;
+};
+
+async function sendInParts(file: File, door: Door, onProgress: (progress: UploadProgress) => void, signal: AbortSignal) {
+  const { id, partSize, partCount } = await door.start();
   const sentByPart = new Map<number, number>();
   const report = () => onProgress({ sent: [...sentByPart.values()].reduce((a, b) => a + b, 0), total: file.size });
   const etags: { partNumber: number; etag: string }[] = [];
   try {
     for (let first = 1; first <= partCount; first += PART_URL_BATCH) {
       const numbers = Array.from({ length: Math.min(PART_URL_BATCH, partCount - first + 1) }, (_, i) => first + i);
-      const urls = await api<{ partNumber: number; url: string }[]>(`/api/arquivos/envios/${id}/partes`, "POST", { parts: numbers }, signal);
-      const queue = [...urls];
+      const queue = [...(await door.sign(id, numbers))];
       const worker = async () => {
         for (let next = queue.shift(); next; next = queue.shift()) {
           const { partNumber, url } = next;
@@ -79,13 +80,54 @@ export async function uploadToR2(file: File, target: UploadTarget, onProgress: (
           }
         }
       };
-      await Promise.all(Array.from({ length: Math.min(PARALLEL, urls.length) }, worker));
+      await Promise.all(Array.from({ length: Math.min(PARALLEL, queue.length) }, worker));
     }
-    await api(`/api/arquivos/envios/${id}/concluir`, "POST", { parts: etags }, signal);
+    await door.finish(id, etags);
     return id;
   } catch (error) {
     // The parts already in R2 are let go; nothing counts against the space.
-    void fetch(`/api/arquivos/envios/${id}`, { method: "DELETE" }).catch(() => undefined);
+    door.cancel(id);
     throw error;
   }
+}
+
+/** A signed-in person's file: returns the upload's id, which the bookmark form then names. */
+export function uploadToR2(file: File, target: UploadTarget, onProgress: (progress: UploadProgress) => void, signal: AbortSignal) {
+  return sendInParts(
+    file,
+    {
+      start: () =>
+        api("/api/arquivos/envios", "POST", { companyId: target.companyId, folderId: target.folderId, fileName: file.name, size: file.size, mime: file.type }, signal),
+      sign: (id, parts) => api(`/api/arquivos/envios/${id}/partes`, "POST", { parts }, signal),
+      finish: (id, parts) => api(`/api/arquivos/envios/${id}/concluir`, "POST", { parts }, signal),
+      cancel: (id) => void fetch(`/api/arquivos/envios/${id}`, { method: "DELETE" }).catch(() => undefined),
+    },
+    onProgress,
+    signal,
+  );
+}
+
+/** A request link's visitor: the file lands in the link's folder when it finishes (no bookmark form). */
+export function uploadThroughLink(file: File, token: string, senderName: string, onProgress: (progress: UploadProgress) => void, signal: AbortSignal) {
+  let secret = "";
+  return sendInParts(
+    file,
+    {
+      start: async () => {
+        const started = await api<{ id: string; secret: string; partSize: number; partCount: number }>(
+          "/api/publico/envios",
+          "POST",
+          { token, fileName: file.name, size: file.size, mime: file.type, senderName },
+          signal,
+        );
+        secret = started.secret;
+        return started;
+      },
+      sign: (id, parts) => api(`/api/publico/envios/${id}/partes`, "POST", { token, secret, parts }, signal),
+      finish: (id, parts) => api(`/api/publico/envios/${id}/concluir`, "POST", { token, secret, parts }, signal),
+      cancel: () => undefined,
+    },
+    onProgress,
+    signal,
+  );
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "console_bookmark_folders" ADD COLUMN IF NOT EXISTS "adds" text DEFAULT 'viewers' NOT NULL;

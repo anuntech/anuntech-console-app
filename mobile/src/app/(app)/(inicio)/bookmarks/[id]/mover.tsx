@@ -12,17 +12,17 @@ import { showFlash } from "@/lib/flash";
 import { haptic } from "@/lib/haptics";
 import { space } from "@/lib/theme";
 
-/** "Mover para": Sem pasta or another folder of the same company. */
+/** "Mover para" (Sem pasta or another folder of the same company) or, with `modo=copiar`, "Copiar para" (any folder the person can add to). */
 export default function MoveBookmark() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  return <BookmarkGate id={id ?? ""}>{(item) => <Mover item={item} />}</BookmarkGate>;
+  const { id, modo } = useLocalSearchParams<{ id: string; modo?: string }>();
+  return <BookmarkGate id={id ?? ""}>{(item) => <Mover item={item} copy={modo === "copiar"} />}</BookmarkGate>;
 }
 
-function Mover({ item }: { item: Bookmark }) {
+function Mover({ item, copy }: { item: Bookmark; copy: boolean }) {
   const choices = useBookmarkChoices();
   const loading = useDelayed(choices.isPending);
   const move = useMutation({
-    mutationFn: (folderId: string) => api.bookmarks.move({ id: item.id, folderId }),
+    mutationFn: (folderId: string) => (copy ? api.bookmarks.copy({ id: item.id, folderId }) : api.bookmarks.move({ id: item.id, folderId })),
     onSuccess: async ({ message }) => {
       haptic.success();
       showFlash(message);
@@ -31,7 +31,8 @@ function Mover({ item }: { item: Bookmark }) {
     },
     onError: () => haptic.error(),
   });
-  const folders = (choices.data?.folders ?? []).filter((f) => f.companyId === item.companyId);
+  // A copy may go to another company of the person; a move stays in the item's own, as on the web's menu.
+  const folders = (choices.data?.folders ?? []).filter((f) => copy || f.companyId === item.companyId);
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
@@ -48,18 +49,19 @@ function Mover({ item }: { item: Bookmark }) {
       ) : null}
       {choices.data ? (
         <FolderPicker
-          header="Mover para"
+          header={copy ? "Copiar para" : "Mover para"}
           folders={folders}
-          value={item.folderId ?? ""}
+          showCompany={copy && new Set(folders.map((f) => f.companyId)).size > 1}
+          value={copy ? "-" : (item.folderId ?? "")}
           onChange={(folderId) => {
-            if (move.isPending || folderId === (item.folderId ?? "")) return;
+            if (move.isPending || (!copy && folderId === (item.folderId ?? ""))) return;
             move.mutate(folderId);
           }}
         />
       ) : null}
       {move.isPending ? (
         <Text variant="caption" tone="muted" style={{ marginHorizontal: space.gutter + 4 }}>
-          Movendo…
+          {copy ? "Copiando…" : "Movendo…"}
         </Text>
       ) : null}
       {move.error ? (

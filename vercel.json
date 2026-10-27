@@ -23,6 +23,14 @@
     {
       "path": "/api/cron/client-notices",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/arquivos",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/arquivos-texto",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

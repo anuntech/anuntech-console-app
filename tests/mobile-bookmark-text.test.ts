@@ -55,3 +55,36 @@ test("a link's tile is the web's letter and tone, without calling anyone", () =>
   // Accented hosts: the web reads the punycode ("xn--"), the app the letters; both still a letter.
   assert.equal(letterTile("https://ação.com.br").letter, "a");
 });
+
+test("the app's folder tree: levels, trail and order", async () => {
+  const { childrenOf, folderTrail, folderTree } = await import("../mobile/src/lib/bookmark-text");
+  const folders = [
+    { id: "a", name: "Marca", parentId: null },
+    { id: "b", name: "Logo", parentId: "a" },
+    { id: "c", name: "SVG", parentId: "b" },
+    { id: "d", name: "Atas", parentId: null },
+    { id: "e", name: "Solta", parentId: "invisivel" },
+  ];
+  assert.deepEqual(childrenOf(folders, null).map((f) => f.id), ["d", "a", "e"]);
+  assert.deepEqual(childrenOf(folders, "a").map((f) => f.id), ["b"]);
+  assert.deepEqual(folderTrail(folders, "c").map((f) => f.name), ["Marca", "Logo", "SVG"]);
+  assert.deepEqual(folderTree(folders).map((f) => `${f.depth}${f.id}`), ["0d", "0a", "1b", "2c", "0e"]);
+});
+
+test("the app's tags, types and orders are the web's", async () => {
+  const { TAG_LABELS, KIND_OPTIONS, SORT_OPTIONS, excerptParts, trashNote } = await import("../mobile/src/lib/bookmark-text");
+  const { tagLabels } = await import("../src/lib/drive/tag-rules");
+  const { KIND_FILTERS, SORTS } = await import("../src/lib/bookmarks/list-filters");
+  assert.deepEqual(TAG_LABELS, tagLabels);
+  assert.deepEqual(KIND_OPTIONS.slice(1), KIND_FILTERS.map((k) => ({ value: k.value, label: k.label })));
+  assert.deepEqual(SORT_OPTIONS, SORTS.map((s) => ({ value: s.value, label: s.label })));
+  assert.deepEqual(excerptParts("o ⟦contrato⟧ da"), [
+    { text: "o ", hit: false },
+    { text: "contrato", hit: true },
+    { text: " da", hit: false },
+  ]);
+  const now = Date.parse("2026-10-27T12:00:00Z");
+  assert.equal(trashNote("2026-10-27T10:00:00Z", now), "some em 30 dias");
+  assert.equal(trashNote("2026-09-27T13:00:00Z", now), "some em 1 dia");
+  assert.equal(trashNote("2026-09-01T00:00:00Z", now), "some hoje");
+});

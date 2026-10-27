@@ -4,7 +4,12 @@ import type { ActionState } from "../action-state";
 import {
   createFolderAs,
   deleteBookmarkAs,
+  replaceBookmarkFileAs,
+  restoreVersionAs,
+  purgeBookmarkAs,
+  restoreBookmarkAs,
   deleteFolderAs,
+  moveFolderAs,
   moveBookmarkAs,
   renameFolderAs,
   saveBookmarkAs,
@@ -12,6 +17,13 @@ import {
   shareFolderAs,
   updateBookmarkAs,
 } from "./bookmark-core";
+import { indexSoon } from "../drive/file-index";
+import { copyBookmarkAs } from "./bookmark-copy";
+import { and, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { bookmarkStars } from "@/db/schema";
+import { db } from "../db";
+import { bookmarkFor } from "./bookmarks";
 
 /*
  * The web's bookmark forms. The rules live in bookmark-core.ts, shared with
@@ -31,6 +43,11 @@ export async function renameFolder(_: ActionState, form: FormData): Promise<Acti
 }
 
 /** The folder goes away; what was inside stays with the company, loose. */
+export async function moveFolder(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  return moveFolderAs(actor, { id: form.get("id"), parentId: form.get("parentId") });
+}
+
 export async function deleteFolder(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   return deleteFolderAs(actor, { id: form.get("id") });
@@ -43,6 +60,7 @@ export async function shareFolder(_: ActionState, form: FormData): Promise<Actio
     id: form.get("id"),
     visibility: form.get("visibility"),
     userIds: form.getAll("userIds"),
+    adds: form.get("adds"),
   });
 }
 
@@ -55,6 +73,7 @@ export async function searchPeople(folderId: string, query: string) {
 export async function saveBookmark(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   const state = await saveBookmarkAs(actor, Object.fromEntries(form), form.get("file"));
+  if (state.success) indexSoon();
   // The id is for the app; the web's form answers as it always did.
   delete state.id;
   return state;
@@ -72,7 +91,88 @@ export async function moveBookmark(_: ActionState, form: FormData): Promise<Acti
   return moveBookmarkAs(actor, { id: form.get("id"), folderId: form.get("folderId") });
 }
 
+export async function restoreBookmark(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  return restoreBookmarkAs(actor, { id: form.get("id") });
+}
+
+export async function purgeBookmark(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  return purgeBookmarkAs(actor, { id: form.get("id") });
+}
+
+export async function replaceBookmarkFile(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  const state = await replaceBookmarkFileAs(actor, { id: form.get("id"), uploadId: form.get("uploadId") });
+  if (state.success) indexSoon();
+  return state;
+}
+
+export async function restoreVersion(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  const state = await restoreVersionAs(actor, { id: form.get("id") });
+  if (state.success) indexSoon();
+  return state;
+}
+
 export async function deleteBookmark(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   return deleteBookmarkAs(actor, { id: form.get("id") });
+}
+
+/** Several items at once (the list's selection): at most this many per request. */
+const MAX_BATCH = 200;
+const idsOf = (form: FormData) => [...new Set(form.getAll("id").map(String))].slice(0, MAX_BATCH);
+const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
+
+/** "Mover para…" on the selection: each item by the same rules as one ("" is Sem pasta). */
+export async function moveBookmarks(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  const folderId = String(form.get("folderId") ?? "");
+  let moved = 0;
+  let firstError = "";
+  for (const id of idsOf(form)) {
+    const state = await moveBookmarkAs(actor, { id, folderId });
+    if (state.error) firstError ||= state.error;
+    else moved++;
+  }
+  if (!moved) return { error: firstError || "Nada foi movido." };
+  return { success: `${plural(moved, "item movido", "itens movidos")}.${firstError ? ` Alguns ficaram: ${firstError}` : ""}` };
+}
+
+/** "Mover para a lixeira" on the selection. */
+export async function trashBookmarks(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  let trashed = 0;
+  let firstError = "";
+  for (const id of idsOf(form)) {
+    const state = await deleteBookmarkAs(actor, { id });
+    if (state.error) firstError ||= state.error;
+    else trashed++;
+  }
+  if (!trashed) return { error: firstError || "Nada foi para a lixeira." };
+  return { success: `${plural(trashed, "item foi", "itens foram")} para a lixeira.${firstError ? ` Alguns ficaram: ${firstError}` : ""}` };
+}
+
+/** "Copiar para…": one item, into a folder the person can add to. */
+export async function copyBookmark(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  const state = await copyBookmarkAs(actor, { id: form.get("id"), folderId: form.get("folderId") ?? "" });
+  if (state.success) indexSoon();
+  return state;
+}
+
+/** The star on an item, the viewer's own ("Com estrela"): on, or off again. */
+export async function toggleStar(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  const id = String(form.get("id") ?? "");
+  const item = /^[0-9a-f-]{36}$/i.test(id) ? await bookmarkFor(actor, id) : null;
+  if (!item) return { error: "Item não encontrado." };
+  const removed = await db
+    .delete(bookmarkStars)
+    .where(and(eq(bookmarkStars.userId, actor.user.id), eq(bookmarkStars.bookmarkId, item.id)))
+    .returning({ id: bookmarkStars.bookmarkId });
+  if (!removed.length) await db.insert(bookmarkStars).values({ userId: actor.user.id, bookmarkId: item.id }).onConflictDoNothing();
+  revalidatePath("/bookmarks");
+  return { success: removed.length ? "Estrela tirada." : "Com estrela." };
 }

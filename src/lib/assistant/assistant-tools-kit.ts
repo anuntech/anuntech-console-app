@@ -44,7 +44,7 @@ export const toolAreas = {
   produtos: "Produtos, serviços e catálogo: o que a empresa contratou, vincular item do catálogo, cadastrar item",
   contratos: "Contratos: texto, vigência, modelos, criar rascunho",
   orcamentos: "Orçamentos e propostas: ler, criar, copiar, alterar, duplicar",
-  bookmarks: "Bookmarks: links, arquivos e lousas em pastas",
+  bookmarks: "Arquivos (antes Bookmarks): achar arquivos pelo nome ou pelo que está escrito neles, ler e resumir o texto de um arquivo, links e lousas em pastas",
   tela: "Preencher, completar ou acionar o formulário aberto na tela agora",
 } as const;
 export type ToolArea = keyof typeof toolAreas;

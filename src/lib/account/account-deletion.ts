@@ -10,6 +10,7 @@ import {
   auditEvents,
   bookmarkFolderShares,
   bookmarkFolders,
+  bookmarkStars,
   bookmarks,
   companies,
   consoleStaffMembers,
@@ -23,6 +24,7 @@ import {
   userMilestones,
   verification,
   fileUploads,
+  fileVersions,
 } from "@/db/schema";
 import { db } from "../db";
 import { lockEnvironmentAssignments } from "../access/environment-access";
@@ -291,11 +293,21 @@ export async function deleteAccount(
       );
     if (privateFolders.length) {
       const ids = privateFolders.map((f) => f.id);
+      const versions = await tx
+        .select({ key: fileVersions.storageKey })
+        .from(fileVersions)
+        .innerJoin(bookmarks, eq(bookmarks.id, fileVersions.bookmarkId))
+        .where(inArray(bookmarks.folderId, ids));
+      storedKeys.push(...versions.map((v) => v.key));
       const removed = await tx.delete(bookmarks).where(inArray(bookmarks.folderId, ids)).returning({ storageKey: bookmarks.storageKey });
       storedKeys.push(...removed.map((b) => b.storageKey));
       await tx.update(fileUploads).set({ folderId: null }).where(inArray(fileUploads.folderId, ids));
+      // Subfolders someone else made inside them go to the top, with what they hold.
+      await tx.update(bookmarkFolders).set({ parentId: null }).where(inArray(bookmarkFolders.parentId, ids));
       await tx.delete(bookmarkFolders).where(inArray(bookmarkFolders.id, ids));
     }
+    // The stars were the person's own marks.
+    await tx.delete(bookmarkStars).where(eq(bookmarkStars.userId, person.id));
     await tx
       .delete(verification)
       .where(

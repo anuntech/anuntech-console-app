@@ -43,8 +43,10 @@ export default function HomeLayout() {
       <Stack.Screen name="orcamentos/[id]" options={{ title: "" }} />
       <Stack.Screen name="bookmarks/index" options={{ title: "Arquivos", headerLargeTitle: true }} />
       {/* Adding, editing, moving and the folder forms open as sheets; the board opens full size. */}
-      <Stack.Screen name="bookmarks/novo" options={{ title: "Novo bookmark", ...sheet }} />
-      <Stack.Screen name="bookmarks/[id]/editar" options={{ title: "Editar bookmark", ...sheet }} />
+      <Stack.Screen name="bookmarks/novo" options={{ title: "Adicionar", ...sheet }} />
+      <Stack.Screen name="bookmarks/[id]/editar" options={{ title: "Editar", ...sheet }} />
+      <Stack.Screen name="bookmarks/links" options={{ title: "Compartilhar por link", ...sheet }} />
+      <Stack.Screen name="bookmarks/mover-pasta" options={{ title: "Mover pasta", ...sheet }} />
       <Stack.Screen name="bookmarks/[id]/mover" options={{ title: "Mover para", ...sheet }} />
       <Stack.Screen name="bookmarks/pasta" options={{ title: "Nova pasta", ...sheet }} />
       <Stack.Screen name="bookmarks/compartilhar" options={{ title: "Compartilhar", ...sheet }} />

@@ -211,16 +211,68 @@ export async function arquivosAppChecks({ db, rpc, ok, marker, emailSignIn, staf
     ok((await rpc("files.signParts", { id: half.id, parts: [1] }, membro)).status === 404, "A cancelled upload takes no more parts");
     ok((await rpc("files.cancelUpload", { id: big.id }, membro)).body?.message === "Este arquivo já foi salvo.", "A saved file cannot be cancelled");
 
-    // Deleting the bookmark takes the file out of R2.
+    // Deleting from the app moves the bookmark to the web's trash: the file stays in R2 for 30 days, and nothing opens it.
     r = await rpc("bookmarks.remove", { id: videoId }, membro);
-    ok(r.status === 200 && !r2.objects.has(`${companies.own}/${big.id}`), "Deleting the file bookmark removes it from R2");
+    const gone = (await db.query("select deleted_at from console_bookmarks where id=$1", [videoId])).rows[0];
+    ok(r.status === 200 && !!gone?.deleted_at && r2.objects.has(`${companies.own}/${big.id}`), "Deleting the file bookmark moves it to the trash, the file kept for 30 days");
+    ok((await rpc("bookmarks.get", { id: videoId }, membro)).status === 404, "A bookmark in the trash is not found by the app");
+
+    // The web's Arquivos in the app: trash, versions, copy, tags, subfolders, links and activity.
+    r = await rpc("bookmarks.list", { company: companies.own, folder: "lixeira" }, membro);
+    ok(r.status === 200 && r.body.folder === "lixeira" && r.body.items.some((i) => i.id === videoId && !!i.deletedAt) && r.body.trashCount >= 1, "The app opens the trash");
+    ok((await rpc("bookmarks.restore", { id: videoId }, elsewhere)).status === 404, "Another company cannot restore (404)");
+    r = await rpc("bookmarks.restore", { id: videoId }, membro);
+    ok(r.status === 200 && !(await row(videoId)).deleted_at, "Restoring brings the file back");
+    const second = await stored(membro, own, randomBytes(2000), "video-v2.mov");
+    r = await rpc("bookmarks.replaceFile", { id: videoId, uploadId: second.id }, membro);
+    ok(r.status === 200 && (await row(videoId)).storage_key === `${companies.own}/${second.id}`, "A new version replaces the file from the app");
+    r = await rpc("bookmarks.versions", { id: videoId }, membro);
+    const v1 = r.body?.versions?.[0];
+    ok(r.status === 200 && r.body.editable === true && v1?.version === 1, "The app lists the earlier versions");
+    r = await rpc("bookmarks.downloadVersion", { id: videoId, versionId: v1.id }, membro);
+    ok(r.status === 200 && Buffer.from(await (await fetch(r.body.url)).arrayBuffer()).equals(video), "An earlier version downloads from the app");
+    ok((await rpc("bookmarks.restoreVersion", { versionId: v1.id }, elsewhere)).status === 404, "Another company cannot restore a version (404)");
+    r = await rpc("bookmarks.restoreVersion", { versionId: v1.id }, membro);
+    ok(r.status === 200 && (await row(videoId)).storage_key === `${companies.own}/${big.id}`, "Restoring a version brings the old file back");
+    // The Console may have suggested "video" already; a different choice is the person's.
+    r = await rpc("bookmarks.update", { id: videoId, title: "Vídeo", folderId: "", tag: "apresentacao" }, membro);
+    ok(r.status === 200 && (await row(videoId)).tag === "apresentacao" && (await row(videoId)).tag_source === "person", "The app sets a tag as the person's choice");
+    r = await rpc("bookmarks.list", { company: companies.own, tag: "apresentacao" }, membro);
+    ok(r.status === 200 && r.body.items.length === 1 && r.body.items[0].tag === "apresentacao" && r.body.tags.some((t) => t.tag === "apresentacao"), "The list filters by tag and counts them");
+    r = await rpc("bookmarks.list", { company: companies.own, kind: "links" }, membro);
+    ok(r.status === 200 && r.body.items.every((i) => i.kind === "link"), "The list filters by type");
+    r = await rpc("bookmarks.copy", { id: videoId, folderId: "" }, membro);
+    ok(r.status === 200 && Number((await db.query("select count(*) as n from console_bookmarks where company_id=$1 and title like 'Vídeo%'", [companies.own])).rows[0].n) === 2, "The app copies an item");
+    r = await rpc("bookmarks.createFolder", { companyId: companies.own, name: "Sub", visibility: "company", parentId: closed }, admin);
+    const sub = r.body?.id;
+    ok(r.status === 200 && (await db.query("select parent_id from console_bookmark_folders where id=$1", [sub])).rows[0]?.parent_id === closed, "The app creates a folder inside another");
+    r = await rpc("bookmarks.list", { company: companies.own }, admin);
+    ok(r.body.folders.find((f) => f.id === sub)?.parentId === closed, "The list says which folder each one sits in");
+    r = await rpc("bookmarks.moveFolder", { id: sub, parentId: "" }, admin);
+    ok(r.status === 200 && (await db.query("select parent_id from console_bookmark_folders where id=$1", [sub])).rows[0]?.parent_id === null, "The app moves a folder to the top");
+    r = await rpc("bookmarks.shareFolder", { id: sub, visibility: "company", userIds: [], adds: "owner" }, admin);
+    ok(r.status === 200 && (await db.query("select adds from console_bookmark_folders where id=$1", [sub])).rows[0]?.adds === "owner", "The app makes a folder only to see and download");
+    ok((await rpc("bookmarks.createShareLink", { kind: "download", bookmarkId: videoId }, peer)).status === 400, "Who does not edit the file makes no link");
+    r = await rpc("bookmarks.createShareLink", { kind: "download", bookmarkId: videoId, expiresInDays: 7 }, membro);
+    ok(r.status === 200 && /\/compartilhado\/[A-Za-z0-9_-]{43}$/.test(r.body.url ?? ""), "The app makes an external link, the address shown once");
+    r = await rpc("bookmarks.shareLinks", { bookmarkId: videoId }, membro);
+    const link = r.body?.links?.[0];
+    ok(r.status === 200 && link?.state === "active", "The app lists the links made");
+    ok((await rpc("bookmarks.revokeShareLink", { id: link.id }, elsewhere)).status === 404, "Another company cannot turn a link off (404)");
+    r = await rpc("bookmarks.revokeShareLink", { id: link.id }, membro);
+    ok(r.status === 200 && (await rpc("bookmarks.shareLinks", { bookmarkId: videoId }, membro)).body.links[0].state === "revoked", "The app turns a link off");
+    r = await rpc("bookmarks.activity", { id: videoId }, membro);
+    ok(r.status === 200 && r.body.activity.some((a) => a.what === "Enviou uma nova versão"), "The app shows the item's activity");
+    ok((await rpc("bookmarks.activity", { id: videoId }, peer)).status === 404, "Who does not edit the item does not see its activity");
   } finally {
     const ids = Object.values(companies);
     const folders = (await db.query("select id from console_bookmark_folders where company_id=any($1::text[])", [ids])).rows.map((f) => f.id);
     for (const [statement, values] of [
+      ["delete from console_share_links where company_id=any($1::text[])", [ids]],
       ["delete from console_file_uploads where company_id=any($1::text[]) or actor_id=any($2::text[])", [ids, userIds]],
       ["delete from console_bookmark_folder_shares where folder_id=any($1::text[])", [folders]],
       ["delete from console_bookmarks where company_id=any($1::text[]) or author_id=any($2::text[])", [ids, userIds]],
+      ["update console_bookmark_folders set parent_id=null where id=any($1::text[])", [folders]],
       ["delete from console_bookmark_folders where id=any($1::text[])", [folders]],
       ["delete from console_audit_events where company_id=any($1::text[]) or actor_id=any($2::text[])", [ids, userIds]],
       ["delete from console_user_milestones where user_id=any($1::text[])", [userIds]],

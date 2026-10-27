@@ -57,14 +57,18 @@ export async function startMultipart(key: string, contentType: string) {
   return uploadId;
 }
 
-/** Where the browser PUTs one part; valid for an hour. */
-export async function partUrl(key: string, uploadId: string, partNumber: number) {
+/**
+ * Where the browser PUTs one part; valid for an hour. The part's length is
+ * signed, so R2 refuses (403) a part bigger or smaller than the upload said:
+ * nobody declares 1 byte and parks gigabytes in the bucket.
+ */
+export async function partUrl(key: string, uploadId: string, partNumber: number, length: number) {
   const { client, base } = need();
   const url = new URL(objectUrl(base, key));
   url.searchParams.set("partNumber", String(partNumber));
   url.searchParams.set("uploadId", uploadId);
   url.searchParams.set("X-Amz-Expires", "3600");
-  return (await client.sign(url, { method: "PUT", aws: { signQuery: true } })).url;
+  return (await client.sign(url, { method: "PUT", headers: { "content-length": String(length) }, aws: { signQuery: true, allHeaders: true } })).url;
 }
 
 export async function completeMultipart(key: string, uploadId: string, parts: { partNumber: number; etag: string }[]) {
@@ -95,6 +99,26 @@ export async function objectSize(key: string) {
   return Number(response.headers.get("content-length") ?? 0);
 }
 
+/** The bytes of a stored file, for the Console to read it (the content search); null when it is gone. */
+export async function getObject(key: string) {
+  const { client, base } = need();
+  const signed = await client.sign(objectUrl(base, key), { method: "GET" });
+  const response = await fetch(signed.url, { method: "GET", headers: signed.headers, signal: AbortSignal.timeout(90_000) });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new StorageError(`Leitura do arquivo: R2 respondeu ${response.status}.`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/** A stored file as a stream, read as it is sent on (the folder's .zip); null when it is gone. */
+export async function objectStream(key: string) {
+  const { client, base } = need();
+  const signed = await client.sign(objectUrl(base, key), { method: "GET" });
+  const response = await fetch(signed.url, { method: "GET", headers: signed.headers });
+  if (response.status === 404) return null;
+  if (!response.ok || !response.body) throw new StorageError(`Leitura do arquivo: R2 respondeu ${response.status}.`);
+  return response.body;
+}
+
 /** A download address valid for five minutes, saved under its own name. */
 export async function downloadUrl(key: string, fileName: string, inline = false, contentType?: string) {
   const { client, base } = need();
@@ -113,6 +137,14 @@ export async function putObject(key: string, body: Uint8Array, contentType = "ap
   await call(objectUrl(base, key), { method: "PUT", body: body as unknown as BodyInit, headers: { "content-type": contentType } }, "Envio do arquivo");
 }
 
+/** A copy of a stored file under a new key, inside R2 (up to 5 GB, S3's limit for one copy). */
+export const COPY_MAX_BYTES = 5 * 1024 ** 3;
+export async function copyObject(fromKey: string, toKey: string) {
+  const { base } = need();
+  const bucket = process.env.R2_BUCKET!;
+  await call(objectUrl(base, toKey), { method: "PUT", headers: { "x-amz-copy-source": `/${bucket}/${fromKey.split("/").map(encodeURIComponent).join("/")}` } }, "Cópia do arquivo");
+}
+
 export async function deleteObject(key: string) {
   const { base } = need();
   const response = await signedFetch(objectUrl(base, key), { method: "DELETE" });
@@ -124,7 +156,9 @@ export async function deleteObject(key: string) {
  * Never blocks the deletion; a file left behind is only space, logged by key.
  */
 export async function removeStoredFiles(keys: (string | null | undefined)[]) {
-  const present = keys.filter((key): key is string => !!key);
+  // Each file's card picture (thumbs/<key>.webp, lib/drive/thumbnails.ts) goes with it; a missing one is fine.
+  const files = keys.filter((key): key is string => !!key);
+  const present = [...files, ...files.filter((key) => !key.startsWith("thumbs/")).map((key) => `thumbs/${key}.webp`)];
   if (!present.length || !storageConfigured()) return;
   await Promise.all(
     present.map((key) => deleteObject(key).catch((error) => console.error("[arquivos] delete failed", key, error instanceof Error ? error.message : error))),

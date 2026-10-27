@@ -27,6 +27,9 @@ export function partSizeFor(size: number) {
 
 export const partCountFor = (size: number, partSize = partSizeFor(size)) => Math.max(1, Math.ceil(size / partSize));
 
+/** The exact bytes of one part (the last one takes the rest): R2 refuses a part of any other length. */
+export const partLengthFor = (size: number, partSize: number, partNumber: number) => Math.min(partSize, size - (partNumber - 1) * partSize);
+
 /** "512 KB", "3,4 MB", "1,2 GB". */
 export function bytesLabel(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -99,4 +102,13 @@ export function previewOf(fileName: string | null | undefined, size?: number | n
   if (!preview) return null;
   if (preview.kind === "text" && (size ?? 0) > TEXT_PREVIEW_BYTES) return null;
   return preview;
+}
+
+/** Days an item stays in the trash before it is gone for good, files in R2 included. */
+export const TRASH_DAYS = 30;
+
+/** Whole days left before the trash empties itself of this item (0 on the last day). */
+export function trashDaysLeft(deletedAt: Date | string, now = new Date()) {
+  const gone = new Date(deletedAt).getTime() + TRASH_DAYS * 86_400_000;
+  return Math.max(0, Math.ceil((gone - now.getTime()) / 86_400_000) - 1);
 }

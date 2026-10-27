@@ -29,6 +29,8 @@ import {
   userMilestones,
   engagementSuspensions,
   fileUploads,
+  fileVersions,
+  shareLinks,
 } from "@/db/schema";
 import { getActor } from "../access/access";
 import type { ActionState } from "../action-state";
@@ -166,6 +168,8 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
         .delete(tasks)
         .where(or(eq(tasks.companyId, company.id), inArray(tasks.engagementId, itsWork)))
         .returning({ id: tasks.id });
+      // A folder gated by a project (its deliveries) points at it; the folders themselves go below, with the company's.
+      await tx.update(bookmarkFolders).set({ engagementId: null }).where(inArray(bookmarkFolders.engagementId, itsWork));
       const removedWork = await tx
         .delete(engagements)
         .where(eq(engagements.companyId, company.id))
@@ -178,6 +182,11 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
         .where(eq(memberships.companyId, company.id))
         .returning({ id: memberships.id });
 
+      // Links to its files and folders stop with it (a request link's pending uploads go by cascade).
+      await tx.delete(shareLinks).where(eq(shareLinks.companyId, company.id));
+      // Their earlier versions go with them (cascade); the keys first, for R2.
+      const versions = await tx.select({ key: fileVersions.storageKey }).from(fileVersions).where(eq(fileVersions.companyId, company.id));
+      storedKeys.push(...versions.map((v) => v.key));
       // Bookmarks: the company's own; anything else filed in its folders stays, loose.
       const removedBookmarks = await tx
         .delete(bookmarks)

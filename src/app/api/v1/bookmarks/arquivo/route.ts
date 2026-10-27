@@ -1,6 +1,7 @@
 import { appActor } from "@/lib/api/app-request";
 import { canAccess } from "@/lib/access/access";
 import { loadFolder, saveBookmarkAs, usable } from "@/lib/bookmarks/bookmark-core";
+import { indexSoon } from "@/lib/drive/file-index";
 import { BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
 
 export const runtime = "nodejs";
@@ -53,5 +54,6 @@ export async function POST(request: Request) {
     form.get("file"),
   );
   if (result.error || !result.id) return fail(result.error || "Não foi possível salvar o bookmark. Tente novamente.", 400);
+  indexSoon();
   return Response.json({ id: result.id, message: result.success }, { headers: privateHeaders });
 }

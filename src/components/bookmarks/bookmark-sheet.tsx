@@ -16,9 +16,12 @@ import { deleteBookmark, saveBookmark, updateBookmark } from "@/lib/bookmarks/bo
 import { kindOf, type BookmarkKind } from "@/lib/bookmarks/board-rules";
 import { BOOKMARK_FILE, LARGE_BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
 import { uploadToR2, type UploadProgress } from "./r2-upload";
+import { FileVersions } from "./file-versions";
+import { FileActivity } from "./file-activity";
 import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
 import { fileSizeLabel } from "@/lib/format";
+import { TAGS } from "@/lib/drive/tag-rules";
 
 export type BookmarkEditor =
   | { mode: "create"; companyId: string; folderId: string }
@@ -237,19 +240,28 @@ function BookmarkFields({
       </FormField>
       {item ? (
         itemKind === "file" ? (
-          <div>
-            <p className="mb-1.5 text-sm leading-none font-medium">Arquivo</p>
-            <FileChips>
-              <li>
-                <FileChip
-                  file={{ name: item.fileName ?? item.title, size: item.fileSize }}
-                  href={`/api/bookmarks/${item.id}`}
-                />
-              </li>
-            </FileChips>
-          </div>
-        ) : itemKind === "board" ? null : (
-          linkField
+          <>
+            <div>
+              <p className="mb-1.5 text-sm leading-none font-medium">Arquivo</p>
+              <FileChips>
+                <li>
+                  <FileChip
+                    file={{ name: item.fileName ?? item.title, size: item.fileSize }}
+                    href={`/api/bookmarks/${item.id}`}
+                  />
+                </li>
+              </FileChips>
+            </div>
+            {largeFiles && <FileVersions item={item} />}
+            <FileActivity itemId={item.id} />
+          </>
+        ) : itemKind === "board" ? (
+          <FileActivity itemId={item.id} />
+        ) : (
+          <>
+            {linkField}
+            <FileActivity itemId={item.id} />
+          </>
         )
       ) : (
         <>
@@ -313,6 +325,22 @@ function BookmarkFields({
           ))}
         </NativeSelect>
       </FormField>
+      {item && (
+        <FormField
+          label="Etiqueta"
+          htmlFor="bookmark-tag"
+          hint={item.tagSource === "auto" && item.tag ? "Sugerida pelo Console a partir do nome e do conteúdo. Troque se não servir." : "Para filtrar a lista por tipo de documento."}
+        >
+          <NativeSelect id="bookmark-tag" name="tag" defaultValue={item.tag ?? ""}>
+            <NativeSelectOption value="">Sem etiqueta</NativeSelectOption>
+            {TAGS.map((tag) => (
+              <NativeSelectOption key={tag.slug} value={tag.slug}>
+                {tag.label}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </FormField>
+      )}
     </>
   );
 }

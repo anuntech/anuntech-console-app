@@ -927,7 +927,13 @@ export const auditEvents = pgTable(
     details: jsonb("details"),
     createdAt: created(),
   },
-  (t) => [index("console_audit_company_idx").on(t.companyId)],
+  (t) => [
+    index("console_audit_company_idx").on(t.companyId),
+    // One item's history (Arquivos' activity), newest first.
+    index("console_audit_entity_idx").on(t.entityId, t.createdAt),
+    // What one person did lately (Arquivos' "Recentes").
+    index("console_audit_actor_idx").on(t.actorId, t.createdAt),
+  ],
 );
 export const emailDeliveries = pgTable("console_email_deliveries", {
   id: text("id").primaryKey(),
@@ -1126,9 +1132,25 @@ export const bookmarkFolders = pgTable(
     visibility: text("visibility", { enum: ["company", "people"] })
       .notNull()
       .default("company"),
+    /** The folder it sits in (Arquivos' subfolders); null at the top. Who sees it copies the folder above (bookmark-core). */
+    parentId: text("parent_id").references((): AnyPgColumn => bookmarkFolders.id),
+    /**
+     * A folder the Console keeps itself (lib/drive/console-files.ts): "contracts", "deliveries" or
+     * "deliveries:<engagement>"; one per company. Nobody deletes or moves it.
+     */
+    origin: text("origin"),
+    /** On top of who sees it: only who sees this area of the company ("finance": contracts). */
+    area: text("area", { enum: ["finance"] }),
+    /** On top of who sees it: only who sees this project (a Member may see only some). */
+    engagementId: text("engagement_id").references(() => engagements.id),
+    /** Who adds items: everyone who sees it ("viewers", as always) or only its owner and the team ("owner": see and download only). */
+    adds: text("adds", { enum: ["viewers", "owner"] }).notNull().default("viewers"),
     createdAt: created(),
   },
   (t) => [
+    index("console_bookmark_folder_parent_idx").on(t.parentId),
+    uniqueIndex("console_bookmark_folder_origin_idx").on(t.companyId, t.origin).where(sql`${t.origin} is not null`),
+    index("console_bookmark_folder_engagement_idx").on(t.engagementId),
     index("console_bookmark_folder_owner_idx").on(t.ownerId),
     index("console_bookmark_folder_company_idx").on(t.companyId),
   ],
@@ -1168,14 +1190,133 @@ export const bookmarks = pgTable(
     mime: text("mime"),
     board: jsonb("board"),
     preview: bytea("preview"),
+    /** In the trash since then (lib/drive/drive-rules.ts, TRASH_DAYS); gone for good after it. */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletedBy: text("deleted_by").references(() => user.id),
+    /** One of lib/drive/tag-rules.ts TAGS, or none. */
+    tag: text("tag"),
+    /** "auto": the Console's suggestion (changes with the file); "person": someone chose, even none, and it stays. */
+    tagSource: text("tag_source", { enum: ["auto", "person"] }),
+    /** A copy the Console made ("contract:<id>", "attachment:<id>"): made once, not counted in the space. */
+    origin: text("origin"),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("console_bookmark_owner_idx").on(t.ownerId),
+    index("console_bookmark_tag_idx").on(t.tag),
+    uniqueIndex("console_bookmark_origin_idx").on(t.origin).where(sql`${t.origin} is not null`),
     index("console_bookmark_folder_idx").on(t.folderId),
     index("console_bookmark_company_idx").on(t.companyId),
+    index("console_bookmark_deleted_idx").on(t.deletedAt),
   ],
+);
+
+/** A file a person marked with a star (Arquivos' "Com estrela"); only theirs, gone with the item. */
+export const bookmarkStars = pgTable(
+  "console_bookmark_stars",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    bookmarkId: text("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.bookmarkId] }), index("console_bookmark_star_item_idx").on(t.bookmarkId)],
+);
+
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
+
+/**
+ * The text inside a bookmark's file, for the content search (Arquivos, phase
+ * 4; lib/drive/file-index.ts). One row per file; `sourceKey` is the stored
+ * file it was read from, so a new version is read again. `search` is built
+ * by Postgres from the text, accents out (the same letters as
+ * lib/drive/text-rules.ts).
+ */
+export const fileTexts = pgTable(
+  "console_file_texts",
+  {
+    bookmarkId: text("bookmark_id")
+      .primaryKey()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    sourceKey: text("source_key").notNull(),
+    status: text("status", { enum: ["done", "skipped", "failed"] }).notNull(),
+    text: text("text"),
+    reason: text("reason"),
+    attempts: integer("attempts").notNull().default(0),
+    /** The picture on the file's card (lib/drive/thumbnails.ts), in R2 under `thumbs/<source key>.webp`: made, none for this kind, or failed. */
+    thumbStatus: text("thumb_status", { enum: ["done", "none", "failed"] }),
+    search: tsvector("search").generatedAlwaysAs(
+      sql`to_tsvector('portuguese'::regconfig, lower(translate(coalesce("text", ''), 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ', 'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY')))`,
+    ),
+    extractedAt: timestamp("extracted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("console_file_text_search_idx").using("gin", t.search)],
+);
+
+/**
+ * The earlier files of a bookmark (Arquivos' versions): "Enviar nova versão"
+ * keeps the file it replaces here, in R2 under its own key. The bookmark row
+ * always holds the current one. Gone with the bookmark (cascade); their R2
+ * objects are removed by whoever deletes it.
+ */
+export const fileVersions = pgTable(
+  "console_file_versions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    bookmarkId: text("bookmark_id")
+      .notNull()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    /** The bookmark's space, so the quota and a company's deletion reach versions without a join. */
+    companyId: text("company_id").references(() => companies.id),
+    version: integer("version").notNull(),
+    fileName: text("file_name").notNull(),
+    fileSize: bigint("file_size", { mode: "number" }).notNull(),
+    mime: text("mime"),
+    storageKey: text("storage_key").notNull(),
+    /** Who sent this version (who replaced it is in the audit log). */
+    actorId: text("actor_id").references(() => user.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex("console_file_version_unique").on(t.bookmarkId, t.version),
+    index("console_file_version_company_idx").on(t.companyId),
+  ],
+);
+
+/**
+ * A link that works without an account (Arquivos, phase 3): "download" opens
+ * a file or a folder (and its subfolders); "request" lets anyone with it send
+ * files into a folder. Only the token's hash is kept, so the address shows once.
+ * Optional password (scrypt), expiry and download limit; revoked, it stops.
+ */
+export const shareLinks = pgTable(
+  "console_share_links",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    kind: text("kind", { enum: ["download", "request"] }).notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    companyId: text("company_id").references(() => companies.id),
+    folderId: text("folder_id").references(() => bookmarkFolders.id, { onDelete: "cascade" }),
+    bookmarkId: text("bookmark_id").references(() => bookmarks.id, { onDelete: "cascade" }),
+    /** What the page says above the files (the folder's or the item's name when created). */
+    title: text("title").notNull(),
+    passwordHash: text("password_hash"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    maxDownloads: integer("max_downloads"),
+    downloads: integer("downloads").notNull().default(0),
+    uploads: integer("uploads").notNull().default(0),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (t) => [index("console_share_link_folder_idx").on(t.folderId), index("console_share_link_bookmark_idx").on(t.bookmarkId)],
 );
 
 /**
@@ -1199,6 +1340,11 @@ export const fileUploads = pgTable(
     storageKey: text("storage_key").notNull(),
     multipartId: text("multipart_id").notNull(),
     status: text("status", { enum: ["uploading", "completed", "used", "aborted"] }).notNull().default("uploading"),
+    /** Sent through a request link (no account): the link it came by, and the secret that lets the same visitor finish it. */
+    shareLinkId: text("share_link_id").references(() => shareLinks.id, { onDelete: "cascade" }),
+    visitorSecretHash: text("visitor_secret_hash"),
+    /** The name the visitor gave, for the item's history. */
+    senderName: text("sender_name"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: created(),
   },

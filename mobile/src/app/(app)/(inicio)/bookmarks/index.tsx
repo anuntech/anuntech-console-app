@@ -14,6 +14,7 @@ import { SkeletonRows, useDelayed } from "@/components/skeleton";
 import { Notice } from "@/components/surface";
 import { Text } from "@/components/text";
 import { IconTile } from "@/components/tile";
+import { PickSheet } from "@/components/pick-sheet";
 import { api, errorMessage } from "@/lib/api";
 import { enqueueUploads, pickArquivos, useUploads } from "@/lib/arquivos";
 import { authClient } from "@/lib/auth";
@@ -29,6 +30,7 @@ import {
   type Bookmark,
   type BookmarkFolder,
 } from "@/lib/bookmarks";
+import { KIND_OPTIONS, SORT_OPTIONS, TAG_LABELS, childrenOf, excerptParts, folderTrail, trashNote } from "@/lib/bookmark-text";
 import { CONSOLE_URL } from "@/lib/config";
 import { clearFlash, showFlash, useFlash } from "@/lib/flash";
 import { when } from "@/lib/format";
@@ -40,6 +42,25 @@ import { rounded, space, usePalette } from "@/lib/theme";
 import { documentsAvailable } from "@/lib/uploads";
 
 const kindLabels = { link: "Link", file: "Arquivo", board: "Lousa" } as const;
+
+/** Where a search found its words in the file, the words in bold. */
+function Excerpt({ text }: { text: string }) {
+  return (
+    <Text variant="caption" tone="muted" numberOfLines={2} style={{ marginTop: 2 }}>
+      …
+      {excerptParts(text).map((part, i) =>
+        part.hit ? (
+          <Text key={i} variant="caption" tone="foreground" style={{ fontWeight: "600" }}>
+            {part.text}
+          </Text>
+        ) : (
+          part.text
+        ),
+      )}
+      …
+    </Text>
+  );
+}
 const openLabels = { link: "Abrir link", file: "Baixar arquivo", board: "Abrir lousa" } as const;
 
 /**
@@ -158,9 +179,15 @@ export default function Bookmarks() {
   const [folder, setFolder] = useState("all");
   const [search, setSearch] = useState("");
   const deferred = useDeferredValue(search.trim());
+  // The web's filters: a tag, a type, the order and only what the person added.
+  const [tag, setTag] = useState("");
+  const [kind, setKind] = useState("");
+  const [sort, setSort] = useState("");
+  const [mine, setMine] = useState(false);
+  const [picking, setPicking] = useState<"kind" | "sort" | null>(null);
   const list = useInfiniteQuery({
-    queryKey: [...bookmarksKey, company, folder, deferred],
-    queryFn: ({ pageParam }) => api.bookmarks.list({ company, folder, search: deferred, page: pageParam }),
+    queryKey: [...bookmarksKey, company, folder, deferred, tag, kind, sort, mine],
+    queryFn: ({ pageParam }) => api.bookmarks.list({ company, folder, search: deferred, page: pageParam, tag, kind, sort, mine }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page < last.pageCount ? last.page + 1 : undefined),
     placeholderData: keepPreviousData,
@@ -173,6 +200,17 @@ export default function Bookmarks() {
   // A folder that went away shows everything, as the server answered.
   const shown = first?.folder ?? folder;
   const current = folders.find((f) => f.id === shown) ?? null;
+  const inTrash = shown === "lixeira";
+  const trail = current ? folderTrail(folders, current.id) : [];
+  const parent = trail.length > 1 ? trail[trail.length - 2] : null;
+  // Inside a folder, its subfolders; elsewhere, the folders at the top.
+  const levelFolders = current ? childrenOf(folders, current.id) : childrenOf(folders, null);
+  // "Só ver e baixar": only its owner and the team add to it.
+  const canAdd = !current || current.adds !== "owner" || current.manages;
+  const go = (next: string) => {
+    setFolder(next);
+    setTag("");
+  };
   const names = new Map(folders.map((f) => [f.id, f.name]));
   const manyCompanies = companies.length > 1;
   const companyName = new Map(companies.map((c) => [c.id, c.name]));
@@ -236,7 +274,8 @@ export default function Bookmarks() {
   };
   const newFolder = () => {
     clearFlash();
-    router.push({ pathname: "/bookmarks/pasta", params: { companyId: company !== "all" ? company : "" } });
+    // Inside the open folder, as the web's "Nova pasta" there.
+    router.push({ pathname: "/bookmarks/pasta", params: current ? { parentId: current.id } : { companyId: company !== "all" ? company : "" } });
   };
 
   const done = ({ message }: { message: string }) => {
@@ -249,10 +288,12 @@ export default function Bookmarks() {
     Alert.alert("Não foi possível concluir", errorMessage(error));
   };
   const removeBookmark = useMutation({ mutationFn: (id: string) => api.bookmarks.remove({ id }), onSuccess: done, onError: failed });
+  const restoreBookmark = useMutation({ mutationFn: (id: string) => api.bookmarks.restore({ id }), onSuccess: done, onError: failed });
+  const purgeBookmark = useMutation({ mutationFn: (id: string) => api.bookmarks.purge({ id }), onSuccess: done, onError: failed });
   const removeFolder = useMutation({
     mutationFn: (id: string) => api.bookmarks.deleteFolder({ id }),
     onSuccess: (answer) => {
-      setFolder("all");
+      go(parent?.id ?? "all");
       done(answer);
     },
     onError: failed,
@@ -260,14 +301,29 @@ export default function Bookmarks() {
 
   const askDelete = (item: Bookmark) => {
     haptic.medium();
-    Alert.alert("Excluir bookmark?", `"${item.title}" sai da lista${deleteNote(item)}. Isso não pode ser desfeito.`, [
+    Alert.alert("Mover para a lixeira?", `"${item.title}" vai para a lixeira${deleteNote(item)} e fica lá por 30 dias. Dá para restaurar.`, [
       { text: "Cancelar", style: "cancel" },
-      { text: "Excluir", style: "destructive", onPress: () => removeBookmark.mutate(item.id) },
+      { text: "Mover para a lixeira", style: "destructive", onPress: () => removeBookmark.mutate(item.id) },
+    ]);
+  };
+  const askPurge = (item: Bookmark) => {
+    haptic.medium();
+    Alert.alert("Excluir de vez?", `"${item.title}" sai para sempre${deleteNote(item)}. Isso não tem volta.`, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Excluir de vez", style: "destructive", onPress: () => purgeBookmark.mutate(item.id) },
+    ]);
+  };
+  /** In the trash: restore, or delete for good (who saved it, the folder's owner, the team). */
+  const trashActions = (item: Bookmark) => {
+    if (!item.editable) return Alert.alert(item.title, "Só quem adicionou ou o dono da pasta restaura este item.");
+    Alert.alert(item.title, item.deletedAt ? `Na lixeira: ${trashNote(item.deletedAt)}.` : undefined, [
+      { text: "Excluir de vez", style: "destructive", onPress: () => askPurge(item) },
+      { text: "Restaurar", onPress: () => restoreBookmark.mutate(item.id) },
     ]);
   };
   const askDeleteFolder = (f: BookmarkFolder) => {
     haptic.medium();
-    Alert.alert(`Excluir “${f.name}”?`, "Os bookmarks não são apagados: continuam na empresa, em “Sem pasta”.", [
+    Alert.alert(`Excluir “${f.name}”?`, "O que está dentro não é apagado: sobe para a pasta de cima (ou para “Sem pasta”).", [
       { text: "Cancelar", style: "cancel" },
       { text: "Excluir pasta", style: "destructive", onPress: () => removeFolder.mutate(f.id) },
     ]);
@@ -280,28 +336,38 @@ export default function Bookmarks() {
     clearFlash();
     router.push({ pathname: "/bookmarks/[id]/mover", params: { id: item.id } });
   };
+  const copy = (item: Bookmark) => {
+    clearFlash();
+    router.push({ pathname: "/bookmarks/[id]/mover", params: { id: item.id, modo: "copiar" } });
+  };
+  const shareByLink = (params: { bookmarkId?: string; folderId?: string; kind?: "request"; title: string }) => {
+    clearFlash();
+    router.push({ pathname: "/bookmarks/links", params });
+  };
 
   /** The web's "…" menu: open, and for who saved it or the folder's owner, edit, move and delete. */
   const actions = (item: Bookmark) => {
     if (Platform.OS === "ios") {
-      const options = [openLabels[item.kind], "Editar", "Mover para", "Excluir", "Cancelar"];
+      const steps: [string, () => void][] = [
+        [openLabels[item.kind], () => void openBookmark(item)],
+        ["Editar", () => edit(item)],
+        ["Mover para", () => move(item)],
+        ["Copiar para…", () => copy(item)],
+        ...(item.kind === "file" ? ([["Compartilhar por link", () => shareByLink({ bookmarkId: item.id, title: item.title })]] as [string, () => void][]) : []),
+        ["Mover para a lixeira", () => askDelete(item)],
+      ];
       ActionSheetIOS.showActionSheetWithOptions(
-        { title: item.title, options, cancelButtonIndex: 4, destructiveButtonIndex: 3 },
-        (index) => {
-          if (index === 0) void openBookmark(item);
-          else if (index === 1) edit(item);
-          else if (index === 2) move(item);
-          else if (index === 3) askDelete(item);
-        },
+        { title: item.title, options: [...steps.map(([label]) => label), "Cancelar"], cancelButtonIndex: steps.length, destructiveButtonIndex: steps.length - 1 },
+        (index) => steps[index]?.[1](),
       );
       return;
     }
-    // An Android dialog holds three buttons; opening is the row's own tap.
+    // An Android dialog holds three buttons; opening is the row's own tap, copying and links are in "Editar".
     Alert.alert(
       item.title,
       undefined,
       [
-        { text: "Excluir", style: "destructive", onPress: () => askDelete(item) },
+        { text: "Lixeira", style: "destructive", onPress: () => askDelete(item) },
         { text: "Mover para", onPress: () => move(item) },
         { text: "Editar", onPress: () => edit(item) },
       ],
@@ -346,27 +412,68 @@ export default function Bookmarks() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.gutter, paddingVertical: 4 }}
         >
-          <Chip label="Todos" group="Pastas" selected={shown === "all"} onPress={() => setFolder("all")} />
-          <Chip label={`Sem pasta · ${first.rootCount}`} group="Pastas" selected={shown === "root"} onPress={() => setFolder("root")} />
-          {folders.map((f) => (
+          {current ? (
+            // Inside a folder: back up one level, then its subfolders.
+            <Chip label={`‹ ${parent?.name ?? "Todos"}`} group="Pastas" selected={false} onPress={() => go(parent?.id ?? "all")} />
+          ) : (
+            <>
+              <Chip label="Todos" group="Pastas" selected={shown === "all"} onPress={() => go("all")} />
+              <Chip label={`Sem pasta · ${first.rootCount}`} group="Pastas" selected={shown === "root"} onPress={() => go("root")} />
+            </>
+          )}
+          {levelFolders.map((f) => (
             <Chip
               key={f.id}
               label={`${f.name}${manyCompanies && company === "all" && f.company ? ` (${f.company})` : ""} · ${f.count}`}
               group={f.visibility === "people" ? "Pastas, compartilhada com pessoas escolhidas" : "Pastas"}
               selected={shown === f.id}
-              onPress={() => setFolder(f.id)}
+              onPress={() => go(f.id)}
             />
           ))}
+          {!current ? (
+            <Chip label={`Lixeira${first.trashCount ? ` · ${first.trashCount}` : ""}`} group="Pastas" selected={inTrash} onPress={() => go("lixeira")} />
+          ) : null}
         </ScrollView>
+      ) : null}
+      {first && !inTrash ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.gutter, paddingVertical: 4 }}
+        >
+          <Chip label={KIND_OPTIONS.find((o) => o.value === kind)?.label ?? "Todos os tipos"} group="Filtros" selected={!!kind} onPress={() => setPicking("kind")} />
+          <Chip label={SORT_OPTIONS.find((o) => o.value === sort)?.label ?? "Mais recentes"} group="Ordem" selected={!!sort} onPress={() => setPicking("sort")} />
+          <Chip label="Só os meus" group="Filtros" selected={mine} onPress={() => setMine((on) => !on)} />
+          {(first.tags ?? []).map((t) => (
+            <Chip key={t.tag} label={`${TAG_LABELS[t.tag] ?? t.tag} · ${t.count}`} group="Etiquetas" selected={tag === t.tag} onPress={() => setTag(tag === t.tag ? "" : t.tag)} />
+          ))}
+        </ScrollView>
+      ) : null}
+      {trail.length > 1 ? (
+        <Text variant="caption" tone="muted" numberOfLines={1} style={{ marginHorizontal: space.gutter + 4 }}>
+          {trail.map((f) => f.name).join(" › ")}
+        </Text>
+      ) : null}
+      {inTrash ? (
+        <View style={{ marginHorizontal: space.gutter }}>
+          <Notice kind="info">O que você exclui fica aqui por 30 dias. Toque num item para restaurar ou excluir de vez.</Notice>
+        </View>
       ) : null}
       {current ? (
         <Section inset={space.gutter} indent={60}>
           <ListRow
             leading={<IconTile icon={current.visibility === "people" ? "person.2.fill" : "building.2.fill"} color={current.visibility === "people" ? "violet" : "teal"} />}
             title="Quem vê"
-            subtitle={[audience(current, me.data?.id), manyCompanies ? current.company : null].filter(Boolean).join(" · ")}
+            subtitle={[
+              audience(current, me.data?.id),
+              current.adds === "owner" ? "só ver e baixar" : null,
+              current.system ? "mantida pelo Console" : null,
+              manyCompanies ? current.company : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
             trailing={
-              current.manages ? (
+              current.manages && !current.system ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
                   {current.sharedWith.length ? <Faces people={current.sharedWith} /> : null}
                   <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={palette.tertiary} accessible={false} />
@@ -377,9 +484,9 @@ export default function Bookmarks() {
                 "none"
               )
             }
-            accessibilityHint={current.manages ? "Compartilhar a pasta" : undefined}
+            accessibilityHint={current.manages && !current.system ? "Compartilhar a pasta" : undefined}
             onPress={
-              current.manages
+              current.manages && !current.system
                 ? () => {
                     clearFlash();
                     router.push({ pathname: "/bookmarks/compartilhar", params: { id: current.id } });
@@ -397,7 +504,31 @@ export default function Bookmarks() {
               }}
             />
           ) : null}
-          {current.manages ? (
+          {current.manages && largeFiles ? (
+            <ListRow
+              leading={<IconTile icon="link" color="ink" />}
+              title="Compartilhar por link"
+              onPress={() => shareByLink({ folderId: current.id, title: current.name })}
+            />
+          ) : null}
+          {current.manages && largeFiles ? (
+            <ListRow
+              leading={<IconTile icon="tray.and.arrow.down.fill" color="teal" />}
+              title="Pedir arquivos"
+              onPress={() => shareByLink({ folderId: current.id, kind: "request", title: current.name })}
+            />
+          ) : null}
+          {current.manages && !current.system ? (
+            <ListRow
+              leading={<IconTile icon="folder" color="gray" />}
+              title="Mover pasta"
+              onPress={() => {
+                clearFlash();
+                router.push({ pathname: "/bookmarks/mover-pasta", params: { id: current.id } });
+              }}
+            />
+          ) : null}
+          {current.manages && !current.system ? (
             <ListRow
               leading={<IconTile icon="trash.fill" color="red" />}
               title={removeFolder.isPending ? "Excluindo…" : "Excluir pasta"}
@@ -439,19 +570,35 @@ export default function Bookmarks() {
       <Stack.Screen
         options={{
           headerSearchBarOptions: {
-            placeholder: "Buscar por título ou link",
+            placeholder: "Buscar pelo nome ou pelo conteúdo",
             hideWhenScrolling: false,
             autoCapitalize: "none",
             onChangeText: (e) => setSearch(e.nativeEvent.text),
           },
           headerRight: () => (
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-              {largeFiles ? <HeaderIconButton symbol="icloud.and.arrow.up" label="Enviar arquivos" testID="upload-files" onPress={upload} /> : null}
-              <HeaderIconButton symbol="folder.badge.plus" label="Nova pasta" testID="new-folder" onPress={newFolder} />
-              <HeaderIconButton symbol="plus" label="Adicionar bookmark" testID="new-bookmark" onPress={add} />
+              {largeFiles && canAdd && !inTrash ? <HeaderIconButton symbol="icloud.and.arrow.up" label="Enviar arquivos" testID="upload-files" onPress={upload} /> : null}
+              {canAdd && !inTrash ? <HeaderIconButton symbol="folder.badge.plus" label={current ? "Nova pasta aqui" : "Nova pasta"} testID="new-folder" onPress={newFolder} /> : null}
+              {canAdd && !inTrash ? <HeaderIconButton symbol="plus" label="Adicionar" testID="new-bookmark" onPress={add} /> : null}
             </View>
           ),
         }}
+      />
+      <PickSheet
+        visible={picking === "kind"}
+        onClose={() => setPicking(null)}
+        title="Tipo"
+        options={KIND_OPTIONS}
+        selected={[kind]}
+        onChange={([value]) => setKind(value ?? "")}
+      />
+      <PickSheet
+        visible={picking === "sort"}
+        onClose={() => setPicking(null)}
+        title="Ordem"
+        options={SORT_OPTIONS}
+        selected={[sort]}
+        onChange={([value]) => setSort(value ?? "")}
       />
       <FlatList
         data={items}
@@ -468,17 +615,19 @@ export default function Bookmarks() {
           list.isPending ? (
             loading ? <SkeletonRows /> : undefined
           ) : list.error ? undefined : deferred ? (
-            <EmptyState icon="magnifyingglass" title="Nenhum bookmark encontrado" text="Tente outro termo ou mude os filtros." />
+            <EmptyState icon="magnifyingglass" title="Nada encontrado" text="Tente outra palavra (a busca também procura dentro dos arquivos) ou mude os filtros." />
+          ) : inTrash ? (
+            <EmptyState icon="trash" title="A lixeira está vazia" text="O que você excluir fica aqui por 30 dias." />
           ) : (
             <EmptyState
-              icon="bookmark"
-              title="Nenhum bookmark aqui"
+              icon="folder"
+              title="Nada aqui ainda"
               text={
                 largeFiles
                   ? "Guarde arquivos de até 100 GB, links e lousas da empresa e organize em pastas."
                   : "Guarde arquivos, links e lousas da empresa e organize em pastas."
               }
-              action={{ label: "Adicionar", icon: "plus", onPress: add }}
+              action={canAdd ? { label: "Adicionar", icon: "plus", onPress: add } : undefined}
             />
           )
         }
@@ -489,7 +638,7 @@ export default function Bookmarks() {
         renderItem={({ item, index }) => {
           const where = shown === "all" && item.folderId ? names.get(item.folderId) : null;
           const whose = manyCompanies && company === "all" && !current && item.companyId ? companyName.get(item.companyId) : null;
-          const detail = [where, describe(item), whose].filter(Boolean).join(" · ");
+          const detail = [item.tag ? TAG_LABELS[item.tag] : null, where, describe(item), whose, item.deletedAt ? trashNote(item.deletedAt) : null].filter(Boolean).join(" · ");
           const added = `Adicionado em ${when(item.createdAt)}`;
           const thumb = item.kind === "board" && item.hasPreview;
           return (
@@ -498,20 +647,21 @@ export default function Bookmarks() {
                 leading={<BookmarkIcon item={item} />}
                 title={item.title}
                 subtitle={
-                  detail || thumb ? (
+                  detail || thumb || item.excerpt ? (
                     <View>
                       {detail ? (
                         <Text variant="caption" tone="muted" numberOfLines={1}>
                           {detail}
                         </Text>
                       ) : null}
+                      {item.excerpt ? <Excerpt text={item.excerpt} /> : null}
                       {thumb && cookie ? <BoardThumb item={item} cookie={cookie} /> : null}
                     </View>
                   ) : undefined
                 }
                 meta={added}
                 trailing={
-                  item.editable ? (
+                  item.editable && !inTrash ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Ações de ${item.title}`}
@@ -529,7 +679,7 @@ export default function Bookmarks() {
                 }
                 accessibilityLabel={[item.title, kindLabels[item.kind], detail, added].filter(Boolean).join(", ")}
                 accessibilityActions={
-                  item.editable
+                  item.editable && !inTrash
                     ? [
                         { name: "edit", label: "Editar" },
                         { name: "move", label: "Mover para" },
@@ -542,8 +692,8 @@ export default function Bookmarks() {
                   else if (event.nativeEvent.actionName === "move") move(item);
                   else if (event.nativeEvent.actionName === "delete") askDelete(item);
                 }}
-                onLongPress={item.editable ? () => actions(item) : undefined}
-                onPress={() => void openBookmark(item)}
+                onLongPress={inTrash ? () => trashActions(item) : item.editable ? () => actions(item) : undefined}
+                onPress={() => (inTrash ? trashActions(item) : void openBookmark(item))}
               />
             </View>
           );

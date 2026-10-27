@@ -23,13 +23,16 @@ import {
   ServerForm,
   SubmitButton,
 } from "@/components/console/server-form";
-import { createFolder, deleteFolder, renameFolder, shareFolder } from "@/lib/bookmarks/bookmark-actions";
+import { createFolder, deleteFolder, moveFolder, renameFolder, shareFolder } from "@/lib/bookmarks/bookmark-actions";
+import { moveRefusal } from "@/lib/bookmarks/folder-tree";
 import type { FolderView } from "@/lib/bookmarks/bookmarks";
 import { SharePeoplePicker } from "./share-people-picker";
 
 export type { CompanyOption };
 export type FolderEditor =
-  | { mode: "create" }
+  /** `parent`: the new folder goes inside it (and sees what it sees). */
+  | { mode: "create"; parent?: FolderView }
+  | { mode: "move"; folder: FolderView }
   | { mode: "rename"; folder: FolderView }
   | { mode: "share"; folder: FolderView }
   | { mode: "delete"; folder: FolderView };
@@ -64,7 +67,7 @@ function ShareForm({ folder, onClose }: { folder: FolderView; onClose: () => voi
       <input type="hidden" name="id" value={folder.id} />
       <DialogHeader>
         <DialogTitle>Compartilhar “{folder.name}”</DialogTitle>
-        <DialogDescription>Quem vê a pasta também pode adicionar bookmarks nela.</DialogDescription>
+        <DialogDescription>Quem vê e o que pode fazer. Quem você incluir recebe um aviso por e-mail.</DialogDescription>
       </DialogHeader>
       <FormError />
       <div className="grid gap-5">
@@ -76,6 +79,12 @@ function ShareForm({ folder, onClose }: { folder: FolderView; onClose: () => voi
             <SharePeoplePicker id="share-people" folderId={folder.id} initial={folder.sharedWith} />
           </FormField>
         )}
+        <FormField label="Quem vê pode" htmlFor="share-adds">
+          <NativeSelect id="share-adds" name="adds" defaultValue={folder.adds ?? "viewers"}>
+            <NativeSelectOption value="viewers">Ver, baixar e adicionar itens</NativeSelectOption>
+            <NativeSelectOption value="owner">Só ver e baixar</NativeSelectOption>
+          </NativeSelect>
+        </FormField>
       </div>
       <DialogFooter>
         <DialogClose asChild>
@@ -95,21 +104,28 @@ export function FolderDialogs({
   onClose,
   companies,
   defaultCompany,
+  folders = [],
 }: {
   editor: FolderEditor | null;
   onClose: () => void;
+  /** Every folder the viewer sees, in tree order: where one can move. */
+  folders?: (FolderView & { depth: number })[];
   /** Where a new folder can live; id "" is Anuntech's own space. */
   companies: CompanyOption[];
   defaultCompany: string;
 }) {
   const folder = editor && editor.mode !== "create" ? editor.folder : null;
+  const parent = editor?.mode === "create" ? editor.parent : undefined;
   const naming = editor?.mode === "create" || editor?.mode === "rename";
+  // Where a folder can go: the top, or another folder of its company that is not itself or below it.
+  const tree = folders.map((f) => ({ id: f.id, parentId: f.parentId ?? null, companyId: f.companyId, name: f.name }));
+  const destinations = editor?.mode === "move" ? folders.filter((f) => !moveRefusal(tree, editor.folder.id, f.id)) : [];
   return (
     <>
       <Dialog open={naming} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="sm:max-w-md">
           <ServerForm
-            key={folder?.id ?? "new"}
+            key={folder?.id ?? `new-${parent?.id ?? ""}`}
             action={folder ? renameFolder : createFolder}
             onSuccess={onClose}
             className="flex flex-col gap-5"
@@ -118,12 +134,18 @@ export function FolderDialogs({
             <DialogHeader>
               <DialogTitle>{folder ? "Renomear pasta" : "Nova pasta"}</DialogTitle>
               <DialogDescription>
-                {folder ? "Só o nome muda." : "Reúna os bookmarks de uma empresa."}
+                {folder
+                  ? "Só o nome muda."
+                  : parent
+                    ? `Dentro de “${parent.name}”. Quem vê segue a pasta de cima.`
+                    : "Reúna os arquivos e links de uma empresa."}
               </DialogDescription>
             </DialogHeader>
             <FormError />
             <div className="grid gap-5">
+              {parent && <input type="hidden" name="parentId" value={parent.id} />}
               {!folder &&
+                !parent &&
                 (companies.length > 1 ? (
                   <FormField label="Empresa" htmlFor="folder-company">
                     <CompanyField
@@ -147,7 +169,7 @@ export function FolderDialogs({
                   placeholder="Ex.: Referências de design"
                 />
               </FormField>
-              {!folder && (
+              {!folder && !parent && (
                 <FormField
                   label="Quem vê"
                   htmlFor="folder-visibility"
@@ -183,6 +205,40 @@ export function FolderDialogs({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={editor?.mode === "move"} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="sm:max-w-md">
+          {editor?.mode === "move" && (
+            <ServerForm key={editor.folder.id} action={moveFolder} onSuccess={onClose} className="flex flex-col gap-5">
+              <input type="hidden" name="id" value={editor.folder.id} />
+              <DialogHeader>
+                <DialogTitle>Mover “{editor.folder.name}”</DialogTitle>
+                <DialogDescription>Vai com tudo o que tem dentro. Quem vê passa a seguir a pasta de destino.</DialogDescription>
+              </DialogHeader>
+              <FormError />
+              <FormField label="Para" htmlFor="folder-move-to">
+                <NativeSelect id="folder-move-to" name="parentId" defaultValue={editor.folder.parentId ?? ""}>
+                  <NativeSelectOption value="">Início (fora de outras pastas)</NativeSelectOption>
+                  {destinations.map((f) => (
+                    <NativeSelectOption key={f.id} value={f.id}>
+                      {"— ".repeat(f.depth)}
+                      {f.name}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </FormField>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Cancelar
+                  </Button>
+                </DialogClose>
+                <SubmitButton pendingLabel="Movendo…">Mover</SubmitButton>
+              </DialogFooter>
+            </ServerForm>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {folder && (
         <ConfirmDialog
           open={editor?.mode === "delete"}
@@ -190,7 +246,11 @@ export function FolderDialogs({
           action={deleteFolder}
           fields={{ id: folder.id }}
           title={`Excluir “${folder.name}”?`}
-          description="Os bookmarks não são apagados: continuam na empresa, em “Sem pasta”."
+          description={
+            folder.parentId
+              ? "Nada é apagado: os arquivos e as pastas de dentro vão para a pasta de cima."
+              : "Nada é apagado: os arquivos vão para “Sem pasta” e as pastas de dentro sobem para o início."
+          }
           confirmLabel="Excluir pasta"
           destructive
           onSuccess={onClose}
