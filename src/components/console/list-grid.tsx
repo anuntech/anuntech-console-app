@@ -29,15 +29,15 @@ export function useListLayout(area: ListLayoutArea, initial: ListLayout) {
   return [view, choose] as const;
 }
 
-/** Lista · Grade, for the list's toolbar (`ListCard`'s `layout`). A thumb slides to the chosen one. */
+/** Lista · Grade, for the list's toolbar (`ListCard`'s `layout`). A thumb slides to the chosen one; 36px tall, as the buttons beside it. */
 export function ViewToggle({ view, onChange }: { view: ListLayout; onChange: (view: ListLayout) => void }) {
   return (
     <div role="group" aria-label="Visualização" className="relative flex rounded-full border bg-background p-0.5">
       <span
         aria-hidden="true"
         className={cn(
-          "absolute top-0.5 left-0.5 size-7 rounded-full bg-accent transition-transform duration-(--anu-motion-base)",
-          view === "grid" && "translate-x-7",
+          "absolute top-0.5 left-0.5 size-[30px] rounded-full bg-accent transition-transform duration-(--anu-motion-base)",
+          view === "grid" && "translate-x-[30px]",
         )}
       />
       {(
@@ -55,7 +55,7 @@ export function ViewToggle({ view, onChange }: { view: ListLayout; onChange: (vi
           title={label}
           aria-pressed={view === mode}
           onClick={() => onChange(mode)}
-          className={cn("relative size-7", view === mode ? "text-primary hover:bg-transparent hover:text-primary" : "text-muted-foreground")}
+          className={cn("relative size-[30px]", view === mode ? "text-primary hover:bg-transparent hover:text-primary" : "text-muted-foreground")}
         >
           {icon}
         </Button>
