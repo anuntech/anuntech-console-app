@@ -168,5 +168,38 @@ export async function runSupportTests({ database: db, ids, people, request, subm
   const suggested = JSON.parse(phases.text);
   ok(phases.status === 200 && suggested.phases.length === 2 && suggested.phases[1].hoursMax === 60, "Sugerir fases devolve fases, horas e tarefas para o editor");
 
+  // "Preencher com IA" in a draft contract: the project's fields, suggestions only; staff only, drafts only.
+  const fieldsDraft = randomUUID();
+  await db.query(
+    "insert into console_contracts(id,company_id,title,body,author_id,status,quote_id) values($1,$2,$3,$4,$5,'draft',$6)",
+    [
+      fieldsDraft,
+      ids.a,
+      `Campos ${marker}`,
+      "Proposta aprovada (Cláusula 22.6): {{proposta_aprovada}}\n\nOnde ficam os dados, com o país e quem paga: {{hospedagem}}\n\nComponentes pagos, ou a palavra nenhum: {{componentes_pagos}}\n\nDados pessoais tratados: {{dados_pessoais}}",
+      people.admin.id,
+      quoteDraft,
+    ],
+  );
+  const fill = (who) => request(`/api/contratos/${fieldsDraft}/campos`, who, { method: "POST", headers: { Origin: base } });
+  const filledFields = await fill("admin");
+  const fieldsBody = JSON.parse(filledFields.text);
+  ok(
+    filledFields.status === 200 &&
+      fieldsBody.suggestions.componentes_pagos?.value === "nenhum" &&
+      fieldsBody.suggestions.dados_pessoais?.value === "Valor de teste para dados_pessoais" &&
+      fieldsBody.gaps.some((gap) => gap.key === "hospedagem" && gap.missing.includes("nuvem")) &&
+      !fieldsBody.suggestions.proposta_aprovada,
+    "Preencher com IA sugere os campos do projeto e diz o que perguntar ao cliente; o que o Console sabe fica fora",
+  );
+  ok(
+    (await db.query("select body from console_contracts where id=$1", [fieldsDraft])).rows[0].body.includes("{{dados_pessoais}}"),
+    "Preencher com IA não grava nada no contrato",
+  );
+  ok((await fill("manager")).status === 403, "Cliente não pede sugestão de campos do contrato");
+  await db.query("update console_contracts set status='signed' where id=$1", [fieldsDraft]);
+  ok((await fill("admin")).status === 409, "Contrato fora de rascunho não recebe sugestão de campos");
+  await db.query("delete from console_contracts where id=$1", [fieldsDraft]);
+
   await db.query("delete from console_service_terms where id=$1", [terms]);
 }

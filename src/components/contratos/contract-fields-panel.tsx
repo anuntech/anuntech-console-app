@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useFormStatus } from "react-dom";
-import { ListChecksIcon, SparklesIcon } from "lucide-react";
+import { ListChecksIcon, Loader2Icon, SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { setNativeValue } from "@/components/console/insert-text";
 import { applyContractFields, contractFields, fieldRange, removeContractField } from "@/lib/contracts/contract-fields";
 
-export type FieldSuggestions = Record<string, { value: string; source: string }>;
+export type FieldSuggestions = Record<string, { value: string; source: string; check?: boolean }>;
 
 /**
  * "Campos do contrato": every {{placeholder}} still in the draft, filled at
@@ -18,10 +18,13 @@ export type FieldSuggestions = Record<string, { value: string; source: string }>
  * inputs themselves are never submitted.
  */
 export function ContractFieldsPanel({
+  contractId,
   bodyRef,
   initialBody,
-  suggestions,
+  suggestions: known,
 }: {
+  /** For "Preencher com IA" (/api/contratos/<id>/campos). */
+  contractId: string;
   bodyRef: RefObject<HTMLTextAreaElement | null>;
   initialBody: string;
   suggestions: FieldSuggestions;
@@ -34,6 +37,12 @@ export function ContractFieldsPanel({
   const [notice, setNotice] = useState("");
   const [undo, setUndo] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // "Preencher com IA": the project's fields read from the proposal, the briefing and the journey.
+  const [drafted, setDrafted] = useState<FieldSuggestions>({});
+  const [gaps, setGaps] = useState<Record<string, string>>({});
+  const [asking, setAsking] = useState(false);
+  // What the Console knows wins; the AI fills what is left.
+  const suggestions = useMemo(() => ({ ...drafted, ...known }), [drafted, known]);
   const fields = useMemo(() => contractFields(body), [body]);
 
   useEffect(() => {
@@ -65,6 +74,39 @@ export function ContractFieldsPanel({
   }, [bodyRef]);
 
   const filled = fields.filter((field) => values[field.key]?.trim()).length;
+  const unused = fields.filter((field) => suggestions[field.key] && !values[field.key]?.trim());
+  const draftWithAi = async () => {
+    setAsking(true);
+    setNotice("Lendo o orçamento, o briefing e a jornada…");
+    try {
+      const response = await fetch(`/api/contratos/${contractId}/campos`, { method: "POST" });
+      const data = (await response.json().catch(() => null)) as
+        | { suggestions?: FieldSuggestions; gaps?: { key: string; missing: string }[]; error?: string }
+        | null;
+      if (!response.ok || !data?.suggestions) throw new Error(data?.error || "Não foi possível sugerir agora.");
+      setDrafted(data.suggestions);
+      setGaps(Object.fromEntries((data.gaps ?? []).map((gap) => [gap.key, gap.missing])));
+      const count = Object.keys(data.suggestions).length;
+      const missing = data.gaps?.length ?? 0;
+      setNotice(
+        `${count ? `${count === 1 ? "1 sugestão nova" : `${count} sugestões novas`}. Confira cada uma antes de usar.` : "A IA não achou base no projeto para os campos abertos."}${
+          missing ? ` ${missing === 1 ? "1 campo depende" : `${missing} campos dependem`} do cliente: veja o que perguntar.` : ""
+        }`,
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível sugerir agora.");
+    } finally {
+      setAsking(false);
+    }
+  };
+  const useAll = () => {
+    setValues((current) => {
+      const next = { ...current };
+      for (const field of unused) next[field.key] = suggestions[field.key].value;
+      return next;
+    });
+    setNotice(`${unused.length === 1 ? "1 sugestão usada" : `${unused.length} sugestões usadas`}. Revise e aplique ao texto.`);
+  };
   const write = (next: string) => {
     const el = bodyRef.current;
     if (!el) return;
@@ -161,6 +203,17 @@ export function ContractFieldsPanel({
             assinatura sem nenhum campo aberto.
           </p>
         </div>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          {unused.length > 1 && (
+            <Button type="button" variant="outline" size="sm" disabled={pending || asking} onClick={useAll}>
+              Usar todas as sugestões
+            </Button>
+          )}
+          <Button type="button" variant="outline" size="sm" disabled={pending || asking} onClick={() => void draftWithAi()}>
+            {asking ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
+            {asking ? "Lendo o projeto…" : "Preencher com IA"}
+          </Button>
+        </div>
       </div>
       <div className="grid gap-x-5 gap-y-5 lg:grid-cols-2">
         {fields.map((field, index) => {
@@ -220,9 +273,18 @@ export function ContractFieldsPanel({
                   <SparklesIcon aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-primary" />
                   <span className="min-w-0">
                     <span className="block break-words font-medium text-foreground">Usar {suggestion.value}</span>
-                    <span className="block text-muted-foreground">{suggestion.source}</span>
+                    <span className="block text-muted-foreground">
+                      {suggestion.source}
+                      {suggestion.check ? ". Confira antes de usar." : ""}
+                    </span>
                   </span>
                 </button>
+              )}
+              {!suggestion && gaps[field.key] && !value && (
+                <p className="m-0 mt-1.5 flex items-start gap-1.5 text-xs text-warning">
+                  <TriangleAlertIcon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+                  <span>Pergunte ao cliente: {gaps[field.key]}</span>
+                </p>
               )}
               <div className="mt-1 flex flex-wrap items-center gap-x-5">
                 <Button
