@@ -16,6 +16,7 @@ import {
   PencilIcon,
   XCircleIcon,
   RouteIcon,
+  ReceiptTextIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -177,6 +178,12 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
   const decisionNotice = quoteDecisionNotice(q.status);
   const canAnswer = waiting && viewer.party === "client";
   const totals = quoteTotals(q.content);
+  const charge =
+    totals.upfrontCents > 0 && !handoff?.upfrontInvoiceId
+      ? { label: "Cobrar entrada", href: `/financeiro/nova?orcamento=${q.id}&parte=entrada` }
+      : totals.balanceCents > 0 && !handoff?.balanceInvoiceId
+        ? { label: "Cobrar saldo", href: `/financeiro/nova?orcamento=${q.id}&parte=saldo` }
+        : null;
   const validity = validityText(q.status, q.validUntil, today);
   const pdfHref = `/api/orcamentos/${q.id}/pdf`;
   const menu = (open: () => void) => () => setTimeout(open, 0);
@@ -224,6 +231,15 @@ export function QuoteDetail({ data }: { data: QuoteDetailData }) {
               <Button onClick={() => setSending(true)}>
                 <SendIcon />
                 Enviar ao cliente
+              </Button>
+            )}
+            {viewer.admin && q.status === "accepted" && charge && (
+              // The next charge of the proposal, prepared as a draft in Financeiro: the entrada, then the saldo.
+              <Button variant="outline" asChild>
+                <Link href={charge.href}>
+                  <ReceiptTextIcon />
+                  {charge.label}
+                </Link>
               </Button>
             )}
             {viewer.admin && q.status === "accepted" && (
