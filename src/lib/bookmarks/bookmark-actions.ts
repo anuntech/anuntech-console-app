@@ -18,6 +18,7 @@ import {
   updateBookmarkAs,
 } from "./bookmark-core";
 import { indexSoon } from "../drive/file-index";
+import { copyBookmarkAs } from "./bookmark-copy";
 
 /*
  * The web's bookmark forms. The rules live in bookmark-core.ts, shared with
@@ -111,4 +112,46 @@ export async function restoreVersion(_: ActionState, form: FormData): Promise<Ac
 export async function deleteBookmark(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   return deleteBookmarkAs(actor, { id: form.get("id") });
+}
+
+/** Several items at once (the list's selection): at most this many per request. */
+const MAX_BATCH = 200;
+const idsOf = (form: FormData) => [...new Set(form.getAll("id").map(String))].slice(0, MAX_BATCH);
+const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
+
+/** "Mover para…" on the selection: each item by the same rules as one ("" is Sem pasta). */
+export async function moveBookmarks(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  const folderId = String(form.get("folderId") ?? "");
+  let moved = 0;
+  let firstError = "";
+  for (const id of idsOf(form)) {
+    const state = await moveBookmarkAs(actor, { id, folderId });
+    if (state.error) firstError ||= state.error;
+    else moved++;
+  }
+  if (!moved) return { error: firstError || "Nada foi movido." };
+  return { success: `${plural(moved, "item movido", "itens movidos")}.${firstError ? ` Alguns ficaram: ${firstError}` : ""}` };
+}
+
+/** "Mover para a lixeira" on the selection. */
+export async function trashBookmarks(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  let trashed = 0;
+  let firstError = "";
+  for (const id of idsOf(form)) {
+    const state = await deleteBookmarkAs(actor, { id });
+    if (state.error) firstError ||= state.error;
+    else trashed++;
+  }
+  if (!trashed) return { error: firstError || "Nada foi para a lixeira." };
+  return { success: `${plural(trashed, "item foi", "itens foram")} para a lixeira.${firstError ? ` Alguns ficaram: ${firstError}` : ""}` };
+}
+
+/** "Copiar para…": one item, into a folder the person can add to. */
+export async function copyBookmark(_: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await getActor();
+  const state = await copyBookmarkAs(actor, { id: form.get("id"), folderId: form.get("folderId") ?? "" });
+  if (state.success) indexSoon();
+  return state;
 }

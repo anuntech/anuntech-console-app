@@ -130,7 +130,10 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             items: [
               "Em telas a partir de 1024 px de largura, a coluna da esquerda mostra “Todos”, “Sem pasta” e, em “Pastas”, cada pasta com o número de itens. Em telas menores, como no celular, escolha a pasta no seletor acima da lista, que começa em “Todos os bookmarks”.",
               "O campo “Buscar pelo nome ou pelo que está escrito no arquivo” procura no título, no endereço do link, no nome do arquivo e no texto de dentro de PDFs, documentos do Word, planilhas do Excel, apresentações do PowerPoint, arquivos do LibreOffice e textos. Para buscar no texto, digite pelo menos 3 letras; acentos não fazem diferença. Quando a palavra está dentro do arquivo, o item mostra o trecho com ela destacada.",
+              "Ao lado da busca, “Todos os tipos” filtra por arquivos, links, lousas, PDF, imagens, vídeos, documentos, planilhas ou apresentações; “Mais recentes” muda a ordem (mais antigos, nome ou tamanho); e “Só os meus” mostra só o que você adicionou.",
               "Os ícones “Lista” e “Grade”, ao lado da busca, mudam a forma de mostrar. A escolha fica guardada neste navegador.",
+              "Para fazer algo com vários itens, marque a caixa ao lado de cada um (na grade, ela aparece ao passar o mouse). Na barra que aparece em cima: “Baixar” (vários arquivos vêm num .zip), “Mover para…” e “Lixeira”. Você também pode arrastar um item, ou os marcados, até uma pasta na coluna da esquerda.",
+              "“Copiar para…”, no menu “…” do item, faz uma cópia numa pasta que você escolher, inclusive de outra empresa sua. O original fica onde está, e o arquivo copiado ocupa o espaço da empresa de destino.",
               "Clique no item: um link abre em outra aba, uma lousa abre no Console, e um arquivo abre na prévia quando é imagem, PDF, vídeo, áudio ou texto; os outros tipos são baixados.",
             ],
           },

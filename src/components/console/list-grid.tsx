@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, type AnimationEvent, type ReactNode } from "react";
+import { createContext, useContext, useState, type AnimationEvent, type DragEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { LayoutGridIcon, ListIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -127,7 +127,10 @@ export function GridCard({
   actions,
   children,
   footer,
+  onDragStart,
 }: {
+  /** The card can be dragged (Arquivos: onto a folder); the handler fills the drag's data. */
+  onDragStart?: (event: DragEvent<HTMLLIElement>) => void;
   /** Without a destination (and no `onOpen`) the card is plain. */
   href?: string | null;
   /** Opens outside the Console, in a new tab. */
@@ -163,6 +166,7 @@ export function GridCard({
   );
   return (
     <li
+      {...(onDragStart ? { draggable: true, onDragStart } : {})}
       className={cn(
         "group/card relative flex min-w-0 flex-col rounded-lg border bg-card p-4",
         // Hover tints, press gives a little; no lift (surfaces are flat, depth is the border).

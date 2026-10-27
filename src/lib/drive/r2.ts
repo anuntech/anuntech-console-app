@@ -137,6 +137,14 @@ export async function putObject(key: string, body: Uint8Array, contentType = "ap
   await call(objectUrl(base, key), { method: "PUT", body: body as unknown as BodyInit, headers: { "content-type": contentType } }, "Envio do arquivo");
 }
 
+/** A copy of a stored file under a new key, inside R2 (up to 5 GB, S3's limit for one copy). */
+export const COPY_MAX_BYTES = 5 * 1024 ** 3;
+export async function copyObject(fromKey: string, toKey: string) {
+  const { base } = need();
+  const bucket = process.env.R2_BUCKET!;
+  await call(objectUrl(base, toKey), { method: "PUT", headers: { "x-amz-copy-source": `/${bucket}/${fromKey.split("/").map(encodeURIComponent).join("/")}` } }, "Cópia do arquivo");
+}
+
 export async function deleteObject(key: string) {
   const { base } = need();
   const response = await signedFetch(objectUrl(base, key), { method: "DELETE" });

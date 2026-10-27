@@ -27,6 +27,7 @@ import { contentQuery } from "../drive/text-search";
 import { MARK_CLOSE, MARK_OPEN } from "../drive/text-excerpt";
 import { isTag, type TagSlug, type TagSource } from "../drive/tag-rules";
 import { gateOpen, gateViewerOf, type GateViewer } from "./folder-gate";
+import { extensionPattern, isKindFilter, isSortOrder, type KindFilter, type SortOrder } from "./list-filters";
 import { getAccountEmails } from "../account/account-identity";
 import { hasConsoleStaffAccess } from "../access/console-members";
 import { db } from "../db";
@@ -83,7 +84,16 @@ export type BookmarkView = {
   tagSource?: TagSource | null;
 };
 /** `company`: "all", "internal" (Anuntech's own) or a company id; `tag`: one of the tags, or every item. */
-export type BookmarkQuery = { folder: string; search: string; company: string; tag?: TagSlug | "" };
+export type BookmarkQuery = {
+  folder: string;
+  search: string;
+  company: string;
+  tag?: TagSlug | "";
+  /** The "Tipo" filter, the order, and only what the viewer added (lib/bookmarks/list-filters.ts). */
+  kind?: KindFilter | "";
+  sort?: SortOrder;
+  mine?: boolean;
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function bookmarkQuery(
@@ -101,6 +111,9 @@ export function bookmarkQuery(
     folder: folder === "root" || folder === "lixeira" || UUID.test(folder) ? folder : "all",
     search: scalar("q").trim().slice(0, 160),
     tag: isTag(scalar("etiqueta")) ? (scalar("etiqueta") as TagSlug) : "",
+    kind: isKindFilter(scalar("tipo")) ? (scalar("tipo") as KindFilter) : "",
+    sort: isSortOrder(scalar("ordem")) ? (scalar("ordem") as SortOrder) : "",
+    mine: scalar("meus") === "1",
     company: companyOk ? (company === "internal" ? company : company.toLowerCase()) : "all",
   };
 }
@@ -236,10 +249,24 @@ export async function bookmarksFor(
       ? sql`exists (select 1 from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id} and ${fileTexts.search} @@ ${contentQuery(typed)})`
       : undefined;
   const tagged = query.tag && !trash ? eq(bookmarks.tag, query.tag) : undefined;
+  const pattern = query.kind ? extensionPattern(query.kind) : null;
+  const ofKind =
+    query.kind === "arquivos"
+      ? isNotNull(bookmarks.fileName)
+      : query.kind === "links"
+        ? isNotNull(bookmarks.url)
+        : query.kind === "lousas"
+          ? isNotNull(bookmarks.board)
+          : pattern
+            ? sql`lower(${bookmarks.fileName}) ~ ${pattern}`
+            : undefined;
+  const mine = query.mine ? eq(bookmarks.ownerId, scope.userId) : undefined;
   const matchingWhere =
     and(
       narrowed,
       tagged,
+      ofKind,
+      mine,
       search
         ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`), ilike(bookmarks.fileName, `%${search}%`), inContent)
         : undefined,
@@ -294,7 +321,18 @@ export async function bookmarksFor(
         .where(matchingWhere)
         // The id breaks ties between bookmarks saved in the same instant, so no
         // row repeats or goes missing across pages. The trash goes by when each was deleted.
-        .orderBy(trash ? desc(bookmarks.deletedAt) : desc(bookmarks.createdAt), desc(bookmarks.id))
+        .orderBy(
+          ...(trash
+            ? [desc(bookmarks.deletedAt)]
+            : query.sort === "antigos"
+              ? [asc(bookmarks.createdAt)]
+              : query.sort === "nome"
+                ? [sql`lower(${bookmarks.title}) asc`]
+                : query.sort === "tamanho"
+                  ? [sql`coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}), 0) desc`]
+                  : [desc(bookmarks.createdAt)]),
+          desc(bookmarks.id),
+        )
         .limit(shown.pageSize)
         .offset(offsetOf(shown))
     : [];

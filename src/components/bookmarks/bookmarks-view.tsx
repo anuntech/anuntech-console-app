@@ -2,10 +2,12 @@
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import * as React from "react";
 import { Fragment, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   BookmarkIcon,
+  CopyIcon,
   DownloadIcon,
   ExternalLinkIcon,
   EyeIcon,
@@ -26,6 +28,9 @@ import {
 } from "lucide-react";
 import { TRASH_DAYS, trashDaysLeft } from "@/lib/drive/drive-rules";
 import { excerptPieces } from "@/lib/drive/text-excerpt";
+import { KIND_FILTERS, SORTS, type KindFilter, type SortOrder } from "@/lib/bookmarks/list-filters";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ItemsDialog, type ItemsMove } from "./items-dialog";
 import { tagLabels, type TagSlug } from "@/lib/drive/tag-rules";
 import { folderPath, treeOrder } from "@/lib/bookmarks/folder-tree";
 import { cn } from "@/lib/cn";
@@ -65,7 +70,7 @@ import {
 } from "@/components/console/list-view";
 import { ConfirmDialog, ServerForm } from "@/components/console/server-form";
 import { AvatarStack } from "@/components/console/person-avatar";
-import { moveBookmark, deleteBookmark, purgeBookmark, restoreBookmark } from "@/lib/bookmarks/bookmark-actions";
+import { moveBookmark, moveBookmarks, deleteBookmark, purgeBookmark, restoreBookmark, trashBookmarks } from "@/lib/bookmarks/bookmark-actions";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import type { BookmarkQuery, BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { ListLayout } from "@/lib/list-layout";
@@ -154,6 +159,9 @@ function href(state: ListState, patch: Partial<ListState>) {
   if (next.folder !== "all") params.set("pasta", next.folder);
   if (next.search) params.set("q", next.search);
   if (next.tag) params.set("etiqueta", next.tag);
+  if (next.kind) params.set("tipo", next.kind);
+  if (next.sort) params.set("ordem", next.sort);
+  if (next.mine) params.set("meus", "1");
   setPageParams(params, next);
   return listHref("/bookmarks", params);
 }
@@ -171,6 +179,26 @@ function useBookmarkMove() {
     <ServerForm ref={formRef} action={moveBookmark}>
       <input type="hidden" name="id" value={move.id} />
       <input type="hidden" name="folderId" value={move.folderId} />
+    </ServerForm>
+  );
+  return { submit, form };
+}
+
+/** Several items moved through one hidden form (by dragging them onto a folder). */
+function useItemsAction(action: typeof moveBookmarks, onDone: () => void) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [batch, setBatch] = useState<{ ids: string[]; folderId: string }>({ ids: [], folderId: "" });
+  const submit = (ids: string[], folderId = "") =>
+    setTimeout(() => {
+      flushSync(() => setBatch({ ids, folderId }));
+      formRef.current?.requestSubmit();
+    }, 0);
+  const form = (
+    <ServerForm ref={formRef} action={action} onSuccess={onDone}>
+      {batch.ids.map((id) => (
+        <input key={id} type="hidden" name="id" value={id} />
+      ))}
+      <input type="hidden" name="folderId" value={batch.folderId} />
     </ServerForm>
   );
   return { submit, form };
@@ -199,6 +227,9 @@ function useBookmarkRestore() {
   return { submit, form };
 }
 
+/** What a dragged item carries: its id, or the selection's ids, comma-separated. */
+const DRAG_TYPE = "application/x-arquivos-items";
+
 function NavItem({
   active,
   href: to,
@@ -208,6 +239,7 @@ function NavItem({
   hint,
   menu,
   depth = 0,
+  onDropItems,
 }: {
   active: boolean;
   href: string;
@@ -218,9 +250,30 @@ function NavItem({
   menu?: ReactNode;
   /** A subfolder's level, indented under its parent. */
   depth?: number;
+  /** Items dragged from the list land here (Arquivos: "Mover" by dragging). */
+  onDropItems?: (ids: string[]) => void;
 }) {
+  const [over, setOver] = useState(false);
+  const drop = onDropItems
+    ? {
+        onDragOver: (event: React.DragEvent) => {
+          if (!event.dataTransfer.types.includes(DRAG_TYPE)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setOver(true);
+        },
+        onDragLeave: () => setOver(false),
+        onDrop: (event: React.DragEvent) => {
+          setOver(false);
+          const ids = event.dataTransfer.getData(DRAG_TYPE).split(",").filter(Boolean);
+          if (!ids.length) return;
+          event.preventDefault();
+          onDropItems(ids);
+        },
+      }
+    : {};
   return (
-    <li className="group/nav relative">
+    <li className={cn("group/nav relative rounded-md", over && "ring-2 ring-primary")} {...drop}>
       <Link
         href={to}
         aria-current={active ? "page" : undefined}
@@ -290,6 +343,35 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     const folder = item.folderId ? folderById.get(item.folderId) : undefined;
     return viewer.admin || item.ownerId === viewer.id || (!!folder && folder.ownerId === viewer.id && !folder.system);
   };
+  // The selection lives on this page of the list: another folder, search or page starts it over.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const listKey = href(state, {});
+  const [selectedFor, setSelectedFor] = useState(listKey);
+  if (selectedFor !== listKey) {
+    setSelectedFor(listKey);
+    setSelected(new Set());
+  }
+  const clearSelection = () => setSelected(new Set());
+  const toggle = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const [itemsMove, setItemsMove] = useState<ItemsMove | null>(null);
+  const { submit: moveMany, form: moveManyForm } = useItemsAction(moveBookmarks, clearSelection);
+  const [trashingMany, setTrashingMany] = useState(false);
+  /** A row's drag carries the selection when the row is in it, or the row alone. */
+  const dragOf = (item: BookmarkView) =>
+    !inTrash && canEdit(item)
+      ? (event: React.DragEvent) => {
+          event.dataTransfer.setData(DRAG_TYPE, (selected.has(item.id) ? [...selected] : [item.id]).join(","));
+          event.dataTransfer.effectAllowed = "move";
+        }
+      : undefined;
+  const picked = items.filter((item) => selected.has(item.id));
+  const pickedFiles = picked.filter((item) => kindOf(item) === "file");
   const createIn = query.folder !== "all" && query.folder !== "root" && query.folder !== "lixeira" ? query.folder : "";
   // A new item lands in the company being looked at, or the folder's company.
   const createCompany = current
@@ -480,6 +562,10 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 ))}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          <DropdownMenuItem onSelect={() => later(() => setItemsMove({ mode: "copy", ids: [item.id], title: item.title, companyId: item.companyId }))}>
+            <CopyIcon />
+            Copiar para…
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={() => later(() => setRemoving(item))}>
             <Trash2Icon />
@@ -494,7 +580,14 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="pl-4">Bookmark</TableHead>
+          <TableHead className="w-10 pr-0 pl-4">
+            <Checkbox
+              aria-label="Selecionar todos desta página"
+              checked={items.length > 0 && picked.length === items.length}
+              onCheckedChange={(on) => setSelected(on === true ? new Set(items.map((item) => item.id)) : new Set())}
+            />
+          </TableHead>
+          <TableHead className="pl-2">Bookmark</TableHead>
           {folderColumn && <TableHead className="hidden md:table-cell">Pasta</TableHead>}
           {companyColumn && <TableHead className="hidden md:table-cell">Empresa</TableHead>}
           <TableHead className="hidden md:table-cell">Adicionado</TableHead>
@@ -515,7 +608,12 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               href={hrefOf(item)}
               external={!board}
               onOpen={openOf(item)}
+              onDragStart={dragOf(item)}
+              className={selected.has(item.id) ? "bg-accent/50" : undefined}
             >
+              <TableCell className="w-10 pr-0 pl-4">
+                <Checkbox aria-label={`Selecionar ${item.title}`} checked={selected.has(item.id)} onCheckedChange={() => toggle(item.id)} />
+              </TableCell>
               <PrimaryCell
                 href={hrefOf(item)}
                 external={!board}
@@ -559,7 +657,18 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             href={hrefOf(item)}
             external={!board}
             onOpen={openOf(item)}
-            leading={<Tile item={item} large />}
+            onDragStart={dragOf(item)}
+            leading={
+              <span className="relative z-10 flex flex-col items-center gap-2">
+                <Tile item={item} large />
+                <Checkbox
+                  aria-label={`Selecionar ${item.title}`}
+                  checked={selected.has(item.id)}
+                  onCheckedChange={() => toggle(item.id)}
+                  className={cn(!selected.size && "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100")}
+                />
+              </span>
+            }
             title={item.title}
             subtitle={subtitleFor(item, showCompany) || undefined}
             actions={<RowActions label={item.title}>{actionsFor(item)}</RowActions>}
@@ -664,6 +773,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                 icon={<FolderIcon className="opacity-60" />}
                 label="Sem pasta"
                 count={counts.root}
+                onDropItems={inTrash ? undefined : (ids) => moveMany(ids, "")}
               />
               <NavItem
                 active={inTrash}
@@ -686,6 +796,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
                   hint={railCompany ? companyName.get(folder.companyId ?? "") : undefined}
                   count={folder.count}
                   menu={manages(folder) ? folderMenu(folder) : undefined}
+                  onDropItems={inTrash ? undefined : (ids) => moveMany(ids, folder.id)}
                 />
               ))}
               <li>
@@ -747,6 +858,48 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             })}
           </nav>
         ) : null}
+        {picked.length > 0 && (
+          <div role="toolbar" aria-label="Itens selecionados" className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
+            <span className="font-medium text-foreground">{picked.length === 1 ? "1 selecionado" : `${picked.length} selecionados`}</span>
+            <span className="text-xs text-muted-foreground">Dica: arraste para uma pasta à esquerda.</span>
+            <span className="ml-auto flex flex-wrap gap-2">
+              {pickedFiles.length > 0 && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/api/bookmarks/zip?${pickedFiles.map((item) => `id=${item.id}`).join("&")}`} download>
+                    <DownloadIcon />
+                    Baixar {pickedFiles.length === 1 ? "" : "em .zip"}
+                  </a>
+                </Button>
+              )}
+              {!inTrash && picked.every(canEdit) && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setItemsMove({
+                        mode: "move",
+                        ids: picked.map((item) => item.id),
+                        title: picked.length === 1 ? `“${picked[0].title}”` : `${picked.length} itens`,
+                        companyId: picked[0].companyId,
+                      })
+                    }
+                  >
+                    <FolderInputIcon />
+                    Mover para…
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setTrashingMany(true)}>
+                    <Trash2Icon />
+                    Lixeira
+                  </Button>
+                </>
+              )}
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                Limpar
+              </Button>
+            </span>
+          </div>
+        )}
         <ListCard
           fill
           empty={items.length === 0}
@@ -782,12 +935,41 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           }
           layout={<ViewToggle view={view} onChange={chooseView} />}
           toolbar={
-            <SearchField
-              value={query.search}
-              onChange={(search) => go({ search })}
-              placeholder="Buscar pelo nome ou pelo que está escrito no arquivo"
-              className="min-w-0 flex-1 max-sm:basis-full"
-            />
+            <>
+              <SearchField
+                value={query.search}
+                onChange={(search) => go({ search })}
+                placeholder="Buscar pelo nome ou pelo que está escrito no arquivo"
+                className="min-w-0 flex-1 max-sm:basis-full"
+              />
+              {!inTrash && (
+                <>
+                  {/* The select fills its wrapper: the wrapper sets the width, so the toolbar stays on one line. */}
+                  <div className="w-40 shrink-0 max-sm:flex-1">
+                  <NativeSelect aria-label="Tipo" value={query.kind ?? ""} onChange={(event) => go({ kind: event.target.value as KindFilter | "" })} className="bg-card">
+                    <NativeSelectOption value="">Todos os tipos</NativeSelectOption>
+                    {KIND_FILTERS.map((kind) => (
+                      <NativeSelectOption key={kind.value} value={kind.value}>
+                        {kind.label}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  </div>
+                  <div className="w-40 shrink-0 max-sm:flex-1">
+                  <NativeSelect aria-label="Ordem" value={query.sort ?? ""} onChange={(event) => go({ sort: event.target.value as SortOrder })} className="bg-card">
+                    {SORTS.map((sort) => (
+                      <NativeSelectOption key={sort.value} value={sort.value}>
+                        {sort.label}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  </div>
+                  <Button variant={query.mine ? "secondary" : "outline"} aria-pressed={!!query.mine} onClick={() => go({ mine: !query.mine })}>
+                    Só os meus
+                  </Button>
+                </>
+              )}
+            </>
           }
           footer={
             <ListPagination
@@ -841,6 +1023,28 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       {bulk.tray}
       <FilePreview item={previewing} onClose={() => setPreviewing(null)} />
       <ShareLinkDialog target={sharing} onClose={() => setSharing(null)} />
+      <ItemsDialog
+        target={itemsMove}
+        folders={folders}
+        companyName={companyName}
+        onClose={() => {
+          setItemsMove(null);
+          clearSelection();
+        }}
+      />
+      <ConfirmDialog
+        open={trashingMany}
+        onOpenChange={setTrashingMany}
+        action={trashBookmarks}
+        title={picked.length === 1 ? "Mover 1 item para a lixeira?" : `Mover ${picked.length} itens para a lixeira?`}
+        description={`Ficam lá por ${TRASH_DAYS} dias, e dá para restaurar.`}
+        confirmLabel="Mover para a lixeira"
+        onSuccess={clearSelection}
+        destructive
+        extra={(formId) =>
+          picked.map((item) => <input key={item.id} form={formId} type="hidden" name="id" value={item.id} />)
+        }
+      />
 
       <BookmarkSheet
         editor={editor}
@@ -884,6 +1088,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
       )}
       {restoreForm}
       {moveForm}
+      {moveManyForm}
     </>
   );
 }

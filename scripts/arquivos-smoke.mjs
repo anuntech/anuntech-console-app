@@ -456,6 +456,26 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   ok(activity.status === 200 && whats.includes("Baixou") && whats.includes("Adicionou"), "A atividade mostra quem adicionou e quem baixou");
   ok((await json("finance", `/api/bookmarks/${brief}/atividade`, undefined, "GET")).status === 404 && (await json("outsider", `/api/bookmarks/${brief}/atividade`, undefined, "GET")).status === 404, "Só quem edita o item vê a atividade");
 
+  // Fase 5c: filters and order; several at once (move, trash, .zip); a copy.
+  const listing = (who, query) => request(`/bookmarks?empresa=${ids.a}&${query}`, who).then((r) => r.text);
+  ok((await listing("manager", "tipo=documentos")).includes(`Briefing ${marker}`) && !(await listing("manager", "tipo=pdf")).includes(`Briefing ${marker}`), "O filtro de tipo separa documentos de PDFs");
+  ok((await listing("manager", "meus=1")).includes(`Briefing ${marker}`) && !(await listing("admin", "meus=1")).includes(`Briefing ${marker}`), "“Só os meus” mostra só o que a pessoa adicionou");
+  ok((await request(`/bookmarks?ordem=nome`, "manager")).status === 200 && (await request(`/bookmarks?ordem=tamanho`, "manager")).status === 200, "A lista ordena por nome e por tamanho");
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Lote ${marker}`, visibility: "company" });
+  const batchFolder = (await one("select id from console_bookmark_folders where name=$1", [`Lote ${marker}`])).id;
+  await submitForm("/bookmarks", "manager", "manager", { action: "moveBookmarks" }, { id: [brief, loose], folderId: batchFolder });
+  ok(Number((await one("select count(*) as n from console_bookmarks where folder_id=$1", [batchFolder])).n) === 2, "Vários itens vão juntos para uma pasta");
+  const both = await raw(`/api/bookmarks/zip?id=${brief}&id=${loose}`, "manager");
+  ok(both.status === 200 && Object.keys(unzipSync(both.bytes)).length === 2, "Os arquivos selecionados baixam num .zip só");
+  await submitForm("/bookmarks", "manager", "manager", { action: "copyBookmark" }, { id: brief, folderId: "" });
+  const copied = await one("select id, storage_key, folder_id from console_bookmarks where title=$1 and id<>$2", [`Briefing ${marker}`, brief]);
+  const original = await one("select storage_key from console_bookmarks where id=$1", [brief]);
+  ok(!!copied && copied.folder_id === null && copied.storage_key !== original.storage_key && r2.objects.get(copied.storage_key)?.equals(r2.objects.get(original.storage_key)), "“Copiar para” faz uma cópia do arquivo no R2, com chave própria");
+  await submitForm("/bookmarks", "manager", "manager", { action: "trashBookmarks" }, { id: [copied.id, loose] });
+  ok(Number((await one("select count(*) as n from console_bookmarks where id=any($1::text[]) and deleted_at is not null", [[copied.id, loose]])).n) === 2, "Vários itens vão juntos para a lixeira");
+  await db.query("update console_bookmarks set folder_id=null where folder_id=$1", [batchFolder]);
+  await db.query("delete from console_bookmark_folders where id=$1", [batchFolder]);
+
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);
 }

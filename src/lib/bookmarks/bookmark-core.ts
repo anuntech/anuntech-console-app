@@ -82,8 +82,8 @@ export const manages = (actor: Actor, folder: Folder) => actor.admin || (folder.
 const SYSTEM_FOLDER = { error: "Esta pasta é mantida pelo Console: ela não pode ser excluída, movida nem compartilhada." };
 
 /** What is behind a gate stays behind it: it moves only into a folder with the same gate (folder-gate.ts). */
-const GATED = { error: "Este item está numa pasta de acesso restrito (contratos ou um projeto): ele só pode ir para outra pasta com a mesma restrição." };
-async function gateKeeps(fromFolderId: string | null, target: Folder | null) {
+export const GATED = { error: "Este item está numa pasta de acesso restrito (contratos ou um projeto): ele só pode ir para outra pasta com a mesma restrição." };
+export async function gateKeeps(fromFolderId: string | null, target: Folder | null) {
   if (!fromFolderId) return true;
   const from = await loadFolder(fromFolderId);
   if (!from || !hasGate(from)) return true;
