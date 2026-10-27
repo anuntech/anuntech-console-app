@@ -56,6 +56,7 @@ export default function ShareFolder() {
 function ShareForm({ folder }: { folder: BookmarkFolder }) {
   const palette = usePalette();
   const [mode, setMode] = useState<Visibility>(folder.visibility);
+  const [adds, setAdds] = useState<"viewers" | "owner">(folder.adds ?? "viewers");
   const [chosen, setChosen] = useState<Person[]>(folder.sharedWith);
   const [query, setQuery] = useState("");
   const [term, setTerm] = useState("");
@@ -70,7 +71,7 @@ function ShareForm({ folder }: { folder: BookmarkFolder }) {
     enabled: mode === "people" && term.length > 0,
   });
   const save = useMutation({
-    mutationFn: () => api.bookmarks.shareFolder({ id: folder.id, visibility: mode, userIds: mode === "people" ? chosen.map((p) => p.id) : [] }),
+    mutationFn: () => api.bookmarks.shareFolder({ id: folder.id, visibility: mode, userIds: mode === "people" ? chosen.map((p) => p.id) : [], adds }),
     onSuccess: async ({ message }) => {
       haptic.success();
       showFlash(message);
@@ -116,6 +117,26 @@ function ShareForm({ folder }: { folder: BookmarkFolder }) {
           <Section header="Quem vê" inset={space.gutter} indent={space.lg}>
             {option("company", "Todos da empresa")}
             {option("people", "Só pessoas escolhidas")}
+          </Section>
+          <Section header="Quem vê pode" footer="Em “Só ver e baixar”, só você e a equipe da Anuntech adicionam itens." inset={space.gutter} indent={space.lg}>
+            {(
+              [
+                ["viewers", "Ver, baixar e adicionar itens"],
+                ["owner", "Só ver e baixar"],
+              ] as const
+            ).map(([value, label]) => (
+              <ListRow
+                key={value}
+                title={label}
+                trailing={adds === value ? <Check /> : "none"}
+                accessibilityRole="button"
+                accessibilityState={{ selected: adds === value }}
+                onPress={() => {
+                  haptic.select();
+                  setAdds(value);
+                }}
+              />
+            ))}
           </Section>
           {mode === "people" ? (
             <>

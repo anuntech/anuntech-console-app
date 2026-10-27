@@ -325,7 +325,7 @@ export default function NewBookmark() {
                       ? "Criar lousa"
                       : several
                         ? `Enviar ${files.length} arquivos`
-                        : "Adicionar bookmark"
+                        : "Adicionar"
                 }
                 icon={kind === "board" ? "scribble.variable" : largeFiles && kind === "file" ? "icloud.and.arrow.up" : "plus"}
                 testID="save-bookmark"

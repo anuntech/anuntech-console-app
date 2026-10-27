@@ -114,7 +114,7 @@ function PersonDetail({ person, choices }: { person: Person; choices: ScopeChoic
       `Mudar para ${roleNames[target]}?`,
       target === "manager"
         ? `${person.email} passa a ver tudo da empresa, inclusive o financeiro, e a cuidar dos Membros.`
-        : `${person.email} passa a ver só chamados, bookmarks e projetos, sem o financeiro.`,
+        : `${person.email} passa a ver só chamados, arquivos e projetos, sem o financeiro.`,
       [
         { text: "Cancelar", style: "cancel" },
         { text: "Mudar", onPress: () => changeRole.mutate(target) },
@@ -189,7 +189,7 @@ function PersonDetail({ person, choices }: { person: Person; choices: ScopeChoic
         <>
           {!person.pending ? (
             <View style={{ gap: space.md }}>
-              <Section header="Permissão" footer="Membro: chamados, bookmarks e projetos. Administrador: tudo, inclusive financeiro.">
+              <Section header="Permissão" footer="Membro: chamados, arquivos e projetos. Administrador: tudo, inclusive financeiro.">
                 <ListRow
                   testID="change-role"
                   leading={<IconTile icon="checkmark.shield.fill" color="violet" />}

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { SymbolView } from "@/components/symbol";
+import { folderTree } from "@/lib/bookmark-text";
 import type { BookmarkFolder } from "@/lib/bookmarks";
 import { haptic } from "@/lib/haptics";
 import { space, usePalette } from "@/lib/theme";
@@ -58,11 +59,14 @@ export function FolderPicker({
   value,
   onChange,
   header = "Pasta",
+  showCompany = false,
 }: {
   folders: BookmarkFolder[];
   value: string;
   onChange: (id: string) => void;
   header?: string;
+  /** Folders of several companies (a copy): each says whose it is. */
+  showCompany?: boolean;
 }) {
   return (
     <Section header={header} inset={space.gutter}>
@@ -73,10 +77,10 @@ export function FolderPicker({
         leading={<IconTile icon="tray.fill" color="gray" />}
         onPress={() => onChange("")}
       />
-      {folders.map((f) => (
+      {folderTree(folders).map((f) => (
         <Option
           key={f.id}
-          title={f.name}
+          title={`${"— ".repeat(f.depth)}${f.name}${showCompany && f.company ? ` · ${f.company}` : ""}`}
           selected={value === f.id}
           hint="Pasta"
           leading={<IconTile icon={f.visibility === "people" ? "person.2.fill" : "folder.fill"} color={f.visibility === "people" ? "violet" : "teal"} />}

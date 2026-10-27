@@ -24,7 +24,7 @@ export function BookmarkGate({ id, children }: { id: string; children: (item: Bo
       {gone ? (
         <EmptyState
           icon="bookmark.slash"
-          title="Bookmark não encontrado"
+          title="Item não encontrado"
           text="Ele pode ter sido excluído ou você não pode alterá-lo. Volte para a lista."
           action={
             router.canGoBack()

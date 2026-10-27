@@ -256,7 +256,7 @@ export async function pickDocument(): Promise<PickedPhoto | null> {
   return { uri: asset.uri, name: asset.name, mime: asset.mimeType || "application/octet-stream", size };
 }
 
-const FAILED = "Não foi possível salvar o bookmark. Tente novamente.";
+const FAILED = "Não foi possível salvar o item. Tente novamente.";
 
 /**
  * Sends a file bookmark to POST /api/v1/bookmarks/arquivo (multipart, with
@@ -288,5 +288,5 @@ export async function uploadBookmarkFile(
   const result = (await response.json().catch(() => null)) as { id?: string; message?: string; error?: unknown } | null;
   if (!response.ok || !result?.id)
     throw new BookmarkFileError(typeof result?.error === "string" && result.error ? result.error : FAILED);
-  return { id: result.id, message: result.message || "Bookmark salvo." };
+  return { id: result.id, message: result.message || "Item salvo." };
 }

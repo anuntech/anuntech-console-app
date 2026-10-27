@@ -150,8 +150,8 @@ export function EngagementScopeField({
             </div>
             <p className={cn("m-0 text-xs", ids.size ? "text-muted-foreground" : "text-warning")}>
               {ids.size
-                ? "Itens novos só aparecem para esta pessoa quando você marcar aqui. Chamados sem produto e bookmarks continuam visíveis."
-                : "Sem nada marcado, a pessoa só vê chamados sem produto e bookmarks."}
+                ? "Itens novos só aparecem para esta pessoa quando você marcar aqui. Chamados sem produto e Arquivos continuam visíveis, menos as entregas dos projetos não marcados."
+                : "Sem nada marcado, a pessoa só vê chamados sem produto e Arquivos (sem as entregas de projetos)."}
             </p>
           </div>
         ) : (

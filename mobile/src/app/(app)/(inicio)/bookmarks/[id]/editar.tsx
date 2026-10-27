@@ -10,6 +10,7 @@ import { ListRow } from "@/components/list-row";
 import { Section } from "@/components/section";
 import { Notice } from "@/components/surface";
 import { IconTile } from "@/components/tile";
+import { FileActivity, FileVersions, TagField } from "@/components/file-extras";
 import { api, errorMessage } from "@/lib/api";
 import { deleteNote, openBookmark, refreshBookmarks, useBookmarkChoices, type Bookmark } from "@/lib/bookmarks";
 import { showFlash } from "@/lib/flash";
@@ -17,7 +18,7 @@ import { fileSize } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { space } from "@/lib/theme";
 
-/** "Editar bookmark": title, link and folder; a file or a drawing stays as it is. */
+/** "Editar": title, link, folder and tag; a file's versions and the item's activity; copy and share by link. */
 export default function EditBookmark() {
   const { id } = useLocalSearchParams<{ id: string }>();
   return <BookmarkGate id={id ?? ""}>{(item) => <Editor item={item} />}</BookmarkGate>;
@@ -28,6 +29,7 @@ function Editor({ item }: { item: Bookmark }) {
   const [title, setTitle] = useState(item.title);
   const [url, setUrl] = useState(item.url ?? "");
   const [folderId, setFolder] = useState(item.folderId ?? "");
+  const [tag, setTag] = useState(item.tag ?? "");
   const [tried, setTried] = useState(false);
   const folders = (choices.data?.folders ?? []).filter((f) => f.companyId === item.companyId);
   const finish = async ({ message }: { message: string }) => {
@@ -37,7 +39,15 @@ function Editor({ item }: { item: Bookmark }) {
     router.back();
   };
   const save = useMutation({
-    mutationFn: () => api.bookmarks.update({ id: item.id, title: title.trim(), url: item.kind === "link" ? url.trim() : "", folderId }),
+    mutationFn: () =>
+      api.bookmarks.update({
+        id: item.id,
+        title: title.trim(),
+        url: item.kind === "link" ? url.trim() : "",
+        folderId,
+        // Only a changed tag is sent: saving the title keeps the Console's suggestion.
+        ...(tag !== (item.tag ?? "") ? { tag: tag as never } : {}),
+      }),
     onSuccess: finish,
     onError: () => haptic.error(),
   });
@@ -54,9 +64,9 @@ function Editor({ item }: { item: Bookmark }) {
   };
   const askDelete = () => {
     haptic.medium();
-    Alert.alert("Excluir bookmark?", `"${item.title}" sai da lista${deleteNote(item)}. Isso não pode ser desfeito.`, [
+    Alert.alert("Mover para a lixeira?", `"${item.title}" vai para a lixeira${deleteNote(item)} e fica lá por 30 dias. Dá para restaurar.`, [
       { text: "Cancelar", style: "cancel" },
-      { text: "Excluir", style: "destructive", onPress: () => remove.mutate() },
+      { text: "Mover para a lixeira", style: "destructive", onPress: () => remove.mutate() },
     ]);
   };
   const busy = save.isPending || remove.isPending;
@@ -88,7 +98,7 @@ function Editor({ item }: { item: Bookmark }) {
           ) : null}
         </View>
         {item.kind === "file" ? (
-          <Section header="Arquivo" footer="O arquivo fica como está." inset={space.gutter}>
+          <Section header="Arquivo" inset={space.gutter}>
             <ListRow
               leading={<IconTile icon="doc.fill" color="teal" />}
               title={item.fileName ?? item.title}
@@ -102,12 +112,31 @@ function Editor({ item }: { item: Bookmark }) {
           </Section>
         ) : null}
         <FolderPicker folders={folders} value={folderId} onChange={setFolder} />
+        <TagField value={tag} suggested={item.tagSource === "auto" && tag === (item.tag ?? "")} onChange={setTag} />
+        {item.kind === "file" && choices.data?.largeFiles ? <FileVersions item={item} /> : null}
+        <Section inset={space.gutter}>
+          <ListRow
+            leading={<IconTile icon="doc.on.doc" color="gray" />}
+            title="Copiar para…"
+            trailing="chevron"
+            onPress={() => router.push({ pathname: "/bookmarks/[id]/mover", params: { id: item.id, modo: "copiar" } })}
+          />
+          {item.kind === "file" && choices.data?.largeFiles ? (
+            <ListRow
+              leading={<IconTile icon="link" color="ink" />}
+              title="Compartilhar por link"
+              trailing="chevron"
+              onPress={() => router.push({ pathname: "/bookmarks/links", params: { bookmarkId: item.id, title: item.title } })}
+            />
+          ) : null}
+        </Section>
+        <FileActivity item={item} />
         <View style={{ paddingHorizontal: space.gutter, gap: space.md }}>
           {tried && missing ? <Notice kind="warning">{missing}</Notice> : null}
           {failure ? <Notice kind="error">{errorMessage(failure)}</Notice> : null}
           <Button title={save.isPending ? "Salvando…" : "Salvar"} testID="save-bookmark" busy={save.isPending} disabled={busy} onPress={submit} />
           <Button
-            title={remove.isPending ? "Excluindo…" : "Excluir bookmark"}
+            title={remove.isPending ? "Movendo…" : "Mover para a lixeira"}
             variant="plain"
             icon="trash"
             busy={remove.isPending}

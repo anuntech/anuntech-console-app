@@ -102,6 +102,8 @@ Entrada por e-mail/WhatsApp com segunda etapa; Início (aguardando você, a paga
 - [x] **B3** Editar, mover para outra pasta e excluir (quem salvou ou o dono da pasta).
 - [x] **B4** Nova pasta, renomear, compartilhar (empresa toda ou pessoas escolhidas) e excluir (o dono).
 - [x] **B5** Lousa: ver em tela cheia com zoom.
+- [x] **B6** Arquivos como na web (27/10/2026, OTA): subpastas (navegar, criar dentro, mover pasta), lixeira (restaurar, excluir de vez), etiquetas (filtro e escolha em Editar), filtro de tipo, ordem e "Só os meus", trecho da busca no conteúdo, versões (baixar, restaurar, enviar nova pelo R2), atividade, "Copiar para…", links externos e pedido de arquivos (criar, copiar ou enviar o endereço, desligar), "Quem vê pode" (só ver e baixar), pastas do Console (contratos e entregas) protegidas, textos "Arquivos" em vez de "bookmarks".
+- ⚪ No app, a seleção de vários e o .zip de pasta ficam só na web (o celular baixa um arquivo por vez).
 - ⚪ Desenhar na lousa (editor Excalidraw para tela grande e mouse): no celular só ver; "Abrir no Console" para editar.
 
 ## Frente 6 — Início, produtos, banco de horas e apps

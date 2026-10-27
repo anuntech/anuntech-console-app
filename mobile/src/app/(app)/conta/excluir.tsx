@@ -78,7 +78,7 @@ export default function DeleteAccount() {
           <Card>
             <Point icon="trash">
               <Text variant="label">Apagamos</Text> seu nome, e-mails, telefone, foto, sessões, conversas com o
-              assistente e as pastas de bookmarks que só você via.
+              assistente e as pastas de Arquivos que só você via.
             </Point>
             <Point icon="building.2">
               <Text variant="label">Ficam com a empresa</Text>, com o autor &quot;Conta excluída&quot;: chamados e

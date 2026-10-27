@@ -92,8 +92,8 @@ export function ScopePicker({
             </Section>
             <Text variant="caption" tone={count ? "muted" : "warning"} style={{ marginHorizontal: space.lg }}>
               {count
-                ? "Itens novos só aparecem para esta pessoa quando você marcar aqui. Chamados sem produto e bookmarks continuam visíveis."
-                : "Sem nada marcado, a pessoa só vê chamados sem produto e bookmarks."}
+                ? "Itens novos só aparecem para esta pessoa quando você marcar aqui. Chamados sem produto e Arquivos continuam visíveis, menos as entregas dos projetos não marcados."
+                : "Sem nada marcado, a pessoa só vê chamados sem produto e Arquivos (sem as entregas de projetos)."}
             </Text>
           </View>
         ) : (

@@ -18,7 +18,7 @@ import { space, usePalette } from "@/lib/theme";
 
 const roles: Role[] = ["member", "manager"];
 const roleHints: Record<Role, string> = {
-  member: "Chamados, bookmarks e projetos.",
+  member: "Chamados, arquivos e projetos.",
   manager: "Tudo, inclusive financeiro.",
 };
 
