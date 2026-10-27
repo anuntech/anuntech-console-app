@@ -15,7 +15,7 @@ const file = randomUUID();
 const stored = `catalog-icons/${itemId}/${file}.webp`;
 
 test("A galeria lista arquivos que existem em public/brand/catalog-icons, um por slug", () => {
-  assert.equal(CATALOG_ICON_GALLERY.length, 14);
+  assert.equal(CATALOG_ICON_GALLERY.length, 15);
   assert.equal(new Set(CATALOG_ICON_GALLERY.map((icon) => icon.slug)).size, CATALOG_ICON_GALLERY.length);
   for (const icon of CATALOG_ICON_GALLERY) {
     assert.equal(icon.path, `/brand/catalog-icons/${icon.slug}.webp`);
