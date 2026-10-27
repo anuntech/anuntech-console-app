@@ -178,7 +178,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "São cópias: o contrato e a tarefa continuam onde estão, e as cópias não ocupam o espaço da empresa. Essas pastas são mantidas pelo Console, então não podem ser excluídas, movidas nem compartilhadas. Pastas criadas dentro delas seguem a mesma regra de quem vê. Se o projeto for excluído, a pasta dele e as cópias saem junto.",
+            text: "São cópias: o contrato e a tarefa continuam onde estão, e as cópias não ocupam o espaço da empresa. Essas pastas são mantidas pelo Console, então não podem ser excluídas, movidas nem compartilhadas. Pastas criadas dentro delas seguem a mesma regra de quem vê, e o que está nelas só pode ir para outra pasta com a mesma regra. Se o projeto for excluído, a pasta dele e as cópias saem junto. Antes, a equipe tira os arquivos que alguém tenha colocado ali.",
           },
         ],
       },

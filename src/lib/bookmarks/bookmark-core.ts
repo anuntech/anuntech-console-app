@@ -11,7 +11,7 @@ import {
   fileVersions,
 } from "@/db/schema";
 import { TAG_SLUGS } from "../drive/tag-rules";
-import { gateOpen, gateViewerOf } from "./folder-gate";
+import { gateOpen, gateViewerOf, hasGate, sameGate } from "./folder-gate";
 import { db } from "../db";
 import { canAccess, type Actor } from "../access/access";
 import { bookmarkInput, safeFileName } from "./bookmark-validation";
@@ -80,6 +80,15 @@ export const manages = (actor: Actor, folder: Folder) => actor.admin || (folder.
 
 /** The Console's own folders (contracts, deliveries) stay where they are and as they are. */
 const SYSTEM_FOLDER = { error: "Esta pasta é mantida pelo Console: ela não pode ser excluída, movida nem compartilhada." };
+
+/** What is behind a gate stays behind it: it moves only into a folder with the same gate (folder-gate.ts). */
+const GATED = { error: "Este item está numa pasta de acesso restrito (contratos ou um projeto): ele só pode ir para outra pasta com a mesma restrição." };
+async function gateKeeps(fromFolderId: string | null, target: Folder | null) {
+  if (!fromFolderId) return true;
+  const from = await loadFolder(fromFolderId);
+  if (!from || !hasGate(from)) return true;
+  return !!target && sameGate(from, target);
+}
 
 /** Whoever can see the folder can add to it. */
 export async function usable(actor: Actor, folder: Folder) {
@@ -186,6 +195,16 @@ export async function deleteFolderAs(actor: Actor, input: { id: unknown }): Prom
     if (folder.origin) return SYSTEM_FOLDER;
     // What was inside, files and subfolders, moves up one level (to Sem pasta at the top).
     const up = folder.parentId ?? null;
+    // ...unless that would take it out from behind a gate: then only an empty folder goes.
+    const parent = up ? await loadFolder(up) : null;
+    if (hasGate(folder) && !(parent && sameGate(folder, parent))) {
+      const [inside] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(bookmarks)
+        .where(eq(bookmarks.folderId, folder.id));
+      const [below] = await db.select({ n: sql<number>`count(*)::int` }).from(bookmarkFolders).where(eq(bookmarkFolders.parentId, folder.id));
+      if (inside.n || below.n) return { error: "Esta pasta tem acesso restrito: esvazie (inclusive a lixeira dela) antes de excluir, para nada ficar aberto para toda a empresa." };
+    }
     await db.transaction(async (tx) => {
       await tx.update(bookmarks).set({ folderId: up }).where(eq(bookmarks.folderId, folder.id));
       await tx.update(fileUploads).set({ folderId: up }).where(eq(fileUploads.folderId, folder.id));
@@ -276,8 +295,9 @@ async function inheritAccess(tx: Tx, sourceId: string, targets: string[]) {
     .where(eq(bookmarkFolders.id, sourceId));
   if (!source || !targets.length) return;
   // A gate above (contracts, a project) comes down too; one the target had is never taken off, so nothing opens by moving.
-  if (source.area) await tx.update(bookmarkFolders).set({ area: source.area }).where(inArray(bookmarkFolders.id, targets));
-  if (source.engagementId) await tx.update(bookmarkFolders).set({ engagementId: source.engagementId }).where(inArray(bookmarkFolders.id, targets));
+  if (source.area) await tx.update(bookmarkFolders).set({ area: source.area }).where(and(inArray(bookmarkFolders.id, targets), isNull(bookmarkFolders.area)));
+  if (source.engagementId)
+    await tx.update(bookmarkFolders).set({ engagementId: source.engagementId }).where(and(inArray(bookmarkFolders.id, targets), isNull(bookmarkFolders.engagementId)));
   const people = (await tx.select({ userId: bookmarkFolderShares.userId }).from(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, sourceId))).map((r) => r.userId);
   const owners = await tx.select({ id: bookmarkFolders.id, ownerId: bookmarkFolders.ownerId }).from(bookmarkFolders).where(inArray(bookmarkFolders.id, targets));
   await tx.update(bookmarkFolders).set({ visibility: source.visibility }).where(inArray(bookmarkFolders.id, targets));
@@ -300,6 +320,8 @@ export async function moveFolderAs(actor: Actor, input: { id: unknown; parentId:
     if ((folder.parentId ?? "") === target) return { success: "A pasta já está aí." };
     const into = target ? await loadFolder(target) : null;
     if (target && (!into || !(await usable(actor, into)))) return blocked;
+    // A folder with a gate goes only behind the same gate; one without takes the gate of where it goes.
+    if (hasGate(folder) && !(into && sameGate(folder, into))) return GATED;
     const tree = await companyFolders(folder.companyId);
     const refusal = moveRefusal(tree, folder.id, target);
     if (refusal) return { error: refusal };
@@ -406,10 +428,11 @@ export async function updateBookmarkAs(actor: Actor, input: Record<string, unkno
     const chosen = tagInput?.success ? tagInput.data || null : undefined;
     const tagChange = chosen !== undefined && chosen !== (current?.tag ?? null) ? { tag: chosen, tagSource: "person" as const } : {};
     let companyId = item.companyId;
-    if (fields.folderId && fields.folderId !== item.folderId) {
-      const folder = await loadFolder(fields.folderId);
-      if (!folder || !(await usable(actor, folder))) return blocked;
-      companyId = folder.companyId;
+    if ((fields.folderId || null) !== item.folderId) {
+      const folder = fields.folderId ? await loadFolder(fields.folderId) : null;
+      if (fields.folderId && (!folder || !(await usable(actor, folder)))) return blocked;
+      if (!(await gateKeeps(item.folderId, folder))) return GATED;
+      if (folder) companyId = folder.companyId;
     }
     await db
       .update(bookmarks)
@@ -438,11 +461,12 @@ export async function moveBookmarkAs(actor: Actor, input: { id: unknown; folderI
     const item = await editableBookmark(actor, bookmarkId);
     if (!item) return blocked;
     let companyId = item.companyId;
+    const folder = folderId ? await loadFolder(folderId) : null;
     if (folderId) {
-      const folder = await loadFolder(folderId);
       if (!folder || !(await usable(actor, folder))) return blocked;
       companyId = folder.companyId;
     }
+    if ((folderId || null) !== item.folderId && !(await gateKeeps(item.folderId, folder))) return GATED;
     await db
       .update(bookmarks)
       .set({ folderId: folderId || null, companyId, updatedAt: new Date() })
@@ -533,6 +557,8 @@ export async function replaceBookmarkFileAs(actor: Actor, input: { id: unknown; 
       .from(bookmarks)
       .where(eq(bookmarks.id, bookmarkId));
     if (!current?.storageKey || !current.fileName) return { error: "Só um arquivo guardado no Arquivos ganha versões." };
+    const [copy] = await db.select({ origin: bookmarks.origin }).from(bookmarks).where(eq(bookmarks.id, bookmarkId));
+    if (copy?.origin) return { error: "Este arquivo é uma cópia que o Console guarda (de um contrato ou de uma entrega). Para mudar, mude o contrato ou a tarefa." };
     const done = await db.transaction(async (tx) => {
       const stored = await claimUpload(actor, uploadId, item.companyId, tx);
       if (!stored) return null;

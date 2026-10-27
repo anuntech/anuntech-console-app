@@ -91,7 +91,12 @@ export async function deleteEngagement(_: ActionState, form: FormData): Promise<
       await tx.update(journeys).set({ engagementId: null }).where(eq(journeys.engagementId, row.id));
       await tx.update(journeys).set({ hostingEngagementId: null }).where(eq(journeys.hostingEngagementId, row.id));
       // Its deliveries filed in Arquivos (copies, in a folder gated by this project) go too.
-      const storedKeys = await removeProjectFiles(tx, row.id);
+      const filed = await removeProjectFiles(tx, row.id);
+      if ("blocked" in filed)
+        throw new Refusal(
+          `A pasta de entregas deste projeto em Arquivos tem ${filed.blocked === 1 ? "1 arquivo colocado" : `${filed.blocked} arquivos colocados`} por pessoas. Mova ou exclua antes de excluir o projeto.`,
+        );
+      const storedKeys = filed.keys;
       await tx.delete(engagements).where(eq(engagements.id, row.id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,

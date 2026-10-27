@@ -121,7 +121,8 @@ export const bookmarks = {
             )
           : undefined;
       const names = new Map(companies.map((c) => [c.id, c.name]));
-      const folderOwner = new Map(folders.map((f) => [f.id, f.ownerId]));
+      // The Console's own folders (contracts, deliveries) give their owner nothing.
+      const folderOwner = new Map(folders.map((f) => [f.id, f.system ? null : f.ownerId]));
       return {
         folders: folders.map((f) => ({
           id: f.id,
@@ -133,7 +134,7 @@ export const bookmarks = {
           ownerId: f.ownerId,
           owner: f.owner,
           sharedWith: f.sharedWith.map(person),
-          manages: actor.admin || f.ownerId === actor.user.id,
+          manages: actor.admin || (f.ownerId === actor.user.id && !f.system),
         })),
         items: items.map((item) =>
           itemView(

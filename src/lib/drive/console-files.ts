@@ -165,13 +165,17 @@ export async function fileConsoleDocuments({ limit = 50 } = {}) {
 /**
  * A project going away takes its deliveries' copies and folders with it
  * (inside the deletion's transaction: without the project, the folder's gate
- * would mean nothing). Returns the R2 keys, for the caller to remove after
- * it commits.
+ * would mean nothing). Something a person put there (not a copy) is never
+ * deleted with it: `blocked` counts those, and the deletion is refused until
+ * they are moved. Otherwise returns the R2 keys, for the caller to remove
+ * after it commits.
  */
-export async function removeProjectFiles(tx: Pick<typeof db, "select" | "delete" | "update">, engagementId: string) {
+export async function removeProjectFiles(tx: Pick<typeof db, "select" | "delete" | "update">, engagementId: string): Promise<{ keys: string[] } | { blocked: number }> {
   const ids = (await tx.select({ id: bookmarkFolders.id }).from(bookmarkFolders).where(eq(bookmarkFolders.engagementId, engagementId))).map((f) => f.id);
-  if (!ids.length) return [] as string[];
-  const items = await tx.select({ id: bookmarks.id, key: bookmarks.storageKey }).from(bookmarks).where(inArray(bookmarks.folderId, ids));
+  if (!ids.length) return { keys: [] };
+  const items = await tx.select({ id: bookmarks.id, key: bookmarks.storageKey, origin: bookmarks.origin }).from(bookmarks).where(inArray(bookmarks.folderId, ids));
+  const theirs = items.filter((i) => !i.origin).length;
+  if (theirs) return { blocked: theirs };
   // Versions and texts go with their items (on delete cascade); their objects are listed first.
   const versions = items.length ? await tx.select({ key: fileVersions.storageKey }).from(fileVersions).where(inArray(fileVersions.bookmarkId, items.map((i) => i.id))) : [];
   if (items.length) await tx.delete(bookmarks).where(inArray(bookmarks.id, items.map((i) => i.id)));
@@ -179,5 +183,5 @@ export async function removeProjectFiles(tx: Pick<typeof db, "select" | "delete"
   await tx.delete(bookmarkFolderShares).where(inArray(bookmarkFolderShares.folderId, ids));
   await tx.update(bookmarkFolders).set({ parentId: null }).where(inArray(bookmarkFolders.parentId, ids));
   await tx.delete(bookmarkFolders).where(inArray(bookmarkFolders.id, ids));
-  return [...items.map((i) => i.key), ...versions.map((v) => v.key)].filter((key): key is string => !!key);
+  return { keys: [...items.map((i) => i.key), ...versions.map((v) => v.key)].filter((key): key is string => !!key) };
 }

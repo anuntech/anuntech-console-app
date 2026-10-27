@@ -95,11 +95,15 @@ export async function linkByToken(token: string) {
   return { ...link, revokedAt: new Date() };
 }
 
-async function creatorStillShares(link: ShareLink) {
+/** Whoever made the link, with the access they have now (no session: the link is used without one). */
+async function creatorOf(link: ShareLink) {
   const [creator] = await db.select().from(user).where(eq(user.id, link.createdBy));
-  if (!creator) return false;
-  const actor = (await actorForSession({ user: creator } as Parameters<typeof actorForSession>[0], { assisted: false })) as Actor;
-  return !!(await shareTarget(actor, link.kind, link.bookmarkId ?? "", link.folderId ?? ""));
+  return creator ? ((await actorForSession({ user: creator } as Parameters<typeof actorForSession>[0], { assisted: false })) as Actor) : null;
+}
+
+async function creatorStillShares(link: ShareLink) {
+  const actor = await creatorOf(link);
+  return !!actor && !!(await shareTarget(actor, link.kind, link.bookmarkId ?? "", link.folderId ?? ""));
 }
 
 /** The files a download link opens: the item, or the folder's and its subfolders', with the path below it. */
@@ -113,10 +117,25 @@ export async function linkFiles(link: ShareLink) {
   }
   if (!link.folderId) return [];
   const tree = await db
-    .select({ id: bookmarkFolders.id, parentId: bookmarkFolders.parentId, companyId: bookmarkFolders.companyId, name: bookmarkFolders.name })
+    .select({
+      id: bookmarkFolders.id,
+      parentId: bookmarkFolders.parentId,
+      companyId: bookmarkFolders.companyId,
+      name: bookmarkFolders.name,
+      area: bookmarkFolders.area,
+      engagementId: bookmarkFolders.engagementId,
+    })
     .from(bookmarkFolders)
     .where(link.companyId ? eq(bookmarkFolders.companyId, link.companyId) : isNull(bookmarkFolders.companyId));
-  const ids = [link.folderId, ...descendantIds(tree, link.folderId)];
+  // A subfolder behind a gate (contracts, a project) its creator does not pass stays out of the link.
+  const creator = await creatorOf(link);
+  if (!creator) return [];
+  const viewer = gateViewerOf(creator);
+  const ids = [link.folderId, ...descendantIds(tree, link.folderId)].filter((folderId) => {
+    const folder = tree.find((f) => f.id === folderId);
+    return !!folder && gateOpen(viewer, folder);
+  });
+  if (!ids.length) return [];
   const rows = await db
     .select({ id: bookmarks.id, title: bookmarks.title, fileName: bookmarks.fileName, fileSize: bookmarks.fileSize, folderId: bookmarks.folderId })
     .from(bookmarks)

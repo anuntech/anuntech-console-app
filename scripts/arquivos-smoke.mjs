@@ -385,6 +385,23 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Dentro de Contratos ${marker}`, visibility: "company", parentId: contractsFolder });
   ok((await one("select area from console_bookmark_folders where name=$1", [`Dentro de Contratos ${marker}`]))?.area === "finance", "Uma pasta criada dentro de Contratos herda a trava");
   ok(usedBefore === 200 && (await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "x.bin", size: 1 })).status === 200, "As cópias do Console não ocupam o espaço da empresa");
+  // What is behind a gate stays behind it: no move, edit or folder move takes it out.
+  const inner = (await one("select id from console_bookmark_folders where name=$1", [`Dentro de Contratos ${marker}`])).id;
+  await submitForm("/bookmarks", "manager", "manager", { action: "saveBookmark" }, { companyId: ids.a, folderId: inner, title: `Aditivo ${marker}`, kind: "link", url: "https://example.com/aditivo" });
+  const addendum = (await one("select id from console_bookmarks where title=$1", [`Aditivo ${marker}`])).id;
+  await submitForm("/bookmarks", "manager", "manager", { action: "moveBookmark" }, { id: addendum, folderId: "" });
+  await submitForm("/bookmarks", "manager", "manager", { action: "updateBookmark" }, { id: addendum, title: `Aditivo ${marker}`, url: "https://example.com/aditivo", folderId: "" });
+  ok((await one("select folder_id from console_bookmarks where id=$1", [addendum])).folder_id === inner, "Item de pasta restrita não sai para uma pasta aberta");
+  await submitForm("/bookmarks", "manager", "manager", { action: "moveFolder" }, { id: inner, parentId: "" });
+  ok((await one("select parent_id from console_bookmark_folders where id=$1", [inner])).parent_id === contractsFolder, "Pasta restrita não sai de trás da trava");
+  await submitForm("/bookmarks", "admin", "admin", { action: "replaceBookmarkFile" }, { id: contractCopy.id, uploadId: await sendFile("admin", ids.a, "outro.pdf", Buffer.from("%PDF-1"), "application/pdf") });
+  ok((await one("select storage_key from console_bookmarks where id=$1", [contractCopy.id])).storage_key === contractCopy.storage_key, "A cópia do Console não recebe nova versão");
+  // A project with something a person put in its deliveries folder is not deleted until that is moved.
+  const projectFolder = (await one("select id from console_bookmark_folders where engagement_id=$1", [project4d])).id;
+  await submitForm("/bookmarks", "admin", "admin", { action: "saveBookmark" }, { companyId: ids.a, folderId: projectFolder, title: `Nota ${marker}`, kind: "link", url: "https://example.com/nota" });
+  await submitForm("/projetos", "admin", "admin", { action: "deleteEngagement" }, { id: project4d, from: "list" });
+  ok(!!(await one("select 1 as ok from console_engagements where id=$1", [project4d])), "Projeto com arquivo de alguém na pasta de entregas não é excluído");
+  await db.query("delete from console_bookmarks where title=$1", [`Nota ${marker}`]);
   await submitForm("/projetos", "admin", "admin", { action: "deleteEngagement" }, { id: project4d, from: "list" });
   ok(!(await one("select 1 as ok from console_engagements where id=$1", [project4d])) && !(await one("select 1 as ok from console_bookmarks where id=$1", [deliveryCopy.id])) && !r2.objects.has(deliveryCopy.storage_key) && !(await one("select 1 as ok from console_bookmark_folders where engagement_id=$1", [project4d])), "Excluir o projeto leva a pasta e as cópias das entregas");
   // The suite cleans what it made (the run's cleanup removes companies, not folders or contracts).

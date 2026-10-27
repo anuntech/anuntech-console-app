@@ -26,3 +26,7 @@ export const gateViewerOf = (actor: { admin: boolean; grants: readonly { company
   roles: Object.fromEntries(actor.grants.map((g) => [g.company.id, g.role])),
   engagements: Object.fromEntries(actor.grants.map((g) => [g.company.id, g.engagements])),
 });
+
+export const hasGate = (folder: FolderGate) => !!folder.area || !!folder.engagementId;
+/** The same gate on both: what is behind one may move behind the other. */
+export const sameGate = (a: FolderGate, b: FolderGate) => (a.area ?? null) === (b.area ?? null) && (a.engagementId ?? null) === (b.engagementId ?? null);
