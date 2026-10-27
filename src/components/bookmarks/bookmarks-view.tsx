@@ -1167,13 +1167,13 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           previewing && !inTrash ? (
             <>
               {data.largeFiles && canEdit(previewing) && (
-                <Button variant="outline" size="sm" onClick={() => setSharing({ kind: "download", bookmarkId: previewing.id, title: previewing.title })}>
+                <Button variant="outline" onClick={() => setSharing({ kind: "download", bookmarkId: previewing.id, title: previewing.title })}>
                   <LinkIcon />
                   Compartilhar
                 </Button>
               )}
               {canEdit(previewing) && (
-                <Button variant="outline" size="sm" onClick={() => setEditor({ mode: "edit", item: previewing })}>
+                <Button variant="outline" onClick={() => setEditor({ mode: "edit", item: previewing })}>
                   <PencilIcon />
                   Editar
                 </Button>
