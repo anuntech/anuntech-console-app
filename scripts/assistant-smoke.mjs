@@ -481,6 +481,24 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   await setUsage("person", people.manager.id, manager2);
   flags({ approved: true });
 
+  // Arquivos (phase 4b): the assistant finds a file by what is written in it and reads it, as untrusted text; never another company's.
+  flags({ approved: true, jev: "fail" });
+  const minutes = randomUUID();
+  await db.query("insert into console_bookmarks(id,company_id,author_id,title,file_name,content) values($1,$2,$3,$4,'ata.txt',convert_to($5,'UTF8'))", [
+    minutes,
+    ids.a,
+    people.manager.id,
+    `Ata ${marker}`,
+    `Ata da reunião ${marker}: o cliente aprovou o cronograma de dezembro e pediu o orçamento da segunda fase.`,
+  ]);
+  await request("/api/cron/arquivos-texto", undefined, { headers: { Authorization: "Bearer test-cron-secret" } });
+  r = await ask("manager", { message: `ache nos arquivos "cronograma dezembro" e resuma` });
+  ok(!!r.done && r.done.reply.includes("aprovou o cronograma de dezembro") && r.done.reply.includes("não confiável"), "O assistente acha o arquivo pelo que está escrito nele e lê o texto como não confiável");
+  r = await ask("outsider", { message: `leia o arquivo ${minutes}` });
+  ok(!!r.done && r.done.reply.includes("Erro:") && !r.done.reply.includes("cronograma"), "O assistente não lê arquivo de outra empresa");
+  await db.query("delete from console_bookmarks where id=$1", [minutes]);
+  flags({ approved: true });
+
   // What the browser received: never a tool call, its arguments or its result, never the model's reasoning.
   ok(
     streamed.length > 0 && streamed.every((c) => !String(c.type).startsWith("tool-") && !String(c.type).startsWith("reasoning") && c.type !== "unreadable"),

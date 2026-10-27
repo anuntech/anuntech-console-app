@@ -43,50 +43,64 @@ async function save(bookmarkId: string, source: string, outcome: Extracted | { s
     });
 }
 
-/** Reads the files still without text (the newest first) until `limit` or the time runs out; returns how many were read. */
-export async function indexPendingFiles({ limit = 20, budgetMs = 60_000 } = {}) {
-  const started = Date.now();
-  const pending = await db.execute<{ id: string; file_name: string; storage_key: string | null; size: number | null; source: string }>(sql`
+type Pending = { id: string; file_name: string; storage_key: string | null; size: number | null; source: string };
+
+/** The files still without text (the newest first), or only `bookmarkId` if it is one of them. */
+async function pendingFiles(limit: number, bookmarkId?: string) {
+  const result = await db.execute<Pending>(sql`
     select ${bookmarks.id} as id, ${bookmarks.fileName} as file_name, ${bookmarks.storageKey} as storage_key,
       coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}))::float8 as size, ${sourceOf} as source
     from ${bookmarks}
     left join ${fileTexts} on ${fileTexts.bookmarkId} = ${bookmarks.id}
     where ${bookmarks.deletedAt} is null and ${bookmarks.fileName} is not null
       and (${bookmarks.storageKey} is not null or ${bookmarks.content} is not null)
+      ${bookmarkId ? sql`and ${bookmarks.id} = ${bookmarkId}` : sql``}
       and (${fileTexts.bookmarkId} is null or ${fileTexts.sourceKey} <> ${sourceOf}
         or (${fileTexts.status} = 'failed' and ${fileTexts.attempts} < ${MAX_ATTEMPTS} and ${fileTexts.extractedAt} < now() - interval '30 minutes'))
     order by ${bookmarks.updatedAt} desc
     limit ${limit}`);
+  return result.rows;
+}
+
+async function readOne(file: Pending) {
+  if (!textKindOf(file.file_name)) return save(file.id, file.source, { status: "skipped", reason: "Tipo de arquivo sem texto para a busca." });
+  if ((file.size ?? 0) > TEXT_SOURCE_MAX_BYTES) return save(file.id, file.source, { status: "skipped", reason: "Arquivo grande demais para ler o texto." });
+  try {
+    const bytes = file.storage_key
+      ? storageConfigured()
+        ? await getObject(file.storage_key)
+        : null
+      : ((await db.select({ content: bookmarks.content }).from(bookmarks).where(eq(bookmarks.id, file.id)))[0]?.content ?? null);
+    if (!bytes) return save(file.id, file.source, { status: "failed", reason: "Arquivo não encontrado no armazenamento." });
+    await save(file.id, file.source, await extractFileText(new Uint8Array(bytes), file.file_name));
+  } catch (error) {
+    // Never the text or the file in the log: only which item and why.
+    console.error("[arquivos] text failed", file.id, error instanceof Error ? error.message.slice(0, 200) : "erro");
+    await save(file.id, file.source, { status: "failed", reason: "Não foi possível ler o texto deste arquivo." });
+  }
+}
+
+/** Reads the files still without text (the newest first) until `limit` or the time runs out; returns how many were read. */
+export async function indexPendingFiles({ limit = 20, budgetMs = 60_000 } = {}) {
+  const started = Date.now();
   let read = 0;
-  for (const file of pending.rows) {
+  for (const file of await pendingFiles(limit)) {
     if (Date.now() - started > budgetMs) break;
     read++;
-    if (!textKindOf(file.file_name)) {
-      await save(file.id, file.source, { status: "skipped", reason: "Tipo de arquivo sem texto para a busca." });
-      continue;
-    }
-    if ((file.size ?? 0) > TEXT_SOURCE_MAX_BYTES) {
-      await save(file.id, file.source, { status: "skipped", reason: "Arquivo grande demais para ler o texto." });
-      continue;
-    }
-    try {
-      const bytes = file.storage_key
-        ? storageConfigured()
-          ? await getObject(file.storage_key)
-          : null
-        : ((await db.select({ content: bookmarks.content }).from(bookmarks).where(eq(bookmarks.id, file.id)))[0]?.content ?? null);
-      if (!bytes) {
-        await save(file.id, file.source, { status: "failed", reason: "Arquivo não encontrado no armazenamento." });
-        continue;
-      }
-      await save(file.id, file.source, await extractFileText(new Uint8Array(bytes), file.file_name));
-    } catch (error) {
-      // Never the text or the file in the log: only which item and why.
-      console.error("[arquivos] text failed", file.id, error instanceof Error ? error.message.slice(0, 200) : "erro");
-      await save(file.id, file.source, { status: "failed", reason: "Não foi possível ler o texto deste arquivo." });
-    }
+    await readOne(file);
   }
   return read;
+}
+
+/**
+ * The text of one file, read now if it was not yet (the assistant asking
+ * about a file just saved). The caller checked that the person sees it.
+ */
+export async function fileTextOf(bookmarkId: string) {
+  const [file] = await pendingFiles(1, bookmarkId);
+  if (file) await readOne(file);
+  const [row] = await db.select({ status: fileTexts.status, text: fileTexts.text, reason: fileTexts.reason }).from(fileTexts).where(eq(fileTexts.bookmarkId, bookmarkId));
+  return row ?? null;
 }
 
 /** After the response: the file just saved gets its text in seconds, without making the person wait. */

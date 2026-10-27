@@ -728,7 +728,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             items: [
               {
                 term: "Consultar",
-                text: "Chamados e as últimas mensagens de cada um, projetos, tarefas e comentários, produtos e serviços, os bookmarks que você vê na página Bookmarks, os dados da empresa, a sua conta, os artigos desta Ajuda e as informações sobre a Anuntech. O Administrador também consulta faturas, boletos, Pix, recorrências, totais, contratos, orçamentos e quem tem acesso à empresa.",
+                text: "Chamados e as últimas mensagens de cada um, projetos, tarefas e comentários, produtos e serviços, os itens que você vê em Arquivos (o assistente acha um arquivo pelo nome ou pelo que está escrito nele e lê o texto de PDFs, Word, Excel, PowerPoint e textos para responder ou resumir, por exemplo “ache o contrato da Espaço Absolut” ou “o que diz a ata de outubro?”), os dados da empresa, a sua conta, os artigos desta Ajuda e as informações sobre a Anuntech. O Administrador também consulta faturas, boletos, Pix, recorrências, totais, contratos, orçamentos e quem tem acesso à empresa.",
               },
               {
                 term: "Abrir e responder chamados",

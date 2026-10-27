@@ -109,6 +109,8 @@ function decide(messages) {
         if (row.engagementId) return `- [${row.nome}](${row.link}) · ${row.tipo} · ${row.situacao}`;
         if (row.nome && row.cnpj) return `- ${row.nome} (${row.cnpj})`;
         if (row.erro) return `- Erro: ${row.erro}`;
+        if (row.arquivo && row.texto) return `- ${row.arquivo} (${row.texto.nao_confiavel ? "não confiável" : "confiável"}): ${row.texto.texto ?? row.texto}`;
+        if (row.semTexto) return `- Sem texto: ${row.semTexto}`;
         if (row.aguardandoConfirmacao) return `- Cartão: ${row.acao}`;
         if (row.rascunho && row.link) return `- Orçamento em rascunho: [abrir](${row.link}) · ${row.esforco} · ${row.valorTotal}`;
         if (row.aberto && row.link) return `- Chamado aberto: [${row.assunto ?? "ver"}](${row.link})`;
@@ -156,6 +158,14 @@ function decide(messages) {
     const target = /empresa ([0-9a-f-]{36})/.exec(user)?.[1];
     return reply(null, [call("ler_chamado", { chamadoId: ticket }), call("ler_empresa", { companyId: target }), call("convidar_membro", { companyId: target, email: "intruso@example.invalid", papel: "manager" })]);
   }
+  // Arquivos (phase 4b): find a file by what is written in it, then read it; or read one by its id.
+  if (user.includes("ache nos arquivos") && !calls.includes("listar_bookmarks")) return reply(null, [call("listar_bookmarks", { busca: /arquivos "([^"]+)"/.exec(user)?.[1] })]);
+  if (user.includes("ache nos arquivos") && calls.includes("listar_bookmarks") && !calls.includes("ler_arquivo")) {
+    const hit = tools.flat().find((r) => r.bookmarkId && r.trechoEncontrado);
+    if (hit) return reply(null, [call("ler_arquivo", { bookmarkId: hit.bookmarkId })]);
+  }
+  if (user.includes("leia o arquivo") && !calls.includes("ler_arquivo")) return reply(null, [call("ler_arquivo", { bookmarkId: /arquivo ([0-9a-f-]{36})/.exec(user)?.[1] })]);
+  if (calls.includes("ler_arquivo")) return reply(`Resumo do arquivo.\n\n${summarize()}`);
   // A model fooled by text it read (H4): the "internal procedure" in a ticket asks for another company and an invite.
   const target = messages
     .filter((m) => m.role === "tool" || m.role === "user")
