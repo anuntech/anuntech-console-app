@@ -481,22 +481,22 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   await setUsage("person", people.manager.id, manager2);
   flags({ approved: true });
 
-  // Arquivos, organizing: the assistant gathers folders into a new one, as one card with the folders' names; nothing moves before the click.
+  // Arquivos, organizing (the stand-in model reads the message lowercased): the assistant gathers folders into a new one, as one card with the folders' names; nothing moves before the click.
   flags({ approved: true, jev: "fail" });
   const loose = [randomUUID(), randomUUID()];
   await db.query("insert into console_bookmark_folders(id,company_id,owner_id,name) values($1,$2,$3,$4),($5,$2,$3,$6)", [loose[0], ids.a, people.manager.id, `Marca ${marker}`, loose[1], `Fotos ${marker}`]);
-  r = await ask("manager", { message: `junte as pastas ${loose[0]} e ${loose[1]} numa pasta Tudo-${marker} da empresa ${ids.a}` });
+  r = await ask("manager", { message: `junte as pastas ${loose[0]} e ${loose[1]} numa pasta tudo-${marker} da empresa ${ids.a}` });
   const gather = r.done?.proposals?.find((p) => p.title === "Mover pastas de Arquivos");
   ok(!!gather && JSON.stringify(gather.details).includes(`Marca ${marker}`) && JSON.stringify(gather.details).includes(`Fotos ${marker}`), "Organizar pastas vira um cartão com os nomes das pastas");
-  ok(!(await db.query("select 1 from console_bookmark_folders where name=$1", [`Tudo-${marker}`])).rowCount, "Nada muda antes do clique");
+  ok(!(await db.query("select 1 from console_bookmark_folders where name=$1", [`tudo-${marker}`])).rowCount, "Nada muda antes do clique");
   r = await decide("manager", gather, "confirmar");
-  const gathered = (await db.query("select id from console_bookmark_folders where name=$1", [`Tudo-${marker}`])).rows[0];
+  const gathered = (await db.query("select id from console_bookmark_folders where name=$1", [`tudo-${marker}`])).rows[0];
   const parents = (await db.query("select parent_id from console_bookmark_folders where id=any($1::text[])", [loose])).rows.map((row) => row.parent_id);
   ok(r.status === 200 && !!gathered && parents.every((parent) => parent === gathered.id), "Com o clique, a pasta nova é criada e recebe as outras");
   r = await ask("outsider", { message: `junte as pastas ${loose[0]} e ${loose[1]} numa pasta Fora-${marker} da empresa ${ids.a}` });
   ok(!r.done?.proposals?.some((p) => p.title === "Mover pastas de Arquivos"), "Quem não vê as pastas não ganha o cartão");
   await db.query("update console_bookmark_folders set parent_id=null where id=any($1::text[])", [loose]);
-  await db.query("delete from console_bookmark_folders where id=any($1::text[]) or name=$2", [loose, `Tudo-${marker}`]);
+  await db.query("delete from console_bookmark_folders where id=any($1::text[]) or name=$2", [loose, `tudo-${marker}`]);
   flags({ approved: true });
 
   // Arquivos (phase 4b): the assistant finds a file by what is written in it and reads it, as untrusted text; never another company's.
