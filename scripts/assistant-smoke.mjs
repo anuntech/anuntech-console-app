@@ -481,6 +481,9 @@ export async function runAssistantTests({ database: db, ids, people, request, ok
   await setUsage("person", people.manager.id, manager2);
   flags({ approved: true });
 
+  // The Arquivos checks start with the day's allowance back (every earlier turn of the suite counts against it).
+  await setUsage("person", people.manager.id, { tokens: 0, messages: 0 });
+  await setUsage("company", ids.a, { tokens: 0, messages: 0 });
   // Arquivos, organizing (the stand-in model reads the message lowercased): the assistant gathers folders into a new one, as one card with the folders' names; nothing moves before the click.
   flags({ approved: true, jev: "fail" });
   const loose = [randomUUID(), randomUUID()];
