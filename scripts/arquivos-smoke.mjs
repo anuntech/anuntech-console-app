@@ -264,6 +264,56 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   ok(!r2.objects.has(afterReplace.storage_key) && !(await one("select 1 as ok from console_file_versions where bookmark_id=$1", [photo.id])), "As versões saem junto, do banco e do R2");
   ok(!(await one("select 1 as ok from console_file_uploads where id=$1", [started.data.id])) && !r2.objects.has(`${ids.a}/${started.data.id}`), "Envio concluído e nunca salvo some na rotina, com o arquivo");
 
+  // Fase 4a: the text inside the files, for the search. Read right after saving, accents out, only for who sees the item; a new version is read again.
+  const PDFDocument = (await import("pdfkit")).default;
+  const pdfOf = (line) =>
+    new Promise((resolve) => {
+      const doc = new PDFDocument();
+      const chunks = [];
+      doc.on("data", (chunk) => chunks.push(chunk));
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.text(line);
+      doc.end();
+    });
+  const { zipSync, strToU8 } = await import("fflate");
+  const docxOf = (line) => Buffer.from(zipSync({ "word/document.xml": strToU8(`<w:document><w:body><w:p><w:r><w:t>${line}</w:t></w:r></w:p></w:body></w:document>`) }));
+  const sendFile = async (who, companyId, fileName, data, mime) => {
+    const begun = await json(who, "/api/arquivos/envios", { companyId, folderId: "", fileName, size: data.length, mime });
+    await sendParts(who, begun.data, data);
+    return begun.data.id;
+  };
+  const saveFile = async (who, companyId, title, fileName, data, mime) => {
+    const uploadId = await sendFile(who, companyId, fileName, data, mime);
+    await submitForm("/bookmarks", who, who, { action: "saveBookmark" }, { companyId, folderId: "", title, kind: "file", uploadId });
+    return (await one("select id from console_bookmarks where title=$1", [title])).id;
+  };
+  const textOf = async (id, until = (row) => !!row) => {
+    for (let i = 0; i < 60; i++) {
+      const row = await one("select status, text, source_key, reason from console_file_texts where bookmark_id=$1", [id]);
+      if (until(row)) return row;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return null;
+  };
+  const contract = await saveFile("manager", ids.a, `Contrato ${marker}`, "contrato.pdf", await pdfOf(`Contrato de manutenção da vitrine. Cláusula de reajuste anual pelo IPCA, código ${marker}.`), "application/pdf");
+  const brief = await saveFile("manager", ids.a, `Briefing ${marker}`, "briefing.docx", docxOf(`Briefing da campanha: público jovem, orçamento aprovado em outubro.`), "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  const contractText = await textOf(contract);
+  ok(contractText?.status === "done" && contractText.text.includes("reajuste anual"), "O texto do PDF é lido logo depois de salvar");
+  ok((await textOf(brief))?.text?.includes("orçamento aprovado"), "O texto do Word é lido");
+  const found = await request(`/bookmarks?q=${encodeURIComponent("reajuste ipca")}`, "manager");
+  ok(found.text.includes(`Contrato ${marker}`) && found.text.includes("⟦reajuste⟧"), "A busca acha a palavra dentro do PDF e mostra o trecho");
+  ok((await request(`/bookmarks?q=${encodeURIComponent("orcamento aprovado")}`, "manager")).text.includes(`Briefing ${marker}`), "A busca no conteúdo ignora os acentos");
+  ok(!(await request(`/bookmarks?q=${encodeURIComponent("orcamento aprovado")}`, "outsider")).text.includes(`Briefing ${marker}`), "A busca no conteúdo não mostra arquivo de outra empresa");
+  await submitForm("/bookmarks", "manager", "manager", { action: "replaceBookmarkFile" }, { id: contract, uploadId: await sendFile("manager", ids.a, "contrato-v2.docx", docxOf("Aditivo de prazo, sem reajuste."), "application/octet-stream") });
+  const reread = await textOf(contract, (row) => row?.source_key !== contractText.source_key);
+  ok(reread?.text === "Aditivo de prazo, sem reajuste.", "Uma nova versão é lida de novo");
+  ok(!(await request(`/bookmarks?q=${encodeURIComponent("manutenção vitrine")}`, "manager")).text.includes(`Contrato ${marker}`), "O texto da versão antiga sai da busca");
+  // The routine reads what was left (an older file, a read that failed).
+  await db.query("delete from console_file_texts where bookmark_id=$1", [brief]);
+  const textRun = await cron("/api/cron/arquivos-texto");
+  ok(textRun.status === 200 && (await one("select status from console_file_texts where bookmark_id=$1", [brief]))?.status === "done", "A rotina lê os arquivos que ficaram sem texto");
+  ok((await request("/api/cron/arquivos-texto", undefined)).status === 401, "A rotina pede a chave");
+
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);
 }

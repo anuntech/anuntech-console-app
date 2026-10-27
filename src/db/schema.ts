@@ -1185,6 +1185,34 @@ export const bookmarks = pgTable(
   ],
 );
 
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
+
+/**
+ * The text inside a bookmark's file, for the content search (Arquivos, phase
+ * 4; lib/drive/file-index.ts). One row per file; `sourceKey` is the stored
+ * file it was read from, so a new version is read again. `search` is built
+ * by Postgres from the text, accents out (the same letters as
+ * lib/drive/text-rules.ts).
+ */
+export const fileTexts = pgTable(
+  "console_file_texts",
+  {
+    bookmarkId: text("bookmark_id")
+      .primaryKey()
+      .references(() => bookmarks.id, { onDelete: "cascade" }),
+    sourceKey: text("source_key").notNull(),
+    status: text("status", { enum: ["done", "skipped", "failed"] }).notNull(),
+    text: text("text"),
+    reason: text("reason"),
+    attempts: integer("attempts").notNull().default(0),
+    search: tsvector("search").generatedAlwaysAs(
+      sql`to_tsvector('portuguese'::regconfig, lower(translate(coalesce("text", ''), 'áàâãäåéèêëíìîïóòôõöúùûüçñýÿÁÀÂÃÄÅÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑÝ', 'aaaaaaeeeeiiiiooooouuuucnyyAAAAAAEEEEIIIIOOOOOUUUUCNY')))`,
+    ),
+    extractedAt: timestamp("extracted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("console_file_text_search_idx").using("gin", t.search)],
+);
+
 /**
  * The earlier files of a bookmark (Arquivos' versions): "Enviar nova versão"
  * keeps the file it replaces here, in R2 under its own key. The bookmark row

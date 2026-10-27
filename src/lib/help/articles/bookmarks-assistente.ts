@@ -129,7 +129,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             kind: "list",
             items: [
               "Em telas a partir de 1024 px de largura, a coluna da esquerda mostra “Todos”, “Sem pasta” e, em “Pastas”, cada pasta com o número de itens. Em telas menores, como no celular, escolha a pasta no seletor acima da lista, que começa em “Todos os bookmarks”.",
-              "O campo “Buscar por título, link ou nome do arquivo” procura no título, no endereço do link e no nome do arquivo.",
+              "O campo “Buscar pelo nome ou pelo que está escrito no arquivo” procura no título, no endereço do link, no nome do arquivo e no texto de dentro de PDFs, documentos do Word, planilhas do Excel, apresentações do PowerPoint, arquivos do LibreOffice e textos. Para buscar no texto, digite pelo menos 3 letras; acentos não fazem diferença. Quando a palavra está dentro do arquivo, o item mostra o trecho com ela destacada.",
               "Os ícones “Lista” e “Grade”, ao lado da busca, mudam a forma de mostrar. A escolha fica guardada neste navegador.",
               "Clique no item: um link abre em outra aba, uma lousa abre no Console, e um arquivo abre na prévia quando é imagem, PDF, vídeo, áudio ou texto; os outros tipos são baixados.",
             ],
@@ -291,7 +291,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
       },
       {
         q: "Por que a busca não encontra o meu arquivo?",
-        a: "A busca procura no título, no endereço do link e no nome do arquivo, mas não dentro do conteúdo. Confira a empresa e a pasta escolhidas: a busca vale para o que está aberto. Tente também uma palavra menor.",
+        a: "Confira a empresa e a pasta escolhidas: a busca vale para o que está aberto. Dentro dos arquivos, a busca procura palavras inteiras (em “contrato”, acha também “contratos”), então tente a palavra completa ou outra parecida. O texto de um arquivo novo entra na busca alguns segundos depois de salvar. Imagens, vídeos, PDFs escaneados (que são fotos de páginas) e arquivos acima de 50 MB não têm o texto lido; nesses, busque pelo título ou pelo nome do arquivo. De arquivos muito longos, a busca lê as primeiras 40 páginas, mais ou menos.",
       },
       {
         q: "A lista abriu em cartões. Como vejo em linhas?",

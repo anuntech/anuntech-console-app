@@ -17,6 +17,7 @@ import {
   shareFolderAs,
   updateBookmarkAs,
 } from "./bookmark-core";
+import { indexSoon } from "../drive/file-index";
 
 /*
  * The web's bookmark forms. The rules live in bookmark-core.ts, shared with
@@ -65,6 +66,7 @@ export async function searchPeople(folderId: string, query: string) {
 export async function saveBookmark(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
   const state = await saveBookmarkAs(actor, Object.fromEntries(form), form.get("file"));
+  if (state.success) indexSoon();
   // The id is for the app; the web's form answers as it always did.
   delete state.id;
   return state;
@@ -94,12 +96,16 @@ export async function purgeBookmark(_: ActionState, form: FormData): Promise<Act
 
 export async function replaceBookmarkFile(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  return replaceBookmarkFileAs(actor, { id: form.get("id"), uploadId: form.get("uploadId") });
+  const state = await replaceBookmarkFileAs(actor, { id: form.get("id"), uploadId: form.get("uploadId") });
+  if (state.success) indexSoon();
+  return state;
 }
 
 export async function restoreVersion(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  return restoreVersionAs(actor, { id: form.get("id") });
+  const state = await restoreVersionAs(actor, { id: form.get("id") });
+  if (state.success) indexSoon();
+  return state;
 }
 
 export async function deleteBookmark(_: ActionState, form: FormData): Promise<ActionState> {

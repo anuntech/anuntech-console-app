@@ -17,11 +17,14 @@ import {
   bookmarkFolders,
   bookmarks,
   companies,
+  fileTexts,
   consoleStaffMembers,
   memberships,
   user,
 } from "@/db/schema";
 import { canAccess, type Actor } from "../access/access";
+import { contentQuery } from "../drive/text-search";
+import { MARK_CLOSE, MARK_OPEN } from "../drive/text-excerpt";
 import { getAccountEmails } from "../account/account-identity";
 import { hasConsoleStaffAccess } from "../access/console-members";
 import { db } from "../db";
@@ -67,6 +70,8 @@ export type BookmarkView = {
   updatedAt?: string;
   /** In the trash since then; only in the Lixeira view. */
   deletedAt?: string;
+  /** Where a search found its words inside the file, between MARK_OPEN and MARK_CLOSE (lib/drive/text-rules.ts). */
+  excerpt?: string;
 };
 /** `company`: "all", "internal" (Anuntech's own) or a company id. */
 export type BookmarkQuery = { folder: string; search: string; company: string };
@@ -208,11 +213,17 @@ export async function bookmarksFor(
           : sql`false`
         : visible;
   const search = query.search.replace(/[\\%_]/g, "\\$&");
+  // Words of three letters or more also look inside the files (lib/drive/file-index.ts).
+  const typed = query.search.trim();
+  const inContent =
+    typed.length >= 3
+      ? sql`exists (select 1 from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id} and ${fileTexts.search} @@ ${contentQuery(typed)})`
+      : undefined;
   const matchingWhere =
     and(
       narrowed,
       search
-        ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`), ilike(bookmarks.fileName, `%${search}%`))
+        ? or(ilike(bookmarks.title, `%${search}%`), ilike(bookmarks.url, `%${search}%`), ilike(bookmarks.fileName, `%${search}%`), inContent)
         : undefined,
     ) ?? sql`true`;
   // Counted first, so a page past the end (after a delete or a narrower search)
@@ -246,6 +257,10 @@ export async function bookmarksFor(
           createdAt: bookmarks.createdAt,
           updatedAt: bookmarks.updatedAt,
           deletedAt: bookmarks.deletedAt,
+          // The passage of the file with the words, highlighted; the typed words and the accentless ones both count.
+          excerpt: inContent
+            ? sql<string | null>`(select ts_headline('portuguese', ${fileTexts.text}, ${contentQuery(typed)} || websearch_to_tsquery('portuguese', ${typed}), ${`MaxWords=24, MinWords=10, MaxFragments=1, StartSel=${MARK_OPEN}, StopSel=${MARK_CLOSE}`}) from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarks.id} and ${fileTexts.search} @@ ${contentQuery(typed)})`
+            : sql<null>`null`,
         })
         .from(bookmarks)
         .where(matchingWhere)
@@ -256,8 +271,9 @@ export async function bookmarksFor(
         .offset(offsetOf(shown))
     : [];
   return {
-    items: items.map(({ deletedAt, ...item }) => ({
+    items: items.map(({ deletedAt, excerpt, ...item }) => ({
       ...item,
+      ...(excerpt ? { excerpt } : {}),
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
       ...(deletedAt ? { deletedAt: deletedAt.toISOString() } : {}),

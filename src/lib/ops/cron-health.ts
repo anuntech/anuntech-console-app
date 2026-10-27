@@ -17,6 +17,7 @@ export const ROUTINES = {
   "contract-expiry": { label: "Aviso de vigência dos contratos", every: 26 * 60 },
   "client-notices": { label: "Avisos automáticos aos clientes", every: 26 * 60 },
   arquivos: { label: "Limpeza de Arquivos (lixeira e envios abandonados)", every: 26 * 60 },
+  "arquivos-texto": { label: "Leitura do texto dos arquivos para a busca", every: 45 },
 } as const satisfies Record<string, { label: string; every: number }>;
 export type Routine = keyof typeof ROUTINES;
 

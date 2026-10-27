@@ -2,7 +2,7 @@
 import { SearchField } from "@/components/console/search-field";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type ReactNode } from "react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import {
   BookmarkIcon,
@@ -25,6 +25,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { TRASH_DAYS, trashDaysLeft } from "@/lib/drive/drive-rules";
+import { excerptPieces } from "@/lib/drive/text-excerpt";
 import { folderPath, treeOrder } from "@/lib/bookmarks/folder-tree";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -352,8 +353,8 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   );
 
   /** Link host or file name and size; the company too when the list spans several and has no column for it. */
-  const subtitleFor = (item: BookmarkView, withCompany: boolean) =>
-    [
+  const subtitleFor = (item: BookmarkView, withCompany: boolean) => {
+    const line = [
       kindOf(item) === "board" ? "Lousa" : item.url ? linkHost(item.url) : item.fileName,
       kindOf(item) === "file" && item.fileSize ? fileSizeLabel(item.fileSize) : null,
       withCompany ? (companyName.get(item.companyId ?? "") ?? null) : null,
@@ -361,6 +362,16 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
     ]
       .filter(Boolean)
       .join(" · ");
+    // A search that found the words inside the file shows where.
+    return item.excerpt ? (
+      <>
+        {line}
+        <FoundInFile excerpt={item.excerpt} />
+      </>
+    ) : (
+      line
+    );
+  };
   // A file opens in the preview when the Console can show it; anything else downloads.
   const [previewing, setPreviewing] = useState<BookmarkView | null>(null);
   const download = (item: BookmarkView) => (canPreview(item) ? setPreviewing(item) : downloadBookmark(item));
@@ -728,7 +739,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             <SearchField
               value={query.search}
               onChange={(search) => go({ search })}
-              placeholder="Buscar por título, link ou nome do arquivo"
+              placeholder="Buscar pelo nome ou pelo que está escrito no arquivo"
               className="min-w-0 flex-1 max-sm:basis-full"
             />
           }
@@ -846,5 +857,24 @@ function SpaceMeter({ name, used, quota }: { name: string | null; used: number; 
         {`${used ? fileSizeLabel(used) : "0 KB"} ${quota === null ? "usados, sem limite" : `de ${fileSizeLabel(quota)}`}`}
       </p>
     </div>
+  );
+}
+
+/** The passage of the file where the search found its words, the words highlighted. */
+function FoundInFile({ excerpt }: { excerpt: string }) {
+  return (
+    <span className="mt-0.5 line-clamp-2 block whitespace-normal text-xs text-muted-foreground">
+      <span className="sr-only">Encontrado no arquivo: </span>…
+      {excerptPieces(excerpt).map((piece, index) =>
+        piece.hit ? (
+          <mark key={index} className="rounded-sm bg-accent px-0.5 font-medium text-primary">
+            {piece.text}
+          </mark>
+        ) : (
+          <Fragment key={index}>{piece.text}</Fragment>
+        ),
+      )}
+      …
+    </span>
   );
 }

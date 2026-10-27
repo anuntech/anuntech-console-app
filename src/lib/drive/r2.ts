@@ -99,6 +99,16 @@ export async function objectSize(key: string) {
   return Number(response.headers.get("content-length") ?? 0);
 }
 
+/** The bytes of a stored file, for the Console to read it (the content search); null when it is gone. */
+export async function getObject(key: string) {
+  const { client, base } = need();
+  const signed = await client.sign(objectUrl(base, key), { method: "GET" });
+  const response = await fetch(signed.url, { method: "GET", headers: signed.headers, signal: AbortSignal.timeout(90_000) });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new StorageError(`Leitura do arquivo: R2 respondeu ${response.status}.`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
 /** A download address valid for five minutes, saved under its own name. */
 export async function downloadUrl(key: string, fileName: string, inline = false, contentType?: string) {
   const { client, base } = need();

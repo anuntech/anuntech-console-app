@@ -365,6 +365,13 @@
       "when": 1793056900476,
       "tag": "0051_arquivos_links",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793058917530,
+      "tag": "0052_arquivos_texto",
+      "breakpoints": true
     }
   ]
 }
