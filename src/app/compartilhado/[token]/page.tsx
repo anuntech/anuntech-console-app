@@ -41,6 +41,14 @@ export default async function SharedFiles({ params }: { params: Promise<{ token:
         .filter(Boolean)
         .join(" · ")}
     >
+      {link.folderId && files.length > 1 && (
+        <Button className="justify-self-start" asChild>
+          <a href={`/compartilhado/${token}/zip`} download>
+            <DownloadIcon />
+            Baixar tudo (.zip)
+          </a>
+        </Button>
+      )}
       {files.length ? (
         <ul className="m-0 grid list-none gap-2 p-0">
           {files.map((file) => (

@@ -410,6 +410,45 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   await db.query("delete from console_bookmark_folders where company_id=$1 and origin is not null", [ids.a]);
   await db.query("delete from console_contracts where id=$1", [signed4d]);
 
+  // Fase 5a: a folder, its subfolders included, as one .zip built while it is sent; through a link too, as one download.
+  const { unzipSync } = await import("fflate");
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Pacote ${marker}`, visibility: "company" });
+  const pack = (await one("select id from console_bookmark_folders where name=$1", [`Pacote ${marker}`])).id;
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: "", name: "Logos", visibility: "company", parentId: pack });
+  const logos = (await one("select id from console_bookmark_folders where name='Logos' and parent_id=$1", [pack])).id;
+  const putIn = async (folder, title, fileName, data) => {
+    const begun = await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: folder, fileName, size: data.length });
+    await sendParts("manager", begun.data, data);
+    await submitForm("/bookmarks", "manager", "manager", { action: "saveBookmark" }, { companyId: ids.a, folderId: folder, title, kind: "file", uploadId: begun.data.id });
+  };
+  const readme = Buffer.from(`Leia-me ${marker}`);
+  const bigOne = randomBytes(17 * 1024 * 1024);
+  await putIn(pack, `Leia-me ${marker}`, "leiame.txt", readme);
+  await putIn(pack, `Leia-me 2 ${marker}`, "leiame.txt", Buffer.from("segundo"));
+  await putIn(logos, `Logo ${marker}`, "logo.bin", bigOne);
+  // The bytes as they come (the suite's request reads text).
+  const raw = async (path, who) => {
+    const r = await fetch(base + path, { headers: who ? { Cookie: people[who].cookie } : {}, redirect: "manual" });
+    return { status: r.status, headers: r.headers, bytes: new Uint8Array(await r.arrayBuffer()) };
+  };
+  const zipped = await raw(`/api/bookmarks/pastas/${pack}/zip`, "manager");
+  const archive = unzipSync(zipped.bytes);
+  ok(zipped.status === 200 && (zipped.headers.get("content-disposition") ?? "").includes(encodeURIComponent(`Pacote ${marker}.zip`)), "A pasta baixa como .zip com o nome dela");
+  const texts = [archive["leiame.txt"], archive["leiame (2).txt"]].map((bytes) => Buffer.from(bytes ?? []).toString()).sort();
+  ok(texts.join("|") === [readme.toString(), "segundo"].sort().join("|") && Buffer.from(archive["Logos/logo.bin"] ?? []).equals(bigOne), "O .zip leva os arquivos, as subpastas e numera nomes repetidos");
+  ok(!!(await one("select 1 as ok from console_audit_events where action='bookmark_folder.downloaded' and entity_id=$1", [pack])), "O download da pasta fica registrado");
+  ok((await request(`/api/bookmarks/pastas/${pack}/zip`, "outsider")).status === 404, "Pessoa de fora não baixa a pasta");
+  const packLink = await share("manager", { kind: "download", bookmarkId: "", folderId: pack, expiresInDays: "7", password: "", maxDownloads: "1", email: "" });
+  ok((await visitor(`/compartilhado/${packLink}`)).text.includes("Baixar tudo (.zip)"), "O link da pasta oferece baixar tudo");
+  const viaLinkZip = await raw(`/compartilhado/${packLink}/zip`);
+  ok(viaLinkZip.status === 200 && Object.keys(unzipSync(viaLinkZip.bytes)).length === 3, "Pelo link, a pasta inteira baixa em .zip");
+  ok((await visitor(`/compartilhado/${packLink}/zip`)).status === 303, "O .zip conta como um download do limite");
+  await db.query("update console_bookmarks set folder_id=null where folder_id=any($1::text[])", [[pack, logos]]);
+  await db.query("update console_file_uploads set folder_id=null where folder_id=any($1::text[])", [[pack, logos]]);
+  await db.query("delete from console_share_links where folder_id=$1", [pack]);
+  await db.query("delete from console_bookmark_folders where id=$1", [logos]);
+  await db.query("delete from console_bookmark_folders where id=$1", [pack]);
+
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);
 }

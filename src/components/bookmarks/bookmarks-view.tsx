@@ -765,6 +765,14 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               >
                 <FolderPlusIcon />
               </Button>
+              {/* The open folder, its subfolders included, as one .zip (whatever the viewer sees inside). */}
+              {current && !inTrash && current.count + subfolders.length > 0 && (
+                <Button variant="outline" size="icon" aria-label="Baixar a pasta em .zip" title="Baixar a pasta em .zip" asChild>
+                  <a href={`/api/bookmarks/pastas/${current.id}/zip`} download>
+                    <DownloadIcon />
+                  </a>
+                </Button>
+              )}
               {bulk.picker}
               <Button onClick={() => setEditor({ mode: "create", companyId: createCompany, folderId: createIn })}>
                 <PlusIcon />

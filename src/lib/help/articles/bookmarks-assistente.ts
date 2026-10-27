@@ -222,7 +222,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Clique em “Criar link” e copie o endereço na hora: por segurança, ele não aparece de novo. Em “Links criados”, você vê cada link, até quando vale e quantos downloads teve. “Desligar” para o link na hora, mesmo para quem já tinha aberto.",
+            text: "Num link de pasta, quem recebe também pode baixar tudo de uma vez em .zip, com “Baixar tudo (.zip)”; isso conta como um download no limite. Clique em “Criar link” e copie o endereço na hora: por segurança, ele não aparece de novo. Em “Links criados”, você vê cada link, até quando vale e quantos downloads teve. “Desligar” para o link na hora, mesmo para quem já tinha aberto.",
           },
           {
             kind: "note",
@@ -285,6 +285,10 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           {
             kind: "p",
             text: "O download vai direto para a pasta de downloads, mesmo de arquivos grandes, e aparece na lista de downloads do navegador. Abra o arquivo baixado no programa que você usa.",
+          },
+          {
+            kind: "p",
+            text: "Para baixar uma pasta inteira, abra a pasta e clique no ícone de download ao lado de “Adicionar”. Vem um arquivo .zip com os arquivos dela e das pastas de dentro que você vê, na mesma organização. O .zip vai até 3,5 GB e 2.000 arquivos; acima disso, baixe as pastas de dentro uma de cada vez. Links e lousas não entram no .zip.",
           },
           {
             kind: "p",

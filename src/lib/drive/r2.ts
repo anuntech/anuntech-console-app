@@ -109,6 +109,16 @@ export async function getObject(key: string) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+/** A stored file as a stream, read as it is sent on (the folder's .zip); null when it is gone. */
+export async function objectStream(key: string) {
+  const { client, base } = need();
+  const signed = await client.sign(objectUrl(base, key), { method: "GET" });
+  const response = await fetch(signed.url, { method: "GET", headers: signed.headers });
+  if (response.status === 404) return null;
+  if (!response.ok || !response.body) throw new StorageError(`Leitura do arquivo: R2 respondeu ${response.status}.`);
+  return response.body;
+}
+
 /** A download address valid for five minutes, saved under its own name. */
 export async function downloadUrl(key: string, fileName: string, inline = false, contentType?: string) {
   const { client, base } = need();
