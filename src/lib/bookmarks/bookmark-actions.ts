@@ -15,15 +15,11 @@ import {
   saveBookmarkAs,
   searchPeopleAs,
   shareFolderAs,
+  starBookmarkAs,
   updateBookmarkAs,
 } from "./bookmark-core";
 import { indexSoon } from "../drive/file-index";
 import { copyBookmarkAs } from "./bookmark-copy";
-import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { bookmarkStars } from "@/db/schema";
-import { db } from "../db";
-import { bookmarkFor } from "./bookmarks";
 
 /*
  * The web's bookmark forms. The rules live in bookmark-core.ts, shared with
@@ -165,14 +161,8 @@ export async function copyBookmark(_: ActionState, form: FormData): Promise<Acti
 /** The star on an item, the viewer's own ("Com estrela"): on, or off again. */
 export async function toggleStar(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  const id = String(form.get("id") ?? "");
-  const item = /^[0-9a-f-]{36}$/i.test(id) ? await bookmarkFor(actor, id) : null;
-  if (!item) return { error: "Item não encontrado." };
-  const removed = await db
-    .delete(bookmarkStars)
-    .where(and(eq(bookmarkStars.userId, actor.user.id), eq(bookmarkStars.bookmarkId, item.id)))
-    .returning({ id: bookmarkStars.bookmarkId });
-  if (!removed.length) await db.insert(bookmarkStars).values({ userId: actor.user.id, bookmarkId: item.id }).onConflictDoNothing();
-  revalidatePath("/bookmarks");
-  return { success: removed.length ? "Estrela tirada." : "Com estrela." };
+  // The app reads `starred`; the web's form answers as it always did.
+  const state = await starBookmarkAs(actor, { id: form.get("id") });
+  delete state.starred;
+  return state;
 }

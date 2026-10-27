@@ -1,12 +1,13 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { bookmarkFolders, bookmarks as bookmarkTable, fileVersions, shareLinks, user } from "@/db/schema";
+import { bookmarkFolders, bookmarkStars, bookmarks as bookmarkTable, fileTexts, fileVersions, shareLinks, user } from "@/db/schema";
 import { db } from "../../db";
 import { accessibleCompanies, type Actor } from "../../access/access";
 import { avatarView } from "../../account/avatar-view";
 import { companyDisplayName } from "../../companies/display-name";
 import { pageCountOf } from "../../list-query";
 import { kindOf } from "../../bookmarks/board-rules";
+import { isTag } from "../../drive/tag-rules";
 import { bookmarkFor, bookmarkQuery, bookmarksFor, foldersFor, scopeOf, type BookmarkView } from "../../bookmarks/bookmarks";
 import {
   createFolderAs,
@@ -24,6 +25,7 @@ import {
   saveBookmarkAs,
   searchPeopleAs,
   shareFolderAs,
+  starBookmarkAs,
   updateBookmarkAs,
   usable,
 } from "../../bookmarks/bookmark-core";
@@ -33,6 +35,7 @@ import { indexSoon } from "../../drive/file-index";
 import { createShareLinkAs, revokeShareLinkAs, shareLinksFor } from "../../drive/share-links";
 import { downloadUrl, storageConfigured } from "../../drive/r2";
 import { spacesFor } from "../../drive/uploads";
+import { thumbnailAddresses } from "../../drive/thumb-url";
 import { api } from "../server";
 import { guard, missing } from "../access";
 import { answer } from "../managed-company";
@@ -75,8 +78,8 @@ async function companiesFor(actor: Actor) {
   return rows.map((c) => ({ id: c.id, name: companyDisplayName(c.name, c.document) }));
 }
 
-/** A bookmark as the app shows it, in the list and alone. */
-function itemView(item: BookmarkView, editable: boolean) {
+/** A bookmark as the app shows it, in the list and alone; `thumbUrl`: its card picture, when ready. */
+function itemView(item: BookmarkView, editable: boolean, thumbUrl?: string) {
   const kind = kindOf(item);
   const hasPreview = kind === "board" && !!item.preview;
   return {
@@ -102,8 +105,15 @@ function itemView(item: BookmarkView, editable: boolean) {
     tagSource: item.tagSource ?? null,
     ...(item.excerpt ? { excerpt: item.excerpt } : {}),
     ...(item.deletedAt ? { deletedAt: item.deletedAt } : {}),
+    ...(item.starred ? { starred: true } : {}),
+    ...(thumbUrl ? { thumbUrl } : {}),
+    ...(item.page ? { page: item.page } : {}),
+    ...(item.ownerName !== undefined ? { ownerName: item.ownerName } : {}),
   };
 }
+
+/** The card pictures of the files a list shows that have one (the item's `thumb`), signed after the list's own access check. */
+const thumbsOf = (items: BookmarkView[]) => thumbnailAddresses(items.filter((item) => item.thumb && !item.deletedAt).map((item) => item.id));
 
 const person = (p: { id: string; name: string; image: string | null }) => ({
   id: p.id,
@@ -124,9 +134,16 @@ export const bookmarks = {
       );
       const folders = await foldersFor(scope, query.company);
       // A folder that went away (or was never visible) shows everything, as on the web.
-      if (query.folder !== "all" && query.folder !== "root" && query.folder !== "lixeira" && !folders.some((f) => f.id === query.folder))
+      if (
+        query.folder !== "all" &&
+        query.folder !== "root" &&
+        query.folder !== "lixeira" &&
+        query.folder !== "estrela" &&
+        query.folder !== "recentes" &&
+        !folders.some((f) => f.id === query.folder)
+      )
         query.folder = "all";
-      const [{ items, rootCount, matching, page, tags, trashCount }, companies] = await Promise.all([
+      const [{ items, rootCount, matching, page, tags, trashCount, starredCount }, companies] = await Promise.all([
         bookmarksFor(
           scope,
           folders.map((f) => f.id),
@@ -144,6 +161,7 @@ export const bookmarks = {
                 : actor.grants.map((g) => g.company.id),
             )
           : undefined;
+      const thumbs = await thumbsOf(items);
       const names = new Map(companies.map((c) => [c.id, c.name]));
       // The Console's own folders (contracts, deliveries) give their owner nothing.
       const folderOwner = new Map(folders.map((f) => [f.id, f.system ? null : f.ownerId]));
@@ -165,6 +183,7 @@ export const bookmarks = {
         })),
         tags,
         trashCount,
+        starredCount,
         items: items.map((item) =>
           itemView(
             item,
@@ -172,6 +191,7 @@ export const bookmarks = {
             actor.admin ||
               item.ownerId === actor.user.id ||
               (!!item.folderId && folderOwner.get(item.folderId) === actor.user.id),
+            thumbs.get(item.id),
           ),
         ),
         folder: query.folder,
@@ -195,21 +215,33 @@ export const bookmarks = {
           fileSize: sql<number | null>`coalesce(${bookmarkTable.fileSize}, octet_length(${bookmarkTable.content}))::float8`,
           preview: sql<boolean>`(${bookmarkTable.preview} is not null)`,
           createdAt: bookmarkTable.createdAt,
+          tag: bookmarkTable.tag,
+          tagSource: bookmarkTable.tagSource,
+          ownerName: user.name,
+          // The same readings as the list's (bookmarksFor): the viewer's star, the card's picture and page.
+          starred: sql<boolean>`exists (select 1 from ${bookmarkStars} where ${bookmarkStars.bookmarkId} = ${bookmarkTable.id} and ${bookmarkStars.userId} = ${context.actor.user.id})`,
+          thumb: sql<boolean>`coalesce((select ${fileTexts.thumbStatus} = 'done' and ${fileTexts.sourceKey} = ${bookmarkTable.storageKey} from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarkTable.id}), false)`,
+          page: sql<string | null>`(select left(${fileTexts.text}, 420) from ${fileTexts} where ${fileTexts.bookmarkId} = ${bookmarkTable.id} and ${fileTexts.status} = 'done')`,
         })
         .from(bookmarkTable)
+        .leftJoin(user, eq(user.id, bookmarkTable.ownerId))
         .where(eq(bookmarkTable.id, input.id));
       if (!extra) throw missing();
-      return itemView(
-        {
-          ...record,
-          board: record.board != null,
-          fileSize: extra.fileSize,
-          preview: extra.preview,
-          createdAt: extra.createdAt.toISOString(),
-          updatedAt: record.updatedAt.toISOString(),
-        },
-        record.editable,
-      );
+      const item: BookmarkView = {
+        ...record,
+        board: record.board != null,
+        fileSize: extra.fileSize,
+        preview: extra.preview,
+        createdAt: extra.createdAt.toISOString(),
+        updatedAt: record.updatedAt.toISOString(),
+        tag: isTag(extra.tag) ? extra.tag : null,
+        tagSource: extra.tagSource,
+        ownerName: extra.ownerName,
+        ...(extra.starred ? { starred: true } : {}),
+        ...(extra.thumb ? { thumb: true } : {}),
+        ...(extra.page ? { page: extra.page } : {}),
+      };
+      return itemView(item, record.editable, (await thumbsOf([item])).get(item.id));
     }),
   create: api.bookmarks.create
     // Inside a folder, the folder's company; otherwise the one chosen. Anuntech's own space stays on the web.
@@ -251,6 +283,15 @@ export const bookmarks = {
       await visibleBookmark(context.actor, input.id);
       if (input.folderId) await visibleFolder(context.actor, input.folderId);
       return answer(await updateBookmarkAs(context.actor, input));
+    }),
+  star: api.bookmarks.star
+    // Anyone who sees the item, as the web's menu; a star is only the viewer's.
+    .use(guard({ area: "overview", company: bookmarkCompany }))
+    .handler(async ({ input, context }) => {
+      await visibleBookmark(context.actor, input.id);
+      const result = await starBookmarkAs(context.actor, input);
+      const { message } = answer(result);
+      return { message, starred: !!result.starred };
     }),
   move: api.bookmarks.move
     .use(guard({ area: "overview", company: bookmarkCompany }))

@@ -16,7 +16,8 @@ export const THUMB_SOURCE_MAX_BYTES = 40 * 1024 * 1024;
 export const THUMB_WIDTH = 480;
 
 export const thumbable = (fileName: string) => IMAGE.test(fileName);
-export const thumbKeyOf = (storageKey: string) => `thumbs/${storageKey}.webp`;
+/** Where the picture lives in R2 (kept in thumb-url.ts, which the API reads without loading sharp). */
+export { thumbKeyOf } from "./thumb-url";
 
 /** The small WebP of an image, turned as the camera held it; throws on a broken file. */
 export async function makeThumbnail(bytes: Uint8Array) {

@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   auditEvents,
   bookmarkFolderShares,
+  bookmarkStars,
   user,
   bookmarkFolders,
   bookmarks,
@@ -19,7 +20,7 @@ import { db } from "../db";
 import { canAccess, type Actor } from "../access/access";
 import { bookmarkInput, safeFileName } from "./bookmark-validation";
 import { boardHref, bookmarkKinds, EMPTY_BOARD } from "./board-rules";
-import { personInScope, scopeOf, searchBookmarkPeople } from "./bookmarks";
+import { bookmarkFor, personInScope, scopeOf, searchBookmarkPeople } from "./bookmarks";
 import type { ActionState } from "../action-state";
 import { BOOKMARK_FILE, limitLabel } from "../tickets/attachment-rules";
 import { claimUpload } from "../drive/upload-claim";
@@ -665,4 +666,27 @@ async function tellSharedWith(actor: Actor, folder: { id: string; name: string }
       key: `${folder.id}-${person.id}`,
     }).catch(() => console.error("[arquivos] share e-mail failed", folder.id));
   }
+}
+
+/**
+ * The star on an item, the viewer's own ("Com estrela"), for whoever sees it:
+ * `starred` true or false sets it (the app), absent turns it over (the web's
+ * menu). Nobody else sees it, and it goes with the item.
+ */
+export async function starBookmarkAs(actor: Actor, input: { id: unknown; starred?: boolean }): Promise<ActionState & { starred?: boolean }> {
+  const bookmarkId = String(input.id ?? "");
+  const item = /^[0-9a-f-]{36}$/i.test(bookmarkId) ? await bookmarkFor(actor, bookmarkId) : null;
+  if (!item) return { error: "Item não encontrado." };
+  const mine = and(eq(bookmarkStars.userId, actor.user.id), eq(bookmarkStars.bookmarkId, item.id));
+  let starred: boolean;
+  if (input.starred === undefined) {
+    const removed = await db.delete(bookmarkStars).where(mine).returning({ id: bookmarkStars.bookmarkId });
+    starred = !removed.length;
+  } else {
+    if (!input.starred) await db.delete(bookmarkStars).where(mine);
+    starred = input.starred;
+  }
+  if (starred) await db.insert(bookmarkStars).values({ userId: actor.user.id, bookmarkId: item.id }).onConflictDoNothing();
+  revalidatePath("/bookmarks");
+  return { success: starred ? "Com estrela." : "Estrela tirada.", starred };
 }

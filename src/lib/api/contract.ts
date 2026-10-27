@@ -252,6 +252,14 @@ const bookmarkItem = z.object({
   excerpt: z.string().optional(),
   /** In the trash since then (the "lixeira" folder only). */
   deletedAt: z.string().optional(),
+  /** The viewer starred it ("Com estrela"); each person's own. */
+  starred: z.boolean().optional(),
+  /** A photo's card picture (a small WebP): an address signed for five minutes, only when it is ready. */
+  thumbUrl: z.string().optional(),
+  /** The start of a document's text, as the web draws it on the card. */
+  page: z.string().optional(),
+  /** Who added it. */
+  ownerName: z.string().nullable().optional(),
 });
 /** A shared link of a file or a folder, as "Links criados" shows it (the address itself is shown only once). */
 const shareLinkRow = z.object({
@@ -972,7 +980,7 @@ export const contract = {
       .input(
         z.object({
           company: z.string().max(64).default("all"),
-          /** Also "lixeira": what was deleted in the last 30 days. */
+          /** Also "lixeira" (deleted in the last 30 days), "estrela" (what the viewer starred) and "recentes" (what they added, changed or opened in 30 days). */
           folder: z.string().max(64).default("all"),
           search: z.string().max(160).default(""),
           page: z.number().int().min(1).max(10_000).default(1),
@@ -1011,6 +1019,8 @@ export const contract = {
           tags: z.array(z.object({ tag: z.enum(TAG_SLUGS), count: z.number() })).optional(),
           /** Items in the trash, in the companies shown. */
           trashCount: z.number().optional(),
+          /** Items the viewer starred, in the companies shown. */
+          starredCount: z.number().optional(),
           items: z.array(bookmarkItem),
           /** The folder actually shown. */
           folder: z.string(),
@@ -1025,10 +1035,20 @@ export const contract = {
           /** Arquivos keeps files in R2 (files.*, up to 100 GB); false: only the 1 MB of POST /api/v1/bookmarks/arquivo. Page 1 only. */
           largeFiles: z.boolean().optional(),
           /**
-           * Used and total bytes per space, as the web's "Espaço usado": each of a client's companies;
+           * Used and total bytes per space, as the web's "Armazenamento": each of a client's companies;
            * for the team, Anuntech's own (companyId null, quota null: no limit) and the company filtered. Page 1 only.
+           * `parts`: what the files are made of (photos and videos, documents, the rest), in bytes.
            */
-          spaces: z.array(z.object({ companyId: z.string().nullable(), used: z.number(), quota: z.number().nullable() })).optional(),
+          spaces: z
+            .array(
+              z.object({
+                companyId: z.string().nullable(),
+                used: z.number(),
+                quota: z.number().nullable(),
+                parts: z.object({ media: z.number(), documents: z.number(), other: z.number() }).optional(),
+              }),
+            )
+            .optional(),
         }),
       ),
     /** One bookmark the person can see, as in the list (editing or moving it without the list loaded). */
@@ -1071,6 +1091,11 @@ export const contract = {
         }),
       )
       .output(message),
+    /**
+     * The viewer's own star on an item they see ("Com estrela"): `starred` sets it,
+     * absent turns it over. Nobody else sees it.
+     */
+    star: oc.input(z.object({ id: z.uuid(), starred: z.boolean().optional() })).output(z.object({ message: z.string(), starred: z.boolean() })),
     /** Another folder, or "" for Sem pasta. */
     move: oc.input(z.object({ id: z.uuid(), folderId: z.union([z.uuid(), z.literal("")]) })).output(message),
     remove: oc.input(z.object({ id: z.uuid() })).output(message),
@@ -1231,6 +1256,10 @@ export const contract = {
             fileName: z.string().nullable(),
             filePath: z.string().nullable(),
             folder: z.string().nullable(),
+            /** A photo's card picture, signed for five minutes (as bookmarks.list). */
+            thumbUrl: z.string().optional(),
+            fileSize: z.number().nullable().optional(),
+            updatedAt: z.string().optional(),
           }),
         ),
         /** With nothing to pay: the next recurring charge (Administradores). */
