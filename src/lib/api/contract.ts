@@ -184,6 +184,23 @@ const ticketEntry = z.discriminatedUnion("kind", [
 ]);
 
 const message = z.object({ message: z.string() });
+/** Arquivos' tags, the same as lib/drive/tag-rules.ts TAG_SLUGS (the contract imports nothing; tests/tag-rules.test.ts compares them). */
+export const TAG_SLUGS = [
+  "contrato",
+  "proposta",
+  "nota-fiscal",
+  "boleto",
+  "comprovante",
+  "relatorio",
+  "apresentacao",
+  "planilha",
+  "marca",
+  "foto",
+  "video",
+  "documento-pessoal",
+  "ata",
+  "briefing",
+] as const;
 /** Someone on a task, a comment or the activity: name and picture. */
 const taskPerson = z.object({ id: z.string(), name: z.string(), avatar });
 const taskFile = z.object({
@@ -228,6 +245,26 @@ const bookmarkItem = z.object({
   updatedAt: z.string(),
   /** Who saved it or the owner of its folder: edits, moves and deletes it. */
   editable: z.boolean(),
+  /** Its tag (lib/drive/tag-rules.ts) and whether the Console suggested it ("auto") or a person chose it. */
+  tag: z.enum(TAG_SLUGS).nullable().optional(),
+  tagSource: z.enum(["auto", "person"]).nullable().optional(),
+  /** Where a search found its words inside the file, the words between ⟦ and ⟧. */
+  excerpt: z.string().optional(),
+  /** In the trash since then (the "lixeira" folder only). */
+  deletedAt: z.string().optional(),
+});
+/** A shared link of a file or a folder, as "Links criados" shows it (the address itself is shown only once). */
+const shareLinkRow = z.object({
+  id: z.string(),
+  kind: z.enum(["download", "request"]),
+  state: z.enum(["active", "expired", "revoked", "exhausted"]),
+  createdAt: z.string(),
+  expiresAt: z.string().nullable(),
+  password: z.boolean(),
+  maxDownloads: z.number().nullable(),
+  downloads: z.number(),
+  uploads: z.number(),
+  by: z.string().nullable(),
 });
 const sixDigits = z.string().regex(/^\d{6}$/);
 const companyAddress = z.object({
@@ -935,9 +972,15 @@ export const contract = {
       .input(
         z.object({
           company: z.string().max(64).default("all"),
+          /** Also "lixeira": what was deleted in the last 30 days. */
           folder: z.string().max(64).default("all"),
           search: z.string().max(160).default(""),
           page: z.number().int().min(1).max(10_000).default(1),
+          /** The web's filters: a tag, a type (lib/bookmarks/list-filters.ts), the order, only the viewer's. */
+          tag: z.string().max(40).default(""),
+          kind: z.string().max(40).default(""),
+          sort: z.string().max(20).default(""),
+          mine: z.boolean().default(false),
         }),
       )
       .output(
@@ -956,8 +999,18 @@ export const contract = {
               sharedWith: z.array(bookmarkPerson),
               /** The viewer owns it: renames, shares and deletes it. */
               manages: z.boolean(),
+              /** The folder it sits in (subfolders); null at the top. */
+              parentId: z.string().nullable().optional(),
+              /** Kept by the Console (contracts, deliveries): nobody deletes, moves or shares it. */
+              system: z.boolean().optional(),
+              /** "owner": who sees it only sees and downloads. */
+              adds: z.enum(["viewers", "owner"]).optional(),
             }),
           ),
+          /** The tags of what the folder shows, with how many items each. */
+          tags: z.array(z.object({ tag: z.enum(TAG_SLUGS), count: z.number() })).optional(),
+          /** Items in the trash, in the companies shown. */
+          trashCount: z.number().optional(),
           items: z.array(bookmarkItem),
           /** The folder actually shown. */
           folder: z.string(),
@@ -1013,6 +1066,8 @@ export const contract = {
           title: z.string().max(400),
           url: z.string().max(2048).default(""),
           folderId: z.union([z.uuid(), z.literal("")]).default(""),
+          /** A tag, or "" for none; absent keeps it as it is (and the Console's suggestion with it). */
+          tag: z.union([z.enum(TAG_SLUGS), z.literal("")]).optional(),
         }),
       )
       .output(message),
@@ -1025,9 +1080,13 @@ export const contract = {
           companyId: z.uuid(),
           name: z.string().max(200),
           visibility: z.enum(["company", "people"]).default("company"),
+          /** Inside this folder (its company and who sees it come from it); "" at the top. */
+          parentId: z.union([z.uuid(), z.literal("")]).default(""),
         }),
       )
       .output(z.object({ message: z.string(), id: z.string() })),
+    /** A folder into another of the same company, or "" to the top (the owner and the team). */
+    moveFolder: oc.input(z.object({ id: z.uuid(), parentId: z.union([z.uuid(), z.literal("")]) })).output(message),
     /** Only the owner. */
     renameFolder: oc.input(z.object({ id: z.uuid(), name: z.string().max(200) })).output(message),
     /** Only the owner: the whole company, or chosen people (up to 50). */
@@ -1037,11 +1096,61 @@ export const contract = {
           id: z.uuid(),
           visibility: z.enum(["company", "people"]),
           userIds: z.array(z.string().max(128)).max(100).default([]),
+          /** "owner": who sees it only sees and downloads; absent keeps it as it is. */
+          adds: z.enum(["viewers", "owner"]).optional(),
         }),
       )
       .output(message),
     /** Only the owner; the bookmarks inside go to Sem pasta. */
     deleteFolder: oc.input(z.object({ id: z.uuid() })).output(message),
+    /** Back from the trash, to its folder (or Sem pasta). */
+    restore: oc.input(z.object({ id: z.uuid() })).output(message),
+    /** Deleted for good, with its file; only from the trash. */
+    purge: oc.input(z.object({ id: z.uuid() })).output(message),
+    /** A copy in a folder the person can add to ("" is Sem pasta in the item's company). */
+    copy: oc.input(z.object({ id: z.uuid(), folderId: z.union([z.uuid(), z.literal("")]).default("") })).output(message),
+    /** A file's earlier versions, newest first; `editable`: who may send or restore one. */
+    versions: oc
+      .input(z.object({ id: z.uuid() }))
+      .output(
+        z.object({
+          editable: z.boolean(),
+          versions: z.array(z.object({ id: z.string(), version: z.number(), fileName: z.string(), fileSize: z.number(), createdAt: z.string(), by: z.string().nullable() })),
+        }),
+      ),
+    /** Where to read an earlier version: an address signed for five minutes. */
+    downloadVersion: oc.input(z.object({ id: z.uuid(), versionId: z.uuid() })).output(z.object({ url: z.string(), fileName: z.string() })),
+    /** An earlier version becomes the file again; the current one is kept as a version. */
+    restoreVersion: oc.input(z.object({ versionId: z.uuid() })).output(message),
+    /** "Enviar nova versão": a finished `files.*` upload becomes the file; the one before is kept. */
+    replaceFile: oc.input(z.object({ id: z.uuid(), uploadId: z.uuid() })).output(message),
+    /** Who did what with an item, newest first (who may edit it). */
+    activity: oc
+      .input(z.object({ id: z.uuid() }))
+      .output(z.object({ activity: z.array(z.object({ id: z.string(), what: z.string(), who: z.string().nullable(), at: z.string(), note: z.string().optional() })) })),
+    /** The external links of a file or a folder (who may share it). */
+    shareLinks: oc
+      .input(z.object({ bookmarkId: z.union([z.uuid(), z.literal("")]).default(""), folderId: z.union([z.uuid(), z.literal("")]).default("") }))
+      .output(z.object({ links: z.array(shareLinkRow) })),
+    /**
+     * A link that works without an account: "download" (a file or a folder) or
+     * "request" (people send files into a folder). The address comes back once.
+     */
+    createShareLink: oc
+      .input(
+        z.object({
+          kind: z.enum(["download", "request"]),
+          bookmarkId: z.union([z.uuid(), z.literal("")]).default(""),
+          folderId: z.union([z.uuid(), z.literal("")]).default(""),
+          expiresInDays: z.union([z.literal(""), z.number().int().min(1).max(365)]).default(7),
+          password: z.string().max(100).default(""),
+          maxDownloads: z.union([z.literal(""), z.number().int().min(1).max(10_000)]).default(""),
+          email: z.string().max(200).default(""),
+        }),
+      )
+      .output(z.object({ message: z.string(), url: z.string() })),
+    /** Turns a link off at once. */
+    revokeShareLink: oc.input(z.object({ id: z.uuid() })).output(message),
     /** People the folder can be shared with, by name (the owner only). */
     searchPeople: oc
       .input(z.object({ folderId: z.uuid(), query: z.string().max(80) }))

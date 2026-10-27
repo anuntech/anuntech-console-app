@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TAGS, isTag, suggestTag, tagLabels } from "../src/lib/drive/tag-rules";
+import { TAGS, TAG_SLUGS, isTag, suggestTag, tagLabels } from "../src/lib/drive/tag-rules";
+import { TAG_SLUGS as CONTRACT_TAGS } from "../src/lib/api/contract";
 
 const tag = (title: string, fileName: string, text?: string) => suggestTag({ title, fileName, text });
 
@@ -40,4 +41,8 @@ test("by kind, last; nothing when nothing fits", () => {
 test("every tag has a label and a valid slug", () => {
   for (const t of TAGS) assert.ok(isTag(t.slug) && tagLabels[t.slug] === t.label);
   assert.ok(!isTag("outro") && !isTag(null));
+});
+
+test("the app's contract lists the same tags", () => {
+  assert.deepEqual([...CONTRACT_TAGS], [...TAG_SLUGS]);
 });
