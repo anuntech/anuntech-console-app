@@ -248,6 +248,17 @@ export async function arquivosAppChecks({ db, rpc, ok, marker, emailSignIn, staf
     ok(r.status === 200 && (await db.query("select parent_id from console_bookmark_folders where id=$1", [sub])).rows[0]?.parent_id === closed, "The app creates a folder inside another");
     r = await rpc("bookmarks.list", { company: companies.own }, admin);
     ok(r.body.folders.find((f) => f.id === sub)?.parentId === closed, "The list says which folder each one sits in");
+    {
+      // A folder counts what its subfolders hold too.
+      const before = r.body.folders.find((f) => f.id === closed)?.count ?? 0;
+      const copy = (await db.query("select id from console_bookmarks where company_id=$1 and title like 'Vídeo%' and id<>$2 limit 1", [companies.own, videoId])).rows[0].id;
+      const was = (await db.query("select folder_id from console_bookmarks where id=$1", [copy])).rows[0].folder_id;
+      await db.query("update console_bookmarks set folder_id=$2 where id=$1", [copy, sub]);
+      const after = await rpc("bookmarks.list", { company: companies.own }, admin);
+      const moved = was === closed ? 0 : 1;
+      ok(after.body.folders.find((f) => f.id === sub)?.count === 1 && after.body.folders.find((f) => f.id === closed)?.count === before + moved, "A folder counts the files in its subfolders");
+      await db.query("update console_bookmarks set folder_id=$2 where id=$1", [copy, was]);
+    }
     r = await rpc("bookmarks.moveFolder", { id: sub, parentId: "" }, admin);
     ok(r.status === 200 && (await db.query("select parent_id from console_bookmark_folders where id=$1", [sub])).rows[0]?.parent_id === null, "The app moves a folder to the top");
     r = await rpc("bookmarks.shareFolder", { id: sub, visibility: "company", userIds: [], adds: "owner" }, admin);

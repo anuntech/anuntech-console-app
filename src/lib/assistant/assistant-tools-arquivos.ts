@@ -60,7 +60,7 @@ const listFolders = tool({
   name: "listar_pastas",
   area: "bookmarks",
   description:
-    "A árvore de pastas de Arquivos que a pessoa vê: id, nome, caminho (Marca › Logo), pasta de cima, empresa, quantos itens, quem vê, se a pessoa pode mudar a pasta e se é uma pasta do Console (contratos, entregas: não se move nem exclui). Use antes de mover, renomear ou organizar pastas.",
+    "A árvore de pastas de Arquivos que a pessoa vê: id, nome, caminho (Marca › Logo), pasta de cima, empresa, quantos itens (somando as subpastas), quem vê, se a pessoa pode mudar a pasta e se é uma pasta do Console (contratos, entregas: não se move nem exclui). Use antes de mover, renomear ou organizar pastas.",
   input: z.object({ companyId: id.optional() }),
   run: async (ctx, { companyId }) => {
     const folders = await foldersFor(bookmarkScope(ctx.actor), companyId ?? "all");
@@ -74,7 +74,7 @@ const listFolders = tool({
         pastaDeCimaId: f.parentId ?? null,
         empresa: f.companyId ? f.company : "Anuntech",
         companyId: f.companyId,
-        itens: f.count,
+        itensComSubpastas: f.count,
         quemVe: f.visibility === "company" ? "toda a empresa" : `só pessoas escolhidas (${f.sharedWith.length})`,
         podeMudar: ctx.actor.admin || (f.ownerId === ctx.actor.user.id && !f.system),
         doConsole: !!f.system,
