@@ -449,6 +449,13 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   await db.query("delete from console_bookmark_folders where id=$1", [logos]);
   await db.query("delete from console_bookmark_folders where id=$1", [pack]);
 
+  // Fase 5b: an item's activity, from the audit log, for who may edit it; downloads are recorded.
+  await request(`/api/bookmarks/${brief}`, "finance");
+  const activity = await json("manager", `/api/bookmarks/${brief}/atividade`, undefined, "GET");
+  const whats = (activity.data?.activity ?? []).map((row) => row.what);
+  ok(activity.status === 200 && whats.includes("Baixou") && whats.includes("Adicionou"), "A atividade mostra quem adicionou e quem baixou");
+  ok((await json("finance", `/api/bookmarks/${brief}/atividade`, undefined, "GET")).status === 404 && (await json("outsider", `/api/bookmarks/${brief}/atividade`, undefined, "GET")).status === 404, "Só quem edita o item vê a atividade");
+
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);
 }

@@ -22,6 +22,7 @@ import {
   updateBookmarkAs,
   usable,
 } from "../../bookmarks/bookmark-core";
+import { recordDownload } from "../../drive/activity";
 import { downloadUrl, storageConfigured } from "../../drive/r2";
 import { spacesFor } from "../../drive/uploads";
 import { api } from "../server";
@@ -211,6 +212,7 @@ export const bookmarks = {
         .from(bookmarkTable)
         .where(eq(bookmarkTable.id, item.id));
       if (!stored) throw missing();
+      if (!input.inline) await recordDownload(context.actor, item);
       // A file in R2 is read from there through a five-minute address; an older one through filePath, with the session.
       const url = stored.key && storageConfigured() ? await downloadUrl(stored.key, item.fileName, input.inline) : null;
       return { url, fileName: item.fileName, fileSize: stored.fileSize };

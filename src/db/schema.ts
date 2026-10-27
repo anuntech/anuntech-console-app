@@ -927,7 +927,11 @@ export const auditEvents = pgTable(
     details: jsonb("details"),
     createdAt: created(),
   },
-  (t) => [index("console_audit_company_idx").on(t.companyId)],
+  (t) => [
+    index("console_audit_company_idx").on(t.companyId),
+    // One item's history (Arquivos' activity), newest first.
+    index("console_audit_entity_idx").on(t.entityId, t.createdAt),
+  ],
 );
 export const emailDeliveries = pgTable("console_email_deliveries", {
   id: text("id").primaryKey(),

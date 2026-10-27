@@ -386,6 +386,13 @@
       "when": 1793061159924,
       "tag": "0054_arquivos_console",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1793065583241,
+      "tag": "0055_auditoria_por_item",
+      "breakpoints": true
     }
   ]
 }

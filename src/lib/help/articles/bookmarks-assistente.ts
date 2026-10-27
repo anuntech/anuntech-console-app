@@ -154,7 +154,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Editar, mover e excluir ficam com quem adicionou o bookmark, com quem criou a pasta onde ele está e com a equipe da Anuntech. As outras pessoas veem no menu só a opção de abrir ou baixar. Ser Administrador da empresa não dá esse direito em Bookmarks.",
+            text: "Em “Editar”, a seção “Atividade” mostra quem adicionou, editou, enviou versão, criou link, baixou e o que chegou pelo link externo, com data e hora. Ela aparece para quem pode editar o item. Editar, mover e excluir ficam com quem adicionou o bookmark, com quem criou a pasta onde ele está e com a equipe da Anuntech. As outras pessoas veem no menu só a opção de abrir ou baixar. Ser Administrador da empresa não dá esse direito em Bookmarks.",
           },
           {
             kind: "p",

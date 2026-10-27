@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS "console_audit_entity_idx" ON "console_audit_events" USING btree ("entity_id","created_at");

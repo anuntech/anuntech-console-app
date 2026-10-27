@@ -4,6 +4,7 @@ import { getActor } from "@/lib/access/access";
 import { bookmarkFor } from "@/lib/bookmarks/bookmarks";
 import { db } from "@/lib/db";
 import { downloadUrl } from "@/lib/drive/r2";
+import { recordDownload } from "@/lib/drive/activity";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,10 +16,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const item = await bookmarkFor(actor, id);
   if (!item) return new Response(null, { status: 404 });
   const [version] = await db
-    .select({ key: fileVersions.storageKey, fileName: fileVersions.fileName })
+    .select({ key: fileVersions.storageKey, fileName: fileVersions.fileName, version: fileVersions.version })
     .from(fileVersions)
     .where(and(eq(fileVersions.id, versionId), eq(fileVersions.bookmarkId, item.id)));
   if (!version) return new Response(null, { status: 404 });
+  await recordDownload(actor, item, { version: version.version });
   return new Response(null, {
     status: 302,
     headers: { Location: await downloadUrl(version.key, version.fileName), "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" },

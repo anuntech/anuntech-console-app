@@ -17,6 +17,7 @@ import { kindOf, type BookmarkKind } from "@/lib/bookmarks/board-rules";
 import { BOOKMARK_FILE, LARGE_BOOKMARK_FILE, limitLabel } from "@/lib/tickets/attachment-rules";
 import { uploadToR2, type UploadProgress } from "./r2-upload";
 import { FileVersions } from "./file-versions";
+import { FileActivity } from "./file-activity";
 import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
 import { fileSizeLabel } from "@/lib/format";
@@ -252,9 +253,15 @@ function BookmarkFields({
               </FileChips>
             </div>
             {largeFiles && <FileVersions item={item} />}
+            <FileActivity itemId={item.id} />
           </>
-        ) : itemKind === "board" ? null : (
-          linkField
+        ) : itemKind === "board" ? (
+          <FileActivity itemId={item.id} />
+        ) : (
+          <>
+            {linkField}
+            <FileActivity itemId={item.id} />
+          </>
         )
       ) : (
         <>
