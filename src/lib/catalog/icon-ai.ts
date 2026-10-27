@@ -72,11 +72,11 @@ export function catalogIconPrompt(item: { name: string; description?: string | n
   const hint = clean(item.hint, MAX_ICON_HINT);
   const subject = `the product or service "${name}"${description ? ` (${description})` : ""}`;
   return [
-    "One app icon artwork, perfect square, full-bleed background filling the canvas edge to edge, no rounded corners, no border, no frame.",
-    "Smooth diagonal gradient background in one strong color.",
-    `Centered: one bold, simple white glyph representing ${subject}, soft frosted 3D white with a gentle top highlight and a very subtle soft shadow, about 50% of the canvas.`,
+    // The Anuntech look (anuntech-brand): flat violet, one white glyph, half smooth and half pixel.
+    "One minimal flat vector app icon, perfect square, completely flat solid #6E56FF background filling the canvas edge to edge, no rounded corners, no border, no frame, no gradient.",
+    `Centered, about 45% of the canvas: one simple white glyph representing ${subject}. The left half of the glyph is one smooth solid white shape; the right half is a neat grid of small white square pixels with small gaps, a few pixels may drift off to the right.`,
     ...(hint ? [`Art direction from the team: ${hint}.`] : []),
-    "Minimal, premium, Apple-style app icon. No text, no letters, no numbers, no logos, no watermark.",
+    "Only white on violet. Geometric, crisp edges, modern tech brand style. No text, no letters, no numbers, no logos, no watermark, no shadow, no texture, no 3D.",
   ].join(" ");
 }
 

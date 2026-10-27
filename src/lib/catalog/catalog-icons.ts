@@ -25,6 +25,7 @@ export const CATALOG_ICON_GALLERY: GalleryIcon[] = [
   gallery("email", "E-mail", ["e-mail", "email", "mail"]),
   gallery("servidor", "Servidor", ["máquina virtual", "maquina virtual", "servidor", "vps", " vm "]),
   gallery("infra", "Nuvem e infraestrutura", ["infra", "nuvem", "cloud", "hospedagem"]),
+  gallery("security", "Segurança", ["segurança", "seguranca", "security", "pentest", "invasão", "invasao"]),
   gallery("dominio", "Domínio", ["domínio", "dominio", "dns"]),
   gallery("horas", "Banco de horas", ["banco de horas", "horas"]),
   gallery("suporte", "Suporte", ["suporte", "sustentação", "sustentacao", "manutenção", "manutencao"]),
