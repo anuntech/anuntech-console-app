@@ -163,6 +163,26 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
         ],
       },
       {
+        title: "Contratos e entregas que chegam sozinhos",
+        blocks: [
+          {
+            kind: "p",
+            text: "Alguns arquivos o Console guarda sozinho na sua empresa, em até 15 minutos:",
+          },
+          {
+            kind: "list",
+            items: [
+              "Na pasta “Contratos”, o PDF de cada contrato assinado por todos. Ela só aparece para os Administradores da empresa, que são quem vê os contratos no Console.",
+              "Na pasta “Entregas”, uma pasta por projeto, com os arquivos das tarefas que chegaram em Revisão ou foram concluídas. Cada pasta de projeto só aparece para quem vê aquele projeto.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "São cópias: o contrato e a tarefa continuam onde estão, e as cópias não ocupam o espaço da empresa. Essas pastas são mantidas pelo Console, então não podem ser excluídas, movidas nem compartilhadas. Pastas criadas dentro delas seguem a mesma regra de quem vê. Se o projeto for excluído, a pasta dele e as cópias saem junto.",
+          },
+        ],
+      },
+      {
         title: "Etiquetas",
         blocks: [
           {

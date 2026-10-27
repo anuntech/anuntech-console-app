@@ -9,6 +9,7 @@ import { actorForSession, type Actor } from "../access/access";
 import { bookmarkFor } from "../bookmarks/bookmarks";
 import { companyAllowed, loadFolder, manages } from "../bookmarks/bookmark-core";
 import { descendantIds, folderPath } from "../bookmarks/folder-tree";
+import { gateOpen, gateViewerOf } from "../bookmarks/folder-gate";
 import { sendClientMail } from "../notifications/client-mail";
 import { reserveHourly } from "../http/hourly-limit";
 import {
@@ -148,7 +149,7 @@ async function shareTarget(actor: Actor, kind: ShareKind, bookmarkId: string, fo
   if (!folderId) return null;
   const folder = await loadFolder(folderId);
   // The owner of a folder in a company they left manages nothing there any more.
-  if (!folder || !companyAllowed(actor, folder.companyId) || !manages(actor, folder)) return null;
+  if (!folder || !companyAllowed(actor, folder.companyId) || !gateOpen(gateViewerOf(actor), folder) || !manages(actor, folder)) return null;
   return { companyId: folder.companyId, folderId: folder.id, bookmarkId: null, title: folder.name };
 }
 

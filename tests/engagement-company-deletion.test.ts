@@ -101,6 +101,8 @@ test("the children deleted with a company or its work are all accounted for", ()
     "console_tasks.engagement_id": "not null",
     "console_service_terms.engagement_id": "null",
     "console_engagement_suspensions.engagement_id": "not null",
+    // Its deliveries' folder in Arquivos, with the copies inside (lib/drive/console-files.ts removeProjectFiles).
+    "console_bookmark_folders.engagement_id": "null",
     // Kept, unlinked.
     "console_tickets.engagement_id": "null",
     "console_time_entries.engagement_id": "null",

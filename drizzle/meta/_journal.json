@@ -379,6 +379,13 @@
       "when": 1793060239399,
       "tag": "0053_arquivos_etiquetas",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793061159924,
+      "tag": "0054_arquivos_console",
+      "breakpoints": true
     }
   ]
 }

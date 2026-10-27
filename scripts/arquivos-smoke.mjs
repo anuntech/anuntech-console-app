@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 /**
  * Arquivos with R2 (lib/drive): a file sent in parts straight to the bucket
@@ -343,6 +343,55 @@ export async function runArquivosTests({ database: db, ids, people, request, sub
   ok((await one("select tag, tag_source from console_bookmarks where id=$1", [contract])).tag === null, "Uma nova versão não muda a etiqueta que a pessoa escolheu");
   await submitForm("/bookmarks", "manager", "manager", { action: "updateBookmark" }, { id: brief, title: `Briefing ${marker}`, url: "", folderId: "", tag: "inventada" });
   ok((await one("select tag from console_bookmarks where id=$1", [brief])).tag === "briefing", "Etiqueta fora da lista é recusada");
+
+  // Fase 4d: a signed contract and a delivered task's file land in Arquivos by themselves, behind the same doors as their source.
+  const signed4d = randomUUID();
+  await db.query(
+    "insert into console_contracts(id,company_id,title,body,author_id,status,published_at,published_version,publication,document_hash,signed_at,signed_pdf) values($1,$2,$3,'x',$4,'signed',now(),1,$5,'h4d',now(),$6)",
+    [signed4d, ids.a, `Suporte mensal ${marker}`, people.admin.id, JSON.stringify({ title: `Suporte mensal ${marker}`, body: "x", companyName: "A", companyDocument: "0", kind: "contract", version: 1 }), await pdfOf(`CONTRATO DE SUPORTE ${marker}. A CONTRATANTE e a CONTRATADA...`)],
+  );
+  const project4d = randomUUID();
+  const delivered = randomUUID();
+  const drafting = randomUUID();
+  await db.query("insert into console_engagements(id,company_id,name,kind) values($1,$2,$3,'project')", [project4d, ids.a, `Site novo ${marker}`]);
+  await db.query("insert into console_tasks(id,engagement_id,company_id,title,status,created_by) values($1,$2,$3,$4,'review',$5),($6,$2,$3,$7,'in_progress',$5)", [delivered, project4d, ids.a, `Layout da home ${marker}`, people.admin.id, drafting, `Rascunho ${marker}`]);
+  const homePng = randomBytes(900);
+  const deliveryFile = randomUUID();
+  await db.query("insert into console_attachments(id,task_id,author_id,name,mime,size,content) values($1,$2,$3,'home.png','image/png',$4,$5),($6,$7,$3,'rascunho.png','image/png',3,$8)", [deliveryFile, delivered, people.admin.id, homePng.length, homePng, randomUUID(), drafting, Buffer.from("abc")]);
+  const usedBefore = (await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "x.bin", size: 1 })).status;
+  ok((await cron("/api/cron/arquivos-texto")).status === 200, "A rotina de Arquivos roda");
+  const contractCopy = await one("select b.id, b.storage_key, f.name, f.area, f.origin from console_bookmarks b join console_bookmark_folders f on f.id=b.folder_id where b.origin=$1", [`contract:${signed4d}`]);
+  ok(contractCopy?.name === "Contratos" && contractCopy.area === "finance" && r2.objects.has(contractCopy.storage_key), "O contrato assinado cai em Contratos, no R2");
+  const deliveryCopy = await one("select b.id, b.storage_key, b.title, f.engagement_id, p.origin as parent from console_bookmarks b join console_bookmark_folders f on f.id=b.folder_id join console_bookmark_folders p on p.id=f.parent_id where b.origin=$1", [`attachment:${deliveryFile}`]);
+  ok(deliveryCopy?.engagement_id === project4d && deliveryCopy.parent === "deliveries" && deliveryCopy.title === `Layout da home ${marker}` && r2.objects.get(deliveryCopy.storage_key)?.equals(homePng), "O arquivo da entrega cai em Entregas › projeto");
+  ok(!(await one("select 1 as ok from console_bookmarks where title=$1", [`Rascunho ${marker}`])), "Tarefa ainda em andamento não é entrega");
+  await cron("/api/cron/arquivos-texto");
+  ok(Number((await one("select count(*) as n from console_bookmarks where origin=any($1::text[])", [[`contract:${signed4d}`, `attachment:${deliveryFile}`]])).n) === 2, "Rodar de novo não duplica as cópias");
+  // The Membro of company A, active for these checks (an earlier suite turns them off), as they were afterwards.
+  const supportWas = (await one("select active from console_memberships where company_id=$1 and email=$2", [ids.a, people.support.email])).active;
+  await db.query("update console_memberships set active=true where company_id=$1 and email=$2", [ids.a, people.support.email]);
+  ok((await request(`/api/bookmarks/${brief}`, "support")).status === 302, "O Membro abre os arquivos da empresa");
+  ok((await request(`/api/bookmarks/${contractCopy.id}`, "manager")).status === 302 && (await request(`/api/bookmarks/${contractCopy.id}`, "support")).status !== 302, "O contrato copiado abre para o Administrador e não para o Membro");
+  // The search field repeats what was typed; the item's own title ends in "(assinado)".
+  ok((await request(`/bookmarks?q=${encodeURIComponent(`Suporte mensal ${marker}`)}`, "manager")).text.includes(`Suporte mensal ${marker} (assinado)`), "O Administrador acha o contrato copiado na busca");
+  ok(!(await request(`/bookmarks?q=${encodeURIComponent(`Suporte mensal ${marker}`)}`, "support")).text.includes(`Suporte mensal ${marker} (assinado)`), "Nem a busca mostra o contrato ao Membro");
+  ok((await request(`/api/bookmarks/${deliveryCopy.id}`, "support")).status === 302, "A entrega abre para o Membro que vê o projeto");
+  await db.query("update console_memberships set engagement_access='selected' where company_id=$1 and email=$2", [ids.a, people.support.email]);
+  ok((await request(`/api/bookmarks/${deliveryCopy.id}`, "support")).status !== 302 && !(await request("/bookmarks", "support")).text.includes(`Site novo ${marker}`), "Membro que não vê o projeto não vê a pasta nem a entrega");
+  await db.query("update console_memberships set engagement_access='all', active=$3 where company_id=$1 and email=$2", [ids.a, people.support.email, supportWas]);
+  const contractsFolder = (await one("select id from console_bookmark_folders where company_id=$1 and origin='contracts'", [ids.a])).id;
+  await submitForm("/bookmarks", "admin", "admin", { action: "deleteFolder" }, { id: contractsFolder });
+  ok(!!(await one("select 1 as ok from console_bookmark_folders where id=$1", [contractsFolder])), "A pasta do Console não é excluída, nem pela equipe");
+  await submitForm("/bookmarks", "manager", "manager", { action: "createFolder" }, { companyId: ids.a, name: `Dentro de Contratos ${marker}`, visibility: "company", parentId: contractsFolder });
+  ok((await one("select area from console_bookmark_folders where name=$1", [`Dentro de Contratos ${marker}`]))?.area === "finance", "Uma pasta criada dentro de Contratos herda a trava");
+  ok(usedBefore === 200 && (await json("manager", "/api/arquivos/envios", { companyId: ids.a, folderId: "", fileName: "x.bin", size: 1 })).status === 200, "As cópias do Console não ocupam o espaço da empresa");
+  await submitForm("/projetos", "admin", "admin", { action: "deleteEngagement" }, { id: project4d, from: "list" });
+  ok(!(await one("select 1 as ok from console_engagements where id=$1", [project4d])) && !(await one("select 1 as ok from console_bookmarks where id=$1", [deliveryCopy.id])) && !r2.objects.has(deliveryCopy.storage_key) && !(await one("select 1 as ok from console_bookmark_folders where engagement_id=$1", [project4d])), "Excluir o projeto leva a pasta e as cópias das entregas");
+  // The suite cleans what it made (the run's cleanup removes companies, not folders or contracts).
+  await db.query("delete from console_bookmarks where origin=$1 or folder_id in (select id from console_bookmark_folders where company_id=$2 and (origin is not null or area is not null))", [`contract:${signed4d}`, ids.a]);
+  await db.query("delete from console_bookmark_folders where company_id=$1 and parent_id is not null and (origin is not null or area is not null)", [ids.a]);
+  await db.query("delete from console_bookmark_folders where company_id=$1 and origin is not null", [ids.a]);
+  await db.query("delete from console_contracts where id=$1", [signed4d]);
 
   // The links point at the company; the run's cleanup removes companies.
   await db.query("delete from console_share_links where company_id=$1 or company_id is null and created_by=any($2::text[])", [ids.a, Object.values(people).map((p) => p.id)]);

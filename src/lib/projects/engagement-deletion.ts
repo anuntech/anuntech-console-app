@@ -2,6 +2,8 @@
 import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { removeProjectFiles } from "../drive/console-files";
+import { removeStoredFiles } from "../drive/r2";
 import {
   attachments,
   auditEvents,
@@ -88,6 +90,8 @@ export async function deleteEngagement(_: ActionState, form: FormData): Promise<
       // A project journey keeps going without it.
       await tx.update(journeys).set({ engagementId: null }).where(eq(journeys.engagementId, row.id));
       await tx.update(journeys).set({ hostingEngagementId: null }).where(eq(journeys.hostingEngagementId, row.id));
+      // Its deliveries filed in Arquivos (copies, in a folder gated by this project) go too.
+      const storedKeys = await removeProjectFiles(tx, row.id);
       await tx.delete(engagements).where(eq(engagements.id, row.id));
       await tx.insert(auditEvents).values({
         actorId: actor.user.id,
@@ -104,8 +108,9 @@ export async function deleteEngagement(_: ActionState, form: FormData): Promise<
           ticketsUnlinked: unlinked.length,
         },
       });
-      return { ...row, ticketsUnlinked: unlinked.length };
+      return { ...row, ticketsUnlinked: unlinked.length, storedKeys };
     });
+    await removeStoredFiles(deleted.storedKeys);
     const success = deletedLabel[deleted.kind];
     // From a detail page, revalidating would re-render the deleted record's page (a
     // 404) inside this response; the list loads fresh when we navigate to it.

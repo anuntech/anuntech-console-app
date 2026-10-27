@@ -284,11 +284,12 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
   // member of several companies keeps it in the subtitle.
   const companyColumn = viewer.admin && showCompany;
   const folderColumn = query.folder === "all";
-  const manages = (folder: FolderView) => viewer.admin || folder.ownerId === viewer.id;
-  const canEdit = (item: BookmarkView) =>
-    viewer.admin ||
-    item.ownerId === viewer.id ||
-    (item.folderId ? folderById.get(item.folderId)?.ownerId === viewer.id : false);
+  // The Console's own folders are the team's; their owner does not manage them, nor edit what is inside for that.
+  const manages = (folder: FolderView) => viewer.admin || (folder.ownerId === viewer.id && !folder.system);
+  const canEdit = (item: BookmarkView) => {
+    const folder = item.folderId ? folderById.get(item.folderId) : undefined;
+    return viewer.admin || item.ownerId === viewer.id || (!!folder && folder.ownerId === viewer.id && !folder.system);
+  };
   const createIn = query.folder !== "all" && query.folder !== "root" && query.folder !== "lixeira" ? query.folder : "";
   // A new item lands in the company being looked at, or the folder's company.
   const createCompany = current
@@ -324,14 +325,19 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
           <PencilIcon />
           Renomear
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "share", folder }))}>
-          <Share2Icon />
-          Compartilhar
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "move", folder }))}>
-          <FolderInputIcon />
-          Mover para…
-        </DropdownMenuItem>
+        {/* The Console's own folders (contracts, deliveries) keep their place and who sees them. */}
+        {!folder.system && (
+          <>
+            <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "share", folder }))}>
+              <Share2Icon />
+              Compartilhar
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => later(() => setFolderEditor({ mode: "move", folder }))}>
+              <FolderInputIcon />
+              Mover para…
+            </DropdownMenuItem>
+          </>
+        )}
         {data.largeFiles && (
           <>
             <DropdownMenuItem onSelect={() => later(() => setSharing({ kind: "download", folderId: folder.id, title: folder.name }))}>
@@ -344,14 +350,20 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             </DropdownMenuItem>
           </>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onSelect={() => later(() => setFolderEditor({ mode: "delete", folder }))}
-        >
-          <Trash2Icon />
-          Excluir pasta
-        </DropdownMenuItem>
+        {folder.system ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled>Mantida pelo Console</DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => later(() => setFolderEditor({ mode: "delete", folder }))}>
+              <Trash2Icon />
+              Excluir pasta
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

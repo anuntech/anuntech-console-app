@@ -26,17 +26,20 @@ import { canAccess, type Actor } from "../access/access";
 import { contentQuery } from "../drive/text-search";
 import { MARK_CLOSE, MARK_OPEN } from "../drive/text-excerpt";
 import { isTag, type TagSlug, type TagSource } from "../drive/tag-rules";
+import { gateOpen, gateViewerOf, type GateViewer } from "./folder-gate";
 import { getAccountEmails } from "../account/account-identity";
 import { hasConsoleStaffAccess } from "../access/console-members";
 import { db } from "../db";
 import { clampPage, DEFAULT_PAGE_SIZE, offsetOf, type PageQuery } from "../list-query";
 
 /** What the viewer may see: staff sees every company; a member, their own. */
-export type Scope = { admin: boolean; userId: string; companyIds: string[] };
+/** `gate`: the roles and projects, for folders with an area or a project on top (lib/bookmarks/folder-gate.ts). */
+export type Scope = { admin: boolean; userId: string; companyIds: string[]; gate: GateViewer };
 export const scopeOf = (actor: Actor): Scope => ({
   admin: actor.admin,
   userId: actor.user.id,
   companyIds: actor.grants.map((g) => g.company.id),
+  gate: gateViewerOf(actor),
 });
 
 export type FolderView = {
@@ -49,6 +52,8 @@ export type FolderView = {
   visibility: "company" | "people";
   /** The folder it sits in; null at the top. Optional so fixtures without it still type. */
   parentId?: string | null;
+  /** Kept by the Console (contracts, deliveries): nobody deletes, moves or shares it. */
+  system?: boolean;
   sharedWith: { id: string; name: string; image: string | null }[];
   count: number;
 };
@@ -127,6 +132,9 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
       owner: user.name,
       visibility: bookmarkFolders.visibility,
       parentId: bookmarkFolders.parentId,
+      origin: bookmarkFolders.origin,
+      area: bookmarkFolders.area,
+      engagementId: bookmarkFolders.engagementId,
       sharedWithMe: bookmarkFolderShares.userId,
     })
     .from(bookmarkFolders)
@@ -151,7 +159,9 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
             ),
       ),
     )
-    .orderBy(asc(bookmarkFolders.name));
+    .orderBy(asc(bookmarkFolders.name))
+    // A gate (contracts, a project) on top of who sees it: what is inside stays out with the folder.
+    .then((found) => found.filter((row) => gateOpen(scope.gate, row)));
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
   const [counts, shares] = await Promise.all([
@@ -182,6 +192,7 @@ export async function foldersFor(scope: Scope, company: string): Promise<FolderV
     owner: row.owner,
     visibility: row.visibility,
     parentId: row.parentId,
+    ...(row.origin ? { system: true } : {}),
     sharedWith: shares
       .filter((share) => share.folderId === row.id)
       .map(({ id, name, image }) => ({ id, name, image })),
@@ -419,6 +430,9 @@ export async function bookmarkFor(actor: Actor, bookmarkId: string, { trashed = 
       folderName: bookmarkFolders.name,
       folderVisibility: bookmarkFolders.visibility,
       folderOwner: bookmarkFolders.ownerId,
+      folderOrigin: bookmarkFolders.origin,
+      folderArea: bookmarkFolders.area,
+      folderEngagement: bookmarkFolders.engagementId,
       sharedWithMe: bookmarkFolderShares.userId,
     })
     .from(bookmarks)
@@ -439,7 +453,11 @@ export async function bookmarkFor(actor: Actor, bookmarkId: string, { trashed = 
     item.folderVisibility === "company" ||
     item.folderOwner === actor.user.id ||
     !!item.sharedWithMe;
-  if (!actor.admin && !(inCompany && folderOpen)) return null;
+  // A gate on top (contracts, a project), as the list has it.
+  const gated = gateOpen(gateViewerOf(actor), { companyId: item.companyId, area: item.folderArea, engagementId: item.folderEngagement });
+  if (!actor.admin && !(inCompany && folderOpen && gated)) return null;
+  // The owner of a folder the Console keeps does not edit what is in it for that.
+  const folderOwner = item.folderOrigin ? null : item.folderOwner;
   return {
     id: item.id,
     title: item.title,
@@ -451,6 +469,6 @@ export async function bookmarkFor(actor: Actor, bookmarkId: string, { trashed = 
     board: item.board,
     updatedAt: item.updatedAt,
     folderName: item.folderName,
-    editable: actor.admin || item.ownerId === actor.user.id || item.folderOwner === actor.user.id,
+    editable: actor.admin || item.ownerId === actor.user.id || folderOwner === actor.user.id,
   };
 }

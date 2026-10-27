@@ -1128,10 +1128,21 @@ export const bookmarkFolders = pgTable(
       .default("company"),
     /** The folder it sits in (Arquivos' subfolders); null at the top. Who sees it copies the folder above (bookmark-core). */
     parentId: text("parent_id").references((): AnyPgColumn => bookmarkFolders.id),
+    /**
+     * A folder the Console keeps itself (lib/drive/console-files.ts): "contracts", "deliveries" or
+     * "deliveries:<engagement>"; one per company. Nobody deletes or moves it.
+     */
+    origin: text("origin"),
+    /** On top of who sees it: only who sees this area of the company ("finance": contracts). */
+    area: text("area", { enum: ["finance"] }),
+    /** On top of who sees it: only who sees this project (a Member may see only some). */
+    engagementId: text("engagement_id").references(() => engagements.id),
     createdAt: created(),
   },
   (t) => [
     index("console_bookmark_folder_parent_idx").on(t.parentId),
+    uniqueIndex("console_bookmark_folder_origin_idx").on(t.companyId, t.origin).where(sql`${t.origin} is not null`),
+    index("console_bookmark_folder_engagement_idx").on(t.engagementId),
     index("console_bookmark_folder_owner_idx").on(t.ownerId),
     index("console_bookmark_folder_company_idx").on(t.companyId),
   ],
@@ -1178,12 +1189,15 @@ export const bookmarks = pgTable(
     tag: text("tag"),
     /** "auto": the Console's suggestion (changes with the file); "person": someone chose, even none, and it stays. */
     tagSource: text("tag_source", { enum: ["auto", "person"] }),
+    /** A copy the Console made ("contract:<id>", "attachment:<id>"): made once, not counted in the space. */
+    origin: text("origin"),
     createdAt: created(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("console_bookmark_owner_idx").on(t.ownerId),
     index("console_bookmark_tag_idx").on(t.tag),
+    uniqueIndex("console_bookmark_origin_idx").on(t.origin).where(sql`${t.origin} is not null`),
     index("console_bookmark_folder_idx").on(t.folderId),
     index("console_bookmark_company_idx").on(t.companyId),
     index("console_bookmark_deleted_idx").on(t.deletedAt),

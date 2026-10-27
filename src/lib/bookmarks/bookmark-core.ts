@@ -11,6 +11,7 @@ import {
   fileVersions,
 } from "@/db/schema";
 import { TAG_SLUGS } from "../drive/tag-rules";
+import { gateOpen, gateViewerOf } from "./folder-gate";
 import { db } from "../db";
 import { canAccess, type Actor } from "../access/access";
 import { bookmarkInput, safeFileName } from "./bookmark-validation";
@@ -64,6 +65,9 @@ export async function loadFolder(folderId: string) {
       name: bookmarkFolders.name,
       visibility: bookmarkFolders.visibility,
       parentId: bookmarkFolders.parentId,
+      origin: bookmarkFolders.origin,
+      area: bookmarkFolders.area,
+      engagementId: bookmarkFolders.engagementId,
     })
     .from(bookmarkFolders)
     .where(eq(bookmarkFolders.id, folderId));
@@ -71,12 +75,16 @@ export async function loadFolder(folderId: string) {
 }
 type Folder = NonNullable<Awaited<ReturnType<typeof loadFolder>>>;
 
-/** Staff or the owner: rename, share, delete. */
-export const manages = (actor: Actor, folder: Folder) => actor.admin || folder.ownerId === actor.user.id;
+/** Staff or the owner: rename, share, delete. A folder the Console keeps is the team's only. */
+export const manages = (actor: Actor, folder: Folder) => actor.admin || (folder.ownerId === actor.user.id && !folder.origin);
+
+/** The Console's own folders (contracts, deliveries) stay where they are and as they are. */
+const SYSTEM_FOLDER = { error: "Esta pasta é mantida pelo Console: ela não pode ser excluída, movida nem compartilhada." };
 
 /** Whoever can see the folder can add to it. */
 export async function usable(actor: Actor, folder: Folder) {
   if (!companyAllowed(actor, folder.companyId)) return false;
+  if (!gateOpen(gateViewerOf(actor), folder)) return false;
   if (actor.admin || folder.visibility === "company" || folder.ownerId === actor.user.id) return true;
   const [share] = await db
     .select({ userId: bookmarkFolderShares.userId })
@@ -96,6 +104,7 @@ async function editableBookmark(actor: Actor, bookmarkId: string, { trashed = fa
       companyId: bookmarks.companyId,
       folderId: bookmarks.folderId,
       folderOwner: bookmarkFolders.ownerId,
+      folderOrigin: bookmarkFolders.origin,
       title: bookmarks.title,
       fileName: bookmarks.fileName,
       board: sql<boolean>`(${bookmarks.board} is not null)`,
@@ -105,7 +114,8 @@ async function editableBookmark(actor: Actor, bookmarkId: string, { trashed = fa
     // The trash's own actions (restore, delete for good) reach trashed items; the rest never do.
     .where(and(eq(bookmarks.id, bookmarkId), trashed ? isNotNull(bookmarks.deletedAt) : isNull(bookmarks.deletedAt)));
   if (!item) return null;
-  if (actor.admin || item.ownerId === actor.user.id || item.folderOwner === actor.user.id)
+  // The owner of a folder the Console keeps does not edit what is in it for that.
+  if (actor.admin || item.ownerId === actor.user.id || (item.folderOwner === actor.user.id && !item.folderOrigin))
     return item;
   return null;
 }
@@ -173,6 +183,7 @@ export async function deleteFolderAs(actor: Actor, input: { id: unknown }): Prom
     const folderId = id.parse(input.id);
     const folder = await loadFolder(folderId);
     if (!folder || !manages(actor, folder)) return blocked;
+    if (folder.origin) return SYSTEM_FOLDER;
     // What was inside, files and subfolders, moves up one level (to Sem pasta at the top).
     const up = folder.parentId ?? null;
     await db.transaction(async (tx) => {
@@ -211,6 +222,7 @@ export async function shareFolderAs(
     if (userIds.length > 50) return { error: "Compartilhe com até 50 pessoas." };
     const folder = await loadFolder(folderId);
     if (!folder || !manages(actor, folder)) return blocked;
+    if (folder.origin) return SYSTEM_FOLDER;
     for (const userId of userIds)
       if (!(await personInScope(userId, folder.companyId)))
         return { error: "Uma das pessoas escolhidas não participa desta empresa." };
@@ -258,8 +270,14 @@ async function companyFolders(companyId: string | null, executor: Pick<typeof db
  * put inside it). Each target's own owner always sees it.
  */
 async function inheritAccess(tx: Tx, sourceId: string, targets: string[]) {
-  const [source] = await tx.select({ visibility: bookmarkFolders.visibility, ownerId: bookmarkFolders.ownerId }).from(bookmarkFolders).where(eq(bookmarkFolders.id, sourceId));
+  const [source] = await tx
+    .select({ visibility: bookmarkFolders.visibility, ownerId: bookmarkFolders.ownerId, area: bookmarkFolders.area, engagementId: bookmarkFolders.engagementId })
+    .from(bookmarkFolders)
+    .where(eq(bookmarkFolders.id, sourceId));
   if (!source || !targets.length) return;
+  // A gate above (contracts, a project) comes down too; one the target had is never taken off, so nothing opens by moving.
+  if (source.area) await tx.update(bookmarkFolders).set({ area: source.area }).where(inArray(bookmarkFolders.id, targets));
+  if (source.engagementId) await tx.update(bookmarkFolders).set({ engagementId: source.engagementId }).where(inArray(bookmarkFolders.id, targets));
   const people = (await tx.select({ userId: bookmarkFolderShares.userId }).from(bookmarkFolderShares).where(eq(bookmarkFolderShares.folderId, sourceId))).map((r) => r.userId);
   const owners = await tx.select({ id: bookmarkFolders.id, ownerId: bookmarkFolders.ownerId }).from(bookmarkFolders).where(inArray(bookmarkFolders.id, targets));
   await tx.update(bookmarkFolders).set({ visibility: source.visibility }).where(inArray(bookmarkFolders.id, targets));
@@ -278,6 +296,7 @@ export async function moveFolderAs(actor: Actor, input: { id: unknown; parentId:
     const target = companyField.parse(input.parentId ?? "");
     const folder = await loadFolder(folderId);
     if (!folder || !manages(actor, folder)) return blocked;
+    if (folder.origin) return SYSTEM_FOLDER;
     if ((folder.parentId ?? "") === target) return { success: "A pasta já está aí." };
     const into = target ? await loadFolder(target) : null;
     if (target && (!into || !(await usable(actor, into)))) return blocked;

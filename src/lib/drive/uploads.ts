@@ -35,12 +35,17 @@ type Executor = Pick<typeof db, "select">;
 const spaceIs = (column: typeof bookmarks.companyId | typeof fileUploads.companyId | typeof fileVersions.companyId, companyId: string | null) =>
   companyId ? eq(column, companyId) : isNull(column);
 
-/** Bytes a space holds: its files (in R2 and the older ones in the database) and the uploads under way. */
+/**
+ * Bytes a space holds: its files (in R2 and the older ones in the database)
+ * and the uploads under way. The copies the Console files itself (signed
+ * contracts, deliveries: lib/drive/console-files.ts) are not the company's to
+ * spend, so they are left out.
+ */
 export async function spaceUsage(companyId: string | null, executor: Executor = db) {
   const [files] = await executor
     .select({ n: sql<string>`coalesce(sum(coalesce(${bookmarks.fileSize}, octet_length(${bookmarks.content}), 0)), 0)` })
     .from(bookmarks)
-    .where(spaceIs(bookmarks.companyId, companyId));
+    .where(and(spaceIs(bookmarks.companyId, companyId), isNull(bookmarks.origin)));
   const [versions] = await executor
     .select({ n: sql<string>`coalesce(sum(${fileVersions.fileSize}), 0)` })
     .from(fileVersions)

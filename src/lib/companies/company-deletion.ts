@@ -168,6 +168,8 @@ export async function deleteCompany(_: ActionState, form: FormData): Promise<Act
         .delete(tasks)
         .where(or(eq(tasks.companyId, company.id), inArray(tasks.engagementId, itsWork)))
         .returning({ id: tasks.id });
+      // A folder gated by a project (its deliveries) points at it; the folders themselves go below, with the company's.
+      await tx.update(bookmarkFolders).set({ engagementId: null }).where(inArray(bookmarkFolders.engagementId, itsWork));
       const removedWork = await tx
         .delete(engagements)
         .where(eq(engagements.companyId, company.id))
