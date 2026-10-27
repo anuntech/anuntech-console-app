@@ -75,15 +75,26 @@ export function ContractFieldsPanel({
 
   const filled = fields.filter((field) => values[field.key]?.trim()).length;
   const unused = fields.filter((field) => suggestions[field.key] && !values[field.key]?.trim());
-  const draftWithAi = async () => {
+  const draftWithAi = async (fresh = true) => {
+    // The answer for these open fields is kept in this tab: reopening the draft does not ask again.
+    const cacheKey = `contract-fields:${contractId}:${fields.map((field) => field.key).join(",")}`;
     setAsking(true);
     setNotice("Lendo o orçamento, o briefing e a jornada…");
     try {
-      const response = await fetch(`/api/contratos/${contractId}/campos`, { method: "POST" });
-      const data = (await response.json().catch(() => null)) as
-        | { suggestions?: FieldSuggestions; gaps?: { key: string; missing: string }[]; error?: string }
-        | null;
-      if (!response.ok || !data?.suggestions) throw new Error(data?.error || "Não foi possível sugerir agora.");
+      type Answer = { suggestions?: FieldSuggestions; gaps?: { key: string; missing: string }[]; error?: string };
+      let data: Answer | null = null;
+      if (!fresh)
+        try {
+          data = JSON.parse(sessionStorage.getItem(cacheKey) ?? "null") as Answer | null;
+        } catch {}
+      if (!data?.suggestions) {
+        const response = await fetch(`/api/contratos/${contractId}/campos`, { method: "POST" });
+        data = (await response.json().catch(() => null)) as Answer | null;
+        if (!response.ok || !data?.suggestions) throw new Error(data?.error || "Não foi possível sugerir agora.");
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(data));
+        } catch {}
+      }
       setDrafted(data.suggestions);
       setGaps(Object.fromEntries((data.gaps ?? []).map((gap) => [gap.key, gap.missing])));
       const count = Object.keys(data.suggestions).length;
@@ -99,6 +110,16 @@ export function ContractFieldsPanel({
       setAsking(false);
     }
   };
+  // Opening a draft with fields the Console cannot answer asks the AI once, on its own.
+  const asked = useRef(false);
+  const needsAi = fields.some((field) => !known[field.key]);
+  useEffect(() => {
+    if (asked.current || !needsAi) return;
+    asked.current = true;
+    void draftWithAi(false);
+    // Once per page: later changes in the fields do not ask again (the button does).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAi]);
   const useAll = () => {
     setValues((current) => {
       const next = { ...current };
@@ -209,9 +230,9 @@ export function ContractFieldsPanel({
               Usar todas as sugestões
             </Button>
           )}
-          <Button type="button" variant="outline" size="sm" disabled={pending || asking} onClick={() => void draftWithAi()}>
+          <Button type="button" variant="outline" size="sm" disabled={pending || asking} onClick={() => void draftWithAi(true)}>
             {asking ? <Loader2Icon className="animate-spin" /> : <SparklesIcon />}
-            {asking ? "Lendo o projeto…" : "Preencher com IA"}
+            {asking ? "Lendo o projeto…" : Object.keys(drafted).length ? "Sugerir de novo" : "Preencher com IA"}
           </Button>
         </div>
       </div>

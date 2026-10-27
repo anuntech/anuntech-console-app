@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { contracts, journeys, quotes } from "@/db/schema";
+import { contracts, engagements, journeys, quotes } from "@/db/schema";
 import { db } from "../db";
 import { AssistantError } from "../assistant/assistant-errors";
 import { assertGateway } from "../assistant/chat-model";
@@ -44,16 +44,20 @@ const answer = z.object({
 const PROMPT = [
   "Você ajuda a equipe da Anuntech a preencher os campos em aberto de um contrato de desenvolvimento de software, em português do Brasil.",
   "Cada campo vem com o trecho do contrato onde ele aparece: é o trecho que diz o que o campo pede. Leia o trecho antes de responder.",
-  "Use só o que está no contexto do projeto (orçamento, briefing e jornada). Nunca invente nomes, e-mails, CNPJ, valores, datas, endereços, países, fornecedores ou números de versão que o contexto não traga.",
-  "Regras:",
-  "- Quando o trecho diz 'ou a palavra nenhum' e o contexto não mostra nada daquilo, responda \"nenhum\", fonte \"padrão\" e confira true.",
-  "- Quando o contexto não dá base e não cabe \"nenhum\", deixe valor \"\", fonte \"falta\" e em motivo escreva a pergunta que a equipe precisa fazer ao cliente (curta).",
-  "- Hospedagem: diga onde o software vai rodar e quem paga só se o orçamento, o briefing ou a jornada disserem; se a jornada citar hospedagem da Anuntech, use isso.",
-  "- Dados pessoais: liste os tipos de dado pessoal que o sistema vai tratar pelo que as funcionalidades descrevem (por exemplo nome, telefone, e-mail de clientes), os titulares e se há dado sensível ou de criança; sem base, deixe vazio.",
-  "- Cronograma e pagamento: monte a partir das fases, semanas e da entrada do orçamento, em frases curtas na ordem do trabalho.",
-  "- Escreva no tom do contrato: frases completas, sem markdown, sem listas com marcadores, sem aspas em volta, sem repetir o rótulo do campo.",
-  "- motivo: de onde veio o valor (por exemplo 'Fases e entrada do orçamento') ou o que falta, até 140 caracteres.",
-  "- confira: true sempre que o valor for uma escolha jurídica ou uma dedução; false só quando o valor está escrito no contexto.",
+  "Sugira um valor para todos os campos. A equipe confere cada sugestão antes de usar, então um bom palpite vale mais que um campo vazio.",
+  "Ordem de preferência: 1) o que o contexto do projeto diz (orçamento, briefing, jornada, serviços da empresa); 2) o padrão da Anuntech abaixo; 3) uma dedução razoável a partir das funcionalidades.",
+  "Padrões da Anuntech, quando o projeto não diz outra coisa:",
+  "- Hospedagem: o software roda na Anuntech Cloud (infraestrutura da Anuntech em nuvem, no Brasil), contratada e cobrada à parte; custos de serviços de terceiros que o projeto usar são pagos pelo CLIENTE. Se a empresa já tem um serviço de hospedagem ou nuvem ativo, cite-o pelo nome.",
+  "- Ativos da Anuntech (contas, aplicativos e domínios que ficam em nome da Anuntech): nenhum; domínio, contas de loja e contas de serviços ficam em nome do CLIENTE.",
+  "- Materiais preexistentes: nenhum; só cite componentes ou bibliotecas da Anuntech quando o orçamento ou o briefing disserem que serão reaproveitados.",
+  "- Componentes pagos: nenhum, a menos que o projeto cite serviço pago (mapas, SMS, WhatsApp, pagamentos, IA); nesse caso, nome do serviço, licenciado em nome do CLIENTE e pago por ele.",
+  "- Dados pessoais: deduza pelas funcionalidades (por exemplo nome, e-mail e telefone dos usuários e dos clientes do CLIENTE); titulares são esses usuários e clientes; diga que não há dados sensíveis nem de crianças e adolescentes quando nada indicar o contrário.",
+  "- Cronograma e pagamento: as fases do orçamento na ordem, com as semanas, e o pagamento: a entrada na assinatura e o saldo na entrega, com os valores do orçamento.",
+  "Nunca invente nome de pessoa, e-mail, telefone, CNPJ, valor em reais ou data que o contexto não traga. Se o campo pede isso e o contexto não tem, deixe valor \"\", fonte \"falta\" e em motivo a pergunta curta a fazer ao cliente.",
+  "Escreva no tom do contrato: frases completas, sem markdown, sem listas com marcadores, sem aspas em volta, sem repetir o rótulo do campo.",
+  "fonte: \"orçamento\", \"briefing\", \"jornada\" (inclui os serviços da empresa), \"padrão\" (padrão da Anuntech ou dedução) ou \"falta\".",
+  "motivo: de onde veio o valor (por exemplo 'Fases e entrada do orçamento' ou 'Padrão da Anuntech') ou o que falta, até 140 caracteres.",
+  "confira: true sempre que o valor vier de padrão ou dedução; false só quando está escrito no contexto.",
   "Responda só com JSON, um item por campo pedido, sem texto antes ou depois:",
   '{"campos":[{"key":"","valor":"","fonte":"orçamento","motivo":"","confira":true}]}',
 ].join("\n");
@@ -62,7 +66,7 @@ const SOURCE_LABELS: Record<z.infer<typeof answer>["campos"][number]["fonte"], s
   orçamento: "Sugestão da IA a partir do orçamento",
   briefing: "Sugestão da IA a partir do briefing",
   jornada: "Sugestão da IA a partir da jornada",
-  padrão: "Sugestão da IA: nada no projeto indica o contrário",
+  padrão: "Sugestão da IA pelo padrão da Anuntech",
   falta: "Sugestão da IA",
 };
 
@@ -107,7 +111,14 @@ export async function draftContractFields(
     : undefined;
   const journeyId = journey?.id ?? fallback?.id;
 
+  // What the company already has with Anuntech: a hosting or cloud service answers "hospedagem".
+  const services = await db
+    .select({ name: engagements.name })
+    .from(engagements)
+    .where(and(eq(engagements.companyId, contract.companyId), inArray(engagements.status, ["active", "paused"])))
+    .limit(20);
   const sections: string[] = [`Contrato: ${contract.title}`];
+  sections.push(services.length ? `Serviços da empresa com a Anuntech: ${services.map((x) => x.name).join("; ")}` : "Serviços da empresa com a Anuntech: nenhum ativo.");
   if (quote) {
     const content = quote.publication ?? { ...quote.content, title: quote.title };
     const totals = quoteTotals(content);
