@@ -24,6 +24,7 @@ import { lac4Checks } from "./api-smoke-lac4.mjs";
 import { lac3Checks } from "./api-smoke-lac3.mjs";
 import { lac1Checks } from "./api-smoke-lac1.mjs";
 import { arquivosAppChecks } from "./api-smoke-arquivos-app.mjs";
+import { arquivosCardsChecks } from "./api-smoke-arquivos-cards.mjs";
 import { startR2Mock } from "./r2-mock.mjs";
 
 assert.match(
@@ -1123,6 +1124,8 @@ try {
   await lac1Checks({ db, rpc, ok, marker, emailSignIn, staff, base });
   // Arquivos no celular: envio em partes para o R2, espaço usado e download assinado (scripts/api-smoke-arquivos-app.mjs).
   await arquivosAppChecks({ db, rpc, ok, marker, emailSignIn, staff, base, r2 });
+  // Cartões de Arquivos no celular: miniaturas, estrelas, "Com estrela" e "Recentes", renomear e a divisão do armazenamento (scripts/api-smoke-arquivos-cards.mjs).
+  await arquivosCardsChecks({ db, rpc, ok, marker, emailSignIn, staff, base, r2 });
   console.log(`Concluído: ${count} verificações da API do app.`);
 } catch (error) {
   console.error("FAIL", error.stack);

@@ -4,6 +4,7 @@ import { companyDisplayName } from "../../companies/display-name";
 import { engagementLabels } from "../../format";
 import { protectedApps } from "../../apps/registry";
 import { clientOverview } from "../../painel/client-overview";
+import { thumbnailAddresses } from "../../drive/thumb-url";
 import { listTickets } from "../../tickets/ticket-list";
 import { api } from "../server";
 import { guard } from "../access";
@@ -40,6 +41,8 @@ export const overview = {
     const progress = new Map(painel.progress.map((p) => [p.engagementId, p]));
     const folderName = new Map(painel.folders.map((f) => [f.id, f.name]));
     const reviewProjects = [...new Set(painel.toReview.map((t) => t.projectId))];
+    // The files' card pictures, as bookmarks.list gives them.
+    const thumbs = await thumbnailAddresses(painel.bookmarkPage.items.filter((item) => item.thumb).map((item) => item.id));
     return {
       waiting: waiting.rows.map((row) => ticketRow(actor, row)),
       recent: recent.rows.map((row) => ticketRow(actor, row)),
@@ -75,6 +78,9 @@ export const overview = {
           filePath:
             kind === "file" ? `/api/bookmarks/${item.id}` : kind === "board" && item.preview ? `/api/bookmarks/${item.id}/preview` : null,
           folder: item.folderId ? (folderName.get(item.folderId) ?? null) : null,
+          ...(thumbs.has(item.id) ? { thumbUrl: thumbs.get(item.id)! } : {}),
+          fileSize: kind === "file" ? (item.fileSize ?? null) : null,
+          updatedAt: item.updatedAt ?? item.createdAt,
         };
       }),
       nextCharge: painel.nextCharge

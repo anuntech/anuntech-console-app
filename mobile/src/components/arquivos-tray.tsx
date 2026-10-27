@@ -6,7 +6,18 @@ import { fileSize } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { enter, exit, layout } from "@/lib/motion";
 import { fonts, rounded, space, usePalette } from "@/lib/theme";
-import { percentLabel, progressShare, sentLabel, spaceAlmostFull, spaceHeading, spaceLabel, spaceShare } from "@/lib/upload-plan";
+import {
+  percentLabel,
+  progressShare,
+  sentLabel,
+  spaceAlmostFull,
+  spaceHeading,
+  spaceLabel,
+  spacePercent,
+  spaceSegments,
+  spaceShare,
+  type SpaceParts,
+} from "@/lib/upload-plan";
 import { Text } from "./text";
 
 /** A thin bar, filled to `share` (0 to 1). */
@@ -157,40 +168,88 @@ export function UploadTray({ items }: { items: UploadItem[] }) {
   );
 }
 
-export type Space = { companyId: string | null; used: number; quota: number | null };
+export type Space = { companyId: string | null; used: number; quota: number | null; parts?: SpaceParts };
+
+/** The parts in shades of the brand violet, as the web's (bg-primary, /55, /25). */
+const PART_OPACITY: Record<keyof SpaceParts, number> = { media: 1, documents: 0.55, other: 0.25 };
 
 /**
- * "Espaço usado", as the web's meter: how much of each space its files take,
- * with the bar red above 90%. Anuntech's own space has no limit. Names show
- * when there are several spaces (or for the team).
+ * "Armazenamento", as the web's meter: what each space holds, split into
+ * photos and videos, documents and the rest, on a bar that fills up to the
+ * company's limit, with the percentage and what is left (red above 90%).
+ * Anuntech's own space has no limit and shows only the split. The space's
+ * name only when there are several on the screen.
  */
-export function SpaceMeter({ spaces, nameOf, named }: { spaces: Space[]; nameOf: (companyId: string | null) => string; named: boolean }) {
+export function SpaceMeter({ spaces, nameOf }: { spaces: Space[]; nameOf: (companyId: string | null) => string }) {
   const palette = usePalette();
   if (!spaces.length) return null;
+  const named = spaces.length > 1;
   return (
     <View style={{ marginHorizontal: space.gutter, backgroundColor: palette.card, ...rounded(24), overflow: "hidden", ...(palette.dark ? { borderWidth: 1, borderColor: palette.border } : {}) }}>
       {spaces.map((s, index) => {
         const heading = spaceHeading(named ? nameOf(s.companyId) : null);
         const label = spaceLabel(s.used, s.quota);
+        const percent = spacePercent(s.used, s.quota);
         const full = spaceAlmostFull(s.used, s.quota);
-        const share = spaceShare(s.used, s.quota);
+        const segments = spaceSegments(s.used, s.quota, s.parts);
+        const legend = s.used > 0 ? segments : [];
+        // What is used reads stronger than the limit and what is left, as on the web.
+        const amount = s.used ? fileSize(s.used) : "0 KB";
+        const rest = label.slice(amount.length);
         return (
           <View key={s.companyId ?? "anuntech"}>
             {index > 0 ? <View style={{ marginLeft: 16, height: StyleSheet.hairlineWidth, backgroundColor: palette.separator }} /> : null}
             <View
               accessible
               accessibilityRole={s.quota !== null ? "progressbar" : undefined}
-              accessibilityLabel={`${heading}: ${label}`}
-              accessibilityValue={s.quota !== null ? { min: 0, max: 100, now: Math.round(share * 100) } : undefined}
-              style={{ paddingHorizontal: 16, paddingVertical: space.md, gap: 6 }}
+              accessibilityLabel={[`${named ? `Armazenamento de ${heading}` : heading}: ${label}`, ...legend.map((part) => `${part.label}, ${fileSize(part.bytes)}`)].join(". ")}
+              accessibilityValue={s.quota !== null ? { min: 0, max: 100, now: Math.round(spaceShare(s.used, s.quota) * 100) } : undefined}
+              style={{ paddingHorizontal: 16, paddingVertical: space.md, gap: 8 }}
             >
-              <Text variant="caption" tone="muted" style={{ fontFamily: fonts.semibold }}>
-                {heading}
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm }}>
+                <Text variant="caption" numberOfLines={1} style={{ flex: 1, fontFamily: fonts.semibold }}>
+                  {heading}
+                </Text>
+                {percent ? (
+                  <Text variant="caption" tone={full ? "destructive" : "muted"} style={{ fontVariant: ["tabular-nums"] }}>
+                    {percent}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={{ height: 8, flexDirection: "row", gap: 2, ...rounded(999), backgroundColor: palette.fill, overflow: "hidden" }}>
+                {segments.map((part) => (
+                  <View
+                    key={part.key}
+                    style={{
+                      width: `${Math.round(part.share * 1000) / 10}%`,
+                      height: 8,
+                      backgroundColor: full ? palette.destructive : palette.primary,
+                      opacity: full ? 1 : PART_OPACITY[part.key],
+                    }}
+                  />
+                ))}
+              </View>
+              <Text variant="caption" style={{ fontVariant: ["tabular-nums"] }}>
+                {amount}
+                <Text variant="caption" tone="muted">
+                  {rest}
+                </Text>
               </Text>
-              {s.quota !== null ? <Bar share={share} color={full ? palette.destructive : palette.primary} height={6} /> : null}
-              <Text variant="caption" tone={full ? "destructive" : "muted"} style={{ fontVariant: ["tabular-nums"] }}>
-                {label}
-              </Text>
+              {legend.length ? (
+                <View style={{ gap: 4 }}>
+                  {legend.map((part) => (
+                    <View key={part.key} style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: palette.primary, opacity: PART_OPACITY[part.key] }} />
+                      <Text variant="caption" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
+                        {part.label}
+                      </Text>
+                      <Text variant="caption" tone="muted" style={{ fontVariant: ["tabular-nums"] }}>
+                        {fileSize(part.bytes)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           </View>
         );

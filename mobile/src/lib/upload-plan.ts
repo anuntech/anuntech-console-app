@@ -48,12 +48,40 @@ export const fileTitle = (name: string) => (name.replace(/\.[^.]+$/, "") || name
 /** Whether a file is better opened through the system than downloaded into the app. */
 export const opensOutside = (size: number | null | undefined) => (size ?? 0) > LARGE_DOWNLOAD_BYTES;
 
-/** The meter's heading: "Espaço usado", or "Espaço · Empresa" when there are several (or for the team). */
-export const spaceHeading = (name: string | null) => (name ? `Espaço · ${name}` : "Espaço usado");
+/** "Armazenamento", or the space's name when there are several on the screen (the web's SpaceMeter). */
+export const spaceHeading = (name: string | null) => name ?? "Armazenamento";
 
-/** "1,2 GB de 5,0 GB", or "300 MB usados, sem limite" for Anuntech's own space. */
+/** "1,2 GB de 5,0 GB · 3,8 GB livres", or "300 MB usados, sem limite" for Anuntech's own space. */
 export const spaceLabel = (used: number, quota: number | null) =>
-  `${used ? fileSize(used) : "0 KB"} ${quota === null ? "usados, sem limite" : `de ${fileSize(quota)}`}`;
+  `${used ? fileSize(used) : "0 KB"}${quota === null ? " usados, sem limite" : ` de ${fileSize(quota)} · ${fileSize(Math.max(0, quota - used))} livres`}`;
+
+/** "24%" beside the heading, up to 100; none without a limit. */
+export const spacePercent = (used: number, quota: number | null) => (quota ? `${Math.min(100, Math.round((used / quota) * 100))}%` : null);
+
+/** What a space's files are made of, in bytes (bookmarks.list's `parts`). */
+export type SpaceParts = { media: number; documents: number; other: number };
+export const SPACE_PARTS: { key: keyof SpaceParts; label: string }[] = [
+  { key: "media", label: "Fotos e vídeos" },
+  { key: "documents", label: "Documentos" },
+  { key: "other", label: "Outros" },
+];
+
+/**
+ * The bar's pieces, in order: each part's share of the limit (or, without a
+ * limit, of what is used), at least a sliver so a small part still shows.
+ * Without `parts` (an older Console) all is "Outros".
+ */
+export function spaceSegments(used: number, quota: number | null, parts?: SpaceParts) {
+  const whole = quota ?? used;
+  const split = parts ?? { media: 0, documents: 0, other: used };
+  if (!whole) return [];
+  return SPACE_PARTS.filter(({ key }) => split[key] > 0).map(({ key, label }) => ({
+    key,
+    label,
+    bytes: split[key],
+    share: Math.min(1, Math.max(0.015, split[key] / whole)),
+  }));
+}
 
 /** The filled share of the bar (0 without a limit). */
 export const spaceShare = (used: number, quota: number | null) => (quota ? Math.min(1, used / quota) : 0);

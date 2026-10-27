@@ -1,4 +1,4 @@
-import { fileSize } from "./format";
+import { fileSize, when } from "./format";
 
 /*
  * How a bookmark and a folder read in the app, in the web's words. Pure and
@@ -147,4 +147,85 @@ export function excerptParts(excerpt: string) {
 export function trashNote(deletedAt: string, now = Date.now()) {
   const left = Math.max(0, Math.ceil((new Date(deletedAt).getTime() + 30 * 86_400_000 - now) / 86_400_000));
   return left === 0 ? "some hoje" : `some em ${left === 1 ? "1 dia" : `${left} dias`}`;
+}
+
+/* ---------- The cards and the viewer (the web's file-card.tsx and file-preview.tsx) ---------- */
+
+/** What kind of file an item is, for its icon and badge: the web's src/lib/bookmarks/file-types.ts (the test keeps them equal). */
+export type FileGroup = "image" | "video" | "audio" | "pdf" | "document" | "sheet" | "slides" | "archive" | "code" | "design" | "other";
+
+const GROUPS: [FileGroup, string[]][] = [
+  ["image", ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "avif", "svg", "tif", "tiff", "bmp", "ico", "raw", "dng"]],
+  ["video", ["mp4", "mov", "m4v", "webm", "avi", "mkv", "wmv"]],
+  ["audio", ["mp3", "m4a", "wav", "ogg", "aac", "flac", "opus"]],
+  ["pdf", ["pdf"]],
+  ["document", ["doc", "docx", "odt", "rtf", "txt", "md", "pages"]],
+  ["sheet", ["xls", "xlsx", "xlsm", "csv", "tsv", "ods", "numbers"]],
+  ["slides", ["ppt", "pptx", "key", "odp"]],
+  ["archive", ["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz"]],
+  ["code", ["json", "xml", "html", "htm", "css", "js", "ts", "tsx", "jsx", "py", "sql", "yml", "yaml", "sh"]],
+  ["design", ["fig", "sketch", "xd", "ai", "psd", "eps", "indd", "afdesign"]],
+];
+const BY_EXTENSION = new Map(GROUPS.flatMap(([group, extensions]) => extensions.map((ext) => [ext, group] as const)));
+
+export const extensionOf = (fileName: string | null | undefined) =>
+  fileName && fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase().slice(0, 8) : "";
+
+/** "PDF", "DOCX" or "ARQUIVO", and the group that picks the icon. */
+export function fileTypeOf(fileName: string | null | undefined): { group: FileGroup; label: string } {
+  const ext = extensionOf(fileName);
+  return { group: BY_EXTENSION.get(ext) ?? "other", label: ext ? ext.toUpperCase() : "ARQUIVO" };
+}
+
+/** The groups whose text, when the Console read it, shows as the top of a page. */
+export const showsPage = (group: FileGroup) => group === "pdf" || group === "document" || group === "sheet" || group === "slides" || group === "code";
+
+/**
+ * "Copiar link": the item's address in the Console (the web's ?abrir=), which
+ * opens only for who already sees it. `base` is the Console's address.
+ */
+export const itemLink = (base: string, id: string) => `${base.replace(/\/+$/, "")}/bookmarks?abrir=${encodeURIComponent(id)}`;
+
+/** Where an item sits among the list's files, for the viewer's arrows: "2 de 14", and who is before and after. */
+export function neighbours(ids: string[], id: string) {
+  const at = ids.indexOf(id);
+  return {
+    at,
+    previous: at > 0 ? ids[at - 1] : null,
+    next: at >= 0 && at < ids.length - 1 ? ids[at + 1] : null,
+    label: ids.length > 1 && at >= 0 ? `${at + 1} de ${ids.length}` : null,
+  };
+}
+
+type Detailed = {
+  fileName: string | null;
+  fileSize: number | null;
+  folderId: string | null;
+  companyId: string | null;
+  tag?: string | null;
+  ownerName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** The viewer's "Detalhes", in the web's words and order. */
+export function fileDetails(item: Detailed, folderName: (id: string) => string | undefined, companyName: (id: string) => string | undefined): [string, string][] {
+  return [
+    ["Tipo", fileTypeOf(item.fileName).label],
+    ["Tamanho", item.fileSize ? fileSize(item.fileSize) : "—"],
+    ["Pasta", item.folderId ? (folderName(item.folderId) ?? "—") : "Sem pasta"],
+    ["Empresa", item.companyId ? (companyName(item.companyId) ?? "—") : "Anuntech"],
+    ["Etiqueta", item.tag ? (TAG_LABELS[item.tag] ?? item.tag) : "—"],
+    ["Adicionado por", item.ownerName ?? "—"],
+    ["Adicionado em", when(item.createdAt)],
+    ["Alterado em", when(item.updatedAt || item.createdAt)],
+  ];
+}
+
+/** The rail's own views, as chips: "Recentes" and "Com estrela" (with how many). */
+export function viewChips(starredCount: number | undefined) {
+  return [
+    { value: "recentes", label: "Recentes" },
+    { value: "estrela", label: starredCount ? `Com estrela · ${starredCount}` : "Com estrela" },
+  ];
 }

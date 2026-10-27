@@ -88,7 +88,11 @@ export function consoleTarget(href: string, reach: AppReach): ConsoleTarget {
 
   const product = path.match(new RegExp(`^/apps/(${UUID})$`));
   if (product) return app(`/produtos/app/${product[1]}`);
-  if (path === "/bookmarks") return app(path);
+  if (path === "/bookmarks") {
+    // "Copiar link" (?abrir=<id>): the item itself, which answers "not found" to who does not see it.
+    const opened = query.get("abrir");
+    return opened && new RegExp(`^${UUID}$`).test(opened) ? app(`/bookmarks/${opened.toLowerCase()}/ver`) : app(path);
+  }
   const board = path.match(new RegExp(`^/bookmarks/(${UUID})/lousa$`));
   if (board) return app(`/bookmarks/${board[1]}/lousa`);
 

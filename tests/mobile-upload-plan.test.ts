@@ -14,6 +14,8 @@ import {
   spaceAlmostFull,
   spaceHeading,
   spaceLabel,
+  spacePercent,
+  spaceSegments,
   spaceShare,
 } from "../mobile/src/lib/upload-plan";
 import { fileSize } from "../mobile/src/lib/format";
@@ -80,18 +82,42 @@ test("large files open through the system", () => {
   assert.equal(opensOutside(3 * GB), true);
 });
 
-test("the space meter says what the web's says", () => {
-  assert.equal(spaceHeading(null), "Espaço usado");
-  assert.equal(spaceHeading("Padaria"), "Espaço · Padaria");
-  assert.equal(spaceLabel(0, 5 * GB), "0 KB de 5,0 GB");
-  assert.equal(spaceLabel(1.2 * GB, 5 * GB), "1,2 GB de 5,0 GB");
+test("the storage meter says what the web's says", () => {
+  assert.equal(spaceHeading(null), "Armazenamento");
+  assert.equal(spaceHeading("Padaria"), "Padaria");
+  assert.equal(spaceLabel(0, 5 * GB), "0 KB de 5,0 GB · 5,0 GB livres");
+  assert.equal(spaceLabel(1.2 * GB, 5 * GB), "1,2 GB de 5,0 GB · 3,8 GB livres");
+  // Over the limit nothing is left; the web's fileSizeLabel(0) also reads "1 KB".
+  assert.equal(spaceLabel(6 * GB, 5 * GB), `6,0 GB de 5,0 GB · ${fileSizeLabel(0)} livres`);
   assert.equal(spaceLabel(300 * MB, null), "300,0 MB usados, sem limite");
+  assert.equal(spacePercent(GB, 5 * GB), "20%");
+  assert.equal(spacePercent(6 * GB, 5 * GB), "100%");
+  assert.equal(spacePercent(GB, null), null);
   assert.equal(spaceShare(GB, 5 * GB), 0.2);
   assert.equal(spaceShare(6 * GB, 5 * GB), 1);
   assert.equal(spaceShare(GB, null), 0);
   assert.equal(spaceAlmostFull(4.5 * GB, 5 * GB), false);
   assert.equal(spaceAlmostFull(4.6 * GB, 5 * GB), true);
   assert.equal(spaceAlmostFull(100 * GB, null), false);
+});
+
+test("the storage bar is split into photos and videos, documents and the rest", () => {
+  const parts = { media: GB, documents: 0.5 * GB, other: 0.001 * GB };
+  assert.deepEqual(
+    spaceSegments(1.501 * GB, 5 * GB, parts).map(({ key, label, share }) => [key, label, Math.round(share * 1000) / 1000]),
+    [
+      ["media", "Fotos e vídeos", 0.2],
+      ["documents", "Documentos", 0.1],
+      // A sliver still shows, as the web's 1.5%.
+      ["other", "Outros", 0.015],
+    ],
+  );
+  // Without a limit (Anuntech's own) the bar is what is used.
+  assert.deepEqual(spaceSegments(2 * GB, null, { media: GB, documents: GB, other: 0 }).map((s) => s.share), [0.5, 0.5]);
+  // An older Console sends no split: all of it is "Outros".
+  assert.deepEqual(spaceSegments(GB, 5 * GB).map((s) => [s.key, s.bytes]), [["other", GB]]);
+  assert.deepEqual(spaceSegments(0, 5 * GB, { media: 0, documents: 0, other: 0 }), []);
+  assert.deepEqual(spaceSegments(0, null), []);
 });
 
 test("sizes in MB and GB read as on the web", () => {
