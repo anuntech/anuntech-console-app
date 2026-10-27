@@ -718,7 +718,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
             : []),
         ];
   const grid = (
-    <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(13.5rem,1fr))] gap-3 p-4">
+    <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-2.5 p-4">
       {items.map((item) => (
         <FileCard
           key={item.id}
@@ -979,7 +979,7 @@ export function BookmarksView({ data }: { data: BookmarksViewData }) {
               )}
               {canAddHere && bulk.picker}
               {canAddHere && (
-                <Button onClick={() => setEditor({ mode: "create", companyId: createCompany, folderId: createIn })}>
+                <Button className="sm:w-28" onClick={() => setEditor({ mode: "create", companyId: createCompany, folderId: createIn })}>
                   <PlusIcon />
                   Adicionar
                 </Button>

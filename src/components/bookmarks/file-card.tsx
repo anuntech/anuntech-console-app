@@ -62,7 +62,7 @@ function Cover({ item }: { item: BookmarkView }) {
     const { letter, tone } = letterTile(item.url);
     return (
       <span className="flex size-full flex-col items-center justify-center gap-2">
-        <span aria-hidden="true" className={cn("flex size-14 items-center justify-center rounded-2xl border text-2xl font-semibold uppercase", LETTER_TONES[tone])}>
+        <span aria-hidden="true" className={cn("flex size-11 items-center justify-center rounded-xl border text-lg font-semibold uppercase", LETTER_TONES[tone])}>
           {letter}
         </span>
         <span className="max-w-[85%] truncate text-xs text-muted-foreground">{linkHost(item.url)}</span>
@@ -88,7 +88,7 @@ function Cover({ item }: { item: BookmarkView }) {
     );
   if (showsPage(type.group) && item.page)
     return (
-      <span className="block size-full overflow-hidden px-4 pt-4">
+      <span className="block size-full overflow-hidden px-3 pt-3">
         {/* The start of the text the Console read, as the top of a page. */}
         <span className="block h-full overflow-hidden rounded-t-md border border-b-0 bg-white px-3 pt-3 text-[9px] leading-[1.45] break-words whitespace-pre-line text-neutral-700 shadow-[0_0_0_1px_rgb(0_0_0/0.02)] dark:bg-neutral-100">
           {item.page}
@@ -101,7 +101,7 @@ function Cover({ item }: { item: BookmarkView }) {
 function BigIcon({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <span className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground">
-      <Icon className="size-10 stroke-[1.4]" aria-hidden="true" />
+      <Icon className="size-8 stroke-[1.4]" aria-hidden="true" />
       <span className="text-[11px] font-semibold tracking-wide">{label}</span>
     </span>
   );
@@ -149,7 +149,7 @@ export function FileCard({
         selected && "border-primary ring-2 ring-primary/30",
       )}
     >
-      <div className="relative aspect-[4/3] overflow-hidden border-b bg-muted/40">
+      <div className="relative aspect-[16/11] overflow-hidden border-b bg-muted/40">
         <Cover item={item} />
         {onOpen ? (
           <button type="button" onClick={onOpen} aria-label={label} className={cover} />
@@ -199,9 +199,9 @@ export function FileCard({
           </span>
         ) : null}
       </div>
-      <div className="flex min-w-0 items-start gap-2 px-3 pt-2.5 pb-3">
+      <div className="flex min-w-0 items-start gap-1.5 px-2.5 pt-2 pb-2.5">
         <div className="min-w-0 flex-1">
-          <p className="m-0 truncate text-sm font-medium text-foreground" title={item.title}>
+          <p className="m-0 truncate text-[13px] font-medium text-foreground" title={item.title}>
             {item.title}
           </p>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">

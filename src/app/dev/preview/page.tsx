@@ -870,6 +870,7 @@ export default async function Preview({
       { id: "a2", name: "Paróquia Santa Rita" },
     ],
     viewer: { id: "u1", admin: true },
+    largeFiles: true,
   };
   const contractRows = [
     {

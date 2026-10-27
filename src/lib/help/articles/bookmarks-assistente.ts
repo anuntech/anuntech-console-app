@@ -63,7 +63,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             kind: "steps",
             items: [
               "Em [Arquivos](/bookmarks), abra a pasta onde os arquivos devem ficar.",
-              "Arraste os arquivos do seu computador para a lista, ou clique em “Enviar arquivos” e selecione vários.",
+              "Arraste os arquivos do seu computador para a lista, ou clique em “Enviar” e selecione vários.",
               "Cada arquivo vira um item com o nome do arquivo como título. No canto da tela aparece o andamento de cada um.",
             ],
           },

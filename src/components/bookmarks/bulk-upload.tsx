@@ -78,9 +78,10 @@ export function useBulkUpload({ companyId, folderId, enabled }: { companyId: str
           event.target.value = "";
         }}
       />
-      <Button variant="outline" onClick={pick}>
+      {/* The same width as "Adicionar", beside it. */}
+      <Button variant="outline" onClick={pick} title="Enviar arquivos" aria-label="Enviar arquivos" className="sm:w-28">
         <UploadIcon />
-        Enviar arquivos
+        Enviar
       </Button>
     </>
   );
