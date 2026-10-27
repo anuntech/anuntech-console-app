@@ -196,9 +196,18 @@ export async function runSupportTests({ database: db, ids, people, request, subm
     (await db.query("select body from console_contracts where id=$1", [fieldsDraft])).rows[0].body.includes("{{dados_pessoais}}"),
     "Preencher com IA não grava nada no contrato",
   );
+  const reviewIt = (who) => request(`/api/contratos/${fieldsDraft}/revisao`, who, { method: "POST", headers: { Origin: base } });
+  const reviewed = await reviewIt("admin");
+  const reviewBody = JSON.parse(reviewed.text);
+  ok(
+    reviewed.status === 200 && reviewBody.points.length === 2 && reviewBody.points[0].level === "alta" && reviewBody.points[0].where === "Anexo II",
+    "Revisar com IA aponta o que melhorar, o mais importante primeiro",
+  );
+  ok((await reviewIt("manager")).status === 403, "Cliente não pede revisão do contrato");
   ok((await fill("manager")).status === 403, "Cliente não pede sugestão de campos do contrato");
   await db.query("update console_contracts set status='signed' where id=$1", [fieldsDraft]);
   ok((await fill("admin")).status === 409, "Contrato fora de rascunho não recebe sugestão de campos");
+  ok((await reviewIt("admin")).status === 409, "Contrato fora de rascunho não é revisado");
   await db.query("delete from console_contracts where id=$1", [fieldsDraft]);
 
   await db.query("delete from console_service_terms where id=$1", [terms]);
