@@ -3,8 +3,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 /**
  * Ajuda: every signed-in person reads every article (what only an Administrador
  * does is marked, and a Membro is told whom to ask), the account menu leads
- * there instead of a dock button, and the tutorial videos are served with a
- * long cache because their names carry a hash. Also what writing the help
+ * there instead of a dock button, and no tutorial video shows while new ones
+ * are recorded. Also what writing the help
  * found wrong on screen: the payment page of a charge the bank closed unpaid,
  * and a concluded delivery that a client could reopen.
  */
@@ -13,7 +13,7 @@ export async function runHelpTests({ database: db, ids, people, request, submitF
   ok(anonymous.status >= 300 && anonymous.status < 400, "Sem sessão, a Ajuda pede login");
   for (const who of ["support", "manager", "admin"]) {
     const page = await request("/ajuda", who);
-    ok(page.status === 200 && page.text.includes("Tutoriais em vídeo") && page.text.includes("Perguntas frequentes"), `${who} abre a Ajuda`);
+    ok(page.status === 200 && !page.text.includes("Tutoriais em vídeo") && page.text.includes("Perguntas frequentes"), `${who} abre a Ajuda`);
   }
   let page = await request("/ajuda/pagar-uma-fatura", "support");
   ok(page.status === 200 && page.text.includes("Pagar com Pix ou boleto") && page.text.includes("Quem faz isto é um Administrador da sua empresa"), "O Membro lê o artigo do Financeiro e sabe a quem pedir");
@@ -26,11 +26,7 @@ export async function runHelpTests({ database: db, ids, people, request, submitF
   page = await request("/como-trabalhamos", "support");
   ok(page.status === 200 && page.text.includes('href="/ajuda"'), "Como trabalhamos leva de volta à Ajuda");
   const article = await request("/ajuda/abrir-um-chamado", "support");
-  const video = /\/ajuda\/videos\/chamado-[0-9a-f]{10}\.mp4/.exec(article.text)?.[0];
-  ok(!!video, "O artigo de chamado traz o vídeo");
-  const file = await request(video, null, { headers: { Range: "bytes=0-99" } });
-  ok([200, 206].includes(file.status), "O vídeo é servido");
-  ok((await request(video)).headers.get("cache-control")?.includes("immutable"), "O vídeo tem cache longo pelo nome com hash");
+  ok(article.status === 200 && !/\/ajuda\/videos\//.test(article.text), "O artigo de chamado abre sem vídeo");
 
   // The bank closed the boleto and the Pix unpaid: the amount is still owed, and the page says so.
   const expired = randomUUID(),

@@ -22,6 +22,7 @@ import type { BookmarkView, FolderView } from "@/lib/bookmarks/bookmarks";
 import type { CompanyOption } from "./folder-dialogs";
 import { fileSizeLabel } from "@/lib/format";
 import { TAGS } from "@/lib/drive/tag-rules";
+import { TRASH_DAYS } from "@/lib/drive/drive-rules";
 
 export type BookmarkEditor =
   | { mode: "create"; companyId: string; folderId: string }
@@ -160,9 +161,9 @@ export function BookmarkSheet({
           onOpenChange={setDeleting}
           action={deleteBookmark}
           fields={{ id: item.id }}
-          title="Excluir bookmark?"
-          description={`"${item.title}" sai da lista${deleteNote(item)}. Isso não pode ser desfeito.`}
-          confirmLabel="Excluir"
+          title="Mover para a lixeira?"
+          description={`"${item.title}" vai para a lixeira${deleteNote(item)} e fica lá por ${TRASH_DAYS} dias. Até lá, dá para restaurar.`}
+          confirmLabel="Mover para a lixeira"
           destructive
           onSuccess={onClose}
         />

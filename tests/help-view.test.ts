@@ -24,6 +24,8 @@ test("each tutorial opens the article that explains it, and the questions come f
   const home = helpHome(membro);
   assert.equal(home.tutorials.length, TUTORIALS.length);
   for (const t of home.tutorials) assert.equal(HELP_ARTICLES.find((a) => a.slug === t.slug)?.video, t.id);
+  // No videos while new ones are recorded: no article points at one.
+  assert.ok(HELP_ARTICLES.every((a) => !a.video));
   assert.ok(home.faq.length > 0 && home.faq.length <= TOP_QUESTIONS.length);
   for (const q of home.faq) assert.equal(HELP_ARTICLES.find((a) => a.slug === q.slug)?.faq?.[0].q, q.q);
 });
@@ -41,14 +43,13 @@ test("only a Membro sees the Administrador mark and the notice", () => {
   assert.equal(helpArticleView(everyone.slug, membro)!.readsAsMember, false);
 });
 
-test("an article carries its video, related articles and the rest of its subject without repeats", () => {
-  const withVideo = HELP_ARTICLES.find((a) => a.video && a.related?.length)!;
-  const view = helpArticleView(withVideo.slug, membro)!;
-  assert.equal(view.tutorial?.id, withVideo.video);
-  assert.ok(view.tutorial!.transcript.every((line) => typeof line.at === "number" && line.text));
+test("an article carries its related articles and the rest of its subject without repeats", () => {
+  const article = HELP_ARTICLES.find((a) => a.related?.length)!;
+  const view = helpArticleView(article.slug, membro)!;
+  assert.equal(view.tutorial, null);
   assert.ok(view.related.length > 0);
-  assert.ok(!view.siblings.some((s) => s.slug === withVideo.slug || view.related.some((r) => r.slug === s.slug)));
-  assert.ok(view.siblings.every((s) => s.category === withVideo.category));
+  assert.ok(!view.siblings.some((s) => s.slug === article.slug || view.related.some((r) => r.slug === s.slug)));
+  assert.ok(view.siblings.every((s) => s.category === article.category));
   assert.equal(helpArticleView("nao-existe", membro), null);
 });
 

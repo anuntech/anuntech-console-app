@@ -175,7 +175,7 @@ export const segurancaArticles: HelpArticle[] = [
             items: [
               "Da sua conta: nome, e-mail de acesso, o WhatsApp, se você vincular, e a foto ou o avatar ilustrado. Quando você troca o e-mail de acesso, o anterior continua ligado à conta para manter o acesso e o histórico, mas deixa de servir para entrar.",
               "Das suas entradas: o navegador, o aparelho, o endereço IP e a data de cada sessão. O aparelho e a data aparecem em “Sessões recentes”, em [Segurança](/configuracoes/seguranca).",
-              "Do trabalho com a Anuntech: chamados, respostas e anexos, tarefas e comentários, bookmarks e lousas, e os orçamentos, contratos e faturas da empresa.",
+              "Do trabalho com a Anuntech: chamados, respostas e anexos, tarefas e comentários, arquivos, links e lousas, e os orçamentos, contratos e faturas da empresa.",
               "Quem fez cada ação importante e quando: abrir e responder chamados, aceitar ou recusar um orçamento, assinar um contrato, liberar ou remover acessos.",
               "Ao assinar um contrato, ficam registrados o seu nome, e-mail, data e hora, IP, navegador e um código que identifica o texto exato que você assinou. O PDF final mostra todos eles, menos o navegador.",
               "As suas conversas com o assistente, até você apagá-las.",
@@ -200,7 +200,7 @@ export const segurancaArticles: HelpArticle[] = [
               },
               {
                 term: "Pessoas da sua empresa",
-                text: "Os chamados da empresa, inclusive os que você abriu, os projetos, os bookmarks sem pasta, os das pastas “Todos da empresa” e os das pastas compartilhadas com elas. Veem também o seu nome e a sua foto. Um Membro com “Só o que eu escolher” vê só os produtos, serviços e projetos marcados e não vê os chamados sobre os itens que ficaram de fora, a não ser os que ele mesmo abriu.",
+                text: "Os chamados da empresa, inclusive os que você abriu, os projetos, os itens de Arquivos sem pasta, os das pastas “Todos da empresa” e os das pastas compartilhadas com elas. Veem também o seu nome e a sua foto. Um Membro com “Só o que eu escolher” vê só os produtos, serviços e projetos marcados e não vê os chamados sobre os itens que ficaram de fora, a não ser os que ele mesmo abriu.",
               },
               {
                 term: "Administradores da empresa",
@@ -222,7 +222,7 @@ export const segurancaArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Para entender os papéis, veja [Membro ou Administrador](/ajuda/membro-ou-administrador) e [O que cada Membro vê](/ajuda/o-que-cada-membro-ve). Para as pastas de Bookmarks, veja [Pastas e compartilhamento](/ajuda/pastas-e-compartilhamento).",
+            text: "Para entender os papéis, veja [Membro ou Administrador](/ajuda/membro-ou-administrador) e [O que cada Membro vê](/ajuda/o-que-cada-membro-ve). Para as pastas de Arquivos, veja [Pastas e compartilhamento](/ajuda/pastas-e-compartilhamento).",
           },
         ],
       },
@@ -326,7 +326,7 @@ export const segurancaArticles: HelpArticle[] = [
       { label: "Ir para Segurança", href: "/configuracoes/seguranca" },
     ],
     related: ["seguranca-da-conta", "membro-ou-administrador", "assistente", "falar-em-vez-de-escrever"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "avisos-do-console",
@@ -538,6 +538,7 @@ export const segurancaArticles: HelpArticle[] = [
           {
             kind: "list",
             items: [
+              "Todos os e-mails do Console têm o mesmo visual: o logotipo da Anuntech no topo, os dados num quadro cinza, um botão violeta para abrir o Console e, no rodapé, o motivo de você ter recebido a mensagem.",
               "Os links levam ao endereço do Console da Anuntech, console.anuntech.com.",
               "O link de pagamento abre a fatura no Console, com Pix e boleto, sem pedir para entrar.",
               "O código de acesso só serve na tela do Console. Se alguém pedir o código por mensagem ou telefone, não passe.",
@@ -589,6 +590,6 @@ export const segurancaArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para Notificações (Administrador)", href: "/configuracoes/notificacoes" }],
     related: ["notificacoes", "avisos-de-cobranca", "acompanhar-um-chamado", "seguranca-da-conta"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-27",
   },
 ];

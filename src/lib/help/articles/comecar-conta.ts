@@ -86,7 +86,7 @@ export const comecarContaArticles: HelpArticle[] = [
           },
           {
             kind: "p",
-            text: "Toda conta nova começa com um avatar ilustrado sorteado. Quem entra pela primeira vez com o código começa sem nome; pelo Google, o nome vem da conta Google.",
+            text: "Toda conta nova começa com um avatar da marca Anuntech sorteado. Quem entra pela primeira vez com o código começa sem nome; pelo Google, o nome vem da conta Google.",
           },
         ],
       },
@@ -136,7 +136,7 @@ export const comecarContaArticles: HelpArticle[] = [
       { label: "Ler Como trabalhamos", href: "/como-trabalhamos" },
     ],
     related: ["entrar", "meu-perfil", "conhecer-o-console", "membro-ou-administrador"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "entrar",
@@ -354,7 +354,7 @@ export const comecarContaArticles: HelpArticle[] = [
             kind: "list",
             items: [
               "O primeiro botão, a esfera de pontos, abre o “Assistente”. Veja [O assistente do Console](/ajuda/assistente).",
-              "Os ícones seguintes levam às áreas. O Membro vê “Visão geral”, “Projetos”, “Produtos e serviços”, “Chamados” e “Bookmarks”. O Administrador da empresa vê, nesta ordem: “Visão geral”, “Projetos”, “Produtos e serviços”, “Chamados”, “Financeiro”, “Bookmarks”, “Orçamentos” e “Contratos”.",
+              "Os ícones seguintes levam às áreas. O Membro vê “Visão geral”, “Projetos”, “Produtos e serviços”, “Chamados” e “Arquivos”. O Administrador da empresa vê, nesta ordem: “Visão geral”, “Projetos”, “Produtos e serviços”, “Chamados”, “Financeiro”, “Arquivos”, “Orçamentos” e “Contratos”.",
               "O último botão, com a sua foto ou avatar, abre o menu da conta.",
             ],
           },
@@ -377,7 +377,7 @@ export const comecarContaArticles: HelpArticle[] = [
               { term: "Meu perfil", text: "Abre a página Minha conta: nome, foto e os contatos que você usa para entrar." },
               { term: "Aparência", text: "Tema e posição do menu, neste navegador." },
               { term: "Membros", text: "Só para o Administrador: quem tem acesso ao Console e o que cada pessoa vê." },
-              { term: "Ajuda", text: "Abre esta central, com os artigos, os tutoriais em vídeo e as perguntas frequentes." },
+              { term: "Ajuda", text: "Abre esta central, com os artigos e as perguntas frequentes." },
               { term: "Conversar com a equipe", text: "Abre o chat com a equipe da Anuntech." },
               { term: "Sair", text: "Encerra o acesso neste aparelho." },
             ],
@@ -425,7 +425,7 @@ export const comecarContaArticles: HelpArticle[] = [
             items: [
               "“Perguntar ao assistente”.",
               "“Criar”, com “Abrir chamado”.",
-              "“Mais áreas”, com o que não coube nas abas. Para o Administrador: Projetos, Bookmarks, Orçamentos e Contratos. Para o Membro: Bookmarks.",
+              "“Mais áreas”, com o que não coube nas abas. Para o Administrador: Projetos, Arquivos, Orçamentos e Contratos. Para o Membro: Arquivos.",
               "“Conta”, com “Meu perfil”, “Aparência”, “Membros” (só Administrador), “Ajuda”, “Conversar com a equipe” e “Sair”.",
             ],
           },
@@ -449,7 +449,7 @@ export const comecarContaArticles: HelpArticle[] = [
               "Busque pelo campo no topo da lista. O “x” do campo apaga a busca.",
               "Use os filtros na mesma linha da busca. Cada filtro ativo vira uma etiqueta, e o “x” da etiqueta tira só aquele filtro.",
               "No rodapé, “Por página” mostra 10, 25, 50 ou 100 linhas (o padrão é 25), e as setas mudam de página.",
-              "Em Projetos, Produtos e serviços, Bookmarks e, para o Administrador, Contratos, escolha “Lista” (linhas) ou “Grade” (cartões) nos dois botões da barra da lista. Sem escolha, a lista abre em Grade. A escolha fica guardada neste navegador, para cada área.",
+              "Em Projetos, Produtos e serviços, Arquivos e, para o Administrador, Contratos, escolha “Lista” (linhas) ou “Grade” (cartões) nos dois botões da barra da lista. Sem escolha, a lista abre em Grade. A escolha fica guardada neste navegador, para cada área.",
               "Clique na linha para abrir o registro. Com ⌘ (Mac) ou Ctrl (Windows) apertado, ele abre em outra aba.",
               "Para mandar uma lista filtrada a um colega, copie o endereço do navegador: a busca, os filtros e a página vão nele. O colega vê só o que o acesso dele permite.",
             ],
@@ -505,7 +505,7 @@ export const comecarContaArticles: HelpArticle[] = [
       },
       {
         q: "Por que não vejo Financeiro, Orçamentos e Contratos no menu?",
-        a: "Essas áreas são só do Administrador da empresa. O Membro usa a Visão geral, Projetos, Produtos e serviços, Chamados e Bookmarks. Se você precisa desse acesso, peça a um Administrador da sua empresa que mude a sua permissão em Membros.",
+        a: "Essas áreas são só do Administrador da empresa. O Membro usa a Visão geral, Projetos, Produtos e serviços, Chamados e Arquivos. Se você precisa desse acesso, peça a um Administrador da sua empresa que mude a sua permissão em Membros.",
       },
       {
         q: "Onde fica a página Segurança?",
@@ -533,7 +533,7 @@ export const comecarContaArticles: HelpArticle[] = [
       { label: "Ler Como trabalhamos", href: "/como-trabalhamos" },
     ],
     related: ["visao-geral", "aparencia", "membro-ou-administrador", "assistente"],
-    updatedAt: "2026-10-16",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "visao-geral",
@@ -586,7 +586,7 @@ export const comecarContaArticles: HelpArticle[] = [
               { term: "Projetos", text: "Até 4 projetos ativos ou pausados, com o progresso das tarefas." },
               { term: "Produtos e serviços", text: "Até 5 itens ativos ou suspensos, os suspensos primeiro. Um app abre dentro do Console, um produto com site abre em outra aba, um serviço abre a página dele e os outros abrem a lista." },
               { term: "Últimos chamados", text: "Os 5 chamados atualizados mais recentemente, com a situação de cada um." },
-              { term: "Bookmarks", text: "Os 5 últimos links, arquivos e lousas que você pode ver. Um link abre em outra aba, um arquivo é baixado e uma lousa abre no Console." },
+              { term: "Arquivos", text: "Os 5 últimos arquivos, links e lousas que você pode ver. Um link abre em outra aba, um arquivo é baixado e uma lousa abre no Console." },
             ],
           },
           {
@@ -660,7 +660,7 @@ export const comecarContaArticles: HelpArticle[] = [
     faq: [
       {
         q: "Sou Membro. Por que não vejo “A pagar” nem valores?",
-        a: "Valores, faturas, orçamentos, contratos e aprovações são só para o Administrador da empresa. O Membro vê os chamados, os projetos, os produtos e serviços, o banco de horas (em horas) e os bookmarks. Se precisar pagar ou aprovar algo, peça a um Administrador da sua empresa.",
+        a: "Valores, faturas, orçamentos, contratos e aprovações são só para o Administrador da empresa. O Membro vê os chamados, os projetos, os produtos e serviços, o banco de horas (em horas) e os Arquivos. Se precisar pagar ou aprovar algo, peça a um Administrador da sua empresa.",
       },
       {
         q: "Quando um item sai de “Precisa de atenção”?",
@@ -685,7 +685,7 @@ export const comecarContaArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para a Visão geral", href: "/painel" }],
     related: ["conhecer-o-console", "abrir-um-chamado", "banco-de-horas", "membro-ou-administrador"],
-    updatedAt: "2026-10-20",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "meu-perfil",
@@ -746,15 +746,15 @@ export const comecarContaArticles: HelpArticle[] = [
             kind: "steps",
             items: [
               "Para usar uma foto, clique em “Enviar foto” e escolha uma imagem PNG, JPEG ou WebP de até 20 MB. Aparece “Foto de perfil atualizada.”",
-              "Para usar uma ilustração, clique em “Escolher avatar” e escolha uma das ilustrações. Aparece “Avatar atualizado.”",
-              "Para tirar a foto, clique em “Remover foto” e confirme em “Remover”. Aparece “Foto removida.” O botão só aparece quando o perfil usa uma foto enviada, e não uma ilustração.",
+              "Para usar um avatar, clique em “Escolher avatar” e escolha um dos avatares. Aparece “Avatar atualizado.”",
+              "Para tirar a foto, clique em “Remover foto” e confirme em “Remover”. Aparece “Foto removida.” O botão só aparece quando o perfil usa uma foto enviada, e não um avatar.",
             ],
           },
           {
             kind: "list",
             items: [
-              "Toda conta nova começa com um avatar ilustrado sorteado. São 89 ilustrações para escolher.",
-              "Ao remover a foto, o perfil passa a mostrar um avatar ilustrado sorteado. Para trocar por outro, use “Escolher avatar”.",
+              "Toda conta nova começa com um avatar sorteado. São 48 avatares no estilo da marca Anuntech, com formas e objetos metade lisos e metade em pixels.",
+              "Ao remover a foto, o perfil passa a mostrar um avatar sorteado. Para trocar por outro, use “Escolher avatar”.",
               "Antes de guardar, o Console recorta a foto em um quadrado pelo centro, reduz para 512 × 512 pixels e apaga os dados do arquivo, como o local e o aparelho em que ela foi tirada.",
               "Veem a sua foto: você, as pessoas com acesso à sua empresa no Console e a equipe da Anuntech.",
             ],
@@ -792,11 +792,15 @@ export const comecarContaArticles: HelpArticle[] = [
     faq: [
       {
         q: "Quem vê a minha foto?",
-        a: "Você, as pessoas com acesso à sua empresa no Console e a equipe da Anuntech. A foto fica guardada de forma privada, reduzida e sem os dados do arquivo, como local e aparelho. Se preferir, use “Escolher avatar” para ter uma ilustração no lugar da foto.",
+        a: "Você, as pessoas com acesso à sua empresa no Console e a equipe da Anuntech. A foto fica guardada de forma privada, reduzida e sem os dados do arquivo, como local e aparelho. Se preferir, use “Escolher avatar” para ter um avatar no lugar da foto.",
       },
       {
-        q: "Removi a foto e apareceu uma ilustração no lugar das iniciais. Por quê?",
-        a: "Quando não há foto, o Console usa um avatar ilustrado sorteado. Para escolher outro, clique em “Escolher avatar”.",
+        q: "Removi a foto e apareceu um avatar no lugar das iniciais. Por quê?",
+        a: "Quando não há foto, o Console usa um avatar sorteado. Para escolher outro, clique em “Escolher avatar”.",
+      },
+      {
+        q: "O meu avatar antigo, de uma pessoa ilustrada, mudou sozinho. Por quê?",
+        a: "As ilustrações de pessoas saíram do Console em outubro de 2026, quando os avatares passaram a seguir a marca Anuntech. Quem usava uma delas passou a ver um avatar da marca no lugar, sempre o mesmo. Para escolher outro, clique em “Escolher avatar”.",
       },
       {
         q: "A foto não sobe. O que eu faço?",
@@ -813,7 +817,7 @@ export const comecarContaArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para Minha conta", href: "/conta" }],
     related: ["email-e-whatsapp", "verificacao-em-duas-etapas", "notificacoes", "primeiro-acesso", "excluir-conta"],
-    updatedAt: "2026-10-20",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "email-e-whatsapp",
@@ -1037,7 +1041,7 @@ export const comecarContaArticles: HelpArticle[] = [
           {
             kind: "pairs",
             items: [
-              { term: "Apagado", text: "Nome, e-mails, WhatsApp, foto, sessões, verificação em duas etapas, conversas com o assistente e as pastas de bookmarks que só você via." },
+              { term: "Apagado", text: "Nome, e-mails, WhatsApp, foto, sessões, verificação em duas etapas, conversas com o assistente e as pastas de Arquivos que só você via." },
               { term: "Fica com a empresa", text: "Chamados e mensagens, assinaturas de contrato, horas lançadas, faturas e o histórico de ações. Nesses registros, o autor passa a aparecer como “Conta excluída”." },
               { term: "Acesso", text: "Você perde o acesso a todas as empresas no mesmo instante." },
             ],
@@ -1069,7 +1073,7 @@ export const comecarContaArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para Minha conta", href: "/conta" }],
     related: ["meu-perfil", "email-e-whatsapp", "notificacoes", "membro-ou-administrador"],
-    updatedAt: "2026-10-20",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "verificacao-em-duas-etapas",

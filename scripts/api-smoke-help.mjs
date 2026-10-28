@@ -101,12 +101,12 @@ export async function helpChecks({ db, rpc, ok, marker, emailSignIn, staff }) {
     ok(
       r.status === 200 &&
         r.body.categories.length > 0 &&
-        r.body.tutorials.length > 0 &&
+        Array.isArray(r.body.tutorials) &&
         r.body.faq.length > 0 &&
         r.body.canOpenTicket &&
         stub(r.body, "relatorio-de-horas")?.adminOnly === true &&
         stub(r.body, "abrir-um-chamado")?.adminOnly === false,
-      "The help home lists subjects, videos and questions, marking the Administrador's articles for a Membro",
+      "The help home lists subjects and questions (the videos list stays, empty, for older apps), marking the Administrador's articles for a Membro",
     );
     r = await rpc("help.home", {}, admin);
     ok(r.status === 200 && stub(r.body, "relatorio-de-horas")?.adminOnly === false, "An Administrador sees no Administrador mark");
@@ -119,8 +119,8 @@ export async function helpChecks({ db, rpc, ok, marker, emailSignIn, staff }) {
     ok(r.status === 200 && r.body.adminOnly && !r.body.readsAsMember, "An Administrador reads it without the notice");
     r = await rpc("help.get", { slug: "abrir-um-chamado" }, membro);
     ok(
-      r.status === 200 && r.body.tutorial?.src?.startsWith("/ajuda/videos/") && r.body.tutorial.chapters.length > 0 && r.body.tutorial.transcript.length > 0,
-      "An article with a video carries its chapters and transcript",
+      r.status === 200 && r.body.tutorial === null && r.body.sections.length > 0,
+      "An article answers without a video while new ones are recorded",
     );
     ok((await rpc("help.get", { slug: `nao-existe-${marker}` }, membro)).status === 404, "An unknown article answers 404");
     r = await rpc("help.search", { q: "boleto" }, membro);

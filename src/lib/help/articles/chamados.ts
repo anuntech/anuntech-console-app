@@ -23,7 +23,6 @@ export const chamadosArticles: HelpArticle[] = [
       "chat",
       "conversar com a equipe",
     ],
-    video: "chamado",
     sections: [
       {
         title: "O que é um chamado",

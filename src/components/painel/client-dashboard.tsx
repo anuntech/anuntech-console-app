@@ -445,7 +445,7 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
               })}
             </ul>
           ) : (
-            <EmptyState icon={<BookmarkIcon />} title="Nenhum bookmark ainda" description="Guarde links e arquivos da sua empresa em Bookmarks." className="py-10" />
+            <EmptyState icon={<BookmarkIcon />} title="Nenhum arquivo ainda" description="Guarde arquivos, links e lousas da sua empresa em Arquivos." className="py-10" />
           )}
         </Widget>
       </div>

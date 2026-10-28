@@ -76,7 +76,7 @@ export const HELP_CATEGORIES: HelpCategory[] = [
   { id: "contratos", title: "Contratos", description: "Ler, pedir alteração e assinar pelo Console." },
   { id: "condicoes", title: "Prazos e banco de horas", description: "Como contamos o tempo e o que o seu contrato prevê." },
   { id: "pessoas", title: "Pessoas e avisos", description: "Quem entra no Console, o que cada um vê e quem recebe os avisos." },
-  { id: "bookmarks", title: "Bookmarks", description: "Links, arquivos e lousas da empresa." },
+  { id: "bookmarks", title: "Arquivos", description: "Arquivos, links e lousas da empresa, e como compartilhar." },
   { id: "assistente", title: "Assistente", description: "O que o assistente faz e como falar em vez de escrever." },
   { id: "seguranca", title: "Segurança e privacidade", description: "Seus dados, os avisos que o Console envia e boas práticas." },
 ];

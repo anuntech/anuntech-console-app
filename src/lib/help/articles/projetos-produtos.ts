@@ -7,7 +7,6 @@ export const projetosProdutosArticles: HelpArticle[] = [
     title: "O quadro do projeto",
     summary: "Como ler as colunas, os cartões e os filtros do quadro em que a equipe mostra o andamento de cada projeto.",
     audience: "todos",
-    video: "projeto",
     keywords: [
       "projeto",
       "quadro",
@@ -496,6 +495,15 @@ export const projetosProdutosArticles: HelpArticle[] = [
           },
         ],
       },
+      {
+        title: "Cópia dos anexos em Arquivos",
+        blocks: [
+          {
+            kind: "p",
+            text: "Quando uma tarefa vai para Revisão ou Concluída, o Console copia os anexos dela para [Arquivos](/bookmarks), na pasta “Entregas”, dentro de uma pasta com o nome do projeto. A cópia aparece em alguns minutos, só para quem vê o projeto, e não ocupa o espaço da empresa. As pastas são do Console, então ninguém as apaga, move ou compartilha. Veja [Arquivos](/ajuda/bookmarks).",
+          },
+        ],
+      },
     ],
     faq: [
       {
@@ -528,7 +536,7 @@ export const projetosProdutosArticles: HelpArticle[] = [
       { label: "Ir para Projetos", href: "/projetos" },
     ],
     related: ["quadro-do-projeto", "como-trabalhamos", "membro-ou-administrador", "comentarios-e-anexos"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "comentarios-e-anexos",

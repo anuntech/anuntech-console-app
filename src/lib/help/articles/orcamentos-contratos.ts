@@ -7,7 +7,6 @@ export const orcamentosContratosArticles: HelpArticle[] = [
     title: "Ler e responder a um orçamento",
     summary: "Como ler a proposta da Anuntech no Console, aceitar ou recusar, e o que fica registrado na sua resposta.",
     audience: "administrador",
-    video: "orcamento",
     keywords: [
       "orçamento",
       "orcamento",
@@ -501,7 +500,6 @@ export const orcamentosContratosArticles: HelpArticle[] = [
     title: "Assinar um contrato",
     summary: "Do e-mail “Contrato para assinatura” à assinatura no Console, com o que fica registrado.",
     audience: "administrador",
-    video: "assinatura",
     keywords: [
       "assinar contrato",
       "assinatura",
@@ -958,6 +956,15 @@ export const orcamentosContratosArticles: HelpArticle[] = [
           },
         ],
       },
+      {
+        title: "Cópia em Arquivos",
+        blocks: [
+          {
+            kind: "p",
+            text: "Depois da assinatura, o Console guarda também uma cópia do PDF assinado em [Arquivos](/bookmarks), na pasta “Contratos” da empresa. Ela aparece em alguns minutos e só é vista por quem vê o Financeiro: os Administradores da empresa e a equipe da Anuntech. A pasta é do Console, então ninguém a apaga, move ou compartilha, e a cópia não ocupa o espaço da empresa. Veja [Arquivos](/ajuda/bookmarks).",
+          },
+        ],
+      },
     ],
     faq: [
       {
@@ -987,6 +994,6 @@ export const orcamentosContratosArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para Contratos", href: "/contratos" }],
     related: ["assinar-um-contrato", "como-trabalhamos", "pedir-alteracao-no-contrato", "faturas"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-27",
   },
 ];
