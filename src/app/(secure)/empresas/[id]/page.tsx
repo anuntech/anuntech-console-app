@@ -19,6 +19,8 @@ import { companyLinks } from "@/lib/record-links";
 import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
+import { EngagementCard } from "@/components/empresas/engagement-card";
+import { companyEngagement } from "@/lib/companies/company-engagement";
 import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
 import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
 import { HoursBankCard } from "@/components/service-terms/hours-bank-card";
@@ -160,7 +162,7 @@ export default async function Company({
       .from(contracts)
       .where(and(eq(contracts.companyId, id), eq(contracts.status, "signed"), eq(contracts.kind, "contract"), or(isNull(contracts.endsAt), gte(contracts.endsAt, saoPauloDate())))),
   ]);
-  const storageUsed = await spaceUsage(id);
+  const [storageUsed, engagement] = await Promise.all([spaceUsage(id), companyEngagement(id)]);
   const termsCard = (
     <>
     <OnboardingCard steps={onboarding} />
@@ -200,6 +202,7 @@ export default async function Company({
   return (
     <CompanyDetail
       termsCard={termsCard}
+      engagementCard={<EngagementCard data={engagement} now={new Date().toISOString()} />}
       editorOpen={typeof query.editar === "string"}
       archiveOpen={typeof query.arquivar === "string"}
       data={{
