@@ -612,7 +612,6 @@ export const condicoesPessoasArticles: HelpArticle[] = [
       "tipo de usuario",
       "nivel de acesso",
     ],
-    video: "acessos",
     sections: [
       {
         title: "Os dois papéis",
@@ -626,11 +625,11 @@ export const condicoesPessoasArticles: HelpArticle[] = [
             items: [
               {
                 term: "Administrador",
-                text: "Vê e faz tudo da empresa: Visão geral, Projetos, Produtos e serviços, Chamados, Bookmarks, Financeiro, Orçamentos e Contratos, com valores e vencimentos. Responde orçamentos, assina contratos, aprova entregas, estimativas de melhoria e horas além do banco, e contesta o relatório de horas. Cuida de Membros, Notificações e Dados da empresa.",
+                text: "Vê e faz tudo da empresa: Visão geral, Projetos, Produtos e serviços, Chamados, Arquivos, Financeiro, Orçamentos e Contratos, com valores e vencimentos. Responde orçamentos, assina contratos, aprova entregas, estimativas de melhoria e horas além do banco, e contesta o relatório de horas. Cuida de Membros, Notificações e Dados da empresa.",
               },
               {
                 term: "Membro",
-                text: "Usa a Visão geral, Projetos, Produtos e serviços, Chamados e Bookmarks, sem valores nem vencimentos. Abre chamados e pede orçamentos, cria e comenta tarefas nos projetos, usa o assistente e o ditado e abre os apps liberados a membros. Um Administrador pode limitar o Membro a alguns produtos, serviços e projetos.",
+                text: "Usa a Visão geral, Projetos, Produtos e serviços, Chamados e Arquivos, sem valores nem vencimentos. Abre chamados e pede orçamentos, cria e comenta tarefas nos projetos, usa o assistente e o ditado e abre os apps liberados a membros. Um Administrador pode limitar o Membro a alguns produtos, serviços e projetos.",
               },
             ],
           },
@@ -739,7 +738,7 @@ export const condicoesPessoasArticles: HelpArticle[] = [
       { label: "Abrir um chamado", href: "/chamados/novo" },
     ],
     related: ["convidar-pessoas", "o-que-cada-membro-ve", "conhecer-o-console", "notificacoes"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "convidar-pessoas",
@@ -967,7 +966,7 @@ export const condicoesPessoasArticles: HelpArticle[] = [
               "Ao abrir um chamado, a pessoa escolhe só entre os itens marcados.",
               "Na Visão geral e no assistente, só aparecem os itens marcados. O card do banco de horas mostra o total do mês, mas só os lançamentos dos itens dela e os que não são de nenhum item.",
               "Em Como trabalhamos, as condições próprias de um item fora da escolha não aparecem.",
-              "Os bookmarks não dependem desta escolha.",
+              "Os Arquivos não dependem desta escolha.",
             ],
           },
           {
@@ -978,7 +977,7 @@ export const condicoesPessoasArticles: HelpArticle[] = [
           {
             kind: "note",
             tone: "attention",
-            text: "Sem nada marcado, a pessoa só vê os chamados sem produto, os chamados que ela mesma abriu e os bookmarks. Uma escolha vazia nunca vira tudo.",
+            text: "Sem nada marcado, a pessoa só vê os chamados sem produto, os chamados que ela mesma abriu e os Arquivos que pode ver. Uma escolha vazia nunca vira tudo.",
           },
         ],
       },
@@ -1021,7 +1020,7 @@ export const condicoesPessoasArticles: HelpArticle[] = [
     ],
     actions: [{ label: "Ir para Membros", href: "/configuracoes/membros" }],
     related: ["membro-ou-administrador", "convidar-pessoas", "produtos-e-servicos", "notificacoes"],
-    updatedAt: "2026-10-14",
+    updatedAt: "2026-10-27",
   },
   {
     slug: "notificacoes",

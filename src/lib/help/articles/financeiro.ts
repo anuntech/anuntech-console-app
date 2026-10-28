@@ -180,7 +180,6 @@ export const financeiroArticles: HelpArticle[] = [
     title: "Pagar com Pix ou boleto",
     summary: "Como abrir a página de pagamento, pagar pelo QR Code, pelo código Pix ou pelo boleto e saber quando o banco confirmou.",
     audience: "administrador",
-    video: "fatura",
     keywords: [
       "pagar",
       "pagamento",
