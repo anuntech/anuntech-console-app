@@ -415,6 +415,7 @@ export function CompanyDetail({
   editorOpen = false,
   archiveOpen = false,
   termsCard,
+  engagementCard,
 }: {
   data: CompanyDetailData;
   editorOpen?: boolean;
@@ -422,6 +423,8 @@ export function CompanyDetail({
   archiveOpen?: boolean;
   /** "Condições de atendimento", rendered by the page. */
   termsCard?: ReactNode;
+  /** How the company's people use the Console (team only). */
+  engagementCard?: ReactNode;
 }) {
   const { company, members, events, relations, links, deleteLinks } = data;
   const router = useRouter();
@@ -710,6 +713,8 @@ export function CompanyDetail({
               )}
             </CardContent>
           </Card>
+
+          {engagementCard}
 
           {history.length > 0 && (
             <Card>

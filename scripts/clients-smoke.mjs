@@ -53,6 +53,7 @@ export async function runClientsTests({ database: db, ids, people, request, subm
   const page = await request(`/empresas/${ids.b}`, "admin");
   // Company B got an Administrador when a proposal was sent (handoff tests) who never signed in.
   ok(page.text.includes("Implantação") && page.text.includes("O Administrador ainda não entrou") && !page.text.includes("Convidar o Administrador do cliente"), "A ficha de implantação mostra só o que falta");
+  ok(page.text.includes("Engajamento") && page.text.includes("Nunca entrou") && page.text.includes("Apps abertos"), "A página da empresa mostra o engajamento das pessoas, com quem nunca entrou");
   painel = await request("/painel", "admin");
   ok(painel.text.includes("Contatos para revisar"), "O painel lista contatos e documentos para revisar");
 
