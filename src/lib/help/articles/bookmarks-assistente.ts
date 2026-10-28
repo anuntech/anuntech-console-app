@@ -824,6 +824,7 @@ export const bookmarksAssistenteArticles: HelpArticle[] = [
             items: [
               "Cada cartão vale para uma ação, exatamente com os dados que mostra. Escrever “sim” na conversa não executa nada.",
               "“Descartar” cancela o cartão. Um cartão vale por 15 minutos e some se você recarregar a página: é só pedir de novo.",
+              "Quando uma resposta traz dois ou mais cartões, aparece “Confirmar todos”, que confirma um por vez, na ordem, e “Descartar todos”. Os cartões com aviso amarelo e os de ação na tela ficam de fora do “Confirmar todos”: confira e confirme cada um.",
               "Quando ele prepara uma ação depois de ler um texto escrito por outra pessoa, como um chamado ou um comentário, o cartão avisa. Confira cada dado antes de confirmar.",
               "Preencher campos sem enviar não salva nada e acontece direto. Numa tela que mostra texto de outra pessoa, como a página de um chamado, até preencher ou clicar pede o cartão.",
             ],

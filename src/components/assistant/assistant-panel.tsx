@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { AISDKError, APICallError, DefaultChatTransport } from "ai";
 import {
   ArrowLeftIcon,
+  CheckCheckIcon,
   CheckIcon,
   CircleSlashIcon,
   HistoryIcon,
@@ -29,6 +30,7 @@ import { openSupportWidget } from "@/components/shell/support-trigger";
 import { toast } from "@/components/shell/notifications";
 import { relativeLabel } from "@/lib/format";
 import { PROPOSAL_TTL_MS } from "@/lib/assistant/proposal-ttl";
+import { batchOf, mergeActions, offersBatch } from "@/lib/assistant/proposal-batch";
 import { assistantActivity, type AssistantActivity, type DictationActivity, type TurnPhase } from "@/lib/assistant/activity";
 import {
   assistantMetadataSchema,
@@ -226,6 +228,42 @@ function ProposalCard({
             <TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
           )}
           {proposal.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One click for the cards of an answer: each still goes through its own
+ * confirmation, one after another. The ones that need a look of their own
+ * (after someone else's text, or for a screen) stay for their own buttons.
+ */
+function BatchDecision({
+  proposals,
+  onConfirmAll,
+  onDismissAll,
+}: {
+  proposals: ProposalState[];
+  onConfirmAll: () => void;
+  onDismissAll: () => void;
+}) {
+  const confirmable = batchOf(proposals, "confirmar").length;
+  const pending = batchOf(proposals, "descartar").length;
+  const busy = proposals.some((p) => p.status === "busy");
+  const apart = pending - confirmable;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-dashed bg-secondary/40 px-4 py-2.5 text-sm">
+      <Button type="button" size="sm" onClick={onConfirmAll} disabled={busy}>
+        <CheckCheckIcon />
+        {busy ? "Fazendo…" : `Confirmar todos (${confirmable})`}
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={onDismissAll} disabled={busy}>
+        Descartar todos
+      </Button>
+      {apart > 0 && (
+        <p className="m-0 basis-full text-xs text-muted-foreground">
+          {apart === 1 ? "1 cartão fica" : `${apart} cartões ficam`} de fora para você conferir um a um: o de aviso amarelo ou o de ação na tela.
         </p>
       )}
     </div>
@@ -615,13 +653,17 @@ export function AssistantPanel({
   const updateCard = (id: string, change: Partial<CardState>) =>
     setCards((current) => (current[id] ? { ...current, [id]: { ...current[id], ...change } } : current));
 
-  /** The person's click: the only way a change the assistant prepared happens. */
-  const decide = async (proposal: ProposalState, decisao: "confirmar" | "descartar") => {
-    if (proposal.status !== "pending") return;
+  /**
+   * The person's click: the only way a change the assistant prepared happens.
+   * Inside "Confirmar todos", `batch` collects the page actions instead of
+   * running them, so the page refreshes once at the end.
+   */
+  const decide = async (proposal: ProposalState, decisao: "confirmar" | "descartar", batch?: PageAction[]): Promise<"done" | "failed" | "offline"> => {
+    if (proposal.status !== "pending") return "failed";
     // A screen action is about the page it was prepared on.
     if (decisao === "confirmar" && proposal.path && location.pathname !== proposal.path) {
       toast.error(`Esta ação é da tela ${proposal.path}. Abra essa tela e confirme de novo.`);
-      return;
+      return "failed";
     }
     updateCard(proposal.id, { status: "busy" });
     try {
@@ -632,21 +674,52 @@ export function AssistantPanel({
       });
       if (decisao === "descartar") {
         updateCard(proposal.id, res.ok ? { status: "dismissed", message: "Descartado." } : { status: "failed", message: "Esta confirmação não está mais pendente." });
-        return;
+        return res.ok ? "done" : "failed";
       }
       const data = (await res.json().catch(() => null)) as { summary?: string; actions?: PageAction[]; error?: string } | null;
       if (!res.ok || !data?.summary) {
         updateCard(proposal.id, { status: "failed", message: data?.error || "Não deu certo. Tente de novo em instantes." });
-        setSettled({ kind: "error", seen: live.current.open });
-        return;
+        if (!batch) setSettled({ kind: "error", seen: live.current.open });
+        return "failed";
       }
       updateCard(proposal.id, { status: "done", message: data.summary });
-      setSettled({ kind: "done", seen: live.current.open });
-      applyActions(data.actions ?? []);
+      if (batch) batch.push(...(data.actions ?? []));
+      else {
+        setSettled({ kind: "done", seen: live.current.open });
+        applyActions(data.actions ?? []);
+      }
+      return "done";
     } catch {
       updateCard(proposal.id, { status: "pending" });
       toast.error("Sem conexão com o Console agora. Tente de novo em instantes.");
+      return "offline";
     }
+  };
+
+  /**
+   * "Confirmar todos" or "Descartar todos" on one answer's cards: the same
+   * request per card, one after another in the order shown (a later change
+   * may build on an earlier one). A lost connection stops the rest, which
+   * stay pending; a card that fails says why on itself and the rest go on.
+   */
+  const decideAll = async (proposals: ProposalState[], decisao: "confirmar" | "descartar") => {
+    const queue = batchOf(proposals, decisao);
+    if (!queue.length) return;
+    // All of them wait at once, so no single button runs a card the batch is about to run.
+    for (const proposal of queue) updateCard(proposal.id, { status: "busy" });
+    const actions: PageAction[] = [];
+    let failed = false;
+    for (const [index, proposal] of queue.entries()) {
+      const outcome = await decide(proposal, decisao, actions);
+      if (outcome === "offline") {
+        for (const rest of queue.slice(index + 1)) updateCard(rest.id, { status: "pending" });
+        break;
+      }
+      if (outcome === "failed") failed = true;
+    }
+    if (decisao === "descartar") return;
+    setSettled({ kind: failed ? "error" : "done", seen: live.current.open });
+    applyActions(mergeActions(actions));
   };
 
   /**
@@ -922,6 +995,13 @@ export function AssistantPanel({
                           <MessageMarkdown
                             text={turn.content}
                             onNavigate={leave}
+                          />
+                        )}
+                        {turn.proposals && offersBatch(turn.proposals) && (
+                          <BatchDecision
+                            proposals={turn.proposals}
+                            onConfirmAll={() => decideAll(turn.proposals!, "confirmar")}
+                            onDismissAll={() => decideAll(turn.proposals!, "descartar")}
                           />
                         )}
                         {turn.proposals?.map((proposal) => (
