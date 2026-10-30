@@ -25,6 +25,7 @@ import { quietFor, staleRoutines } from "../ops/cron-health";
 import { unreachableStaff } from "./ops-delivery";
 import { interCertificateExpiry } from "../integrations/integrations";
 import { commercialFollowUp } from "../commercial/follow-up";
+import { decisionFollowUp } from "../decisions/decisions";
 import { supportFollowUp } from "../tickets/support-follow-up";
 import { clientsFollowUp } from "../companies/clients-follow-up";
 import { collectionFollowUp } from "../billing/collections";
@@ -221,7 +222,7 @@ export async function collectOpsDigest(today = saoPauloDate()): Promise<OpsDiges
     leavingCharges(today),
     staleRoutines(),
     staffEmails().then(unreachableStaff),
-    Promise.all([collectionFollowUp(today), commercialFollowUp(today), readjustFollowUp(today, true), supportFollowUp(), clientsFollowUp()]).then((groups) => groups.flat()),
+    Promise.all([decisionFollowUp(), collectionFollowUp(today), commercialFollowUp(today), readjustFollowUp(today, true), supportFollowUp(), clientsFollowUp()]).then((groups) => groups.flat()),
   ]);
   const certificateEnds = interCertificateExpiry();
   const certificateDays = certificateEnds
