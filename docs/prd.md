@@ -215,6 +215,18 @@ Entrar não dá acesso a nada: a equipe ou um administrador da empresa precisa a
 - Para a equipe: a triagem do Jev nos chamados novos também tem interruptor.
 - A Visão geral do cliente mostra "Entregas para você revisar". Quando o cliente aponta um problema numa entrega, a equipe recebe um e-mail e o painel lista "Problemas apontados em entregas".
 
+### Piloto automático (só a equipe)
+
+- Desde 29/10/2026 (pedido do Kauan: "o sistema trabalha sozinho, você só aprova"). Quando algo acontece, o Console prepara os próximos passos numa fila em `/piloto`, e cada passo roda no clique de alguém da equipe, pela mesma ação da tela de sempre. Nada sai sozinho.
+- Decisões de hoje:
+  - **Orçamento aceito:** "Começar o trabalho com <empresa>", com criar o projeto (roda na fila, depois de confirmar que o cliente passa a ver o projeto), preparar o contrato e preparar a cobrança da entrada (abrem as telas já preenchidas).
+  - **Contrato assinado pelas duas partes**, vindo de um orçamento com entrada: "Emitir a entrada de <empresa>", abrindo a cobrança preparada.
+  - **Fatura vencida há 3 dias** sem contato registrado depois do vencimento nem data combinada: "Cobrar <empresa>", com o texto de Atrasos ajustado pela IA ao histórico, para a equipe ler, enviar e registrar o contato.
+- Um passo feito na própria tela conta como feito. A decisão fecha sozinha quando todos os passos terminam, ou como dispensada quando deixa de valer (orçamento reaberto, faturas pagas). A equipe também pode dispensar com um motivo. Cada tipo vale alguns dias (7 para orçamento e contrato, 30 para cobrança) e depois vence.
+- Níveis de autonomia: só sugere, prepara e pede aprovação, faz e avisa, faz e só registra. Dinheiro, contrato com o cliente e suspensão ficam travados em "prepara e pede aprovação" no código. Hoje todos os tipos estão nesse nível, então a tela mostra o nível de cada um sem seletor.
+- Números do mês na tela: decisões resolvidas pela fila ou pelas telas, cliques por decisão, tempo mediano até resolver, dispensadas e vencidas. O Painel mostra "Decisões para aprovar" e o resumo da manhã lista as paradas há mais de um dia.
+- O webhook de cobranças do Inter só avisa para conferir na hora (a conciliação de 5 em 5 minutos continua). Fica desligado até a chave existir e a URL ser cadastrada no Inter.
+
 ### Notificações e rotinas da equipe
 
 - Cada empresa define até 10 e-mails e 10 telefones por assunto (Financeiro e Chamados), com canais independentes. Esses contatos não ganham acesso ao Console.

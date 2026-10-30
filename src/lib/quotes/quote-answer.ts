@@ -12,6 +12,7 @@ import { sendOpsMail } from "../notifications/ops-alerts";
 import { billingProblemsLabel, billingReadiness } from "../billing/billing-readiness";
 import { documentHash } from "../document-hash";
 import { quoteExpired, quoteTotals } from "./quote-model";
+import { emitEvent } from "../events/events";
 import { consoleUrl, quoteFailure, refreshQuotes } from "./quote-common";
 
 /** The note that goes with an answer: optional, up to a thousand characters. */
@@ -74,6 +75,8 @@ export async function answerQuoteAs(actor: Actor, input: QuoteAnswer, evidence: 
         action: `quote.${status}`,
         details: { party, ip, version: q.publishedVersion, sessionStartedAt },
       });
+      // Piloto automático: the next steps wait in the team's queue (lib/events/handlers.ts).
+      if (status === "accepted") await emitEvent(tx, { type: "quote.accepted", entityId: q.id, companyId: q.companyId, key: `quote.accepted:${q.id}:${q.publishedVersion}` });
     });
     const totals = quoteTotals(q.publication);
     // The down payment cannot go out without a full billing address: the team hears it now, not on the day.

@@ -11,6 +11,7 @@ import {
   CircleDollarSignIcon,
   FileTextIcon,
   HeadsetIcon,
+  InboxIcon,
   PenLineIcon,
   PlusIcon,
   ReceiptTextIcon,
@@ -27,6 +28,7 @@ import { staffEmails } from "@/lib/notifications/ops-alerts";
 import { deliveryEventLabel } from "@/lib/notifications/ops-digest-text";
 import { interCertificateExpiry } from "@/lib/integrations/integrations";
 import { commercialFollowUp } from "@/lib/commercial/follow-up";
+import { openDecisionCount } from "@/lib/decisions/decisions";
 import { supportFollowUp } from "@/lib/tickets/support-follow-up";
 import { clientsFollowUp } from "@/lib/companies/clients-follow-up";
 import { collectionFollowUp } from "@/lib/billing/collections";
@@ -409,6 +411,18 @@ export default async function Dashboard() {
     const pages = new Set(items.map((entry) => entry.href));
     if (items.length) candidates.push({ ...item, count: items.length, href: pages.size === 1 ? items[0].href : item.href });
   };
+  // Piloto automático: what the Console prepared and waits on a click (first, it gathers the next steps).
+  const decisionsOpen = await openDecisionCount();
+  if (decisionsOpen)
+    candidates.push({
+      key: "decisions",
+      icon: <InboxIcon />,
+      tone: "warning",
+      title: "Decisões para aprovar",
+      detail: "Próximos passos já preparados pelo Piloto automático",
+      count: decisionsOpen,
+      href: "/piloto",
+    });
   followItem(["awaiting-anuntech"], {
     key: "awaiting-anuntech",
     icon: <PenLineIcon />,

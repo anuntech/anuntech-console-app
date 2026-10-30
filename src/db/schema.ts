@@ -1476,6 +1476,81 @@ export const automationEvents = pgTable(
 );
 
 /**
+ * Piloto automático: what happened, recorded in the same transaction as the
+ * change (an outbox), so no event is lost and none exists without its change.
+ * The events cron hands each one to its handler (lib/events/handlers.ts);
+ * `key` makes a repeated emission a no-op.
+ */
+export const consoleEvents = pgTable(
+  "console_events",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    type: text("type").notNull(),
+    key: text("key").notNull(),
+    companyId: text("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    entityId: text("entity_id").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+  },
+  (t) => [
+    uniqueIndex("console_event_key_unique").on(t.key),
+    index("console_event_pending_idx").on(t.processedAt, t.occurredAt),
+  ],
+);
+
+/**
+ * A decision the Console prepared for the team: what, why, and the steps
+ * that carry it out. Nothing here runs by itself; a step runs when someone
+ * with the access clicks it, through the same action the screens use.
+ * One open decision per kind and record (`kind` + `entity_id`).
+ */
+export type DecisionStep = {
+  key: string;
+  label: string;
+  /** `action` runs on click from the queue; `link` opens the screen that finishes it. */
+  kind: "action" | "link";
+  href: string;
+  done: boolean;
+  doneAt?: string;
+  doneBy?: string;
+};
+export const decisions = pgTable(
+  "console_decisions",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    kind: text("kind").notNull(),
+    entityId: text("entity_id").notNull(),
+    companyId: text("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    eventId: text("event_id").references(() => consoleEvents.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    /** Why it showed up, in one sentence. */
+    reason: text("reason").notNull(),
+    details: jsonb("details").$type<{ label: string; value: string }[]>().notNull().default([]),
+    steps: jsonb("steps").$type<DecisionStep[]>().notNull().default([]),
+    /** A draft the team reads before using it (the collection message the assistant wrote). */
+    draft: text("draft"),
+    level: integer("level").notNull().default(1),
+    status: text("status", { enum: ["pending", "done", "dismissed", "expired"] })
+      .notNull()
+      .default("pending"),
+    /** How it ended: every step clicked here, finished elsewhere, or a mix. */
+    resolution: text("resolution", { enum: ["queue", "elsewhere", "mixed"] }),
+    dismissReason: text("dismiss_reason"),
+    createdAt: created(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    decidedBy: text("decided_by").references(() => user.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("console_decision_unique").on(t.kind, t.entityId),
+    index("console_decision_status_idx").on(t.status, t.createdAt),
+  ],
+);
+
+/**
  * "Jornada do projeto" (staff only): one client project followed from the
  * first contact to the hosting. The steps' template lives in code
  * (lib/journeys/journey-model.ts); a journey stores only what the Console

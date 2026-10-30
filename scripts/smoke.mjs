@@ -1,6 +1,7 @@
 // Run only against a development database. Creates isolated fixtures and removes them in finally.
 import { runBillingTests } from "./billing-smoke.mjs";
 import { runHandoffTests } from "./handoff-smoke.mjs";
+import { runPilotoTests } from "./piloto-smoke.mjs";
 import { runSupportTests } from "./support-smoke.mjs";
 import { runNoticesTests } from "./notices-smoke.mjs";
 import { runClientsTests } from "./clients-smoke.mjs";
@@ -2213,6 +2214,7 @@ try {
       marker,
     });
     await runHandoffTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
+    await runPilotoTests({ database, ids, request, submitForm, ok, marker });
     await runSupportTests({ database, ids, people, request, submitForm, sentNotices, ok, marker, base });
     await runNoticesTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
     await runClientsTests({ database, ids, people, request, submitForm, sentNotices, ok, marker });
@@ -2289,6 +2291,9 @@ try {
     companyIds,
     Object.values(people).map((p) => p.id),
   ]);
+  // Piloto automático: decisions point at their events, both at the companies.
+  await database.query("delete from console_decisions where company_id=any($1::text[]) or decided_by=any($2::text[])", [companyIds, Object.values(people).map((p) => p.id)]);
+  await database.query("delete from console_events where company_id=any($1::text[])", [companyIds]);
   for (const table of [
     "console_audit_events",
     "console_invoices",
