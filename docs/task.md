@@ -36,6 +36,11 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 - [ ] Conta do revisor das lojas (20/10): escolher um número de WhatsApp da Anuntech que não esteja em nenhuma conta e um código de 6 números; cadastrar `APP_REVIEW_PHONE` e `APP_REVIEW_CODE` na Vercel só em Production, perto do envio do app. Criar a empresa "Empresa Demonstração" com dados fictícios (chamados, uma fatura de teste nunca emitida no Inter, um contrato e um projeto) e convidar como Membro um e-mail da Anuntech que você lê; entrar com ele e vincular o WhatsApp em Minha conta digitando o código fixo. Sem duas etapas nessa conta. Se o revisor excluir a conta, repetir o convite e o vínculo.
 - [ ] Excluir conta (20/10): antes de publicar, passar pelo advogado-lgpd o que fica guardado depois da exclusão (e-mail nos acessos inativos e na auditoria, `email_deliveries`, assinaturas com nome e e-mail, avisos já enviados) e o texto do e-mail de confirmação. Para o app: conta Expo (`eas login`), Team ID e chave de API do App Store Connect, projeto no Firebase (push do Android) e conta de serviço do Play Console.
 
+- [ ] Piloto automático (29/10): publicar a migração 0058 em produção pelo procedimento de [rules.md](rules.md#migrações-em-produção) (primeiro a rota temporária com o SQL, depois a funcionalidade).
+- [ ] Piloto automático (29/10): criar `INTER_WEBHOOK_TOKEN` na Vercel (Production) e cadastrar no Inter o webhook de cobranças com `https://console.anuntech.com/api/inter/webhook?token=<valor>`. Até lá a rota responde 404 e a conciliação de 5 minutos segue sozinha.
+- [ ] Piloto automático: próximos tipos de decisão (chamado parado com resposta sugerida, contrato vencendo com o aditivo de prorrogação, 80% do banco de horas) e o seletor de nível em Automações quando houver um tipo que possa passar de "prepara e pede aprovação".
+- [ ] Piloto automático: o passo "Preparar o contrato" roda da fila quando o orçamento puder indicar o modelo de contrato (hoje a equipe escolhe o modelo na tela).
+
 ## Engenharia
 
 - [ ] Assistente no AI SDK (19/10): a partir de 21/10/2026 (7 dias do `ai` 7.0.140), subir o AI SDK (e o `@ai-sdk/gateway` junto, na versão que ele fixa) e passar `toolCallConcurrency: 1` ao `streamText`, mantendo a fila do executor e o `inModelOrder`. O servidor não confere o caminho do cartão de tela (`path`) na confirmação, só o painel.
