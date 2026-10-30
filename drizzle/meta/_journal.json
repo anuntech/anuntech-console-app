@@ -407,6 +407,13 @@
       "when": 1793071680517,
       "tag": "0057_arquivos_visual",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793321041848,
+      "tag": "0058_piloto_automatico",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,7 @@ import { contractFailure, refreshContracts } from "./contract-common";
 import { sendOpsMail } from "../notifications/ops-alerts";
 import { deliverContractSigned } from "../automations/client-automations";
 import { longDateLabel } from "../format";
+import { emitEvent } from "../events/events";
 
 export type SignResult = { error: string } | { success: string; signed: boolean };
 
@@ -110,6 +111,8 @@ export async function signContractAs(
         entityId: c.id,
         action: "contract.completed",
       });
+      // Piloto automático: a contract from a proposal asks for its down payment (lib/events/handlers.ts).
+      if (c.kind === "contract") await emitEvent(tx, { type: "contract.signed", entityId: c.id, companyId: c.companyId });
       if (c.kind === "amendment" && c.parentId && (c.startsAt || c.endsAt)) {
         await tx
           .update(contracts)

@@ -18,6 +18,7 @@ export const ROUTINES = {
   "client-notices": { label: "Avisos automáticos aos clientes", every: 26 * 60 },
   arquivos: { label: "Limpeza de Arquivos (lixeira e envios abandonados)", every: 26 * 60 },
   "arquivos-texto": { label: "Arquivos: contratos e entregas, texto para a busca e etiquetas", every: 45 },
+  eventos: { label: "Piloto automático: eventos e decisões", every: 30 },
 } as const satisfies Record<string, { label: string; every: number }>;
 export type Routine = keyof typeof ROUTINES;
 
