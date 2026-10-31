@@ -414,6 +414,13 @@
       "when": 1793321041848,
       "tag": "0058_piloto_automatico",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793481864216,
+      "tag": "0059_anotacoes_empresa",
+      "breakpoints": true
     }
   ]
 }

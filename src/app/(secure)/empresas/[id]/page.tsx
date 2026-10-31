@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   accountEmails,
   auditEvents,
+  companyNotes,
   companies,
   contracts,
   quotes,
@@ -20,6 +21,7 @@ import { OPEN_TICKET_STATUSES } from "@/lib/tickets/ticket-status";
 import { saoPauloDate } from "@/lib/dates";
 import { CompanyDetail } from "@/components/empresas/company-detail";
 import { EngagementCard } from "@/components/empresas/engagement-card";
+import { CompanyNotesCard } from "@/components/empresas/company-notes-card";
 import { companyEngagement } from "@/lib/companies/company-engagement";
 import { getNoticePreferences } from "@/lib/notifications/notification-preferences";
 import { ServiceTermsCard } from "@/components/empresas/service-terms-card";
@@ -162,7 +164,16 @@ export default async function Company({
       .from(contracts)
       .where(and(eq(contracts.companyId, id), eq(contracts.status, "signed"), eq(contracts.kind, "contract"), or(isNull(contracts.endsAt), gte(contracts.endsAt, saoPauloDate())))),
   ]);
-  const [storageUsed, engagement] = await Promise.all([spaceUsage(id), companyEngagement(id)]);
+  const [storageUsed, engagement, notes] = await Promise.all([
+    spaceUsage(id),
+    companyEngagement(id),
+    db
+      .select({ id: companyNotes.id, body: companyNotes.body, author: user.name, createdAt: companyNotes.createdAt, updatedAt: companyNotes.updatedAt })
+      .from(companyNotes)
+      .leftJoin(user, eq(user.id, companyNotes.authorId))
+      .where(eq(companyNotes.companyId, id))
+      .orderBy(desc(companyNotes.createdAt)),
+  ]);
   const termsCard = (
     <>
     <OnboardingCard steps={onboarding} />
@@ -203,6 +214,13 @@ export default async function Company({
     <CompanyDetail
       termsCard={termsCard}
       engagementCard={<EngagementCard data={engagement} now={new Date().toISOString()} />}
+      notesCard={
+        <CompanyNotesCard
+          companyId={id}
+          now={new Date().toISOString()}
+          notes={notes.map((n) => ({ id: n.id, body: n.body, author: n.author?.trim() || null, createdAt: n.createdAt.toISOString(), updatedAt: n.updatedAt?.toISOString() ?? null }))}
+        />
+      }
       editorOpen={typeof query.editar === "string"}
       archiveOpen={typeof query.arquivar === "string"}
       data={{
