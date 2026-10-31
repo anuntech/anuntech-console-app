@@ -912,6 +912,25 @@ export const invoices = pgTable(
     ),
   ],
 );
+/** Notes the team keeps about a client (Empresas › empresa › Anotações); the client never sees them. */
+export const companyNotes = pgTable(
+  "console_company_notes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id),
+    body: text("body").notNull(),
+    createdAt: created(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+  },
+  (t) => [index("console_company_notes_company_idx").on(t.companyId, t.createdAt)],
+);
 export const auditEvents = pgTable(
   "console_audit_events",
   {

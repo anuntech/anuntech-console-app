@@ -178,6 +178,8 @@ export const auditLabels: Record<string, string> = {
   "suspension.step": "Passo de bloqueio marcado",
   "engagement.updated": "Produto ou projeto atualizado",
   "engagement.deleted": "Produto ou projeto excluído",
+  "company.note_added": "Anotação interna adicionada",
+  "company.note_deleted": "Anotação interna excluída",
   "app.opened": "App aberto no Console",
   "catalog.created": "Item adicionado ao catálogo",
   "catalog.updated": "Item do catálogo atualizado",

@@ -54,6 +54,24 @@ export async function runClientsTests({ database: db, ids, people, request, subm
   // Company B got an Administrador when a proposal was sent (handoff tests) who never signed in.
   ok(page.text.includes("Implantação") && page.text.includes("O Administrador ainda não entrou") && !page.text.includes("Convidar o Administrador do cliente"), "A ficha de implantação mostra só o que falta");
   ok(page.text.includes("Engajamento") && page.text.includes("Nunca entrou") && page.text.includes("Apps abertos"), "A página da empresa mostra o engajamento das pessoas, com quem nunca entrou");
+  // Anotações: internal notes about the client; the team writes, edits and deletes, nobody else.
+  const noteText = `Prefere WhatsApp à tarde ${marker}`;
+  await submitForm(`/empresas/${ids.b}`, "admin", "admin", { action: "addCompanyNote" }, { companyId: ids.b, body: noteText });
+  const [note] = (await db.query("select id, body from console_company_notes where company_id=$1 and body=$2", [ids.b, noteText])).rows;
+  ok(!!note && (await request(`/empresas/${ids.b}`, "admin")).text.includes(noteText), "A equipe guarda uma anotação interna na página da empresa");
+  await submitForm(`/empresas/${ids.b}`, "admin", "manager", { action: "addCompanyNote" }, { companyId: ids.b, body: `Intrusa ${marker}` });
+  await submitForm(`/empresas/${ids.b}`, "admin", "manager", { action: "deleteCompanyNote" }, { id: note.id });
+  ok(
+    (await db.query("select count(*)::int n from console_company_notes where body=$1", [`Intrusa ${marker}`])).rows[0].n === 0 &&
+      (await db.query("select count(*)::int n from console_company_notes where id=$1", [note.id])).rows[0].n === 1,
+    "Cliente não escreve nem apaga anotações internas",
+  );
+  await submitForm(`/empresas/${ids.b}`, "admin", "admin", { action: "addCompanyNote" }, { companyId: ids.b, body: "senha: Abc12345!xyz" });
+  ok((await db.query("select count(*)::int n from console_company_notes where company_id=$1 and body like 'senha:%'", [ids.b])).rows[0].n === 0, "Anotação com senha é recusada");
+  await submitForm(`/empresas/${ids.b}`, "admin", "admin", { action: "updateCompanyNote" }, { id: note.id, body: `${noteText} (editada)` });
+  ok((await db.query("select body, updated_at from console_company_notes where id=$1", [note.id])).rows[0].updated_at !== null, "A equipe edita a anotação");
+  await submitForm(`/empresas/${ids.b}`, "admin", "admin", { action: "deleteCompanyNote" }, { id: note.id });
+  ok((await db.query("select count(*)::int n from console_company_notes where id=$1", [note.id])).rows[0].n === 0, "A equipe exclui a anotação");
   painel = await request("/painel", "admin");
   ok(painel.text.includes("Contatos para revisar"), "O painel lista contatos e documentos para revisar");
 

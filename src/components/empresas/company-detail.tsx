@@ -416,6 +416,7 @@ export function CompanyDetail({
   archiveOpen = false,
   termsCard,
   engagementCard,
+  notesCard,
 }: {
   data: CompanyDetailData;
   editorOpen?: boolean;
@@ -425,6 +426,8 @@ export function CompanyDetail({
   termsCard?: ReactNode;
   /** How the company's people use the Console (team only). */
   engagementCard?: ReactNode;
+  /** Internal notes about the client (team only), beside Histórico. */
+  notesCard?: ReactNode;
 }) {
   const { company, members, events, relations, links, deleteLinks } = data;
   const router = useRouter();
@@ -716,21 +719,24 @@ export function CompanyDetail({
 
           {engagementCard}
 
-          {history.length > 0 && (
-            <Card>
-              <CardHeader>
-                <SectionTitle title="Histórico" />
-              </CardHeader>
-              <CardContent>
-                <HistoryList items={history.slice(0, 5)} />
-                {history.length > 5 && (
-                  <Disclosure summary={`Ver todos (${history.length})`} className="mt-4">
-                    <HistoryList items={history.slice(5)} />
-                  </Disclosure>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          <div className="grid items-start gap-6 xl:grid-cols-2">
+            {notesCard}
+            {history.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <SectionTitle title="Histórico" />
+                </CardHeader>
+                <CardContent>
+                  <HistoryList items={history.slice(0, 5)} />
+                  {history.length > 5 && (
+                    <Disclosure summary={`Ver todos (${history.length})`} className="mt-4">
+                      <HistoryList items={history.slice(5)} />
+                    </Disclosure>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">

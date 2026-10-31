@@ -85,10 +85,12 @@ test("company deletion knows every table that points at a company", () => {
     // Links to its files stop with it.
     "console_share_links.company_id": "null",
     // Gone with it by the database (on delete cascade): pushes still queued,
-    // and the Piloto automático's events and decisions about it.
+    // the Piloto automático's events and decisions about it,
     "console_push_notices.company_id": "not null",
     "console_events.company_id": "null",
     "console_decisions.company_id": "null",
+    // The team's internal notes about it.
+    "console_company_notes.company_id": "not null",
     // Kept, set to null: the history outlives the company.
     "console_audit_events.company_id": "null",
   });
