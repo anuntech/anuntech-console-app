@@ -46,6 +46,7 @@ Valem para qualquer pessoa ou agente que mexa no Console. As regras de produto r
 
 ## Banco e migrações
 
+- Leitura por registro (por empresa, por jornada, por decisão) nunca em `for … await` nem em `Promise.all` sem limite: use `mapLimit(itens, READ_LANES, fn)` de `lib/concurrency.ts`. O laço em série cresce o tempo da página a cada cliente; o `Promise.all` solto pede todas as conexões do pool (10 por instância, `lib/db.ts`) de uma vez e a página dá erro de espera. Quando der, prefira uma consulta só com `inArray`/`group by`.
 - Nunca editar uma migração já aplicada. Mudança de schema: altere `src/db/schema.ts` e rode `npm run db:generate` (precisa de `DATABASE_URL`, use o banco local de QA).
 - Migrações precisam ser idempotentes: `IF NOT EXISTS`, `DO $$ … EXCEPTION WHEN duplicate_object`.
 

@@ -421,6 +421,13 @@
       "when": 1793481864216,
       "tag": "0059_anotacoes_empresa",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793483413007,
+      "tag": "0060_indices_painel",
+      "breakpoints": true
     }
   ]
 }

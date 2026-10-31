@@ -6,6 +6,7 @@ import { dateLabel } from "../format";
 import { companyAdministrators, sendClientMail } from "../notifications/client-mail";
 import { automationActorId } from "../ops/automation-actor";
 import { bankMonth, banksAtAlert, finalReport, hoursLabel, lastLoggedAt, monthOf, previousMonth } from "./hours-bank";
+import { mapLimit, READ_LANES } from "../concurrency";
 
 /*
  * The hours bank's two notices to the company's Administradores (SUP 4.4 and
@@ -186,9 +187,9 @@ export async function hoursPending() {
   const [atAlert, banks] = await Promise.all([banksAtAlert(), bankCompanies()]);
   const sent = await alertsSent(atAlert.map((b) => b.companyId), month);
   const names = new Map(banks.map((b) => [b.companyId, b.name]));
-  const reports: { companyId: string; company: string; month: string; again: boolean }[] = [];
-  for (const bank of banks)
-    for (const pending of await reportsToSend(bank.companyId)) reports.push({ companyId: bank.companyId, company: bank.name, ...pending });
+  // Company by company, a few side by side: the list grows with the clients, the wait does not grow as fast.
+  const perCompany = await mapLimit(banks, READ_LANES, (bank) => reportsToSend(bank.companyId));
+  const reports = banks.flatMap((bank, i) => perCompany[i].map((pending) => ({ companyId: bank.companyId, company: bank.name, ...pending })));
   return {
     alerts: atAlert
       .filter((b) => !sent.has(b.companyId))
@@ -237,8 +238,11 @@ export async function overageCharge(companyId: string, month: string, now = new 
 
 /** Closed months whose overage is ready to bill and was not prepared yet, for the team's lists. */
 export async function overagesToBill(now = new Date()) {
-  const out: { companyId: string; company: string; month: string; amountCents: number; minutes: number }[] = [];
-  for (const bank of await bankCompanies())
+  type Overage = { companyId: string; company: string; month: string; amountCents: number; minutes: number };
+  const banks = await bankCompanies();
+  // Company by company, a few side by side; inside one company the months stay in order.
+  const perCompany = await mapLimit(banks, READ_LANES, async (bank) => {
+    const found: Overage[] = [];
     for (const month of closedMonths()) {
       const charge = await overageCharge(bank.companyId, month, now);
       if (!charge) continue;
@@ -246,9 +250,11 @@ export async function overagesToBill(now = new Date()) {
         .select({ id: automationEvents.id })
         .from(automationEvents)
         .where(and(eq(automationEvents.kind, "hours.overage_billed"), eq(automationEvents.entityId, `${bank.companyId}:${month}`)));
-      if (!prepared) out.push({ companyId: bank.companyId, company: bank.name, month, amountCents: charge.amountCents, minutes: charge.minutes });
+      if (!prepared) found.push({ companyId: bank.companyId, company: bank.name, month, amountCents: charge.amountCents, minutes: charge.minutes });
     }
-  return out;
+    return found;
+  });
+  return perCompany.flat();
 }
 
 /** The closed months whose overage is ready and not prepared, for one company's card (the same ones the lists show). */

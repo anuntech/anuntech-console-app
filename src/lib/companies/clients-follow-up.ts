@@ -7,6 +7,7 @@ import type { FollowUpGroup } from "../commercial/follow-up";
 import { inviteStatusLabel, stalledInvites } from "../access/invite-tracking";
 import { contactProblems, type NoticeContacts } from "./contact-quality";
 import { NEW_CLIENT_DAYS, onboardingMissing } from "./onboarding";
+import { mapLimit, READ_LANES } from "../concurrency";
 
 /*
  * Clients and access, for the team: invites nobody accepted, accesses
@@ -95,11 +96,8 @@ export async function clientsFollowUp(now = new Date()): Promise<FollowUpGroup[]
   const contacts = [...byCompany.entries()]
     .map(([id, c]) => ({ id, name: c.name, problems: [...contactProblems(c, c.contacts), ...(bouncedIds.has(id) ? ["um aviso de cobrança por e-mail não chegou nos últimos 30 dias"] : [])] }))
     .filter((c) => c.problems.length);
-  const onboarding: { id: string; name: string; missing: number }[] = [];
-  for (const company of recent) {
-    const missing = await onboardingMissing(company.id);
-    if (missing.length) onboarding.push({ ...company, missing: missing.length });
-  }
+  const missingOf = await mapLimit(recent, READ_LANES, (company) => onboardingMissing(company.id));
+  const onboarding = recent.flatMap((company, i) => (missingOf[i].length ? [{ ...company, missing: missingOf[i].length }] : []));
   const idleStaff = staff.filter((s) => !s.last || new Date(s.last) < idleSince);
   const groups: FollowUpGroup[] = [
     {

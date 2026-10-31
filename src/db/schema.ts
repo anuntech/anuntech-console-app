@@ -269,7 +269,11 @@ export const contracts = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("console_contract_company_idx").on(t.companyId)],
+  (t) => [
+    index("console_contract_company_idx").on(t.companyId),
+    // Signed contracts by end date (expiring soon, readjust).
+    index("console_contract_status_ends_idx").on(t.status, t.endsAt),
+  ],
 );
 /** Every text that went out for signature, so earlier versions stay readable. */
 export const contractVersions = pgTable(
@@ -780,7 +784,11 @@ export const tickets = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("console_ticket_company_idx").on(t.companyId)],
+  (t) => [
+    index("console_ticket_company_idx").on(t.companyId),
+    // Open tickets by last movement (Painel, support follow-up).
+    index("console_ticket_status_updated_idx").on(t.status, t.updatedAt),
+  ],
 );
 export const messages = pgTable(
   "console_messages",
@@ -906,6 +914,8 @@ export const invoices = pgTable(
   },
   (t) => [
     index("console_invoice_company_idx").on(t.companyId),
+    // The Painel and Financeiro filter by situation and due date.
+    index("console_invoice_status_due_idx").on(t.status, t.dueDate),
     uniqueIndex("console_invoice_subscription_due_unique").on(
       t.subscriptionId,
       t.dueDate,
@@ -948,6 +958,9 @@ export const auditEvents = pgTable(
   },
   (t) => [
     index("console_audit_company_idx").on(t.companyId),
+    // A company's history and the Painel's feed, newest first.
+    index("console_audit_company_created_idx").on(t.companyId, t.createdAt),
+    index("console_audit_created_idx").on(t.createdAt),
     // One item's history (Arquivos' activity), newest first.
     index("console_audit_entity_idx").on(t.entityId, t.createdAt),
     // What one person did lately (Arquivos' "Recentes").
