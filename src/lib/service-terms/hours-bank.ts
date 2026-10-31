@@ -8,6 +8,7 @@ import { loadCalendar, snapshotOf } from "./terms";
 import { BUSINESS_DAY_MINUTES, type TermsSnapshot } from "./terms-model";
 import { visibleToClient } from "./ticket-clock";
 import { addBusinessMinutes } from "./business-calendar";
+import { mapLimit, READ_LANES } from "../concurrency";
 
 type Executor = Pick<typeof db, "select">;
 
@@ -191,14 +192,15 @@ export async function banksAtAlert(executor: Executor = db) {
     .from(timeEntries)
     .where(gte(timeEntries.workedOn, `${month}-01`))
     .groupBy(timeEntries.companyId);
+  // Inside a transaction (executor) the reads share one connection: one at a time; otherwise a few side by side.
+  const terms = await mapLimit(rows, executor === db ? READ_LANES : 1, (row) => bankTerms(row.companyId, {}, executor));
   const out: { companyId: string; percent: number }[] = [];
-  for (const row of rows) {
-    const terms = await bankTerms(row.companyId, {}, executor);
-    const bank = terms?.policy.hoursBank;
-    if (!bank?.monthlyMinutes) continue;
+  rows.forEach((row, i) => {
+    const bank = terms[i]?.policy.hoursBank;
+    if (!bank?.monthlyMinutes) return;
     const percent = Math.round(((row.used ?? 0) / bank.monthlyMinutes) * 100);
     if (percent >= bank.alertPercent) out.push({ companyId: row.companyId, percent });
-  }
+  });
   return out;
 }
 

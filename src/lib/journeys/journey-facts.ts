@@ -7,6 +7,7 @@ import { quoteLinks } from "../quotes/quote-links";
 import { quoteNumberLabel, quoteTotals } from "../quotes/quote-model";
 import { saoPauloDate } from "../dates";
 import { emptyFacts, journeyBriefingSchema, type JourneyBriefing, type JourneyFacts, type StoredStep } from "./journey-model";
+import { mapLimit } from "../concurrency";
 
 /*
  * What the Console already knows about a journey's records, for the steps
@@ -163,9 +164,9 @@ export async function journeyRows(journeyId: string): Promise<StoredStep[]> {
   return rows.map(stored);
 }
 
-/** Journeys of several ids at once, for the list (facts per journey, in parallel). */
+/** Journeys of several ids at once, for the list (facts per journey, two at a time: each is several reads). */
 export async function journeysFacts(rows: JourneyRow[]) {
-  return new Map(await Promise.all(rows.map(async (row) => [row.id, await journeyFacts(row)] as const)));
+  return new Map(await mapLimit(rows, 2, async (row) => [row.id, await journeyFacts(row)] as const));
 }
 
 /** Rows of several journeys at once, for the list. */

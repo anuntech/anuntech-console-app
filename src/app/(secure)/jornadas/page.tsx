@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/console/page-header";
 import { JourneysList } from "@/components/jornadas/journeys-list";
 import type { JourneyListRow } from "@/components/jornadas/journey-types";
 import { companyDisplayName } from "@/lib/companies/display-name";
+import { mapLimit } from "@/lib/concurrency";
 
 export const metadata: Metadata = {
   title: "Jornadas",
@@ -47,7 +48,8 @@ export default async function Journeys({ searchParams }: { searchParams: Promise
   const [owners, stored, facts] = await Promise.all([
     ownerIds.length ? db.select({ id: user.id, name: user.name, email: user.email, image: user.image }).from(user).where(inArray(user.id, ownerIds)) : [],
     journeysRows(rows.map((r) => r.journey.id)),
-    Promise.all(rows.map((r) => journeyFacts(r.journey))),
+    // Each journey's facts are several reads of their own: two journeys at a time keeps the pool free for everyone else.
+    mapLimit(rows, 2, (r) => journeyFacts(r.journey)),
   ]);
   const now = new Date();
   const list: JourneyListRow[] = rows.map(({ journey, company, companyDocument, movedAt }, index) => {

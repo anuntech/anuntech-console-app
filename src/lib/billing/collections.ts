@@ -11,6 +11,7 @@ import { governingTerms, snapshotOf } from "../service-terms/terms";
 import { visibleToClient } from "../service-terms/ticket-clock";
 import { suspensionFollowUp } from "../suspensions/suspensions";
 import { companyDisplayName } from "../companies/display-name";
+import { mapLimit, READ_LANES } from "../concurrency";
 
 /*
  * Overdue clients, for the team: the automatic reminders stop on the 25th
@@ -86,6 +87,9 @@ export async function collectionQueue(today = saoPauloDate()): Promise<Collectio
       .where(and(eq(auditEvents.action, "collection.contact"), inArray(auditEvents.companyId, companyIds)))
       .orderBy(desc(auditEvents.createdAt)),
   ]);
+  // The conditions that govern each company, read a few at a time before the loop.
+  const governing = await mapLimit(companyIds, READ_LANES, (companyId) => governingTerms(companyId, null));
+  const termsOf = new Map(companyIds.map((companyId, i) => [companyId, governing[i]]));
   const now = new Date();
   const cases: CollectionCase[] = [];
   for (const companyId of companyIds) {
@@ -103,7 +107,7 @@ export async function collectionQueue(today = saoPauloDate()): Promise<Collectio
     }));
     const totalCents = list.reduce((sum, i) => sum + i.amountCents, 0);
     const oldestDays = Math.max(...list.map((i) => i.days));
-    const terms = snapshotOf(await governingTerms(companyId, null));
+    const terms = snapshotOf(termsOf.get(companyId) ?? null);
     const policy = terms && visibleToClient(terms, now) ? terms.policy : null;
     const suspension = policy?.suspensionDays ? { days: policy.suspensionDays, notice: !!policy.suspensionNotice, clause: policy.clauses.suspension ?? null } : null;
     const canSuspend = !archived && !!suspension && oldestDays > suspension.days;

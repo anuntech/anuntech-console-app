@@ -9,6 +9,7 @@ import { saoPauloDate } from "../dates";
 import { dateLabel } from "../format";
 import { addDays } from "../billing/recurrence";
 import { quoteNumberLabel } from "../quotes/quote-model";
+import { mapLimit, READ_LANES } from "../concurrency";
 
 /*
  * Sales and project work that waits on someone, for the morning digest and
@@ -151,13 +152,17 @@ export async function commercialFollowUp(today = saoPauloDate()): Promise<Follow
   // The board's own rule (projetos/[id]/page.tsx): the conditions that govern the project, never for a person client.
   const now = new Date();
   const calendar = reviews.length ? await loadCalendar() : null;
-  const windows = new Map<string, number | null>();
+  // One read of the conditions per project, a few side by side.
+  const projects = [...new Map(reviews.map((task) => [task.projectId, task.companyId])).entries()];
+  const governing = await mapLimit(projects, READ_LANES, ([projectId, companyId]) => governingTerms(companyId, projectId));
+  const windows = new Map<string, number | null>(
+    projects.map(([projectId], i) => {
+      const terms = snapshotOf(governing[i]);
+      return [projectId, terms && !terms.personClient ? (terms.policy.testDays ?? null) : null];
+    }),
+  );
   const overdueReviews: (typeof reviews[number] & { testDays: number })[] = [];
   for (const task of reviews) {
-    if (!windows.has(task.projectId)) {
-      const terms = snapshotOf(await governingTerms(task.companyId, task.projectId));
-      windows.set(task.projectId, terms && !terms.personClient ? (terms.policy.testDays ?? null) : null);
-    }
     const testDays = windows.get(task.projectId);
     if (testDays && calendar && addBusinessMinutes(task.reviewSince!, testDays * BUSINESS_DAY_MINUTES, calendar) < now)
       overdueReviews.push({ ...task, testDays });

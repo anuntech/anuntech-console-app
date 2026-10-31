@@ -4,6 +4,7 @@ import { auditEvents, automationEvents, companies, contracts, decisions, engagem
 import { db } from "../db";
 import type { FollowUpGroup } from "../commercial/follow-up";
 import { allDone, decisionExpiry, refreshSteps, resolutionOf, tallyDecisions, type DecisionKind } from "./decision-rules";
+import { mapLimit, READ_LANES } from "../concurrency";
 
 export type Decision = typeof decisions.$inferSelect;
 
@@ -149,7 +150,8 @@ export async function openDecisions() {
     .where(eq(decisions.status, "pending"))
     .orderBy(decisions.createdAt)
     .limit(100);
-  const settled = await Promise.all(rows.map(async (row) => ({ ...row, decision: await settleDecision(row.decision) })));
+  // Up to 100 decisions, each settled against its data: a few at a time.
+  const settled = await mapLimit(rows, READ_LANES, async (row) => ({ ...row, decision: await settleDecision(row.decision) }));
   return settled.filter((row) => row.decision.status === "pending");
 }
 

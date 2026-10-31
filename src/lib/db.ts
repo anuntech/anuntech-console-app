@@ -8,7 +8,9 @@ export const pool =
   globalDb.consolePool ??
   new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 5,
+    // DATABASE_URL is Neon's pooler (PgBouncer), so each instance can hold 10 connections without
+    // crowding the database. Pages read per record a few at a time (lib/concurrency.ts), never all at once.
+    max: 10,
     connectionTimeoutMillis: 10000,
     idleTimeoutMillis: 10000,
   });
