@@ -315,7 +315,7 @@ export async function moveMessage({ accountId }: OpenMailbox, id: string, target
 export async function destroyFromTrash({ accountId }: OpenMailbox, id: string) {
   const all = await mailboxes(accountId);
   const trash = all.find((m) => m.role === "trash");
-  const result = await jmap(USING.mail, [["Email/get", { accountId, ids: [id], properties: ["mailboxIds"] }, "0"]]);
+  const result = await jmap(USING.mail, [["Email/get", { accountId, ids: [id], properties: ["id", "mailboxIds"] }, "0"]]);
   const email = result<{ list: EmailRecord[] }>("0", "Email/get").list.find((e) => e.id === id);
   if (!trash || !email?.mailboxIds?.[trash.id]) return false;
   const destroyed = await jmap(USING.mail, [["Email/set", { accountId, destroy: [id] }, "0"]]);
@@ -326,7 +326,7 @@ export async function destroyFromTrash({ accountId }: OpenMailbox, id: string) {
 /** The original's attachments, to forward them again (their blobIds stay in the account). */
 export async function attachmentsOf({ accountId }: OpenMailbox, id: string) {
   const result = await jmap(USING.mail, [
-    ["Email/get", { accountId, ids: [id], properties: ["attachments"], bodyProperties: ["blobId", "size", "name", "type"] }, "0"],
+    ["Email/get", { accountId, ids: [id], properties: ["id", "attachments"], bodyProperties: ["blobId", "size", "name", "type"] }, "0"],
   ]);
   const email = result<{ list: EmailRecord[] }>("0", "Email/get").list.find((e) => e.id === id);
   return (email?.attachments ?? [])

@@ -17,7 +17,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction, ServerForm, SubmitButton } from "@/components/console/server-form";
 import { FileChip, FileChips } from "@/components/console/file-chip";
-import { deleteForever, markUnread, moveEmail, toggleStar } from "@/lib/mail/mail-actions";
+import { deleteForever, markUnread, moveEmail, starEmail } from "@/lib/mail/mail-actions";
 import { formatAddressList, fullDateLabel, type Address, type ComposeMode, type MoveTarget } from "@/lib/mail/mail-rules";
 import type { FormAction } from "@/lib/action-state";
 import type { MessageView } from "@/lib/mail/mailbox";
@@ -134,7 +134,7 @@ export function MessageReader({
           <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
           <MessageAction action={markUnread} fields={fields} label="Marcar como não lida" icon={<MailIcon />} />
           <MessageAction
-            action={toggleStar}
+            action={starEmail}
             fields={{ ...fields, estrela: message.flagged ? "" : "1" }}
             label={message.flagged ? "Tirar a estrela" : "Marcar com estrela"}
             pressed={message.flagged}

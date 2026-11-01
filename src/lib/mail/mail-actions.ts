@@ -73,7 +73,7 @@ export async function markUnread(_: ActionState, form: FormData): Promise<Action
   return { success: "Marcada como não lida.", href: listOf(ready.data, form.get("single") === "1") };
 }
 
-export async function toggleStar(_: ActionState, form: FormData): Promise<ActionState> {
+export async function starEmail(_: ActionState, form: FormData): Promise<ActionState> {
   const ready = await messageAction(form);
   if ("error" in ready) return { error: ready.error };
   const on = form.get("estrela") === "1";
