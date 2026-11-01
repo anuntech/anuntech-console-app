@@ -224,6 +224,14 @@ A web passou a mostrar cada arquivo no cartão e ganhou o que um drive tem (f2bd
 
 A gestão das caixas de e-mail (`/email`: caixas, senhas, apelidos, redirecionamentos, aparelhos e DNS) fica só na web nesta fase: é da equipe da Anuntech, e o app é do cliente. Quando o Administrador da empresa passar a gerenciar o próprio domínio (fase 2, `docs/task.md`), entram no app a lista de caixas, a troca de senha com a senha mostrada uma vez e o perfil para iPhone (que o próprio iPhone instala), pela API `/api/v1` com `guard()`. Ler e enviar e-mail continuam nos aplicativos de e-mail do celular.
 
+## E-mail, Fase 2 (01/11)
+
+- [x] **E1** O produto de e-mail (`mailCompanyId` em `products.list`, `products.get` e `overview.get`, campo opcional) abre `produtos/email/[company]`: as caixas do domínio (`mail.mailboxes`), com a escolha do domínio quando a empresa tem mais de um; para o Membro, só a própria caixa. Sem o campo (Console antigo), o produto segue como antes. OTA (só JavaScript).
+- [x] **E2** A caixa (`produtos/email/caixa`): espaço usado, "Trocar senha" e "Configurar aparelhos" (usuário, IMAP e SMTP para copiar e o passo a passo da Ajuda).
+- [x] **E3** "Trocar senha" em folha (`produtos/email/senha`, `mail.resetPassword`): gerada e mostrada uma vez, com copiar e "Guarde agora", ou digitada.
+- [x] **E4** "Baixar perfil para iPhone" (só no iOS): `GET /api/email/perfil/<id>` com a sessão do app, aberto na folha de compartilhar. O iPhone não instala perfil de dentro de outro app: a pessoa salva em Arquivos e abre (o rodapé diz). Conferir num iPhone de verdade que o Arquivos mostra "Perfil transferido"; se não mostrar, trocar por um endereço de uso único aberto no Safari.
+- **Fica na web, com "Gerenciar no Console" (abre já com a sessão):** criar, editar e excluir caixa, apelidos, espaço, redirecionamentos e a saúde do DNS. São formulários longos, com confirmações digitadas, e o Administrador faz isso poucas vezes; no celular a pessoa precisa da senha e dos dados do aparelho, que estão no app.
+
 ## Publicação
 
 1. Servidor no `main` (migrações, se houver, pela rota temporária).

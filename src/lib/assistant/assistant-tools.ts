@@ -5,6 +5,7 @@ import { db } from "../db";
 import { allowedIds, canAccess, canSeeEngagement, canSeeMoney, canSeeTicket, engagementWhere, ticketWhere } from "../access/access";
 import {
   assistantDocuments,
+  catalogItems,
   companies,
   contractChangeRequests,
   contracts,
@@ -31,6 +32,7 @@ import { DEFAULT_QUOTE_NOTES, hoursLabel, quoteNumberLabel, quoteStatusLabels, q
 import { TASK_PRIORITIES, TASK_STATUSES, taskPriorityLabels, taskStatusLabels } from "../projects/task-model";
 import { OPEN_TICKET_STATUSES } from "../tickets/ticket-status";
 import { appForUrl, protectedApps } from "../apps/registry";
+import { mailPageOf } from "../products/product-opening";
 
 /* ---------- plumbing (shared with assistant-tools-extra) ---------- */
 import { fold, id, limit, resolvePeople, scopeOf, submit, tool, ToolError, untrusted, within, type AnyTool, type ToolArea, type ToolContext, type ToolOutcome } from "./assistant-tools-kit";
@@ -420,9 +422,20 @@ const listWorks = tool({
   run: async ({ actor }, { companyId, tipo }) => {
     const ids = scopeOf(actor, "overview", companyId);
     const rows = await db
-      .select({ id: engagements.id, name: engagements.name, kind: engagements.kind, status: engagements.status, description: engagements.description, url: engagements.url, company: companies.name })
+      .select({
+        id: engagements.id,
+        name: engagements.name,
+        kind: engagements.kind,
+        status: engagements.status,
+        description: engagements.description,
+        url: engagements.url,
+        company: companies.name,
+        companyId: engagements.companyId,
+        suspensionKind: catalogItems.suspensionKind,
+      })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))
+      .leftJoin(catalogItems, eq(catalogItems.id, engagements.catalogItemId))
       .where(
         and(
           within(engagements.companyId, ids),
@@ -432,7 +445,7 @@ const listWorks = tool({
       )
       .orderBy(asc(engagements.name))
       .limit(60);
-    // A product that is a protected app opens inside the Console; its own URL refuses the address bar.
+    // The e-mail product and a protected app open inside the Console; an app's own URL refuses the address bar.
     const apps = protectedApps();
     return {
       result: rows.map((w) => ({
@@ -447,9 +460,10 @@ const listWorks = tool({
             ? `/projetos/${w.id}`
             : w.kind === "service"
               ? `/produtos/${w.id}`
-              : appForUrl(w.url, apps)
-                ? `/apps/${w.id}`
-                : (w.url ?? "/produtos"),
+              : (mailPageOf(w.kind, w.suspensionKind, w.companyId) ??
+                (appForUrl(w.url, apps)
+                  ? `/apps/${w.id}`
+                  : (w.url ?? "/produtos"))),
       })),
       summary: "Consultei projetos e produtos",
     };

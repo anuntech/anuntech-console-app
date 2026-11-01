@@ -7,7 +7,11 @@ const nextConfig: NextConfig = {
   experimental: { serverActions: { bodySizeLimit: "2mb" } },
   // The privacy policy lives on the institutional site; old links (App Store, Google Play, older app builds) keep working.
   async redirects() {
-    return [{ source: "/privacidade", destination: "https://www.anuntech.com/privacy", permanent: true }];
+    return [
+      { source: "/privacidade", destination: "https://www.anuntech.com/privacy", permanent: true },
+      // Domínios moved to Configurações › E-mail on 01/11/2026; old links land there.
+      { source: "/email/dominios", destination: "/configuracoes/email", permanent: false },
+    ];
   },
   async headers() {
     return [

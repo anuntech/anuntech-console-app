@@ -11,11 +11,15 @@ import {
   isAnuntechDomain,
   isOwnMailDomain,
   localPartProblem,
+  mailRole,
+  mailboxAccess,
+  managesAnyMail,
   mobileconfig,
   mobileconfigFileName,
   normalizeAddress,
   normalizeLocalPart,
   normalizeMailDomain,
+  ownsMailbox,
   parseQuota,
   pickDomain,
   parseRecipients,
@@ -27,10 +31,8 @@ import {
   type DnsLookups,
 } from "../src/lib/mail/mail-rules";
 
-test("only the team manages; anuntech.com is always managed and never a client's", () => {
+test("anuntech.com is always managed and never a client's", () => {
   assert.deepEqual([...MAIL_DOMAINS], ["anuntech.com"]);
-  assert.equal(canManageMail({ admin: true }), true);
-  assert.equal(canManageMail({ admin: false }), false);
   assert.equal(isOwnMailDomain("ANUNTECH.com"), true);
   assert.equal(isOwnMailDomain("anuntech.com.br"), false);
   assert.equal(isOwnMailDomain(undefined), false);
@@ -38,6 +40,63 @@ test("only the team manages; anuntech.com is always managed and never a client's
     assert.equal(isAnuntechDomain(domain), true, domain);
   for (const domain of ["anuntech.com.br", "cliente.com.br", "notanuntech.com", "anuntech.cloud.example"])
     assert.equal(isAnuntechDomain(domain), false, domain);
+});
+
+test("who manages which mail: the team everything, an Administrador the company's domains, a Membro only their own mailbox", () => {
+  const A = "company-a";
+  const B = "company-b";
+  const team = { admin: true, grants: [] };
+  const manager = { admin: false, grants: [{ company: { id: A }, role: "manager" as const }] };
+  const member = { admin: false, grants: [{ company: { id: A }, role: "member" as const }] };
+  // An identity can be Membro by one alias and Administrador by another: the widest role wins.
+  const both = { admin: false, grants: [{ company: { id: A }, role: "member" as const }, { company: { id: A }, role: "manager" as const }] };
+  // Assisted access: the team sees company A as its Administrador, without touching its mailboxes.
+  const assisted = { admin: false, assisting: { id: A }, grants: [{ company: { id: A }, role: "manager" as const }] };
+  const outsider = { admin: false, grants: [] };
+
+  assert.equal(mailRole(team, null), "team");
+  assert.equal(mailRole(team, A), "team");
+  assert.equal(mailRole(manager, A), "manager");
+  assert.equal(mailRole(both, A), "manager");
+  assert.equal(mailRole(member, A), "member");
+  for (const actor of [manager, member, assisted, outsider]) assert.equal(mailRole(actor, null), null, "Anuntech's own mail is the team's");
+  for (const actor of [manager, member]) assert.equal(mailRole(actor, B), null, "another company's domain does not exist for them");
+  assert.equal(mailRole(assisted, A), null);
+  assert.equal(mailRole({ ...team, assisting: { id: A } }, A), null);
+
+  assert.equal(canManageMail(team, null), true);
+  assert.equal(canManageMail(team, B), true);
+  assert.equal(canManageMail(manager, A), true);
+  assert.equal(canManageMail(manager, B), false);
+  assert.equal(canManageMail(member, A), false);
+  assert.equal(canManageMail(assisted, A), false);
+  assert.equal(canManageMail(outsider, A), false);
+
+  assert.equal(managesAnyMail(team), true);
+  assert.equal(managesAnyMail(manager), true);
+  assert.equal(managesAnyMail(member), false);
+  assert.equal(managesAnyMail(assisted), false);
+  assert.equal(managesAnyMail(outsider), false);
+});
+
+test("a Membro's mailbox is the one whose address is an e-mail of their account, never an alias", () => {
+  const A = "company-a";
+  const member = { admin: false, grants: [{ company: { id: A }, role: "member" as const }] };
+  const manager = { admin: false, grants: [{ company: { id: A }, role: "manager" as const }] };
+  const emails = ["joao@cliente.com.br", "joao.pessoal@gmail.example"];
+  const joao = { companyId: A, address: "Joao@Cliente.com.br" };
+  const maria = { companyId: A, address: "maria@cliente.com.br" };
+  const elsewhere = { companyId: "company-b", address: "joao@cliente.com.br" };
+
+  assert.equal(ownsMailbox("JOAO@cliente.com.br", emails), true);
+  assert.equal(ownsMailbox("contato@cliente.com.br", emails), false);
+  assert.equal(mailboxAccess(member, joao, emails), "own");
+  assert.equal(mailboxAccess(member, maria, emails), null);
+  assert.equal(mailboxAccess(member, elsewhere, emails), null, "the address alone is not enough: the company must be theirs");
+  assert.equal(mailboxAccess(manager, maria, []), "manage");
+  assert.equal(mailboxAccess(manager, elsewhere, emails), null);
+  assert.equal(mailboxAccess({ admin: true, grants: [] }, { companyId: null, address: "kauan@anuntech.com" }, []), "manage");
+  assert.equal(mailboxAccess({ ...member, assisting: { id: A } }, joao, emails), null);
 });
 
 test("domains: lower case and ASCII, without the final dot or a leading @; anything else is refused", () => {

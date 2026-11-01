@@ -57,6 +57,10 @@ export default function HomeLayout() {
       <Stack.Screen name="produtos/index" options={{ title: "Produtos e serviços", headerLargeTitle: true }} />
       <Stack.Screen name="produtos/[id]" options={{ title: "" }} />
       <Stack.Screen name="produtos/app/[id]" options={{ title: "" }} />
+      {/* The e-mail product: the company's mailboxes, one mailbox, and the password as a sheet. */}
+      <Stack.Screen name="produtos/email/[company]" options={{ title: "E-mail" }} />
+      <Stack.Screen name="produtos/email/caixa" options={{ title: "" }} />
+      <Stack.Screen name="produtos/email/senha" options={{ title: "Trocar senha", ...sheet }} />
     </Stack>
   );
 }

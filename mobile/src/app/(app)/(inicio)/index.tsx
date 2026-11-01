@@ -459,7 +459,7 @@ export default function Home() {
                       {detail}
                     </Text>
                   }
-                  trailing={p.opensAs === "link" && p.status !== "suspended" ? "external" : "chevron"}
+                  trailing={p.opensAs === "link" && p.status !== "suspended" && !p.mailCompanyId ? "external" : "chevron"}
                   accessibilityLabel={`${p.name}, ${detail}`}
                   onPress={() => openProduct(p)}
                 />

@@ -117,6 +117,8 @@ export async function clientOverview(actor: Actor, now = new Date()) {
         catalogItemId: engagements.catalogItemId,
         icon: catalogItems.icon,
         status: engagements.status,
+        companyId: engagements.companyId,
+        suspensionKind: catalogItems.suspensionKind,
       })
       .from(engagements)
       .innerJoin(companies, eq(companies.id, engagements.companyId))

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PROTECTED_APPS } from "../src/lib/apps/registry";
-import { productOpening, webUrl } from "../src/lib/products/product-opening";
+import { mailPageOf, productOpening, webUrl } from "../src/lib/products/product-opening";
 import { suspensionNotice } from "../src/lib/suspensions/suspension-notice";
 
 test("a service opens its page, a protected app opens with a pass, any other product its own link", () => {
@@ -11,6 +11,13 @@ test("a service opens its page, a protected app opens with a pass, any other pro
   assert.deepEqual(productOpening("product", "https://www.espacoabsolut.com/", PROTECTED_APPS), { opensAs: "link", url: "https://www.espacoabsolut.com/" });
   assert.deepEqual(productOpening("product", null, PROTECTED_APPS), { opensAs: "none", url: null });
   assert.deepEqual(productOpening("project", "https://example.com", PROTECTED_APPS), { opensAs: "none", url: null });
+});
+
+test("the e-mail product opens the company's mailboxes inside the Console", () => {
+  assert.equal(mailPageOf("product", "email", "b0101b2f-4586-4533-964b-b3d8157b9378"), "/email?empresa=b0101b2f-4586-4533-964b-b3d8157b9378");
+  assert.equal(mailPageOf("product", "app", "x"), null);
+  assert.equal(mailPageOf("product", null, "x"), null);
+  assert.equal(mailPageOf("service", "email", "x"), null);
 });
 
 test("only web links leave the app", () => {

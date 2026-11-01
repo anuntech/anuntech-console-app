@@ -26,3 +26,10 @@ export function productOpening(kind: string, url: string | null | undefined, app
   const link = webUrl(url);
   return link ? { opensAs: "link", url: link } : { opensAs: "none", url: null };
 }
+
+/**
+ * The e-mail product (a catalog item blocked as "Servidor de e-mail") opens
+ * the company's mailboxes inside the Console, whatever its link says.
+ */
+export const mailPageOf = (kind: string, suspensionKind: string | null | undefined, companyId: string) =>
+  kind === "product" && suspensionKind === "email" ? `/email?empresa=${encodeURIComponent(companyId)}` : null;

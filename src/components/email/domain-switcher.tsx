@@ -6,8 +6,9 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 export type DomainChoice = { domain: string; companyName: string };
 
 /**
- * Which managed domain the page shows (`?dominio=`): Anuntech's and each
- * client's. With a single domain there is nothing to choose, so it hides.
+ * Which of the company's domains the page shows (`?dominio=`): the choices
+ * are one company's only (Anuntech's own, or one client's). With a single
+ * domain there is nothing to choose, so it hides.
  */
 export function DomainSwitcher({ choices, current }: { choices: DomainChoice[]; current: string }) {
   const router = useRouter();
@@ -29,7 +30,7 @@ export function DomainSwitcher({ choices, current }: { choices: DomainChoice[]; 
       >
         {choices.map((choice) => (
           <NativeSelectOption key={choice.domain} value={choice.domain}>
-            {choice.domain} ({choice.companyName})
+            {choice.domain}
           </NativeSelectOption>
         ))}
       </NativeSelect>

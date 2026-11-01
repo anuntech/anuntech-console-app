@@ -302,6 +302,8 @@ const productCard = z.object({
   opensAs,
   /** The product's own web link, only when it opens as a link. */
   url: z.string().nullable(),
+  /** The e-mail product: it opens this company's mailboxes (mail.mailboxes) instead. Older apps ignore it. */
+  mailCompanyId: z.string().optional(),
 });
 /** Amount, interval and next due date: only where the person sees money (Administradores). */
 const productMoney = z.object({
@@ -1330,6 +1332,49 @@ export const contract = {
         z.object({ kind: z.literal("page"), to: z.enum(["service", "project"]), id: z.string() }),
       ]),
     ),
+  },
+  mail: {
+    /**
+     * The mailboxes of one of the company's domains (the first, without
+     * `domain`): the team and the company's Administrador see every one; a
+     * Membro only their own, across the company's domains. Another company,
+     * or a domain that is not the company's, answers NOT_FOUND.
+     */
+    mailboxes: oc.input(z.object({ companyId: z.uuid(), domain: z.string().max(253).optional() })).output(
+      z.object({
+        company: z.string(),
+        /** "member": only the person's own mailbox, with the password and the devices; the others change everything on the web. */
+        role: z.enum(["team", "manager", "member"]),
+        /** The company's domains (none: the team has not set one up yet) and the one shown. */
+        domains: z.array(z.string()),
+        domain: z.string().nullable(),
+        mailboxes: z.array(
+          z.object({
+            id: z.string(),
+            address: z.string(),
+            name: z.string().nullable(),
+            usedBytes: z.number(),
+            /** null: no limit set on the server. */
+            quotaBytes: z.number().nullable(),
+            aliases: z.array(z.string()),
+            /** False for accounts kept by the server's own console: listed, never changed here. */
+            managed: z.boolean(),
+            /** The signed-in person's own mailbox. */
+            own: z.boolean(),
+          }),
+        ),
+        /** What the mail apps connect to, for "Configurar aparelhos". */
+        setup: z.object({ host: z.string(), imapPort: z.number(), smtpPort: z.number(), smtpStarttlsPort: z.number() }),
+      }),
+    ),
+    /**
+     * A new password for a mailbox the person may change (theirs, for a
+     * Membro): generated, coming back once in `password`, or typed. The
+     * Console keeps none; the apps signed in with the old one ask again.
+     */
+    resetPassword: oc
+      .input(z.object({ id: z.string().min(1).max(255), mode: z.enum(["generate", "type"]), password: z.string().max(200).optional() }))
+      .output(z.object({ message: z.string(), address: z.string(), password: z.string().optional() })),
   },
   hours: {
     /** Each company's hours bank the person sees. */

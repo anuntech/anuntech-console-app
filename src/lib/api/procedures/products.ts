@@ -11,7 +11,7 @@ import { pageCountOf } from "../../list-query";
 import { projectListQuery } from "../../projects/project-table";
 import { listProducts } from "../../products/product-list";
 import { findProduct, productSuspension } from "../../products/product-view";
-import { productOpening } from "../../products/product-opening";
+import { mailPageOf, productOpening } from "../../products/product-opening";
 import { suspensionNotice } from "../../suspensions/suspension-notice";
 import { api } from "../server";
 import { guard, missing } from "../access";
@@ -27,6 +27,9 @@ type ProductSource = {
   document: string | null;
   catalogItemId: string | null;
   icon: string | null;
+  /** With the catalog item's suspension kind, tells the e-mail product apart. */
+  companyId?: string;
+  suspensionKind?: string | null;
 };
 
 /** A product or service as the app's rows read it: how it opens, its icon and its situation in words. */
@@ -41,6 +44,8 @@ export function productCard(row: ProductSource, apps = protectedApps()) {
     company: companyDisplayName(row.company, row.document),
     iconPath: catalogIconSrc(row.catalogItemId, row.icon),
     ...productOpening(row.kind, row.url, apps),
+    // The e-mail product opens the company's mailboxes (mail.mailboxes); older apps keep opensAs.
+    ...(row.companyId && mailPageOf(row.kind, row.suspensionKind, row.companyId) ? { mailCompanyId: row.companyId } : {}),
   };
 }
 
@@ -88,7 +93,7 @@ export const products = {
       const e = row.engagement;
       const suspended = await productSuspension(actor, e);
       return {
-        ...productCard({ ...e, company: row.company, document: row.companyDocument, icon: row.item?.icon ?? null }),
+        ...productCard({ ...e, company: row.company, document: row.companyDocument, icon: row.item?.icon ?? null, suspensionKind: row.item?.suspensionKind }),
         companyId: e.companyId,
         showCompany: showsCompany(actor),
         sections: {

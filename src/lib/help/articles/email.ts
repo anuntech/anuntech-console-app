@@ -1,6 +1,6 @@
 import type { HelpArticle } from "../help-model";
 
-/** E-mail da Anuntech: configurar os aplicativos e, para a equipe, gerenciar as caixas no Console. */
+/** E-mail da Anuntech: configurar os aplicativos e gerenciar as caixas no Console (o Administrador da empresa e a equipe). */
 export const emailArticles: HelpArticle[] = [
   {
     slug: "configurar-email-nos-aparelhos",
@@ -36,7 +36,7 @@ export const emailArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Os e-mails de uma caixa do servidor da Anuntech, @anuntech.com ou do domínio da sua empresa, são lidos e enviados pelo aplicativo de e-mail que você já usa: Mail do iPhone e do Mac, Outlook, Gmail, Thunderbird ou Mailbird. O Console não abre as mensagens; nele a equipe da Anuntech só cuida das caixas (senha, espaço, apelidos e redirecionamentos).",
+            text: "Os e-mails de uma caixa do servidor da Anuntech, @anuntech.com ou do domínio da sua empresa, são lidos e enviados pelo aplicativo de e-mail que você já usa: Mail do iPhone e do Mac, Outlook, Gmail, Thunderbird ou Mailbird. O Console não abre as mensagens; nele o Administrador da sua empresa e a equipe da Anuntech só cuidam das caixas (senha, espaço, apelidos e redirecionamentos), em Produtos, no produto de e-mail.",
           },
         ],
       },
@@ -47,7 +47,7 @@ export const emailArticles: HelpArticle[] = [
             kind: "pairs",
             items: [
               { term: "Usuário", text: "O endereço completo, por exemplo nome@anuntech.com ou nome@suaempresa.com.br." },
-              { term: "Senha", text: "A da caixa, que a equipe passou quando criou ou trocou a senha." },
+              { term: "Senha", text: "A da caixa, que o Administrador da empresa ou a equipe da Anuntech passou quando criou ou trocou a senha. Se a caixa é sua, você mesmo troca no Console." },
               { term: "Recebimento (IMAP)", text: "Servidor mail.anuntech.com, porta 993, segurança SSL/TLS." },
               { term: "Envio (SMTP)", text: "Servidor mail.anuntech.com, porta 465, segurança SSL/TLS. Se o aplicativo não aceitar, porta 587 com STARTTLS." },
               { term: "Autenticação", text: "Entrada e envio com o mesmo usuário e a mesma senha." },
@@ -66,8 +66,8 @@ export const emailArticles: HelpArticle[] = [
           {
             kind: "steps",
             items: [
-              "Peça à equipe da Anuntech o perfil da sua caixa. Ele chega como um arquivo .mobileconfig e não leva a senha.",
-              "No iPhone ou iPad, abra o arquivo pelo Safari, pelo AirDrop ou pelo app Arquivos. Aparece o aviso de perfil transferido.",
+              "Baixe o perfil da sua caixa no Console: em Produtos, abra o produto de e-mail e, na caixa, Configurar aparelhos. No app do Console no iPhone, toque na caixa e em Baixar perfil para iPhone. Ele é um arquivo .mobileconfig e não leva a senha.",
+              "No iPhone ou iPad, abra o arquivo pelo Safari, pelo AirDrop ou pelo app Arquivos (no app do Console, escolha Salvar em Arquivos e abra o arquivo). Aparece o aviso de perfil transferido.",
               "Abra Ajustes e toque em Perfil Transferido (ou em Geral, VPN e Gerenciamento de Dispositivo) e depois em Instalar.",
               "Digite a senha da caixa quando o aparelho pedir. A conta aparece no app Mail.",
               "No Mac, abra o arquivo e confirme em Ajustes do Sistema, na parte de perfis (Geral, Gerenciamento de Dispositivo).",
@@ -139,7 +139,7 @@ export const emailArticles: HelpArticle[] = [
     faq: [
       {
         q: "Esqueci a senha da caixa. O que faço?",
-        a: "Peça à equipe da Anuntech uma senha nova. A senha antiga não fica guardada em lugar nenhum, então não há como recuperar: só trocar. Depois da troca, digite a nova em cada aparelho.",
+        a: "Se o endereço da caixa é um dos e-mails da sua conta no Console, troque você mesmo: em Produtos, abra o produto de e-mail, depois Trocar senha. Senão, peça uma senha nova ao Administrador da sua empresa. A senha antiga não fica guardada em lugar nenhum, então não há como recuperar: só trocar. Depois da troca, digite a nova em cada aparelho.",
       },
       {
         q: "O aplicativo diz que a senha está errada.",
@@ -151,17 +151,17 @@ export const emailArticles: HelpArticle[] = [
       },
       {
         q: "A caixa está cheia.",
-        a: "Apague mensagens grandes e esvazie a lixeira pelo aplicativo, ou peça à equipe da Anuntech mais espaço.",
+        a: "Apague mensagens grandes e esvazie a lixeira pelo aplicativo, ou peça mais espaço ao Administrador da sua empresa. O espaço usado aparece no produto de e-mail, em Produtos.",
       },
     ],
     related: ["gerenciar-caixas-de-email"],
-    updatedAt: "2026-10-31",
+    updatedAt: "2026-11-01",
   },
   {
     slug: "gerenciar-caixas-de-email",
     category: "conta",
-    title: "Gerenciar as caixas de e-mail (equipe Anuntech)",
-    summary: "Como a equipe da Anuntech vincula o domínio de um cliente, cria caixas, troca senhas, muda o espaço e os apelidos, faz redirecionamentos e confere o DNS em E-mail.",
+    title: "Gerenciar as caixas de e-mail da empresa",
+    summary: "Como o Administrador da empresa e a equipe da Anuntech criam caixas, trocam senhas, mudam o espaço e os apelidos, fazem redirecionamentos e conferem o DNS pelo produto de e-mail em Produtos, e o que um Membro faz com a própria caixa.",
     audience: "todos",
     keywords: [
       "email",
@@ -185,6 +185,10 @@ export const emailArticles: HelpArticle[] = [
       "dmarc",
       "dominio",
       "vincular dominio",
+      "administrador",
+      "membro",
+      "produtos",
+      "minha caixa",
     ],
     sections: [
       {
@@ -192,19 +196,28 @@ export const emailArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Por enquanto, só a equipe da Anuntech. O item E-mail aparece no menu da equipe e mostra um domínio por vez: anuntech.com e os domínios dos clientes, escolhidos no seletor ao lado dos botões. As contas de administração do servidor e as que têm papel próprio aparecem na lista como gerenciadas no servidor, sem ações. O Console não lê nem envia e-mails: quem usa a caixa lê pelo aplicativo de e-mail.",
+            text: "O e-mail fica em Produtos: o card do produto de e-mail abre as caixas da empresa dentro do Console, sem item próprio no menu. O Administrador da empresa gerencia as caixas dos domínios da empresa; com mais de um domínio, o seletor ao lado dos botões mostra só os da empresa. A equipe da Anuntech abre pelo mesmo caminho. As contas de administração do servidor e as que têm papel próprio aparecem na lista como gerenciadas no servidor, sem ações. O Console não lê nem envia e-mails: quem usa a caixa lê pelo aplicativo de e-mail.",
+          },
+          {
+            kind: "list",
+            items: [
+              "Membro: vê só a própria caixa, a que tem como endereço um dos e-mails da conta dele no Console, com o espaço usado, Trocar senha e Configurar aparelhos. Não cria, não edita nem exclui caixas, e não vê redirecionamentos nem o DNS.",
+              "No acesso assistido o e-mail não abre, porque as caixas mexem com senhas da empresa: a equipe sai do acesso assistido e abre o produto de e-mail.",
+              "No app do Console, o produto de e-mail mostra as caixas, a troca de senha e o perfil para iPhone. Criar, editar, excluir, os redirecionamentos e o DNS ficam no Console na web.",
+              "Criar ou excluir uma caixa ainda não muda a cobrança sozinho: a mudança aparece na atividade da empresa, e a equipe da Anuntech ajusta o valor do produto.",
+            ],
           },
         ],
       },
       {
-        title: "Domínios dos clientes",
+        title: "Domínios dos clientes (equipe)",
         blocks: [
           {
             kind: "steps",
             items: [
-              "Em E-mail, clique em Domínios. A lista mostra cada domínio, a empresa dele e quantas caixas tem.",
+              "Em Configurações, abra E-mail. A lista mostra anuntech.com (as caixas da Anuntech ficam aqui, porque não são produto de nenhuma empresa) e cada domínio de cliente, com a empresa e quantas caixas tem.",
               "Clique em Vincular domínio, escolha a empresa e o domínio. A lista traz os domínios que já estão no servidor de e-mail e ainda não são de ninguém.",
-              "Pronto: as caixas, os redirecionamentos e o DNS do domínio passam a ser gerenciados no Console, e cada mudança aparece na atividade da empresa.",
+              "Pronto: as caixas, os redirecionamentos e o DNS do domínio passam a ser gerenciados no Console, pelo Administrador da empresa e pela equipe, e cada mudança aparece na atividade da empresa.",
             ],
           },
           {
@@ -220,7 +233,7 @@ export const emailArticles: HelpArticle[] = [
           {
             kind: "steps",
             items: [
-              "Em E-mail, clique em Nova caixa.",
+              "Em Produtos, abra o produto de e-mail e clique em Nova caixa.",
               "Digite a parte do endereço antes do @, o nome da pessoa ou da equipe e escolha o espaço: 1, 5, 10 ou 20 GB.",
               "Deixe marcado Gerar uma senha forte, ou escolha Digitar a senha (pelo menos 12 caracteres; o servidor confere a força).",
               "Clique em Criar caixa. A senha gerada aparece uma vez, com o botão de copiar. Guarde agora: ela não aparece de novo.",
@@ -243,7 +256,7 @@ export const emailArticles: HelpArticle[] = [
               "Trocar senha (no menu da caixa): gere uma nova ou digite. Os aplicativos conectados com a senha antiga passam a pedir a nova.",
               "Editar: muda o nome, o espaço e os apelidos. O endereço da caixa não muda.",
               "Apelidos são outros endereços do mesmo domínio que chegam na mesma caixa. O Console recusa um apelido que já é caixa, apelido de outra caixa ou redirecionamento.",
-              "As trocas de senha e as caixas novas têm um limite por hora para cada pessoa da equipe.",
+              "As trocas de senha e as caixas novas têm um limite por hora para cada pessoa.",
             ],
           },
         ],
@@ -271,7 +284,7 @@ export const emailArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Em E-mail, Redirecionamentos lista os endereços do domínio que não são caixas e mandam o que chega para um ou mais destinos, de fora (um Gmail) ou caixas do próprio domínio. Dá para criar, mudar os destinos e excluir. Um destino do domínio precisa existir, para nenhum e-mail voltar.",
+            text: "No produto de e-mail, Redirecionamentos lista os endereços do domínio que não são caixas e mandam o que chega para um ou mais destinos, de fora (um Gmail) ou caixas dos domínios da empresa. Dá para criar, mudar os destinos e excluir. Um destino num domínio da empresa precisa existir, para nenhum e-mail voltar.",
           },
         ],
       },
@@ -280,12 +293,12 @@ export const emailArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Em E-mail, DNS compara os registros do domínio com o que o servidor de e-mail espera: recebimento (MX), quem pode enviar (SPF), a assinatura dos e-mails (DKIM) e a proteção contra falsificação (DMARC). Cada item diz Certo ou Falta isto, com o registro para copiar no painel de DNS. A conferência fica guardada por alguns minutos.",
+            text: "No produto de e-mail, DNS compara os registros do domínio com o que o servidor de e-mail espera: recebimento (MX), quem pode enviar (SPF), a assinatura dos e-mails (DKIM) e a proteção contra falsificação (DMARC). Cada item diz Certo ou Falta isto, com o registro para copiar no painel de DNS. A conferência fica guardada por alguns minutos.",
           },
         ],
       },
     ],
     related: ["configurar-email-nos-aparelhos"],
-    updatedAt: "2026-10-31",
+    updatedAt: "2026-11-01",
   },
 ];

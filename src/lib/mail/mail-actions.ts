@@ -4,42 +4,44 @@ import { z } from "zod";
 import { auditEvents, companies, mailDomains } from "@/db/schema";
 import { getActor, type Actor } from "../access/access";
 import { getAccountEmails } from "../account/account-identity";
-import { DATABASE_FAILURE, databaseFault, logDatabaseFault } from "../action-errors";
+import { databaseFault } from "../action-errors";
 import type { ActionState } from "../action-state";
 import { db } from "../db";
 import { reserveHourly } from "../http/hourly-limit";
-import { MailMethodError, MailUnavailable } from "./jmap";
 import {
-  MailRefusal,
   createForward as createForwardOnServer,
   createMailbox as createMailboxOnServer,
   deleteForward as deleteForwardOnServer,
   deleteMailbox as deleteMailboxOnServer,
+  domainOwner,
   findManagedForward,
   findManagedMailbox,
   serverHasDomain,
-  setMailboxPassword,
   updateForward as updateForwardOnServer,
   updateMailbox as updateMailboxOnServer,
 } from "./mail-admin";
 import {
   FORWARD_RECIPIENTS_MAX,
   canManageMail,
-  generatePassword,
+  managesAnyMail,
   isAnuntechDomain,
   localPartProblem,
   normalizeLocalPart,
   normalizeMailDomain,
   parseQuota,
   parseRecipients,
-  passwordProblem,
   storageLabel,
 } from "./mail-rules";
+import { HOURLY, audit, blocked, failure, notFound, pickPassword, resetPassword } from "./mail-service";
 
 /*
- * The e-mail area's server actions (only the Anuntech team in phase 1). Each
- * one starts with getActor() and `canManageMail`, reads the record back from
- * the mail server before changing it (lib/mail/mail-admin.ts) and writes
+ * The e-mail area's server actions: the Anuntech team on every managed
+ * domain, a client's Administrador on the company's domains and a Membro
+ * only on the password of their own mailbox (mail-rules.ts, mailRole). Each
+ * one starts with getActor(), reads the record back from the mail server
+ * (lib/mail/mail-admin.ts) and checks the person against the domain's
+ * company before changing anything: another company's mailbox or domain
+ * answers like one that does not exist. Each action writes
  * `audit_events` after the server confirmed: the change lives on another
  * system, so there is no transaction to share. A password never reaches the
  * audit, the logs or the database; a generated one comes back once, in the
@@ -50,34 +52,17 @@ import {
 /** What a create or a reset answers: the generated password, shown once. */
 export type MailActionState = ActionState & { password?: string; address?: string };
 
-const blocked = { error: "Você não tem permissão para fazer isso." };
-const notFound = { error: "Essa caixa não existe mais ou não é gerenciada pelo Console. Atualize a página." };
-const HOURLY = 20;
-
-/** The person's message for whatever the mail server or the database said. */
-function failure(error: unknown, uncertain?: string): ActionState {
-  if (error instanceof MailRefusal) return { error: error.message };
-  if (error instanceof MailUnavailable) {
-    if (error.uncertain && uncertain) return { error: uncertain };
-    return { error: "O servidor de e-mail não respondeu. Tente de novo em alguns minutos." };
-  }
-  if (error instanceof MailMethodError) return { error: "O servidor de e-mail recusou o pedido. Tente de novo em alguns minutos." };
-  if (logDatabaseFault("email", error)) return { error: DATABASE_FAILURE };
-  console.error("[email] action failed", { name: error instanceof Error ? error.name : typeof error });
-  return { error: "Não foi possível concluir agora. Tente de novo em alguns minutos." };
-}
+const forwardGone = { error: "Esse redirecionamento não existe mais. Atualize a página." };
 
 /**
- * The change already happened on the mail server: an audit that fails is
- * logged, never undone or hidden from the person. On a client's domain it
- * lands on the company's activity too.
+ * Whether the person manages the domain asked for. A domain the Console does
+ * not manage is left to mail-admin's own refusal for the team; for anyone
+ * else it reads the same as another company's, so nothing is learned.
  */
-async function audit(actor: Actor, action: string, entityId: string, details: Record<string, unknown>, companyId: string | null = null) {
-  try {
-    await db.insert(auditEvents).values({ actorId: actor.user.id, companyId, action, entityId, details });
-  } catch (error) {
-    if (!logDatabaseFault("email audit", error)) console.error("[email] audit failed", { action });
-  }
+async function managesDomain(actor: Actor, domain: string) {
+  const owner = await domainOwner(domain);
+  if (owner ? canManageMail(actor, owner.companyId) : actor.admin) return null;
+  return { error: `O domínio ${domain} não é gerenciado pelo Console.` };
 }
 
 const field = (form: FormData, name: string) => {
@@ -88,16 +73,11 @@ const nameInput = z.string().trim().max(120);
 const idInput = z.string().min(1).max(255);
 
 /** The new password: generated here, or typed and checked. */
-function choosePassword(form: FormData, local: string): { password: string; generated: boolean } | { error: string } {
-  if (field(form, "mode") !== "type") return { password: generatePassword(), generated: true };
-  const password = field(form, "password");
-  const problem = passwordProblem(password, { local });
-  return problem ? { error: problem } : { password, generated: false };
-}
+const choosePassword = (form: FormData, local: string) => pickPassword(field(form, "mode"), field(form, "password"), local);
 
 export async function createMailbox(_: ActionState, form: FormData): Promise<MailActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!managesAnyMail(actor)) return blocked;
   // Whether the Console manages it is the server side's answer (mail-admin.ts), not the form's.
   const domain = normalizeMailDomain(field(form, "domain"));
   if (!domain) return { error: "Escolha o domínio da caixa." };
@@ -111,6 +91,8 @@ export async function createMailbox(_: ActionState, form: FormData): Promise<Mai
   const secret = choosePassword(form, local);
   if ("error" in secret) return { error: secret.error };
   try {
+    const refused = await managesDomain(actor, domain);
+    if (refused) return refused;
     if (!(await reserveHourly("mail-create", actor.user.id, HOURLY)))
       return { error: `Você chegou ao limite de ${HOURLY} caixas criadas por hora. Tente de novo mais tarde.` };
     const created = await createMailboxOnServer({ domain, local, name: name.data || null, quotaBytes: quota, password: secret.password });
@@ -130,35 +112,13 @@ export async function createMailbox(_: ActionState, form: FormData): Promise<Mai
 }
 
 export async function resetMailboxPassword(_: ActionState, form: FormData): Promise<MailActionState> {
-  const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
-  const id = idInput.safeParse(field(form, "id"));
-  if (!id.success) return notFound;
-  try {
-    const mailbox = await findManagedMailbox(id.data);
-    if (!mailbox) return notFound;
-    const secret = choosePassword(form, mailbox.row.local);
-    if ("error" in secret) return { error: secret.error };
-    if (!(await reserveHourly("mail-password", actor.user.id, HOURLY)))
-      return { error: `Você chegou ao limite de ${HOURLY} trocas de senha por hora. Tente de novo mais tarde.` };
-    await setMailboxPassword(mailbox.row.id, secret.password);
-    await audit(
-      actor,
-      "email.mailbox.password_reset",
-      mailbox.row.id,
-      { address: mailbox.row.address, generatedPassword: secret.generated },
-      mailbox.row.companyId,
-    );
-    const success = `Senha de ${mailbox.row.address} trocada. Os aplicativos conectados com a senha antiga vão pedir a nova.`;
-    return secret.generated ? { success, password: secret.password, address: mailbox.row.address } : { success };
-  } catch (error) {
-    return failure(error);
-  }
+  // The rule lives in mail-service.ts, shared with the app's mail.resetPassword.
+  return resetPassword(await getActor(), { id: field(form, "id"), mode: field(form, "mode"), password: field(form, "password") });
 }
 
 export async function updateMailbox(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!managesAnyMail(actor)) return blocked;
   const id = idInput.safeParse(field(form, "id"));
   if (!id.success) return notFound;
   const name = nameInput.safeParse(field(form, "name"));
@@ -172,7 +132,7 @@ export async function updateMailbox(_: ActionState, form: FormData): Promise<Act
     .slice(0, 50);
   try {
     const mailbox = await findManagedMailbox(id.data);
-    if (!mailbox) return notFound;
+    if (!mailbox || !canManageMail(actor, mailbox.row.companyId)) return notFound;
     const locals = aliases.map((alias) => normalizeLocalPart(alias, mailbox.row.domain)).filter(Boolean);
     const { aliasesChanged } = await updateMailboxOnServer(mailbox, { name: name.data || null, quotaBytes: quota, aliases: locals });
     await audit(
@@ -194,12 +154,12 @@ export async function updateMailbox(_: ActionState, form: FormData): Promise<Act
 
 export async function deleteMailbox(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!managesAnyMail(actor)) return blocked;
   const id = idInput.safeParse(field(form, "id"));
   if (!id.success) return notFound;
   try {
     const mailbox = await findManagedMailbox(id.data);
-    if (!mailbox) return notFound;
+    if (!mailbox || !canManageMail(actor, mailbox.row.companyId)) return notFound;
     if (field(form, "confirm").trim().toLowerCase() !== mailbox.row.address)
       return { error: `Para excluir, digite o endereço completo: ${mailbox.row.address}.` };
     const emails = await getAccountEmails(actor.user.id, actor.user.email);
@@ -226,7 +186,7 @@ function recipientsOf(form: FormData): { recipients: string[] } | { error: strin
 
 export async function createForward(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!managesAnyMail(actor)) return blocked;
   const domain = normalizeMailDomain(field(form, "domain"));
   if (!domain) return { error: "Escolha o domínio do redirecionamento." };
   const local = normalizeLocalPart(field(form, "local"), domain);
@@ -237,7 +197,9 @@ export async function createForward(_: ActionState, form: FormData): Promise<Act
   const parsed = recipientsOf(form);
   if ("error" in parsed) return parsed;
   try {
-    const created = await createForwardOnServer({ domain, local, name: name.data || null, recipients: parsed.recipients });
+    const refused = await managesDomain(actor, domain);
+    if (refused) return refused;
+    const created = await createForwardOnServer({ domain, local, name: name.data || null, recipients: parsed.recipients, team: actor.admin });
     await audit(actor, "email.forward.created", created.id, { address: created.address, recipients: parsed.recipients }, created.companyId);
     return { success: `Redirecionamento ${created.address} criado.` };
   } catch (error) {
@@ -247,17 +209,17 @@ export async function createForward(_: ActionState, form: FormData): Promise<Act
 
 export async function updateForward(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!managesAnyMail(actor)) return blocked;
   const id = idInput.safeParse(field(form, "id"));
-  if (!id.success) return notFound;
+  if (!id.success) return forwardGone;
   const name = nameInput.safeParse(field(form, "name"));
   if (!name.success) return { error: "Use até 120 caracteres na descrição." };
   const parsed = recipientsOf(form);
   if ("error" in parsed) return parsed;
   try {
     const forward = await findManagedForward(id.data);
-    if (!forward) return { error: "Esse redirecionamento não existe mais. Atualize a página." };
-    await updateForwardOnServer(forward, { name: name.data || null, recipients: parsed.recipients });
+    if (!forward || !canManageMail(actor, forward.companyId)) return forwardGone;
+    await updateForwardOnServer(forward, { name: name.data || null, recipients: parsed.recipients, team: actor.admin });
     await audit(actor, "email.forward.updated", forward.id, { address: forward.address, recipients: parsed.recipients }, forward.companyId);
     return { success: `Redirecionamento ${forward.address} salvo.` };
   } catch (error) {
@@ -267,12 +229,12 @@ export async function updateForward(_: ActionState, form: FormData): Promise<Act
 
 export async function deleteForward(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!managesAnyMail(actor)) return blocked;
   const id = idInput.safeParse(field(form, "id"));
-  if (!id.success) return { error: "Esse redirecionamento não existe mais. Atualize a página." };
+  if (!id.success) return forwardGone;
   try {
     const forward = await findManagedForward(id.data);
-    if (!forward) return { error: "Esse redirecionamento não existe mais. Atualize a página." };
+    if (!forward || !canManageMail(actor, forward.companyId)) return forwardGone;
     await deleteForwardOnServer(forward.id);
     await audit(actor, "email.forward.deleted", forward.id, { address: forward.address }, forward.companyId);
     return { success: `Redirecionamento ${forward.address} excluído.` };
@@ -294,7 +256,7 @@ const companyInput = z.string().uuid();
  */
 export async function linkMailDomain(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!actor.admin) return blocked;
   const company = companyInput.safeParse(field(form, "companyId"));
   if (!company.success) return { error: "Escolha a empresa." };
   const domain = normalizeMailDomain(field(form, "domain"));
@@ -327,7 +289,7 @@ export async function linkMailDomain(_: ActionState, form: FormData): Promise<Ac
 /** Unlinks a client's domain: its mailboxes stay on the server, untouched, and leave the Console. */
 export async function unlinkMailDomain(_: ActionState, form: FormData): Promise<ActionState> {
   const actor = await getActor();
-  if (!canManageMail(actor)) return blocked;
+  if (!actor.admin) return blocked;
   const id = z.string().uuid().safeParse(field(form, "id"));
   const gone = { error: "Esse domínio não está mais vinculado. Atualize a página." };
   if (!id.success) return gone;

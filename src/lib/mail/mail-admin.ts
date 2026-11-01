@@ -138,24 +138,35 @@ async function serverDomains(fresh = false) {
   return byName;
 }
 
-/** Anuntech's own domains and the ones linked to a client, with the company: read from the database every time. */
+/**
+ * Anuntech's own domains and the ones linked to a client, with the company
+ * and when each was linked: read from the database every time.
+ */
 async function allowedDomains() {
-  const linked = await db.select({ domain: mailDomains.domain, companyId: mailDomains.companyId }).from(mailDomains);
+  const linked = await db.select({ domain: mailDomains.domain, companyId: mailDomains.companyId, linkedAt: mailDomains.createdAt }).from(mailDomains);
   const allowed = new Map<string, string | null>(MAIL_DOMAINS.map((domain) => [domain, null]));
+  const linkedAt = new Map<string, number>();
   // A link to one of Anuntech's domains would hand it to a client: the actions refuse it, and it is ignored here too.
-  for (const row of linked) if (!isAnuntechDomain(row.domain)) allowed.set(row.domain, row.companyId);
-  return allowed;
+  for (const row of linked)
+    if (!isAnuntechDomain(row.domain)) {
+      allowed.set(row.domain, row.companyId);
+      linkedAt.set(row.domain, row.linkedAt.getTime());
+    }
+  return { allowed, linkedAt };
 }
 
 /**
- * The managed domains the server has, by name. A domain the server did not
- * have a minute ago (linked on another instance, just created) is looked up
- * again, at most once a minute.
+ * The managed domains the server has, by name. A domain missing from the
+ * server's list is asked about again at once when it was linked after the
+ * list was read (every instance, and each route bundle, keeps its own copy),
+ * and otherwise at most once a minute (just created on the server).
  */
 export async function managedDomains() {
-  const allowed = await allowedDomains();
+  const { allowed, linkedAt } = await allowedDomains();
   let server = await serverDomains();
-  if ([...allowed.keys()].some((name) => !server.has(name)) && Date.now() - askedFreshAt > 60_000) server = await serverDomains(true);
+  const missing = [...allowed.keys()].filter((name) => !server.has(name));
+  if (missing.length && (Date.now() - askedFreshAt > 60_000 || missing.some((name) => (linkedAt.get(name) ?? 0) >= askedFreshAt)))
+    server = await serverDomains(true);
   const managed = new Map<string, ManagedDomain>();
   for (const [name, companyId] of allowed) {
     const id = server.get(name);
@@ -199,6 +210,12 @@ export async function domainOverview(): Promise<{ rows: DomainRow[]; linkable: s
   };
 }
 
+/** The company a domain belongs to ({ companyId: null } for Anuntech's own), or null when the Console does not manage it. */
+export async function domainOwner(domain: string) {
+  const found = (await managedDomains()).get(domain);
+  return found ? { companyId: found.companyId } : null;
+}
+
 /** The managed domains for the screens' domain switcher, with whose they are: Anuntech's first, then by domain. */
 export async function domainChoices() {
   const managed = await managedDomains();
@@ -207,7 +224,7 @@ export async function domainChoices() {
     ids.length ? (await db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, ids))).map((c) => [c.id, c.name]) : [],
   );
   return [...managed]
-    .map(([domain, { companyId }]) => ({ domain, companyName: companyId ? (names.get(companyId) ?? "") : "Anuntech" }))
+    .map(([domain, { companyId }]) => ({ domain, companyId, companyName: companyId ? (names.get(companyId) ?? "") : "Anuntech" }))
     .sort((a, b) => Number(!isOwnMailDomain(a.domain)) - Number(!isOwnMailDomain(b.domain)) || a.domain.localeCompare(b.domain));
 }
 
@@ -393,7 +410,7 @@ async function managedDomain(domain: string) {
   const found = (await managedDomains()).get(domain);
   if (found) return found;
   throw new MailRefusal(
-    (await allowedDomains()).has(domain) ? `O domínio ${domain} não está no servidor de e-mail.` : `O domínio ${domain} não é gerenciado pelo Console.`,
+    (await allowedDomains()).allowed.has(domain) ? `O domínio ${domain} não está no servidor de e-mail.` : `O domínio ${domain} não é gerenciado pelo Console.`,
   );
 }
 
@@ -488,14 +505,18 @@ export async function deleteMailbox(id: string) {
 
 /**
  * Forward destinations: any outside address, and inside a managed domain
- * only one that exists (a typo would bounce every message).
+ * only one that exists (a typo would bounce every message). A client's
+ * forward checks only the company's own domains: another client's addresses
+ * are outside ones, so nobody learns which mailboxes exist elsewhere.
+ * `within` undefined: the team, every managed domain.
  */
-async function checkRecipients(recipients: string[], own: string) {
+async function checkRecipients(recipients: string[], own: string, within?: string | null) {
   if (!recipients.length) throw new MailRefusal("Digite pelo menos um destino.");
   if (recipients.length > FORWARD_RECIPIENTS_MAX) throw new MailRefusal(`Use até ${FORWARD_RECIPIENTS_MAX} destinos.`);
   if (recipients.includes(own)) throw new MailRefusal("O redirecionamento não pode mandar para ele mesmo.");
   const domains = await managedDomains();
-  for (const [domain, { id }] of domains) {
+  for (const [domain, { id, companyId }] of domains) {
+    if (within !== undefined && companyId !== within) continue;
     const inside = recipients.filter((r) => domainOf(r) === domain);
     if (!inside.length) continue;
     const taken = await takenLocals(id);
@@ -506,12 +527,13 @@ async function checkRecipients(recipients: string[], own: string) {
 
 const recipientSet = (recipients: string[]) => Object.fromEntries(recipients.map((r) => [r, true]));
 
-export async function createForward(input: { domain: string; local: string; name: string | null; recipients: string[] }) {
+/** `team`: the destinations are checked in every managed domain, not only the company's. */
+export async function createForward(input: { domain: string; local: string; name: string | null; recipients: string[]; team: boolean }) {
   const problem = localPartProblem(input.local);
   if (problem) throw new MailRefusal(problem);
   const { id, companyId } = await managedDomain(input.domain);
   const address = `${input.local}@${input.domain}`;
-  await checkRecipients(input.recipients, address);
+  await checkRecipients(input.recipients, address, input.team ? undefined : companyId);
   await ensureFree(id, input.local);
   const listId = await createOne("x:MailingList", {
     name: input.local,
@@ -523,8 +545,8 @@ export async function createForward(input: { domain: string; local: string; name
   return { id: listId, address, companyId };
 }
 
-export async function updateForward(forward: ForwardRow, input: { name: string | null; recipients: string[] }) {
-  await checkRecipients(input.recipients, forward.address);
+export async function updateForward(forward: ForwardRow, input: { name: string | null; recipients: string[]; team: boolean }) {
+  await checkRecipients(input.recipients, forward.address, input.team ? undefined : forward.companyId);
   // Sending the whole set replaces it: destinations taken out are gone.
   await updateOne("x:MailingList", forward.id, { description: input.name, recipients: recipientSet(input.recipients) });
 }

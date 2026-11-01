@@ -21,7 +21,7 @@ Isso abre uma exceção à regra 1 de [rules.md](rules.md) ("cobranças são cri
 
 **Fase 1b:** a suspensão de um produto do tipo "Servidor de e-mail" tira `emailSend` das caixas dos domínios da empresa e devolve na reativação, marcando os passos sozinha (o recebimento continua). Criar o domínio no servidor pelo Console, quando a conta de serviço tiver a permissão.
 
-**Fase 2, o Administrador do cliente gerencia o que já tem:** vê as caixas e o uso, cria e exclui caixa dentro do que contratou, troca senha, cria apelidos e redirecionamentos e configura os aparelhos. Um membro ligado a uma caixa troca a própria senha e vê o espaço, sem valores. Na web e no app. Ainda sem compra. Na mesma entrega, o e-mail passa a ser aberto pelo produto em Produtos, e o item E-mail sai do menu da equipe (ver [Onde fica o e-mail](#onde-fica-o-e-mail)).
+**Fase 2, o Administrador do cliente gerencia o que já tem (feita em 01/11, ramo `codex/email-cliente`; decisões por padrão em [memory.md](memory.md)):** vê as caixas e o uso, cria e exclui caixa dentro do que contratou, troca senha, cria apelidos e redirecionamentos e configura os aparelhos. Um membro ligado a uma caixa troca a própria senha e vê o espaço, sem valores. Na web e no app. Ainda sem compra. Na mesma entrega, o e-mail passa a ser aberto pelo produto em Produtos, e o item E-mail sai do menu da equipe (ver [Onde fica o e-mail](#onde-fica-o-e-mail)).
 
 **Fase 3, o cliente compra:** preços em Configurações, pedido com o proporcional, recorrência recalculada, fatura emitida sozinha, ativação na hora (empresa em dia) ou depois do pagamento, Pix conferido mais rápido, limites antiabuso e o aceite das condições. Entra a exceção à regra 1.
 

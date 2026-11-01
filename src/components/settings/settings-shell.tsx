@@ -5,6 +5,7 @@ import {
   EraserIcon,
   PaletteIcon,
   FileSignatureIcon,
+  MailIcon,
   PackageIcon,
   PlugZapIcon,
   ShieldCheckIcon,
@@ -114,6 +115,12 @@ export async function SettingsShell({
                 href: "/configuracoes/integracoes",
                 label: "Integrações",
                 icon: <PlugZapIcon />,
+              },
+              {
+                key: "email" as const,
+                href: "/configuracoes/email",
+                label: "E-mail",
+                icon: <MailIcon />,
               },
               {
                 key: "automations" as const,

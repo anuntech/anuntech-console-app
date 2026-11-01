@@ -156,7 +156,7 @@ export default function Products() {
           const price = item.money?.amountCents != null ? `${money(item.money.amountCents)}${intervalSuffix(item.money.interval)}` : undefined;
           const due = item.money?.nextDueDate ? `Vence em ${civilDate(item.money.nextDueDate)}` : null;
           const meta = [first?.showCompany && !company ? item.company : null, due].filter(Boolean).join(" · ");
-          const opens = item.opensAs !== "none" || item.status === "suspended";
+          const opens = !!item.mailCompanyId || item.opensAs !== "none" || item.status === "suspended";
           return (
             <View style={[groupedItem(palette, index, rows.length), { opacity: list.isPlaceholderData ? 0.6 : 1 }]}>
               <ListRow
@@ -181,7 +181,7 @@ export default function Products() {
                 }
                 value={price}
                 money={!!price}
-                trailing={!opens ? "none" : item.opensAs === "link" && item.status !== "suspended" ? "external" : "chevron"}
+                trailing={!opens ? "none" : item.opensAs === "link" && item.status !== "suspended" && !item.mailCompanyId ? "external" : "chevron"}
                 accessibilityLabel={[item.name, item.status !== "active" ? item.statusLabel : null, lineOf(item), first?.showCompany ? item.company : null, price, due, opens ? null : "Link em breve"]
                   .filter(Boolean)
                   .join(", ")}
