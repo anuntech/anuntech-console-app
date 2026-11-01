@@ -7,10 +7,12 @@ import { orcamentosContratosArticles } from "./orcamentos-contratos";
 import { condicoesPessoasArticles } from "./condicoes-pessoas";
 import { bookmarksAssistenteArticles } from "./bookmarks-assistente";
 import { segurancaArticles } from "./seguranca";
+import { emailArticles } from "./email";
 
 /** Every help article, in the order of HELP_CATEGORIES and then as each file lists them. */
 export const HELP_ARTICLES: HelpArticle[] = [
   ...comecarContaArticles,
+  ...emailArticles,
   ...chamadosArticles,
   ...projetosProdutosArticles,
   ...financeiroArticles,

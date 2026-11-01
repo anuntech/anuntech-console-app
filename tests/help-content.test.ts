@@ -110,6 +110,8 @@ test("search finds the article people mean, with or without accents", () => {
   assert.ok(top("prazo de resposta do chamado", 4).includes("prazos-de-atendimento"), String(top("prazo de resposta do chamado", 4)));
   assert.ok(top("nota fiscal").includes("nota-fiscal"));
   assert.ok(top("abrir chamado").includes("abrir-um-chamado"));
+  assert.ok(top("configurar email no outlook").includes("configurar-email-nos-aparelhos"), String(top("configurar email no outlook")));
+  assert.ok(top("trocar senha do email").includes("gerenciar-caixas-de-email"), String(top("trocar senha do email")));
   assert.deepEqual(top("xyzzy plugh"), []);
   assert.equal(fold("Cobrança Ação"), "cobranca acao");
 });

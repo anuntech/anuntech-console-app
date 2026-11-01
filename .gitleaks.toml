@@ -9,3 +9,10 @@ condition = "AND"
 paths = ['''^src/app/api/admin/[a-z-]+-[0-9a-f]{12}/route\.ts$''']
 regexTarget = "match"
 regexes = ['''^TOKEN_SHA256 = "[a-f0-9]{64}"$''']
+
+# Test fixtures of the e-mail suite (scripts/jmap-mock.mjs, scripts/email-smoke.mjs)
+# as first written, before they moved into named constants: values the JMAP
+# stand-in knows, not credentials.
+[[allowlists]]
+description = "Senhas de exemplo do simulador JMAP (commit em que entraram)"
+commits = ["86f7107ae2bff3b33658981bebd04769efa67cd7"]

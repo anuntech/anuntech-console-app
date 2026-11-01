@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormError, ServerForm, SubmitButton } from "@/components/console/server-form";
-import type { FormAction } from "@/lib/action-state";
+import type { ActionState, FormAction } from "@/lib/action-state";
 
 const widths = {
   md: "sm:max-w-md",
@@ -67,8 +67,8 @@ export function FormSheet({
   description?: ReactNode;
   action: FormAction;
   prepare?: (form: FormData) => Promise<FormData>;
-  /** Defaults to closing the sheet, unless the action navigates (returns `href`). */
-  onSuccess?: () => void;
+  /** Defaults to closing the sheet, unless the action navigates (returns `href`). Gets the action's answer. */
+  onSuccess?: (state: ActionState) => void;
   /** Remounts the form (and clears it) when the record changes. */
   formKey?: string;
   submitLabel: ReactNode;
@@ -110,7 +110,7 @@ export function FormSheet({
       action={action}
       prepare={prepare}
       onSuccess={(state) => {
-        if (onSuccess) return onSuccess();
+        if (onSuccess) return onSuccess(state);
         // An action that returns `href` navigates to the new record; closing here
         // would make a route sheet go back and undo that navigation.
         if (!state.href) onOpenChange(false);

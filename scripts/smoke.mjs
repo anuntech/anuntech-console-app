@@ -9,6 +9,8 @@ import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runSuspensionTests } from "./suspension-smoke.mjs";
 import { runArquivosTests } from "./arquivos-smoke.mjs";
 import { startR2Mock } from "./r2-mock.mjs";
+import { startJmapMock } from "./jmap-mock.mjs";
+import { runEmailTests } from "./email-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
 import { runHelpTests } from "./help-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
@@ -33,6 +35,8 @@ assert.match(
 const port = process.env.CONSOLE_TEST_HTTP_PORT || "3101";
 // Only the assistant suite (test-isolated.mjs --assistant-only): the setup runs, the other sections do not.
 const assistantOnly = !!process.env.CONSOLE_TEST_ASSISTANT_ONLY;
+// Only the e-mail suite (test-isolated.mjs --email-only), on the same fixtures.
+const emailOnly = !!process.env.CONSOLE_TEST_EMAIL_ONLY;
 const base = `http://127.0.0.1:${port}`;
 const marker = randomUUID().slice(0, 8);
 const adminEmail = `qa-admin-${marker}@example.invalid`;
@@ -59,7 +63,8 @@ const passKey = Buffer.from(
 const noticeDir = mkdtempSync(join(tmpdir(), "console-notices-"));
 const noticeFile = join(noticeDir, "messages.jsonl"),
   noticeFlags = join(noticeDir, "flags.json"),
-  aiFile = join(noticeDir, "ai-gateway.jsonl");
+  aiFile = join(noticeDir, "ai-gateway.jsonl"),
+  dnsFile = join(noticeDir, "dns.json");
 const transcriptions = () => {
   try {
     return readFileSync(aiFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((e) => e.transcription);
@@ -83,6 +88,7 @@ const sentNotices = () => {
 flags({ approved: true });
 let server;
 let r2;
+let jmap;
 let logs = "";
 let passed = 0;
 const companyIds = [ids.a, ids.b];
@@ -271,6 +277,8 @@ try {
   assert.ok(!taken, `A porta ${port} já está em uso: feche o outro servidor ou use CONSOLE_TEST_HTTP_PORT.`);
   // Arquivos talks to a local stand-in for R2 (scripts/r2-mock.mjs), never to the real bucket in .env.local.
   r2 = await startR2Mock();
+  // E-mail talks to a local stand-in for Stalwart's admin API (scripts/jmap-mock.mjs), never to the real mail server.
+  jmap = await startJmapMock();
   server = spawn(
     process.execPath,
     [
@@ -289,7 +297,7 @@ try {
         GOOGLE_CLIENT_ID: "console-regression-test",
         GOOGLE_CLIENT_SECRET: "test",
         // The AI Gateway mock goes last so it wraps the other mocks' fetch.
-        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs --require=${process.cwd()}/scripts/blob-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
+        NODE_OPTIONS: `--require=${process.cwd()}/scripts/inter-mock.cjs --require=${process.cwd()}/scripts/notice-mock.cjs --require=${process.cwd()}/scripts/blob-mock.cjs --require=${process.cwd()}/scripts/dns-mock.cjs --require=${process.cwd()}/scripts/ai-gateway-mock.cjs`,
         // A key wins over OIDC: a Vercel token in .env.local is never used, and the mock checks this one.
         AI_GATEWAY_API_KEY: "test",
         CONSOLE_TEST_ASSISTANT_FILE: aiFile,
@@ -314,6 +322,11 @@ try {
         R2_BUCKET: "console-test",
         R2_ACCESS_KEY_ID: "test",
         R2_SECRET_ACCESS_KEY: "test",
+        STALWART_URL: jmap.endpoint,
+        STALWART_USER: jmap.user,
+        STALWART_PASSWORD: jmap.password,
+        // The DNS health asks a stand-in resolver (scripts/dns-mock.cjs), never the real DNS.
+        CONSOLE_TEST_DNS_FILE: dnsFile,
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -351,7 +364,7 @@ try {
         }),
       ],
     );
-  } else if (!assistantOnly) {
+  } else if (!assistantOnly && !emailOnly) {
     const lookupPath = "/api/cadastro/consulta?tipo=cnpj&valor=12345678000199";
     ok(
       (await request(lookupPath)).status === 401,
@@ -2198,9 +2211,12 @@ try {
       [clientPreferenceKey],
     );
   }
+  const emailSuite = () => runEmailTests({ database, people, request, ok, marker, base, jmap, notFoundPage, dnsFile, serverLogs: () => logs });
   if (assistantOnly) {
     // --assistant-only: just the assistant, against the same fixtures.
     await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, aiFile });
+  } else if (emailOnly) {
+    await emailSuite();
   } else {
     await runBillingTests({
       database,
@@ -2229,16 +2245,19 @@ try {
     await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, aiFile });
     await runContractSigningTests({ database, ids, request, ok, marker, base });
     await runWorkspaceDomainTests({ people, ok, base, notFoundPage, passKeyId });
+    await emailSuite();
   }
   // Every AI call of the run, as the Gateway mock saw it: client data only to providers that keep nothing and train
   // on nothing (the catalog icons carry none), and nothing left for OpenRouter or a Gateway path the mock does not know.
-  const aiCalls = readFileSync(aiFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
-  const clientData = aiCalls.filter((e) => "messages" in e || e.jev || e.draft || e.journey || e.transcription);
-  ok(
-    clientData.length > 0 && clientData.every((e) => e.zeroDataRetention === true && e.disallowPromptTraining === true),
-    `Toda chamada de IA com dado de cliente vai só a provedores que não guardam nem treinam (${clientData.length} chamadas)`,
-  );
-  ok(!aiCalls.some((e) => e.unexpected || e.drift), "Nenhuma chamada de IA fora do AI Gateway nem fora do protocolo conhecido");
+  if (!emailOnly) {
+    const aiCalls = readFileSync(aiFile, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    const clientData = aiCalls.filter((e) => "messages" in e || e.jev || e.draft || e.journey || e.transcription);
+    ok(
+      clientData.length > 0 && clientData.every((e) => e.zeroDataRetention === true && e.disallowPromptTraining === true),
+      `Toda chamada de IA com dado de cliente vai só a provedores que não guardam nem treinam (${clientData.length} chamadas)`,
+    );
+    ok(!aiCalls.some((e) => e.unexpected || e.drift), "Nenhuma chamada de IA fora do AI Gateway nem fora do protocolo conhecido");
+  }
   console.log(
     `Concluído: ${passed} verificações HTTP. OAuth testado até redirecionamento, sem autenticar no Google.`,
   );
@@ -2254,6 +2273,7 @@ try {
     await new Promise((r) => server.once("exit", r));
   }
   await r2?.close();
+  await jmap?.close();
   await database.query("delete from console_file_uploads where actor_id=any($1::text[]) or company_id=any($2::text[])", [
     Object.values(people).map((p) => p.id),
     companyIds,

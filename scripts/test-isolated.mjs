@@ -112,6 +112,7 @@ try {
     "--billing-only": "scripts/smoke.mjs",
     "--regression-only": "scripts/smoke.mjs",
     "--assistant-only": "scripts/smoke.mjs",
+    "--email-only": "scripts/smoke.mjs",
   };
   const focused = Object.keys(focusedSuites).find((flag) =>
     process.argv.includes(flag),
@@ -140,6 +141,7 @@ try {
         CONSOLE_TEST_ASSISTANT_ONLY: process.argv.includes("--assistant-only")
           ? "1"
           : "",
+        CONSOLE_TEST_EMAIL_ONLY: process.argv.includes("--email-only") ? "1" : "",
       },
     });
     const status = await new Promise((resolve) => child.on("exit", resolve));
