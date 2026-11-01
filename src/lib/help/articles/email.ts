@@ -6,7 +6,7 @@ export const emailArticles: HelpArticle[] = [
     slug: "configurar-email-nos-aparelhos",
     category: "conta",
     title: "Configurar o e-mail no celular e no computador",
-    summary: "Os dados para entrar numa caixa @anuntech.com pelo app Mail, Outlook, Gmail ou Mailbird, e o perfil pronto para iPhone e Mac.",
+    summary: "Os dados para entrar numa caixa do servidor de e-mail da Anuntech (@anuntech.com ou o domínio da sua empresa) pelo app Mail, Outlook, Gmail ou Mailbird, e o perfil pronto para iPhone e Mac.",
     audience: "todos",
     keywords: [
       "email",
@@ -36,7 +36,7 @@ export const emailArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Os e-mails de uma caixa @anuntech.com são lidos e enviados pelo aplicativo de e-mail que você já usa: Mail do iPhone e do Mac, Outlook, Gmail, Thunderbird ou Mailbird. O Console não abre as mensagens; nele a equipe da Anuntech só cuida das caixas (senha, espaço, apelidos e redirecionamentos).",
+            text: "Os e-mails de uma caixa do servidor da Anuntech, @anuntech.com ou do domínio da sua empresa, são lidos e enviados pelo aplicativo de e-mail que você já usa: Mail do iPhone e do Mac, Outlook, Gmail, Thunderbird ou Mailbird. O Console não abre as mensagens; nele a equipe da Anuntech só cuida das caixas (senha, espaço, apelidos e redirecionamentos).",
           },
         ],
       },
@@ -46,7 +46,7 @@ export const emailArticles: HelpArticle[] = [
           {
             kind: "pairs",
             items: [
-              { term: "Usuário", text: "O endereço completo, por exemplo nome@anuntech.com." },
+              { term: "Usuário", text: "O endereço completo, por exemplo nome@anuntech.com ou nome@suaempresa.com.br." },
               { term: "Senha", text: "A da caixa, que a equipe passou quando criou ou trocou a senha." },
               { term: "Recebimento (IMAP)", text: "Servidor mail.anuntech.com, porta 993, segurança SSL/TLS." },
               { term: "Envio (SMTP)", text: "Servidor mail.anuntech.com, porta 465, segurança SSL/TLS. Se o aplicativo não aceitar, porta 587 com STARTTLS." },
@@ -143,7 +143,7 @@ export const emailArticles: HelpArticle[] = [
       },
       {
         q: "O aplicativo diz que a senha está errada.",
-        a: "Confira se o usuário é o endereço completo, com @anuntech.com, e se a senha foi digitada sem espaço no começo ou no fim. Se a senha foi trocada há pouco, cada aparelho pede a nova uma vez.",
+        a: "Confira se o usuário é o endereço completo, com o @ e o domínio, e se a senha foi digitada sem espaço no começo ou no fim. Se a senha foi trocada há pouco, cada aparelho pede a nova uma vez.",
       },
       {
         q: "Recebo, mas não consigo enviar.",
@@ -161,7 +161,7 @@ export const emailArticles: HelpArticle[] = [
     slug: "gerenciar-caixas-de-email",
     category: "conta",
     title: "Gerenciar as caixas de e-mail (equipe Anuntech)",
-    summary: "Como a equipe da Anuntech cria caixas @anuntech.com, troca senhas, muda o espaço e os apelidos, faz redirecionamentos e confere o DNS em E-mail.",
+    summary: "Como a equipe da Anuntech vincula o domínio de um cliente, cria caixas, troca senhas, muda o espaço e os apelidos, faz redirecionamentos e confere o DNS em E-mail.",
     audience: "todos",
     keywords: [
       "email",
@@ -183,6 +183,8 @@ export const emailArticles: HelpArticle[] = [
       "spf",
       "dkim",
       "dmarc",
+      "dominio",
+      "vincular dominio",
     ],
     sections: [
       {
@@ -190,7 +192,25 @@ export const emailArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "Por enquanto, só a equipe da Anuntech, e só as caixas do domínio anuntech.com. O item E-mail aparece no menu da equipe. As contas de administração do servidor e as que têm papel próprio aparecem na lista como gerenciadas no servidor, sem ações. O Console não lê nem envia e-mails: quem usa a caixa lê pelo aplicativo de e-mail.",
+            text: "Por enquanto, só a equipe da Anuntech. O item E-mail aparece no menu da equipe e mostra um domínio por vez: anuntech.com e os domínios dos clientes, escolhidos no seletor ao lado dos botões. As contas de administração do servidor e as que têm papel próprio aparecem na lista como gerenciadas no servidor, sem ações. O Console não lê nem envia e-mails: quem usa a caixa lê pelo aplicativo de e-mail.",
+          },
+        ],
+      },
+      {
+        title: "Domínios dos clientes",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Em E-mail, clique em Domínios. A lista mostra cada domínio, a empresa dele e quantas caixas tem.",
+              "Clique em Vincular domínio, escolha a empresa e o domínio. A lista traz os domínios que já estão no servidor de e-mail e ainda não são de ninguém.",
+              "Pronto: as caixas, os redirecionamentos e o DNS do domínio passam a ser gerenciados no Console, e cada mudança aparece na atividade da empresa.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Um domínio novo precisa ser criado no servidor de e-mail antes de aparecer aqui. Desvincular (no menu do domínio, digitando o domínio) só tira o domínio do Console: as caixas e os e-mails continuam no servidor, funcionando.",
           },
         ],
       },

@@ -17,7 +17,7 @@ const INITIAL_FIXTURE = "Inicial-Forte-2026";
  * addresses and the hourly limit. No password reaches the audit, the logs or
  * the database, and the Console never asks the server for a mailbox's mail.
  */
-export async function runEmailTests({ database: db, people, request, ok, marker, base, jmap, notFoundPage, dnsFile, serverLogs }) {
+export async function runEmailTests({ database: db, ids, people, request, ok, marker, base, jmap, notFoundPage, dnsFile, serverLogs }) {
   const manifest = JSON.parse(readFileSync(".next/server/server-reference-manifest.json", "utf8")).node;
   const actionId = (name) => {
     const found = Object.entries(manifest).filter(([, action]) => action.exportedName === name);
@@ -136,7 +136,7 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
       ok(reply.text.includes(why) && !passwordIn(reply), `Endereço ${taken} é recusado (${why})`);
     }
     const otherDomain = await call("/email", "admin", "createMailbox", { domain: "teste.anuntech.cloud", local: `qa-x-${marker}`, name: "", quota: "1", mode: "generate" });
-    ok(otherDomain.text.includes("não tem permissão"), "Caixa em outro domínio é recusada");
+    ok(otherDomain.text.includes("não é gerenciado pelo Console"), "Caixa em outro domínio é recusada");
     ok(
       !jmap.calls.some((c) => c.name === "x:Account/set" && Object.values(c.args.create ?? {}).some((value) => value.domainId === test)),
       "Nenhuma caixa em outro domínio chegou ao servidor",
@@ -294,6 +294,99 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
     await call("/email", "admin", "deleteMailbox", { id: own, confirm: `${ownLocal}@anuntech.com`, own: "on" });
     ok(!jmap.accounts.has(own) && (await one("select details from console_audit_events where action='email.mailbox.deleted' and entity_id=$1", [own]))?.details?.own === true, "Com a confirmação a mais, a própria caixa é excluída");
 
+    // A client's domain: on the server already, managed only once the team links it to the company.
+    const clientDomain = `cliente-${marker}.example`;
+    const looseDomain = `solto-${marker}.example`;
+    const clientDomainId = jmap.addDomain(clientDomain, {
+      dnsZoneFile: `$ORIGIN ${clientDomain}.\n@ IN MX 10 mx1.anuntech.cloud.\n@ IN TXT "v=spf1 mx -all"\n_dmarc IN TXT "v=DMARC1; p=none"\n`,
+    });
+    const looseDomainId = jmap.addDomain(looseDomain);
+    const contact = jmap.addAccount({ name: "contato", domainId: clientDomainId, description: "Contato", quota: 5 * GB, used: 0.5 * GB });
+    jmap.addAccount({ name: `ninguem-${marker}`, domainId: looseDomainId });
+    const companyA = (await one("select name from console_companies where id=$1", [ids.a])).name;
+    const linkOf = (domain) => one("select id, company_id from console_mail_domains where domain=$1", [domain]);
+
+    ok(notFoundPage(await request(`/email?dominio=${clientDomain}`, "admin")), "Domínio sem vínculo não abre em /email");
+    const beforeLink = await call("/email", "admin", "createMailbox", { domain: clientDomain, local: `qa-${marker}`, name: "", quota: "1", mode: "generate" });
+    const resetBeforeLink = await call("/email", "admin", "resetMailboxPassword", { id: contact, mode: "generate" });
+    ok(
+      beforeLink.text.includes("não é gerenciado pelo Console") && resetBeforeLink.text.includes("não é gerenciada pelo Console") && !sets(contact).length,
+      "Sem vínculo, o Console não cria nem troca senha no domínio do cliente",
+    );
+    const domainsPage = await request("/email/dominios", "admin");
+    // The sheet's choices travel in the page's data even while it is closed.
+    ok(
+      domainsPage.status === 200 && domainsPage.text.includes("Vincular domínio") && domainsPage.text.includes(clientDomain) && domainsPage.text.includes(looseDomain),
+      "Domínios oferece para vincular os domínios do servidor que ainda não são de ninguém",
+    );
+    ok(!domainsPage.text.includes("teste.anuntech.cloud"), "O domínio da infraestrutura nunca aparece para vincular");
+    for (const who of ["manager", "support", "assisted"]) ok(notFoundPage(await request("/email/dominios", who)), `Domínios não abre para ${who}`);
+
+    for (const [values, why, label] of [
+      [{ companyId: ids.a, domain: "teste.anuntech.cloud" }, "não são vinculados a clientes", "domínio da infraestrutura"],
+      [{ companyId: ids.a, domain: "anuntech.com" }, "não são vinculados a clientes", "domínio da Anuntech"],
+      [{ companyId: ids.a, domain: `nao-existe-${marker}.example` }, "ainda não está no servidor", "domínio fora do servidor"],
+      [{ companyId: ids.a, domain: "não é domínio" }, "Escolha um domínio", "texto que não é domínio"],
+      [{ companyId: "00000000-0000-4000-8000-000000000000", domain: clientDomain }, "Escolha a empresa", "empresa inexistente"],
+    ]) {
+      const reply = await call("/email/dominios", "admin", "linkMailDomain", values);
+      ok(reply.text.includes(why) && !(await linkOf(values.domain)), `Vincular é recusado: ${label}`);
+    }
+    for (const who of ["manager", "support", "assisted", undefined]) await call("/email/dominios", who, "linkMailDomain", { companyId: ids.a, domain: clientDomain });
+    ok(!(await linkOf(clientDomain)), "Cliente, acesso assistido e quem não tem sessão não vinculam domínio");
+
+    const linked = await call("/email/dominios", "admin", "linkMailDomain", { companyId: ids.a, domain: ` ${clientDomain.toUpperCase()}. ` });
+    const link = await linkOf(clientDomain);
+    ok(linked.text.includes(`vinculado a ${companyA}`) && link?.company_id === ids.a, "A equipe vincula o domínio do servidor à empresa");
+    const linkAudit = await one("select company_id, details from console_audit_events where action='email.domain.linked' and entity_id=$1", [link.id]);
+    ok(linkAudit?.company_id === ids.a && linkAudit.details.domain === clientDomain, "O vínculo fica na auditoria, na empresa");
+    const twice = await call("/email/dominios", "admin", "linkMailDomain", { companyId: ids.b, domain: clientDomain });
+    ok(twice.text.includes("já está vinculado") && (await linkOf(clientDomain)).company_id === ids.a, "Um domínio é de uma empresa só");
+    const linkedList = await request("/email/dominios", "admin");
+    ok(linkedList.text.includes(clientDomain) && linkedList.text.includes(companyA) && linkedList.text.includes("1 caixa"), "Vinculado, o domínio aparece em Domínios com a empresa e as caixas");
+
+    // Linked: the team manages it like anuntech.com, one domain per page.
+    const clientPage = await request(`/email?dominio=${clientDomain}`, "admin");
+    ok(
+      clientPage.status === 200 && clientPage.text.includes(`contato@${clientDomain}`) && clientPage.text.includes(companyA) && !clientPage.text.includes("kauan@anuntech.com"),
+      "/email?dominio= mostra as caixas do domínio do cliente, com a empresa",
+    );
+    const ownPage = await request("/email", "admin");
+    ok(ownPage.text.includes("kauan@anuntech.com") && !ownPage.text.includes(`contato@${clientDomain}`) && ownPage.text.includes(`value="${clientDomain}"`), "Sem domínio escolhido, /email mostra anuntech.com e oferece os outros no seletor");
+    ok(notFoundPage(await request(`/email?dominio=${looseDomain}`, "admin")), "Domínio do servidor que não é de ninguém continua fora de /email");
+    const clientLocal = `qa-cliente-${marker}`;
+    const clientCreated = await call(`/email?dominio=${clientDomain}`, "admin", "createMailbox", { domain: clientDomain, local: clientLocal, name: "Cliente QA", quota: "5", mode: "generate" });
+    const clientNew = jmap.find(jmap.accounts, clientLocal, clientDomainId);
+    shown.push(passwordIn(clientCreated));
+    ok(clientCreated.text.includes(`${clientLocal}@${clientDomain} criada`) && clientNew?.domainId === clientDomainId, "A equipe cria caixa no domínio do cliente");
+    const clientAudit = await one("select company_id from console_audit_events where action='email.mailbox.created' and entity_id=$1", [clientNew.id]);
+    ok(clientAudit?.company_id === ids.a, "A caixa do cliente fica na auditoria da empresa");
+    const contactReset = await call(`/email?dominio=${clientDomain}`, "admin", "resetMailboxPassword", { id: contact, mode: "generate" });
+    shown.push(passwordIn(contactReset));
+    ok(contactReset.text.includes("trocada") && jmap.secretOf(contact) === passwordIn(contactReset), "A equipe troca a senha de uma caixa do cliente");
+    const badForward = await call("/email/redirecionamentos", "admin", "createForward", { domain: clientDomain, local: `vendas-${marker}`, name: "", recipients: `ninguem@${clientDomain}` });
+    ok(badForward.text.includes("não existe") && !jmap.find(jmap.lists, `vendas-${marker}`, clientDomainId), "Redirecionamento para caixa inexistente do cliente é recusado");
+    await call("/email/redirecionamentos", "admin", "createForward", { domain: clientDomain, local: `vendas-${marker}`, name: "Vendas", recipients: `contato@${clientDomain}` });
+    const clientForward = jmap.find(jmap.lists, `vendas-${marker}`, clientDomainId);
+    ok(!!clientForward && (await one("select company_id from console_audit_events where action='email.forward.created' and entity_id=$1", [clientForward.id]))?.company_id === ids.a, "Redirecionamento no domínio do cliente, na auditoria da empresa");
+    const clientForwards = await request(`/email/redirecionamentos?dominio=${clientDomain}`, "admin");
+    ok(clientForwards.status === 200 && clientForwards.text.includes(`vendas-${marker}@${clientDomain}`) && !clientForwards.text.includes("alessandro@anuntech.com"), "Redirecionamentos mostra só os do domínio escolhido");
+    const clientDns = await request(`/email/dns?dominio=${clientDomain}`, "admin");
+    ok(clientDns.status === 200 && clientDns.text.includes("Recebimento (MX)") && clientDns.text.includes(clientDomain), "Saúde do DNS do domínio do cliente");
+    ok(notFoundPage(await request(`/email/dns?dominio=${looseDomain}`, "admin")), "DNS de domínio sem vínculo não abre");
+    ok(notFoundPage(await request(`/email?dominio=${clientDomain}`, "manager")), "O Administrador do cliente ainda não abre o e-mail (próxima fase)");
+
+    // Unlinking: the typed domain, only the team; the server keeps everything.
+    const wrongUnlink = await call("/email/dominios", "admin", "unlinkMailDomain", { id: link.id, confirm: "outro.example" });
+    await call("/email/dominios", "manager", "unlinkMailDomain", { id: link.id, confirm: clientDomain });
+    ok(wrongUnlink.text.includes("digite o domínio") && !!(await linkOf(clientDomain)), "Desvincular pede o domínio digitado e não é do cliente");
+    const unlinked = await call("/email/dominios", "admin", "unlinkMailDomain", { id: link.id, confirm: clientDomain.toUpperCase() });
+    ok(unlinked.text.includes("continuam no servidor") && !(await linkOf(clientDomain)), "A equipe desvincula o domínio");
+    ok(jmap.accounts.has(contact) && jmap.accounts.has(clientNew.id) && jmap.lists.has(clientForward.id), "Desvincular não apaga nada no servidor");
+    ok((await one("select company_id from console_audit_events where action='email.domain.unlinked' and entity_id=$1", [link.id]))?.company_id === ids.a, "O desvínculo fica na auditoria da empresa");
+    const afterUnlink = await call("/email", "admin", "resetMailboxPassword", { id: contact, mode: "generate" });
+    ok(afterUnlink.text.includes("não é gerenciada pelo Console") && notFoundPage(await request(`/email?dominio=${clientDomain}`, "admin")), "Desvinculado, o domínio sai do Console");
+
     // Clients and no session change nothing.
     const accountsBefore = jmap.accounts.size;
     await call("/email", "manager", "createMailbox", { domain: "anuntech.com", local: `qa-cliente-${marker}`, name: "", quota: "1", mode: "generate" });
@@ -326,12 +419,13 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
     ok(jmap.calls.every((c) => c.name.startsWith("x:")), "O Console só usou os métodos de gestão (x:), nunca leu caixa nem mensagem");
     ok(!jmap.calls.some((c) => c.name.endsWith("/get") && (c.args.properties ?? ["credentials"]).includes("credentials")), "O Console nunca pediu as credenciais de volta");
     ok(jmap.requests.length > 0 && jmap.requests.every((r) => r.authorized), "Todo pedido ao servidor foi com a conta de serviço");
-    const secrets = [...shown, typedSecret, typedReset];
+    const secrets = [...shown, typedSecret, typedReset].filter(Boolean);
     const stored = await db.query("select details::text as text from console_audit_events where action like 'email.%'");
     ok(stored.rowCount >= 8 && !stored.rows.some((r) => secrets.some((s) => r.text.includes(s))), "Nenhuma senha na auditoria");
     const logs = serverLogs();
     ok(!secrets.some((s) => logs.includes(s)), "Nenhuma senha no log do servidor");
   } finally {
+    await db.query("delete from console_mail_domains where company_id=any($1::text[])", [[ids.a, ids.b]]);
     await db.query("delete from console_account_emails where id=$1", [`qa-mail-${marker}`]);
     await db.query("delete from console_otp_limits where key=any($1::text[])", [[limitKey("mail-create"), limitKey("mail-password")]]);
   }

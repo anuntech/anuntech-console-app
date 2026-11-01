@@ -1,5 +1,8 @@
 import "server-only";
 import { Resolver } from "node:dns/promises";
+import { asc, eq, inArray } from "drizzle-orm";
+import { companies, mailDomains } from "@/db/schema";
+import { db } from "../db";
 import { isJmapId, jmap, MailMethodError } from "./jmap";
 import {
   MAIL_DOMAINS,
@@ -9,25 +12,28 @@ import {
   dnsQuestions,
   domainOf,
   expectedDns,
+  isAnuntechDomain,
+  isOwnMailDomain,
   localOf,
   localPartProblem,
   parseZoneFile,
   type DnsAnswer,
   type DnsCheck,
-  type MailDomain,
 } from "./mail-rules";
-import type { ForwardRow, MailboxRow } from "./mail-types";
+import type { DomainRow, ForwardRow, MailboxRow } from "./mail-types";
 
 /*
  * The operations of the e-mail area on the Stalwart server: mailboxes
  * (x:Account, @type User), forwards (x:MailingList) and the DNS health of
- * the domains in MAIL_DOMAINS.
+ * the managed domains: Anuntech's own (MAIL_DOMAINS) and the ones the team
+ * linked to a client (console_mail_domains).
  *
  * Nothing the browser sends is trusted: an account or list id is read back
  * from the server and changed only when it is in a managed domain and, for
  * accounts, a plain User (the admin and the service account live in
- * teste.anuntech.cloud, and other roles are left to the server's own
- * console). The domainId always comes from the server's own list, by name.
+ * teste.anuntech.cloud, which is never managed, and other roles are left to
+ * the server's own console). The domainId always comes from the server's
+ * own list, by name.
  * Passwords go to the server and nowhere else: not to the logs, not to the
  * database, not back to the screen unless the Console generated them.
  */
@@ -110,26 +116,99 @@ async function getObjects<T>(method: string, ids: string[], properties: string[]
 
 // Domains ---------------------------------------------------------------
 
-let domainCache: { byName: Map<MailDomain, string>; expires: number } | null = null;
+/** A domain the Console manages: the server's id and, on a client's, the company. */
+export type ManagedDomain = { id: string; companyId: string | null };
 
-/** The server's id of each managed domain, found by its exact name. */
-export async function managedDomains() {
-  if (domainCache && domainCache.expires > Date.now()) return domainCache.byName;
+let serverCache: { byName: Map<string, string>; expires: number } | null = null;
+let askedFreshAt = 0;
+
+/** Every domain on the server, by name → id. Kept for 10 minutes; `fresh` asks again. */
+async function serverDomains(fresh = false) {
+  if (!fresh && serverCache && serverCache.expires > Date.now()) return serverCache.byName;
   const ids = await queryIds("x:Domain");
   const domains = await getObjects<{ id?: unknown; name?: unknown }>("x:Domain", ids, ["id", "name"]);
-  const byName = new Map<MailDomain, string>();
-  for (const domain of MAIL_DOMAINS) {
-    const found = domains.find((d) => text(d.name).toLowerCase() === domain && isJmapId(d.id));
-    if (found) byName.set(domain, found.id as string);
+  const byName = new Map<string, string>();
+  for (const domain of domains) {
+    const name = text(domain.name).toLowerCase();
+    if (name && isJmapId(domain.id)) byName.set(name, domain.id);
   }
+  askedFreshAt = Date.now();
   // An empty answer (a server being set up, a role without sysDomainQuery) is not kept: the next request asks again.
-  if (byName.size) domainCache = { byName, expires: Date.now() + 10 * 60_000 };
+  serverCache = byName.size ? { byName, expires: Date.now() + 10 * 60_000 } : null;
   return byName;
+}
+
+/** Anuntech's own domains and the ones linked to a client, with the company: read from the database every time. */
+async function allowedDomains() {
+  const linked = await db.select({ domain: mailDomains.domain, companyId: mailDomains.companyId }).from(mailDomains);
+  const allowed = new Map<string, string | null>(MAIL_DOMAINS.map((domain) => [domain, null]));
+  // A link to one of Anuntech's domains would hand it to a client: the actions refuse it, and it is ignored here too.
+  for (const row of linked) if (!isAnuntechDomain(row.domain)) allowed.set(row.domain, row.companyId);
+  return allowed;
+}
+
+/**
+ * The managed domains the server has, by name. A domain the server did not
+ * have a minute ago (linked on another instance, just created) is looked up
+ * again, at most once a minute.
+ */
+export async function managedDomains() {
+  const allowed = await allowedDomains();
+  let server = await serverDomains();
+  if ([...allowed.keys()].some((name) => !server.has(name)) && Date.now() - askedFreshAt > 60_000) server = await serverDomains(true);
+  const managed = new Map<string, ManagedDomain>();
+  for (const [name, companyId] of allowed) {
+    const id = server.get(name);
+    if (id) managed.set(name, { id, companyId });
+  }
+  return managed;
 }
 
 async function domainNames() {
   const byName = await managedDomains();
-  return new Map([...byName].map(([name, id]) => [id, name] as const));
+  return new Map([...byName].map(([name, { id, companyId }]) => [id, { name, companyId }] as const));
+}
+
+/** Whether the server has the domain, asked again now. */
+export async function serverHasDomain(domain: string) {
+  return (await serverDomains(true)).has(domain);
+}
+
+/**
+ * E-mail › Domínios: the managed domains (Anuntech's own first, then each
+ * client's, by domain) and the server's domains no one manages yet, which the
+ * team may link to a client (never Anuntech's).
+ */
+export async function domainOverview(): Promise<{ rows: DomainRow[]; linkable: string[] }> {
+  const [linked, server] = await Promise.all([
+    db
+      .select({ linkId: mailDomains.id, domain: mailDomains.domain, companyId: mailDomains.companyId, companyName: companies.name })
+      .from(mailDomains)
+      .innerJoin(companies, eq(companies.id, mailDomains.companyId))
+      .orderBy(asc(mailDomains.domain)),
+    serverDomains(true),
+  ]);
+  const clients = linked.filter((row) => !isAnuntechDomain(row.domain));
+  const taken = new Set(clients.map((row) => row.domain));
+  return {
+    rows: [
+      ...MAIL_DOMAINS.map((domain) => ({ domain, linkId: null, companyId: null, companyName: "Anuntech", onServer: server.has(domain) })),
+      ...clients.map((row) => ({ ...row, onServer: server.has(row.domain) })),
+    ],
+    linkable: [...server.keys()].filter((name) => !taken.has(name) && !isAnuntechDomain(name)).sort(),
+  };
+}
+
+/** The managed domains for the screens' domain switcher, with whose they are: Anuntech's first, then by domain. */
+export async function domainChoices() {
+  const managed = await managedDomains();
+  const ids = [...new Set([...managed.values()].flatMap(({ companyId }) => (companyId ? [companyId] : [])))];
+  const names = new Map(
+    ids.length ? (await db.select({ id: companies.id, name: companies.name }).from(companies).where(inArray(companies.id, ids))).map((c) => [c.id, c.name]) : [],
+  );
+  return [...managed]
+    .map(([domain, { companyId }]) => ({ domain, companyName: companyId ? (names.get(companyId) ?? "") : "Anuntech" }))
+    .sort((a, b) => Number(!isOwnMailDomain(a.domain)) - Number(!isOwnMailDomain(b.domain)) || a.domain.localeCompare(b.domain));
 }
 
 // Reading ---------------------------------------------------------------
@@ -140,8 +219,12 @@ const allLists = async () => getObjects<RawList>("x:MailingList", await queryIds
 /** Only a User with the plain User role is managed here; anything unexpected is left alone. */
 const isPlainUser = (account: RawAccount) => account["@type"] === "User" && record(account.roles)["@type"] === "User";
 
-function mailboxRow(account: RawAccount, names: Map<string, MailDomain>): MailboxRow | null {
-  const domain = names.get(text(account.domainId));
+type DomainNames = Awaited<ReturnType<typeof domainNames>>;
+
+function mailboxRow(account: RawAccount, names: DomainNames): MailboxRow | null {
+  const owner = names.get(text(account.domainId));
+  const domain = owner?.name;
+  const companyId = owner?.companyId ?? null;
   const local = text(account.name).toLowerCase();
   if (!domain || !local || !isJmapId(account.id) || account["@type"] !== "User") return null;
   const used = Number(account.usedDiskQuota);
@@ -159,11 +242,14 @@ function mailboxRow(account: RawAccount, names: Map<string, MailDomain>): Mailbo
       .map((a) => text(a.name).toLowerCase()),
     createdAt: Number.isFinite(Date.parse(text(account.createdAt))) ? new Date(text(account.createdAt)).toISOString() : null,
     managed: isPlainUser(account),
+    companyId,
   };
 }
 
-function forwardRow(list: RawList, names: Map<string, MailDomain>): ForwardRow | null {
-  const domain = names.get(text(list.domainId));
+function forwardRow(list: RawList, names: DomainNames): ForwardRow | null {
+  const owner = names.get(text(list.domainId));
+  const domain = owner?.name;
+  const companyId = owner?.companyId ?? null;
   const local = text(list.name).toLowerCase();
   if (!domain || !local || !isJmapId(list.id)) return null;
   return {
@@ -176,27 +262,28 @@ function forwardRow(list: RawList, names: Map<string, MailDomain>): ForwardRow |
     aliases: listEntries<Alias>(list.aliases)
       .filter((a) => a.domainId === list.domainId && a.enable !== false && text(a.name))
       .map((a) => text(a.name).toLowerCase()),
+    companyId,
   };
 }
 
 const byAddress = <T extends { address: string }>(a: T, b: T) => a.address.localeCompare(b.address);
 
-/** The mailboxes of the managed domains: plain users first-class, the others listed without actions. */
-export async function listMailboxes() {
+/** The mailboxes of the managed domains (or of one): plain users first-class, the others listed without actions. */
+export async function listMailboxes(domain?: string) {
   const names = await domainNames();
   if (!names.size) return [];
   return (await allAccounts())
     .map((account) => mailboxRow(account, names))
-    .filter((row): row is MailboxRow => !!row)
+    .filter((row): row is MailboxRow => !!row && (domain === undefined || row.domain === domain))
     .sort(byAddress);
 }
 
-export async function listForwards() {
+export async function listForwards(domain?: string) {
   const names = await domainNames();
   if (!names.size) return [];
   return (await allLists())
     .map((list) => forwardRow(list, names))
-    .filter((row): row is ForwardRow => !!row)
+    .filter((row): row is ForwardRow => !!row && (domain === undefined || row.domain === domain))
     .sort(byAddress);
 }
 
@@ -302,10 +389,12 @@ async function createOne(method: string, value: Record<string, unknown>, passwor
 
 // Mailboxes -------------------------------------------------------------
 
-async function domainId(domain: MailDomain) {
-  const id = (await managedDomains()).get(domain);
-  if (!id) throw new MailRefusal(`O domínio ${domain} não está no servidor de e-mail.`);
-  return id;
+async function managedDomain(domain: string) {
+  const found = (await managedDomains()).get(domain);
+  if (found) return found;
+  throw new MailRefusal(
+    (await allowedDomains()).has(domain) ? `O domínio ${domain} não está no servidor de e-mail.` : `O domínio ${domain} não é gerenciado pelo Console.`,
+  );
 }
 
 async function ensureFree(domainIdValue: string, local: string, except?: { account?: string; list?: string }) {
@@ -314,10 +403,10 @@ async function ensureFree(domainIdValue: string, local: string, except?: { accou
 }
 
 /** Creates a mailbox with its password; the caller generated or checked it. */
-export async function createMailbox(input: { domain: MailDomain; local: string; name: string | null; quotaBytes: number; password: string }) {
+export async function createMailbox(input: { domain: string; local: string; name: string | null; quotaBytes: number; password: string }) {
   const problem = localPartProblem(input.local);
   if (problem) throw new MailRefusal(problem);
-  const id = await domainId(input.domain);
+  const { id, companyId } = await managedDomain(input.domain);
   await ensureFree(id, input.local);
   const accountId = await createOne(
     "x:Account",
@@ -336,7 +425,7 @@ export async function createMailbox(input: { domain: MailDomain; local: string; 
     },
     true,
   );
-  return { id: accountId, address: `${input.local}@${input.domain}` };
+  return { id: accountId, address: `${input.local}@${input.domain}`, companyId };
 }
 
 /** A new password for a mailbox the Console manages; the apps signed in with the old one stop. */
@@ -406,7 +495,7 @@ async function checkRecipients(recipients: string[], own: string) {
   if (recipients.length > FORWARD_RECIPIENTS_MAX) throw new MailRefusal(`Use até ${FORWARD_RECIPIENTS_MAX} destinos.`);
   if (recipients.includes(own)) throw new MailRefusal("O redirecionamento não pode mandar para ele mesmo.");
   const domains = await managedDomains();
-  for (const [domain, id] of domains) {
+  for (const [domain, { id }] of domains) {
     const inside = recipients.filter((r) => domainOf(r) === domain);
     if (!inside.length) continue;
     const taken = await takenLocals(id);
@@ -417,10 +506,10 @@ async function checkRecipients(recipients: string[], own: string) {
 
 const recipientSet = (recipients: string[]) => Object.fromEntries(recipients.map((r) => [r, true]));
 
-export async function createForward(input: { domain: MailDomain; local: string; name: string | null; recipients: string[] }) {
+export async function createForward(input: { domain: string; local: string; name: string | null; recipients: string[] }) {
   const problem = localPartProblem(input.local);
   if (problem) throw new MailRefusal(problem);
-  const id = await domainId(input.domain);
+  const { id, companyId } = await managedDomain(input.domain);
   const address = `${input.local}@${input.domain}`;
   await checkRecipients(input.recipients, address);
   await ensureFree(id, input.local);
@@ -431,7 +520,7 @@ export async function createForward(input: { domain: MailDomain; local: string; 
     recipients: recipientSet(input.recipients),
     aliases: {},
   });
-  return { id: listId, address };
+  return { id: listId, address, companyId };
 }
 
 export async function updateForward(forward: ForwardRow, input: { name: string | null; recipients: string[] }) {
@@ -464,10 +553,11 @@ async function answer<T>(work: () => Promise<T[]>): Promise<DnsAnswer<T>> {
  * the server expects (`dnsZoneFile`). Kept for a few minutes: the page is
  * opened often and DNS changes take a while anyway.
  */
-export async function dnsHealth(domain: MailDomain) {
+export async function dnsHealth(domain: string) {
+  const { id } = await managedDomain(domain);
+  // The cache comes after the check: a domain unlinked a minute ago is no longer shown.
   const cached = dnsCache.get(domain);
   if (cached && cached.expires > Date.now()) return cached;
-  const id = await domainId(domain);
   const [server] = await getObjects<{ id?: unknown; name?: unknown; dnsZoneFile?: unknown }>("x:Domain", [id], ["id", "name", "dnsZoneFile"]);
   const zone = text(server?.dnsZoneFile);
   if (!zone) throw new MailRefusal("O servidor de e-mail não informou os registros que espera para o domínio.");

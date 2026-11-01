@@ -26,7 +26,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       headers: { "Cache-Control": "private, no-store", "Content-Type": "text/plain; charset=utf-8" },
     });
   }
-  if (!mailbox || !canManageMail(actor, mailbox.row.domain)) return refusal(404);
+  if (!mailbox) return refusal(404);
   const body = mobileconfig({ address: mailbox.row.address, name: mailbox.row.name, uuids: [randomUUID(), randomUUID()] });
   return new Response(body, {
     headers: {

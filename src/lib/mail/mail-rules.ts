@@ -9,16 +9,60 @@
  * server (lib/mail/mail-admin.ts).
  */
 
-/** Phase 1: the domains the Console manages, Anuntech's own. Clients' domains need a company × domain table (phase 2). */
+/**
+ * Anuntech's own domains, always managed. A client's domain is managed once
+ * the team links it to the company (console_mail_domains, E-mail › Domínios).
+ */
 export const MAIL_DOMAINS = ["anuntech.com"] as const;
-export type MailDomain = (typeof MAIL_DOMAINS)[number];
 
-export const isMailDomain = (value: unknown): value is MailDomain =>
+export const isOwnMailDomain = (value: unknown) =>
   typeof value === "string" && (MAIL_DOMAINS as readonly string[]).includes(value.trim().toLowerCase());
 
-/** Phase 1 has the Anuntech team only, on its own domains. */
-export function canManageMail(actor: { admin: boolean }, domain?: string) {
-  return actor.admin && (domain === undefined || isMailDomain(domain));
+/**
+ * Anuntech's domains and the mail infrastructure's (anuntech.cloud holds the
+ * server's name, its admin and the service account): never a client's.
+ */
+const ANUNTECH_ROOTS = ["anuntech.com", "anuntech.cloud"];
+export const isAnuntechDomain = (domain: string) => ANUNTECH_ROOTS.some((root) => domain === root || domain.endsWith(`.${root}`));
+
+/** Phase 1 of the clients' e-mail: the Anuntech team manages every managed domain; a client's Administrador comes next. */
+export function canManageMail(actor: { admin: boolean }) {
+  return actor.admin;
+}
+
+/**
+ * The domain a page of the area shows (`?dominio=`): the one asked for when
+ * it is managed, otherwise undefined (the page answers 404); with nothing
+ * asked, Anuntech's own, or the first one. Null when there is none at all.
+ */
+export function pickDomain<T extends { domain: string }>(choices: T[], asked: unknown): T | null | undefined {
+  if (typeof asked === "string" && asked.trim()) {
+    const domain = normalizeMailDomain(asked);
+    return choices.find((choice) => choice.domain === domain);
+  }
+  return choices.find((choice) => isOwnMailDomain(choice.domain)) ?? choices[0] ?? null;
+}
+
+const LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * A domain as the server and the database keep it: lower case, without the
+ * final dot or a leading @, and an accented one in punycode ("açaí.com.br" →
+ * "xn--aa-4iaz.com.br", what the URL standard does in Node and the browser
+ * alike). Null when it is not a domain name with a letter TLD.
+ */
+export function normalizeMailDomain(raw: string) {
+  const value = raw.trim().toLowerCase().replace(/^@/, "").replace(/\.$/, "");
+  if (!value || value.length > 253 || /[\s/\\:@?#[\]%]/.test(value)) return null;
+  let ascii: string;
+  try {
+    ascii = new URL(`http://${value}`).hostname;
+  } catch {
+    return null;
+  }
+  const labels = ascii.split(".");
+  if (ascii.length > 253 || labels.length < 2 || !labels.every((label) => LABEL.test(label))) return null;
+  return /^(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/.test(labels.at(-1) ?? "") ? ascii : null;
 }
 
 /** What the mail apps connect to (the server itself is mx1.anuntech.cloud). */

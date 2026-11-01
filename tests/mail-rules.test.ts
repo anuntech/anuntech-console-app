@@ -8,13 +8,16 @@ import {
   dnsQuestions,
   expectedDns,
   generatePassword,
-  isMailDomain,
+  isAnuntechDomain,
+  isOwnMailDomain,
   localPartProblem,
   mobileconfig,
   mobileconfigFileName,
   normalizeAddress,
   normalizeLocalPart,
+  normalizeMailDomain,
   parseQuota,
+  pickDomain,
   parseRecipients,
   parseZoneFile,
   passwordProblem,
@@ -24,16 +27,60 @@ import {
   type DnsLookups,
 } from "../src/lib/mail/mail-rules";
 
-test("phase 1: only the team, only anuntech.com", () => {
+test("only the team manages; anuntech.com is always managed and never a client's", () => {
   assert.deepEqual([...MAIL_DOMAINS], ["anuntech.com"]);
   assert.equal(canManageMail({ admin: true }), true);
-  assert.equal(canManageMail({ admin: true }, "anuntech.com"), true);
-  assert.equal(canManageMail({ admin: true }, "teste.anuntech.cloud"), false);
-  assert.equal(canManageMail({ admin: false }, "anuntech.com"), false);
   assert.equal(canManageMail({ admin: false }), false);
-  assert.equal(isMailDomain("ANUNTECH.com"), true);
-  assert.equal(isMailDomain("anuntech.com.br"), false);
-  assert.equal(isMailDomain(undefined), false);
+  assert.equal(isOwnMailDomain("ANUNTECH.com"), true);
+  assert.equal(isOwnMailDomain("anuntech.com.br"), false);
+  assert.equal(isOwnMailDomain(undefined), false);
+  for (const domain of ["anuntech.com", "send.anuntech.com", "anuntech.cloud", "teste.anuntech.cloud", "mx1.anuntech.cloud"])
+    assert.equal(isAnuntechDomain(domain), true, domain);
+  for (const domain of ["anuntech.com.br", "cliente.com.br", "notanuntech.com", "anuntech.cloud.example"])
+    assert.equal(isAnuntechDomain(domain), false, domain);
+});
+
+test("domains: lower case and ASCII, without the final dot or a leading @; anything else is refused", () => {
+  assert.equal(normalizeMailDomain("  Cliente.COM.br. "), "cliente.com.br");
+  assert.equal(normalizeMailDomain("@empresa.com"), "empresa.com");
+  assert.equal(normalizeMailDomain("açaí.com.br"), "xn--aa-4iaz.com.br");
+  assert.equal(normalizeMailDomain("xn--aa-4iaz.com.br"), "xn--aa-4iaz.com.br");
+  assert.equal(normalizeMailDomain("mail.cliente.com.br"), "mail.cliente.com.br");
+  for (const raw of [
+    "",
+    "localhost",
+    "cliente",
+    "1.2.3.4",
+    "cliente.c",
+    "cliente.123",
+    "-cliente.com",
+    "cliente-.com",
+    "cli_ente.com",
+    "cliente..com",
+    "joao@cliente.com",
+    "https://cliente.com",
+    "cliente.com/admin",
+    "cliente.com:25",
+    "cliente.com?x=1",
+    "cli ente.com",
+    "[::1]",
+    `${"a".repeat(64)}.com`,
+    `${"a.".repeat(127)}com`,
+  ])
+    assert.equal(normalizeMailDomain(raw), null, JSON.stringify(raw));
+});
+
+test("the domain a page shows: the one asked for when managed, else Anuntech's own, else the first", () => {
+  const choices = [{ domain: "cliente.com.br" }, { domain: "anuntech.com" }, { domain: "outro.com" }];
+  assert.equal(pickDomain(choices, undefined)?.domain, "anuntech.com");
+  assert.equal(pickDomain(choices, "")?.domain, "anuntech.com");
+  assert.equal(pickDomain(choices, " Outro.COM ")?.domain, "outro.com");
+  assert.equal(pickDomain(choices, "naogerenciado.com"), undefined);
+  assert.equal(pickDomain(choices, "não é domínio"), undefined);
+  assert.equal(pickDomain(choices, ["outro.com"]), choices[1]);
+  assert.equal(pickDomain([{ domain: "cliente.com.br" }], undefined)?.domain, "cliente.com.br");
+  assert.equal(pickDomain([], undefined), null);
+  assert.equal(pickDomain([], "cliente.com.br"), undefined);
 });
 
 test("local parts: lower case, the domain typed in full is dropped, the server's own are refused", () => {
