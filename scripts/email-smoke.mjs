@@ -131,7 +131,11 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
       ok(reply.text.includes(why) && !passwordIn(reply), `Endereço ${taken} é recusado (${why})`);
     }
     const otherDomain = await call("/email", "admin", "createMailbox", { domain: "teste.anuntech.cloud", local: `qa-x-${marker}`, name: "", quota: "1", mode: "generate" });
-    ok(otherDomain.text.includes("não tem permissão") && !jmap.calls.some((c) => c.name === "x:Account/set" && JSON.stringify(c.args).includes(test)), "Caixa em outro domínio é recusada sem chegar ao servidor");
+    ok(otherDomain.text.includes("não tem permissão"), "Caixa em outro domínio é recusada");
+    ok(
+      !jmap.calls.some((c) => c.name === "x:Account/set" && Object.values(c.args.create ?? {}).some((value) => value.domainId === test)),
+      "Nenhuma caixa em outro domínio chegou ao servidor",
+    );
     ok(jmap.accounts.size === before, "Nenhuma das recusas criou caixa");
 
     // Reset: generated (shown once) and typed.
