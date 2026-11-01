@@ -220,6 +220,10 @@ A web passou a mostrar cada arquivo no cartão e ganhou o que um drive tem (f2bd
 
 ---
 
+## E-mail (31/10)
+
+A gestão das caixas de e-mail (`/email`: caixas, senhas, apelidos, redirecionamentos, aparelhos e DNS) fica só na web nesta fase: é da equipe da Anuntech, e o app é do cliente. Quando o Administrador da empresa passar a gerenciar o próprio domínio (fase 2, `docs/task.md`), entram no app a lista de caixas, a troca de senha com a senha mostrada uma vez e o perfil para iPhone (que o próprio iPhone instala), pela API `/api/v1` com `guard()`. Ler e enviar e-mail continuam nos aplicativos de e-mail do celular.
+
 ## Publicação
 
 1. Servidor no `main` (migrações, se houver, pela rota temporária).
