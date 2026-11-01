@@ -21,13 +21,20 @@ Isso abre uma exceção à regra 1 de [rules.md](rules.md) ("cobranças são cri
 
 **Fase 1b:** a suspensão de um produto do tipo "Servidor de e-mail" tira `emailSend` das caixas dos domínios da empresa e devolve na reativação, marcando os passos sozinha (o recebimento continua). Criar o domínio no servidor pelo Console, quando a conta de serviço tiver a permissão.
 
-**Fase 2, o Administrador do cliente gerencia o que já tem:** vê as caixas e o uso, cria e exclui caixa dentro do que contratou, troca senha, cria apelidos e redirecionamentos e configura os aparelhos. Um membro ligado a uma caixa troca a própria senha e vê o espaço, sem valores. Na web e no app. Ainda sem compra.
+**Fase 2, o Administrador do cliente gerencia o que já tem:** vê as caixas e o uso, cria e exclui caixa dentro do que contratou, troca senha, cria apelidos e redirecionamentos e configura os aparelhos. Um membro ligado a uma caixa troca a própria senha e vê o espaço, sem valores. Na web e no app. Ainda sem compra. Na mesma entrega, o e-mail passa a ser aberto pelo produto em Produtos, e o item E-mail sai do menu da equipe (ver [Onde fica o e-mail](#onde-fica-o-e-mail)).
 
 **Fase 3, o cliente compra:** preços em Configurações, pedido com o proporcional, recorrência recalculada, fatura emitida sozinha, ativação na hora (empresa em dia) ou depois do pagamento, Pix conferido mais rápido, limites antiabuso e o aceite das condições. Entra a exceção à regra 1.
 
 **Fase 4, domínio e migração pelo cliente:** adicionar domínio com prova de posse e guia por provedor; trazer caixas de outro servidor com o andamento; levar os clientes do cPanel (cerca de 122 caixas em 14 domínios) um a um.
 
 **Depois:** conectar o DNS da Cloudflare do cliente com um clique, o assistente propondo criar caixas (com o cartão de confirmação de sempre), Pix Automático ou cartão, e a venda para quem ainda não é cliente.
+
+## Onde fica o e-mail
+
+Decisão do Kauan (01/11/2026): o e-mail fica dentro de Produtos, não num item próprio do menu.
+
+- **Cliente:** o card do produto de e-mail em Produtos (o item do catálogo com o tipo "Servidor de e-mail") abre a gestão das caixas da empresa, como os apps que abrem dentro do Console. Sem item no menu. Com mais de um domínio, o seletor mostra só os da empresa. Vale igual no app.
+- **Equipe:** o trabalho de cada cliente segue o mesmo caminho (Produtos ou a página da empresa), com o que a equipe pode a mais. O anuntech.com, que não é produto de nenhuma empresa, e a página Domínios (vincular e desvincular) vão para Configurações › E-mail. O item E-mail sai do menu da equipe na mesma entrega, para o caminho mudar uma vez só.
 
 ## O que o cliente vai fazer (Fases 2 a 4)
 
