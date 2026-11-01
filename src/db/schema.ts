@@ -941,6 +941,30 @@ export const companyNotes = pgTable(
   },
   (t) => [index("console_company_notes_company_idx").on(t.companyId, t.createdAt)],
 );
+/**
+ * Which client a mail domain on the Stalwart server belongs to (E-mail ›
+ * Domínios). The server stays the source of truth for the domain, its
+ * mailboxes and forwards; this row only says whose it is, so the Console
+ * manages it (lib/mail). Anuntech's own domains are not here (MAIL_DOMAINS).
+ */
+export const mailDomains = pgTable(
+  "console_mail_domains",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    /** Lower case and ASCII (an accented domain in punycode), without the final dot. */
+    domain: text("domain").notNull().unique(),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+  },
+  (t) => [index("console_mail_domains_company_idx").on(t.companyId)],
+);
 export const auditEvents = pgTable(
   "console_audit_events",
   {

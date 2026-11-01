@@ -428,6 +428,13 @@
       "when": 1793483413007,
       "tag": "0060_indices_painel",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1793540849858,
+      "tag": "0061_email_dominios",
+      "breakpoints": true
     }
   ]
 }
