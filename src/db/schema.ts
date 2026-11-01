@@ -965,6 +965,35 @@ export const mailDomains = pgTable(
   },
   (t) => [index("console_mail_domains_company_idx").on(t.companyId)],
 );
+/**
+ * A domain a client added and has not proved yet (lib/mail/mail-domains.ts):
+ * the company publishes `_anuntech.<domain>` with the token, and only then
+ * the domain goes to the mail server and becomes a console_mail_domains row
+ * (this one is deleted). One row per company, so a claim never blocks the
+ * real owner: whoever proves it first gets the domain.
+ */
+export const mailDomainClaims = pgTable(
+  "console_mail_domain_claims",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    companyId: text("company_id")
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    /** As console_mail_domains keeps it: lower case, ASCII, no final dot. */
+    domain: text("domain").notNull(),
+    /** The value the TXT record must carry; not a secret, it is published. */
+    token: text("token").notNull(),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => user.id),
+    createdAt: created(),
+    /** The last time someone asked the Console to look for the record. */
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("console_mail_domain_claims_company_domain_unique").on(t.companyId, t.domain)],
+);
 export const auditEvents = pgTable(
   "console_audit_events",
   {
