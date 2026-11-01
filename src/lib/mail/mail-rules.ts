@@ -133,7 +133,6 @@ export function passwordProblem(password: string, context: { local?: string } = 
   if (password.length < PASSWORD_MIN) return `Use pelo menos ${PASSWORD_MIN} caracteres.`;
   if (password.length > PASSWORD_MAX) return `Use no máximo ${PASSWORD_MAX} caracteres.`;
   if (password !== password.trim()) return "Tire os espaços do começo e do fim da senha.";
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(password)) return "A senha tem um caractere que os aplicativos de e-mail não aceitam.";
   if (new Set(password).size < 6) return "A senha repete demais os mesmos caracteres. Gere uma ou use uma frase.";
   const local = context.local?.toLowerCase();
