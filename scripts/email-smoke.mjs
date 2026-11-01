@@ -20,7 +20,7 @@ const INITIAL_FIXTURE = "Inicial-Forte-2026";
  * administrator account, colliding addresses and the hourly limit. No password reaches the audit, the logs or
  * the database, and the Console never asks the server for a mailbox's mail.
  */
-export async function runEmailTests({ database: db, ids, people, request, ok, marker, base, jmap, notFoundPage, dnsFile, serverLogs, sentNotices }) {
+export async function runEmailTests({ database: db, ids, people, request, ok, marker, base, jmap, notFoundPage, dnsFile, serverLogs, sentNotices, companyIds }) {
   // The native app's API, called as the app calls it: the session cookie by hand and the app's scheme as origin.
   const rpc = async (path, input, who) => {
     const response = await fetch(`${base}/api/v1/${path.replaceAll(".", "/")}`, {
@@ -619,37 +619,54 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
     ok((await rpc("mail.resetPassword", { id: contact, mode: "generate" })).status === 401 && jmap.secretOf(contact) === appTyped && jmap.secretOf(otherBox) === INITIAL_FIXTURE, "App: sem sessão e nas recusas, nenhuma senha muda");
 
     // The client's own setup: contract the e-mail in Produtos, add the domain, prove it, publish the DNS.
-    // Company A's e-mail product is set aside, so the company contracts it again as a new client would.
-    await db.query("update console_engagements set status='completed' where id=$1", [mailProduct]);
+    // Contracting runs on a company of its own, as the suspension suite does: the other suites' invoices
+    // on company A would count as debt. The Administrador of A is its Administrador too.
+    const companyC = randomUUID();
+    await db.query("insert into console_companies(id,name,document,billing_email) values($1,$2,$3,$4)", [
+      companyC,
+      `QA Company C ${marker}`,
+      BigInt(`0x${companyC.replaceAll("-", "").slice(0, 11)}`).toString().padStart(14, "0"),
+      "qa-C@example.invalid",
+    ]);
+    // The regression's cleanup deletes it with what points at it, like the other suites' companies.
+    companyIds?.push(companyC);
+    await db.query("insert into console_memberships(id,company_id,email,role) values($1,$2,$3,'manager')", [randomUUID(), companyC, people.manager.email]);
     await db.query("update console_catalog_items set default_amount_cents=4900, interval='monthly', description='Caixas de 10 GB' where id=$1", [mailItem]);
     const offerPage = await request("/produtos", "manager");
-    ok(offerPage.status === 200 && offerPage.text.includes("Contratar e-mail"), "Em Produtos, o Administrador sem e-mail vê Contratar e-mail");
+    ok(offerPage.status === 200 && offerPage.text.includes("Contratar e-mail"), "Em Produtos, o Administrador de uma empresa sem e-mail vê Contratar e-mail");
     ok(!(await request("/produtos", "support")).text.includes("Contratar e-mail") && !(await request("/produtos", "admin")).text.includes("Contratar e-mail"), "O Membro e a equipe não veem Contratar e-mail");
-    const contractedBefore = Number((await one("select count(*) from console_engagements where company_id=$1 and catalog_item_id=$2", [ids.a, mailItem])).count);
+    const contractedIn = async (companyId) => Number((await one("select count(*) from console_engagements where company_id=$1 and catalog_item_id=$2", [companyId, mailItem])).count);
     const contractRefusals = [
       [await call("/produtos", "support", "contractMail", { companyId: ids.a, catalogItemId: mailItem }), "Só o Administrador", "o Membro"],
       [await call("/produtos", "assisted", "contractMail", { companyId: ids.a, catalogItemId: mailItem }), "não tem permissão", "o acesso assistido"],
       [await call("/produtos", "manager", "contractMail", { companyId: ids.b, catalogItemId: mailItem }), "não existe", "outra empresa"],
-      [await call("/produtos", "manager", "contractMail", { companyId: ids.a, catalogItemId: randomUUID() }), "não está mais disponível", "um item que não é de e-mail"],
+      [await call("/produtos", "manager", "contractMail", { companyId: companyC, catalogItemId: randomUUID() }), "não está mais disponível", "um item que não é de e-mail"],
+      [await call("/produtos", "manager", "contractMail", { companyId: ids.a, catalogItemId: mailItem }), "já tem o e-mail", "a empresa que já tem o e-mail"],
     ];
     for (const [reply, text, label] of contractRefusals) ok(reply.text.includes(text), `Contratar e-mail recusa ${label}`);
     const overdueId = randomUUID();
-    await db.query("insert into console_invoices(id,company_id,description,amount_cents,due_date,status) values($1,$2,$3,9900,'2026-01-05','issued')", [overdueId, ids.a, `Vencida QA ${marker}`]);
-    const overdueContract = await call("/produtos", "manager", "contractMail", { companyId: ids.a, catalogItemId: mailItem });
+    await db.query("insert into console_invoices(id,company_id,description,amount_cents,due_date,status) values($1,$2,$3,9900,'2026-01-05','issued')", [overdueId, companyC, `Vencida QA ${marker}`]);
+    const overdueContract = await call("/produtos", "manager", "contractMail", { companyId: companyC, catalogItemId: mailItem });
     await db.query("delete from console_invoices where id=$1", [overdueId]);
-    ok(overdueContract.text.includes("fatura vencida"), "Empresa com fatura vencida não contrata: paga antes");
-    await call("/produtos", undefined, "contractMail", { companyId: ids.a, catalogItemId: mailItem });
-    ok(Number((await one("select count(*) from console_engagements where company_id=$1 and catalog_item_id=$2", [ids.a, mailItem])).count) === contractedBefore, "Nas recusas e sem sessão, nenhum produto nasce");
-    const contracted = await call("/produtos", "manager", "contractMail", { companyId: ids.a, catalogItemId: mailItem });
-    const newProduct = await one("select id, status, amount_cents, subscription_id from console_engagements where company_id=$1 and catalog_item_id=$2 and status='active'", [ids.a, mailItem]);
-    ok(contracted.text.includes("contratado") && contracted.text.includes(`/email?empresa=${ids.a}`) && newProduct?.amount_cents === 4900 && !newProduct.subscription_id, "O Administrador contrata: o produto nasce ativo com o preço do catálogo, sem cobrança automática");
+    ok(overdueContract.text.includes("uma fatura vencida"), "Empresa com fatura vencida não contrata: paga antes");
+    await call("/produtos", undefined, "contractMail", { companyId: companyC, catalogItemId: mailItem });
+    ok((await contractedIn(companyC)) === 0 && (await contractedIn(ids.b)) === 0, "Nas recusas e sem sessão, nenhum produto nasce");
+    const contracted = await call("/produtos", "manager", "contractMail", { companyId: companyC, catalogItemId: mailItem });
+    const newProduct = await one("select id, status, amount_cents, subscription_id from console_engagements where company_id=$1 and catalog_item_id=$2", [companyC, mailItem]);
+    ok(
+      contracted.text.includes("contratado") && contracted.text.includes(`/email?empresa=${companyC}`) && newProduct?.status === "active" && newProduct.amount_cents === 4900 && !newProduct.subscription_id,
+      "O Administrador contrata: o produto nasce ativo com o preço do catálogo, sem cobrança automática",
+    );
     const contractAudit = await one("select actor_id, company_id, details from console_audit_events where action='engagement.created' and entity_id=$1", [newProduct.id]);
-    ok(contractAudit?.actor_id === people.manager.id && contractAudit.company_id === ids.a && contractAudit.details?.contractedBy === "client", "A contratação entra na atividade da empresa, com quem contratou");
+    ok(contractAudit?.actor_id === people.manager.id && contractAudit.company_id === companyC && contractAudit.details?.contractedBy === "client", "A contratação entra na atividade da empresa, com quem contratou");
     ok(sentNotices().some((n) => n.channel === "email" && String(n.payload?.subject ?? "").includes("E-mail contratado")), "A equipe recebe um e-mail para cobrar o produto contratado");
-    ok((await call("/produtos", "manager", "contractMail", { companyId: ids.a, catalogItemId: mailItem })).text.includes("já tem o e-mail"), "A empresa não contrata o e-mail duas vezes");
+    ok((await call("/produtos", "manager", "contractMail", { companyId: companyC, catalogItemId: mailItem })).text.includes("já tem o e-mail") && (await contractedIn(companyC)) === 1, "A empresa não contrata o e-mail duas vezes");
     ok(!(await request("/produtos", "manager")).text.includes("Contratar e-mail"), "Com o e-mail contratado, Contratar e-mail some de Produtos");
-    const invoicesAfter = Number((await one("select count(*) from console_invoices where company_id=$1", [ids.a])).count);
-    ok(Number.isFinite(invoicesAfter) && !(await one("select id from console_subscriptions where engagement_id=$1", [newProduct.id])), "Contratar não cria recorrência nem fatura: a equipe cobra como hoje");
+    ok(
+      !(await one("select id from console_subscriptions where engagement_id=$1", [newProduct.id])) && !(await one("select id from console_invoices where engagement_id=$1", [newProduct.id])),
+      "Contratar não cria recorrência nem fatura: a equipe cobra como hoje",
+    );
+    ok((await request(`/email?empresa=${companyC}`, "manager")).text.includes("Adicionar domínio"), "Depois de contratar, o e-mail da empresa abre com Adicionar domínio");
 
     // Adding a domain: it waits for the _anuntech TXT; nothing goes to the server before it.
     const newDomain = `novo-${marker}.example`;
@@ -834,6 +851,9 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
   } finally {
     await db.query("delete from console_mail_domains where company_id=any($1::text[])", [[ids.a, ids.b]]);
     await db.query("delete from console_mail_domain_claims where company_id=any($1::text[])", [[ids.a, ids.b]]);
+    // Company C, of the contracting checks: its product goes before the catalog item, the company with the regression's cleanup.
+    await db.query("delete from console_engagements where company_id in (select id from console_companies where name=$1)", [`QA Company C ${marker}`]);
+    await db.query("delete from console_memberships where company_id in (select id from console_companies where name=$1)", [`QA Company C ${marker}`]);
     await db.query("delete from console_account_emails where id=any($1::text[])", [[`qa-mail-${marker}`, `qa-mail-member-${marker}`]]);
     await db.query("delete from console_engagements where name=$1 and company_id=$2", [`E-mail QA ${marker}`, ids.a]);
     await db.query("delete from console_catalog_items where name=$1", [`E-mail QA ${marker}`]);

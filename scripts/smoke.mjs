@@ -2211,7 +2211,7 @@ try {
       [clientPreferenceKey],
     );
   }
-  const emailSuite = () => runEmailTests({ database, ids, people, request, ok, marker, base, jmap, notFoundPage, dnsFile, serverLogs: () => logs, sentNotices });
+  const emailSuite = () => runEmailTests({ database, ids, people, request, ok, marker, base, jmap, notFoundPage, dnsFile, serverLogs: () => logs, sentNotices, companyIds });
   if (assistantOnly) {
     // --assistant-only: just the assistant, against the same fixtures.
     await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, aiFile });
