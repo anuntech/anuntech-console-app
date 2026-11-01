@@ -8,12 +8,15 @@ import { toast } from "@/components/shell/notifications";
 export function CopyButton({
   value,
   label,
+  copiedText,
   children,
   ...props
 }: Omit<ComponentProps<typeof Button>, "onClick" | "value"> & {
   value: string;
   /** e.g. "Link de pagamento" → "Link de pagamento copiado." */
   label: string;
+  /** The toast when the masculine default does not fit ("Senha copiada."). */
+  copiedText?: string;
 }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -27,7 +30,7 @@ export function CopyButton({
         try {
           await navigator.clipboard.writeText(value);
           setCopied(true);
-          toast.success(`${label} copiado.`);
+          toast.success(copiedText ?? `${label} copiado.`);
           setTimeout(() => setCopied(false), 2000);
         } catch {
           toast.error("Não foi possível copiar. Selecione o texto e copie.");
