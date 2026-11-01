@@ -3,9 +3,9 @@ import { createServer } from "node:http";
 /**
  * A stand-in for the Stalwart server's JMAP management API (capability
  * urn:stalwart:jmap), enough for E-mail (lib/mail): the session, x:Domain
- * (read only, like the service account's role), x:Account and
- * x:MailingList (query, get, set). A real HTTP server, since the Console
- * calls it through fetch.
+ * (read and create, like the service account's role since 01/11/2026: no
+ * update, no destroy), x:Account and x:MailingList (query, get, set). A
+ * real HTTP server, since the Console calls it through fetch.
  *
  * It behaves like the real one where the Console relies on it: lists and
  * sets are objects, never arrays (an array is an invalidPatch); queries
@@ -16,7 +16,7 @@ import { createServer } from "node:http";
  * account's Basic credentials, and every method call is recorded, so a
  * suite can check what the Console asked for.
  */
-export async function startJmapMock({ user = "console-test", password = "test", pageSize = 4 } = {}) {
+export async function startJmapMock({ user = "console-test", password = "test", pageSize = 4, domainCreate = true } = {}) {
   const expected = `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`;
   const domains = new Map();
   const accounts = new Map();
@@ -34,10 +34,48 @@ export async function startJmapMock({ user = "console-test", password = "test", 
   const weak = new Set(["senhafraca12345", "password123456", "anuntech2026!"]);
   const weakSecret = (secret) => typeof secret !== "string" || secret.length < 8 || secret.length > 128 || weak.has(secret.toLowerCase());
 
-  function addDomain(name, { dnsZoneFile = "" } = {}) {
+  function addDomain(name, { dnsZoneFile = "", certificateManagement = { "@type": "Manual" } } = {}) {
     const id = nextId("d");
-    domains.set(id, { id, name, dnsZoneFile, createdAt: "2026-01-10T12:00:00Z" });
+    domains.set(id, { id, name, dnsZoneFile, certificateManagement, createdAt: "2026-01-10T12:00:00Z" });
     return id;
+  }
+  /**
+   * The zone the real server writes for a new domain (checked on mx1 on
+   * 01/11/2026): two fresh DKIM keys, SPF, MX, DMARC at p=reject, the SRV
+   * records, MTA-STS, CAA and the automatic setup names.
+   */
+  const zoneOf = (name, key) => `v1-ed25519-20261101._domainkey.${name}. IN TXT "v=DKIM1; k=ed25519; h=sha256; p=ED${key}="
+v1-rsa-20261101._domainkey.${name}. IN TXT (
+    "v=DKIM1; k=rsa; h=sha256; p=MIIBIjANBgkq${key}"
+    "IDAQAB"
+)
+${name}. IN TXT "v=spf1 mx -all"
+${name}. IN MX 10 mx1.anuntech.cloud.
+_dmarc.${name}. IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@${name}"
+_imaps._tcp.${name}. IN SRV 0 1 993 mx1.anuntech.cloud.
+mta-sts.${name}. IN CNAME mx1.anuntech.cloud.
+${name}. IN CAA 0 issue "letsencrypt.org;accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/1"
+autoconfig.${name}. IN CNAME mx1.anuntech.cloud.
+autodiscover.${name}. IN CNAME mx1.anuntech.cloud.
+`;
+  function createDomains(args) {
+    const result = { created: null, notCreated: null, updated: null, notUpdated: null, destroyed: null, notDestroyed: null };
+    for (const [key, value] of Object.entries(args.create ?? {})) {
+      const name = typeof value?.name === "string" ? value.name : "";
+      if (hasArray(value)) (result.notCreated ??= {})[key] = { type: "invalidPatch" };
+      else if (!/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(name))
+        (result.notCreated ??= {})[key] = { type: "invalidPatch", description: "Invalid domain name", properties: ["name"] };
+      else if ([...domains.values()].some((d) => d.name === name)) (result.notCreated ??= {})[key] = { type: "primaryKeyViolation", properties: ["name"] };
+      else {
+        const id = nextId("d");
+        domains.set(id, { ...clone(value), id, name, dnsZoneFile: zoneOf(name, id.toUpperCase()), createdAt: new Date().toISOString() });
+        (result.created ??= {})[key] = { id };
+      }
+    }
+    // Updating or destroying a domain is not the Console's: the role has only sysDomainCreate.
+    for (const id of Object.keys(args.update ?? {})) (result.notUpdated ??= {})[id] = { type: "forbidden" };
+    for (const id of args.destroy ?? []) (result.notDestroyed ??= {})[id] = { type: "forbidden" };
+    return result;
   }
   const domainName = (id) => domains.get(id)?.name;
   function addAccount({ type = "User", name, domainId, description = null, role = "User", secret = INITIAL_FIXTURE, quota, used = 0, aliases = [], createdAt = "2026-03-02T12:00:00Z" }) {
@@ -204,8 +242,8 @@ export async function startJmapMock({ user = "console-test", password = "test", 
       return [name, { state: "1", list, notFound: ids.filter((id) => !store.has(id)) }];
     }
     if (method === "set") {
-      // The service account's role reads domains and nothing more.
-      if (kind === "Domain") return ["error", { type: "forbidden" }];
+      // Before 01/11/2026 the service account's role only read domains (domainCreate: false).
+      if (kind === "Domain") return domainCreate ? [name, { oldState: "1", newState: "2", ...createDomains(args) }] : ["error", { type: "forbidden" }];
       return [name, { oldState: "1", newState: "2", ...set(kind, store, args) }];
     }
     return ["error", { type: "unknownMethod" }];

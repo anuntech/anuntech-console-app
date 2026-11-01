@@ -2,9 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   GIB,
+  MAIL_CLAIMS_MAX,
   MAIL_DOMAINS,
+  addableDomainProblem,
   canManageMail,
   compareDns,
+  dnsPanelName,
+  domainAddRefusal,
+  mailArrival,
+  mailContractRefusal,
+  ownershipCheck,
+  ownershipRecord,
+  ownershipToken,
+  startingDmarc,
   dnsQuestions,
   expectedDns,
   generatePassword,
@@ -280,6 +290,12 @@ test("DNS health: certo when the internet sees what the server expects", () => {
       "v1-ed25519-20261026._domainkey.anuntech.com": { status: "found", records: [["v=DKIM1; k=ed25519; h=sha256; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo="]] },
       "_dmarc.anuntech.com": { status: "found", records: [["v=DMARC1; p=quarantine"]] },
     },
+    hosts: {
+      "autoconfig.anuntech.com": { cname: { status: "found", records: ["mail.anuntech.com."] }, a: { status: "none" } },
+      // An A record with the server's own address points at it as well as the CNAME.
+      "autodiscover.anuntech.com": { cname: { status: "none" }, a: { status: "found", records: ["203.0.113.10"] } },
+    },
+    targets: { "mail.anuntech.com": { status: "found", records: ["203.0.113.10"] } },
   };
   const checks = compareDns(expected, healthy);
   assert.deepEqual(
@@ -290,6 +306,9 @@ test("DNS health: certo when the internet sees what the server expects", () => {
       ["dkim:v1-rsa-20261026", "ok"],
       ["dkim:v1-ed25519-20261026", "ok"],
       ["dmarc", "ok"],
+      // mail.anuntech.com is the target itself: nothing to point.
+      ["host:autoconfig", "ok"],
+      ["host:autodiscover", "ok"],
     ],
   );
   assert.ok(checks.every((c) => c.fix === null && c.record === null));
@@ -328,7 +347,8 @@ test("DNS health: falta isto, with the record to create, when something is missi
   assert.match(byKey.spf.fix!, /Acrescente mx/);
   assert.equal(byKey["dkim:v1-rsa-20261026"].status, "unknown");
   assert.match(byKey.dmarc.fix!, /Crie um registro TXT com o nome _dmarc\.anuntech\.com/);
-  assert.equal(byKey.dmarc.record?.value, "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com");
+  // The server's zone asks for p=reject; the record to create starts at p=none.
+  assert.equal(byKey.dmarc.record?.value, "v=DMARC1; p=none; rua=mailto:postmaster@anuntech.com");
   const open = compareDns(expected, { mx: { status: "none" }, txt: { "anuntech.com": { status: "found", records: [["v=spf1 mx +all"]] } } });
   assert.match(open.find((c) => c.key === "spf")!.fix!, /qualquer servidor/);
 });
@@ -340,4 +360,136 @@ test("no text in the area joins sentences with a travessão or shouts", () => {
     assert.doesNotMatch(t, /[—–]/, t);
     assert.doesNotMatch(t, /!/, t);
   }
+});
+
+// The client's own setup -------------------------------------------------
+
+/** A zone as the server writes it for a new client domain (mx1, 01/11/2026), CAA and DMARC p=reject included. */
+const CLIENT_ZONE = `v1-ed25519-20261101._domainkey.cliente.com.br. IN TXT "v=DKIM1; k=ed25519; h=sha256; p=EDKEY="
+v1-rsa-20261101._domainkey.cliente.com.br. IN TXT (
+    "v=DKIM1; k=rsa; h=sha256; p=MIIB"
+    "IDAQAB"
+)
+cliente.com.br. IN TXT "v=spf1 mx -all"
+cliente.com.br. IN MX 10 mx1.anuntech.cloud.
+_dmarc.cliente.com.br. IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@cliente.com.br"
+cliente.com.br. IN CAA 0 issue "letsencrypt.org;accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/1"
+mta-sts.cliente.com.br. IN CNAME mx1.anuntech.cloud.
+autoconfig.cliente.com.br. IN CNAME mx1.anuntech.cloud.
+autodiscover.cliente.com.br. IN CNAME mx1.anuntech.cloud.
+`;
+
+test("ownership: a random token, the _anuntech TXT and the check that only the exact value proves it", () => {
+  const token = ownershipToken();
+  assert.equal(token.length, 24);
+  assert.match(token, /^[A-HJ-NP-Za-km-z2-9]+$/);
+  assert.notEqual(ownershipToken(), token);
+  const record = ownershipRecord("cliente.com.br", token);
+  assert.deepEqual(record, { type: "TXT", name: "_anuntech.cliente.com.br", value: `anuntech-verificacao=${token}` });
+  const proved = ownershipCheck("cliente.com.br", token, { status: "found", records: [["outra-coisa"], ["anuntech-verificacao=", token]] });
+  assert.equal(proved.status, "ok");
+  assert.equal(proved.stage, "proof");
+  const wrong = ownershipCheck("cliente.com.br", token, { status: "found", records: [["anuntech-verificacao=outro"]] });
+  assert.equal(wrong.status, "missing");
+  assert.match(wrong.fix!, /não tem o valor certo/);
+  assert.deepEqual(wrong.record, record);
+  assert.equal(ownershipCheck("cliente.com.br", token, { status: "none" }).status, "missing");
+  // A failed lookup is never a proof, and never a refusal either.
+  assert.equal(ownershipCheck("cliente.com.br", token, { status: "error" }).status, "unknown");
+});
+
+test("adding a domain: a real name, never Anuntech's, only the Administrador with the e-mail active", () => {
+  assert.match(addableDomainProblem(null)!, /Digite o domínio/);
+  assert.match(addableDomainProblem("anuntech.com")!, /da Anuntech/);
+  assert.match(addableDomainProblem("mx1.anuntech.cloud")!, /da Anuntech/);
+  assert.equal(addableDomainProblem("mulheresfm.com.br"), null);
+  const base = { role: "manager" as const, archived: false, product: "active" as const, pending: 0 };
+  assert.equal(domainAddRefusal(base), null);
+  assert.match(domainAddRefusal({ ...base, role: "member" })!, /Só o Administrador/);
+  assert.match(domainAddRefusal({ ...base, role: null })!, /Só o Administrador/);
+  assert.match(domainAddRefusal({ ...base, product: "none" })!, /Contrate o e-mail/);
+  assert.match(domainAddRefusal({ ...base, product: "suspended" })!, /não está ativo/);
+  assert.match(domainAddRefusal({ ...base, archived: true })!, /arquivada/);
+  assert.match(domainAddRefusal({ ...base, pending: MAIL_CLAIMS_MAX })!, /5 domínios esperando/);
+  // The team adds a domain for a company without the product (it links products itself).
+  assert.equal(domainAddRefusal({ ...base, role: "team", product: "none" }), null);
+});
+
+test("contracting the e-mail: the Administrador of a company in good standing, once", () => {
+  const base = { role: "manager" as const, archived: false, product: "none" as const, overdue: 0, suspended: false };
+  assert.equal(mailContractRefusal(base), null);
+  assert.equal(mailContractRefusal({ ...base, role: "team" }), null);
+  assert.match(mailContractRefusal({ ...base, role: "member" })!, /Só o Administrador/);
+  assert.match(mailContractRefusal({ ...base, product: "active" })!, /já tem o e-mail/);
+  assert.match(mailContractRefusal({ ...base, product: "suspended" })!, /já tem o e-mail/);
+  assert.match(mailContractRefusal({ ...base, overdue: 1 })!, /uma fatura vencida/);
+  assert.match(mailContractRefusal({ ...base, overdue: 3 })!, /3 faturas vencidas/);
+  assert.match(mailContractRefusal({ ...base, suspended: true })!, /produto suspenso/);
+  assert.match(mailContractRefusal({ ...base, archived: true })!, /arquivada/);
+});
+
+test("the DNS guide: DKIM and DMARC now, MX, SPF and the apps' names at the switch, never CAA", () => {
+  const expected = expectedDns(parseZoneFile(CLIENT_ZONE, "cliente.com.br"), "cliente.com.br");
+  assert.deepEqual(
+    expected.hosts.map((h) => [h.name, h.target]),
+    [
+      ["mail.cliente.com.br", "mx1.anuntech.cloud"],
+      ["autoconfig.cliente.com.br", "mx1.anuntech.cloud"],
+      ["autodiscover.cliente.com.br", "mx1.anuntech.cloud"],
+    ],
+  );
+  // Coming from another provider: the mail still lands there, and nothing is published yet.
+  const before = compareDns(expected, {
+    mx: { status: "found", records: [{ exchange: "mx.provedor.example", priority: 10 }] },
+    txt: { "cliente.com.br": { status: "found", records: [["v=spf1 include:provedor.example ~all"]] }, "_dmarc.cliente.com.br": { status: "none" } },
+    hosts: {
+      "mail.cliente.com.br": { cname: { status: "none" }, a: { status: "found", records: ["198.51.100.7"] } },
+      "autoconfig.cliente.com.br": { cname: { status: "found", records: ["outro.example."] }, a: { status: "none" } },
+      "autodiscover.cliente.com.br": { cname: { status: "none" }, a: { status: "none" } },
+    },
+    targets: { "mx1.anuntech.cloud": { status: "found", records: ["203.0.113.10"] } },
+  });
+  const stages = Object.fromEntries(before.map((c) => [c.key, c.stage]));
+  assert.deepEqual(stages, {
+    mx: "switch",
+    spf: "switch",
+    "dkim:v1-ed25519-20261101": "now",
+    "dkim:v1-rsa-20261101": "now",
+    dmarc: "now",
+    "host:mail": "switch",
+    "host:autoconfig": "switch",
+    "host:autodiscover": "switch",
+  });
+  assert.ok(!before.some((c) => /caa/i.test(c.key) || /CAA|letsencrypt/.test(JSON.stringify(c.record ?? ""))));
+  const byKey = Object.fromEntries(before.map((c) => [c.key, c]));
+  assert.equal(byKey.dmarc.record?.value, startingDmarc("cliente.com.br"));
+  assert.equal(startingDmarc("cliente.com.br"), "v=DMARC1; p=none; rua=mailto:postmaster@cliente.com.br");
+  assert.match(byKey["host:mail"].fix!, /aponta para outro servidor/);
+  assert.match(byKey["host:mail"].fix!, /nuvem cinza/);
+  assert.deepEqual(byKey["host:mail"].record, { type: "CNAME", name: "mail.cliente.com.br", value: "mx1.anuntech.cloud" });
+  assert.match(byKey["host:autoconfig"].fix!, /Troque o CNAME para mx1\.anuntech\.cloud/);
+  assert.match(byKey["host:autodiscover"].fix!, /Crie um registro CNAME/);
+  assert.equal(mailArrival(before), "elsewhere");
+  // After the switch: the MX here, and the names pointing at the server.
+  const after = compareDns(expected, {
+    mx: { status: "found", records: [{ exchange: "mx1.anuntech.cloud.", priority: 10 }] },
+    txt: {},
+    hosts: {
+      "mail.cliente.com.br": { cname: { status: "found", records: ["mx1.anuntech.cloud"] }, a: { status: "none" } },
+      "autoconfig.cliente.com.br": { cname: { status: "error" }, a: { status: "none" } },
+    },
+  });
+  assert.equal(mailArrival(after), "here");
+  assert.equal(after.find((c) => c.key === "host:mail")?.status, "ok");
+  assert.equal(after.find((c) => c.key === "host:autoconfig")?.status, "unknown");
+  assert.equal(after.find((c) => c.key === "host:autodiscover")?.status, "unknown");
+  assert.equal(mailArrival(compareDns(expected, { mx: { status: "none" }, txt: {} })), "none");
+  assert.equal(mailArrival(compareDns(expected, { mx: { status: "error" }, txt: {} })), "unknown");
+});
+
+test("the name as DNS panels take it", () => {
+  assert.equal(dnsPanelName("_anuntech.cliente.com.br", "cliente.com.br"), "_anuntech");
+  assert.equal(dnsPanelName("v1-rsa-20261101._domainkey.cliente.com.br", "cliente.com.br"), "v1-rsa-20261101._domainkey");
+  assert.equal(dnsPanelName("cliente.com.br", "cliente.com.br"), "@");
+  assert.equal(dnsPanelName("outro.com.br", "cliente.com.br"), "outro.com.br");
 });

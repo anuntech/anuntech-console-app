@@ -5,6 +5,7 @@ import { ForwardIcon, GlobeIcon } from "lucide-react";
 import { getActor } from "@/lib/access/access";
 import { mailConfigured } from "@/lib/mail/jmap";
 import { areaMailboxes, mailArea, managesArea } from "@/lib/mail/mail-area";
+import { mailProduct, pendingDomains } from "@/lib/mail/mail-setup";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/console/page-header";
 import { StatusPage } from "@/components/console/status-page";
@@ -12,6 +13,8 @@ import { DomainSwitcher } from "@/components/email/domain-switcher";
 import { MailboxList } from "@/components/email/mailbox-list";
 import { NewMailboxButton } from "@/components/email/mailbox-sheets";
 import { AssistedMail, MailServerProblem, mailCrumbs } from "@/components/email/mail-status";
+import { PendingDomains } from "@/components/email/setup-pieces";
+import { AddDomainButton } from "@/components/email/setup-sheets";
 
 export const metadata: Metadata = {
   title: "E-mail",
@@ -49,26 +52,43 @@ export default async function EmailPage({ searchParams }: { searchParams: Promis
   const { role, current, choices, companyName } = area;
   const manages = managesArea(role);
   const crumbs = mailCrumbs(area.companyId);
+  // A client's domains still waiting for the proof, and whether the company may add one (its e-mail product active).
+  const [pending, product] = manages && area.companyId ? await Promise.all([pendingDomains(area.companyId), mailProduct(area.companyId)]) : [[], null];
+  const canAdd = !!area.companyId && manages && (role === "team" || product?.state === "active");
   if (!current)
     return (
       <>
-        <PageHeader crumbs={crumbs} title="E-mail" className="mb-4" />
-        <StatusPage
-          layout="inline"
-          title="Nenhum domínio de e-mail ainda"
-          description={
-            area.companyId
-              ? `${companyName} ainda não tem um domínio no servidor de e-mail da Anuntech. Abra um chamado para a equipe preparar o domínio.`
-              : "O servidor não tem nenhum dos domínios da Anuntech. Confira o servidor de e-mail."
-          }
-          actions={
-            area.companyId && !actor.admin ? (
-              <Button asChild>
-                <Link href="/chamados/novo">Abrir chamado</Link>
-              </Button>
-            ) : undefined
-          }
-        />
+        <PageHeader crumbs={crumbs} title="E-mail" meta={area.companyId ? [companyName] : undefined} className="mb-4" />
+        <PendingDomains claims={pending} />
+        {!pending.length && (
+          <StatusPage
+            layout="inline"
+            title="Nenhum domínio de e-mail ainda"
+            description={
+              !area.companyId
+                ? "O servidor não tem nenhum dos domínios da Anuntech. Confira o servidor de e-mail."
+                : canAdd
+                  ? `Adicione o domínio de ${companyName} (o que vem depois do @). O Console mostra os registros para publicar no DNS do domínio e confere se ficaram certos.`
+                  : manages
+                    ? `${companyName} ainda não tem o e-mail da Anuntech ativo. Contrate em Produtos para adicionar o domínio.`
+                    : `${companyName} ainda não tem um domínio de e-mail. Peça ao Administrador da empresa.`
+            }
+            actions={
+              canAdd && area.companyId ? (
+                <AddDomainButton companyId={area.companyId} primary />
+              ) : area.companyId && manages && !actor.admin ? (
+                <Button asChild>
+                  <Link href="/produtos">Ir para Produtos</Link>
+                </Button>
+              ) : undefined
+            }
+          />
+        )}
+        {pending.length > 0 && canAdd && area.companyId && (
+          <div>
+            <AddDomainButton companyId={area.companyId} />
+          </div>
+        )}
       </>
     );
   try {
@@ -86,6 +106,7 @@ export default async function EmailPage({ searchParams }: { searchParams: Promis
         meta={manages ? [current.domain, companyName] : undefined}
         className="mb-4"
       />
+      <PendingDomains claims={pending} />
       <MailboxList
         rows={rows}
         query={query}
@@ -94,6 +115,7 @@ export default async function EmailPage({ searchParams }: { searchParams: Promis
           manages && (
             <>
               <DomainSwitcher choices={choices} current={current.domain} />
+              {canAdd && area.companyId && <AddDomainButton companyId={area.companyId} />}
               <Button variant="outline" asChild>
                 <Link href={at("/email/redirecionamentos", current.domain)}>
                   <ForwardIcon />

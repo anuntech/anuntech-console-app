@@ -351,6 +351,97 @@ ${[
 `;
 }
 
+// Domain ownership ------------------------------------------------------
+
+/**
+ * A client proves a domain is theirs before the server gets it: otherwise
+ * anyone could create mailboxes on someone else's domain and send mail in its
+ * name to the other clients of the same server (docs/plano-email.md, Fase 4).
+ */
+export const OWNERSHIP_LABEL = "_anuntech";
+const OWNERSHIP_PREFIX = "anuntech-verificacao=";
+export const OWNERSHIP_TOKEN_LENGTH = 24;
+/** Domains a company may have waiting for the proof at once. */
+export const MAIL_CLAIMS_MAX = 5;
+
+/** The token the TXT record carries: random, from the password alphabet (it is typed or read aloud sometimes). */
+export function ownershipToken(random: (max: number) => number = secureRandomInt) {
+  return Array.from({ length: OWNERSHIP_TOKEN_LENGTH }, () => ALPHABET[random(ALPHABET.length)]).join("");
+}
+
+/** The record to publish: TXT `_anuntech.<domain>` = `anuntech-verificacao=<token>`. */
+export const ownershipRecord = (domain: string, token: string) => ({
+  type: "TXT",
+  name: `${OWNERSHIP_LABEL}.${domain}`,
+  value: `${OWNERSHIP_PREFIX}${token}`,
+});
+
+/** What is wrong with a domain a client wants to add, or null. The server and the links are asked afterwards. */
+export function addableDomainProblem(domain: string | null) {
+  if (!domain) return "Digite o domínio, como empresa.com.br, sem www nem @.";
+  if (isAnuntechDomain(domain)) return "Os domínios da Anuntech não são usados por clientes.";
+  return null;
+}
+
+// The client's own setup ----------------------------------------------
+
+/** Where a company's e-mail product stands: what contracting and adding a domain read. */
+export type MailProductState = "none" | "active" | "paused" | "suspended";
+
+/**
+ * Why the company cannot contract the e-mail product now, or null. Only
+ * whoever manages the company's mail (its Administrador, or the team); a
+ * company in good standing only (no overdue invoice, no open suspension),
+ * since the product starts at once and the team bills it afterwards
+ * (Kauan, 01/11/2026); one e-mail product per company.
+ */
+export function mailContractRefusal(c: { role: MailRole | null; archived: boolean; product: MailProductState; overdue: number; suspended: boolean }) {
+  if (c.role !== "team" && c.role !== "manager") return "Só o Administrador da empresa contrata o e-mail.";
+  if (c.archived) return "A empresa está arquivada. Fale com a equipe.";
+  if (c.product !== "none") return "A empresa já tem o e-mail da Anuntech. Abra pelo card do e-mail em Produtos.";
+  if (c.overdue)
+    return `A empresa tem ${c.overdue === 1 ? "uma fatura vencida" : `${c.overdue} faturas vencidas`}. Pague em Financeiro e contrate depois que o pagamento for confirmado.`;
+  if (c.suspended) return "A empresa tem um produto suspenso. Fale com a equipe antes de contratar.";
+  return null;
+}
+
+/**
+ * Why the company cannot add a domain now, or null: its Administrador needs
+ * the e-mail product active; the team adds one for any company not archived.
+ */
+export function domainAddRefusal(c: { role: MailRole | null; archived: boolean; product: MailProductState; pending: number }) {
+  if (c.role !== "team" && c.role !== "manager") return "Só o Administrador da empresa adiciona domínio.";
+  if (c.archived) return "A empresa está arquivada. Fale com a equipe.";
+  if (c.role === "manager" && c.product === "none") return "Contrate o e-mail em Produtos antes de adicionar o domínio.";
+  if (c.role === "manager" && c.product !== "active") return "O e-mail da empresa não está ativo. Fale com a equipe.";
+  if (c.pending >= MAIL_CLAIMS_MAX) return `A empresa já tem ${MAIL_CLAIMS_MAX} domínios esperando a confirmação. Conclua ou remova um antes.`;
+  return null;
+}
+
+/** DNS stages: the proof first; then what can go up at once without touching today's mail; then the switch. */
+export type DnsStage = "proof" | "now" | "switch";
+
+/** The proof as one check of the guide: found when one of the TXT records is exactly the expected value. */
+export function ownershipCheck(domain: string, token: string, answer: DnsAnswer<string[]>): DnsCheck {
+  const record = ownershipRecord(domain, token);
+  const base = {
+    key: "ownership",
+    stage: "proof" as const,
+    title: "Prova de que o domínio é da empresa",
+    purpose: "Um registro só para a Anuntech conferir que quem cuida do DNS de verdade pediu o domínio. Pode apagar depois da confirmação.",
+  };
+  if (answer.status === "error") return { ...base, status: "unknown", found: [], fix: null, record };
+  const found = answer.status === "found" ? answer.records.map((parts) => parts.join("").trim()) : [];
+  const ok = found.includes(record.value);
+  return {
+    ...base,
+    status: ok ? "ok" : "missing",
+    found: found.length && !ok ? found : [],
+    fix: ok ? null : found.length ? `O TXT de ${record.name} não tem o valor certo. Troque pelo valor abaixo.` : `Crie um registro TXT com o nome ${record.name} e o valor abaixo.`,
+    record,
+  };
+}
+
 // DNS health ------------------------------------------------------------
 
 export type ZoneRecord = { name: string; type: string; value: string };
@@ -476,14 +567,31 @@ export type DnsExpectation = {
   spf: string | null;
   dkim: { selector: string; name: string; value: string }[];
   dmarc: string | null;
+  /**
+   * Names that must point at the server: autoconfig and autodiscover (the
+   * apps' automatic setup) and mail.<domain>, which the server's certificate
+   * also covers. Empty when the zone has no automatic setup records.
+   */
+  hosts: { label: string; name: string; target: string }[];
 };
 
 const host = (name: string) => name.trim().toLowerCase().replace(/\.$/, "");
 
-/** What the server expects in the domain's zone, for the four checks the team needs. */
+/** The automatic setup names the zone lists, and mail.<domain>, which the server's certificate asks for too. */
+const HOST_LABELS = ["mail", "autoconfig", "autodiscover"] as const;
+
+/**
+ * What the server expects in the domain's zone, for the checks people need.
+ * The zone also lists CAA records: they are never shown, since a CAA naming
+ * only the mail server's certificate authority would break the certificates
+ * of the client's website (Vercel and others issue elsewhere).
+ */
 export function expectedDns(records: ZoneRecord[], domain: string): DnsExpectation {
   const apex = host(domain);
   const txtAt = (name: string) => records.filter((r) => r.type === "TXT" && r.name === name).map((r) => r.value);
+  const cname = (label: string) => records.find((r) => r.type === "CNAME" && r.name === `${label}.${apex}`);
+  const setup = cname("autoconfig") ?? cname("autodiscover");
+  const target = setup ? host(setup.value) : null;
   return {
     domain: apex,
     mx: records
@@ -495,6 +603,11 @@ export function expectedDns(records: ZoneRecord[], domain: string): DnsExpectati
       .filter((r) => r.type === "TXT" && r.name.endsWith(`._domainkey.${apex}`) && /(^|;)\s*p=/i.test(r.value))
       .map((r) => ({ selector: r.name.slice(0, -`._domainkey.${apex}`.length), name: r.name, value: r.value })),
     dmarc: txtAt(`_dmarc.${apex}`).find((v) => /^v=DMARC1\b/i.test(v)) ?? null,
+    hosts: target
+      ? HOST_LABELS.map((label) => ({ label, name: `${label}.${apex}`, target: cname(label) ? host(cname(label)!.value) : target }))
+          // A name that is the target itself (autoconfig pointing at mail.<domain>) has nothing to point at.
+          .filter((entry) => entry.name !== entry.target)
+      : [],
   };
 }
 
@@ -504,11 +617,21 @@ export type DnsLookups = {
   mx: DnsAnswer<{ exchange: string; priority: number }>;
   /** By name: TXT records as the resolver returns them (each one a list of strings). */
   txt: Record<string, DnsAnswer<string[]>>;
+  /**
+   * By name, for the expectation's hosts: the CNAME and, without one, the
+   * addresses; `targets` are the server's own addresses, by target name. A
+   * name with A records equal to the server's points at it too
+   * (mail.anuntech.com is set up that way).
+   */
+  hosts?: Record<string, { cname: DnsAnswer<string>; a: DnsAnswer<string> }>;
+  targets?: Record<string, DnsAnswer<string>>;
 };
 
 export type DnsCheckStatus = "ok" | "missing" | "unknown";
 export type DnsCheck = {
   key: string;
+  /** Where the guide shows it: the proof, what can go up now, or the switch from the old provider. */
+  stage: DnsStage;
   title: string;
   /** What the record does, in a sentence without jargon. */
   purpose: string;
@@ -531,9 +654,15 @@ const spfTerms = (record: string) =>
 const dkimKey = (record: string) => /(?:^|;)\s*p=([^;]*)/i.exec(record)?.[1].replace(/\s+/g, "") ?? "";
 const dmarcPolicy = (record: string) => /(?:^|;)\s*p=\s*([a-z]+)/i.exec(record)?.[1].toLowerCase() ?? null;
 
+/** Where DMARC starts: reports only, so a sender the client forgot is not rejected while the switch settles. */
+export const startingDmarc = (domain: string) => `v=DMARC1; p=none; rua=mailto:postmaster@${domain}`;
+
 /**
  * Each check, compared with what the server expects: "ok" (certo),
  * "missing" (falta isto, with the fix) or "unknown" (the lookup failed).
+ * DKIM and DMARC can go up at once without changing anything in the mail of
+ * today ("now"); MX, SPF and the names of the apps move the mail over
+ * ("switch"), after the mailboxes exist and the old mail was copied.
  */
 export function compareDns(expected: DnsExpectation, lookups: DnsLookups): DnsCheck[] {
   const { domain } = expected;
@@ -544,12 +673,13 @@ export function compareDns(expected: DnsExpectation, lookups: DnsLookups): DnsCh
   };
 
   if (expected.mx.length) {
+    const stage = "switch" as const;
     const title = "Recebimento (MX)";
     const purpose = "Diz para onde vão os e-mails enviados para o domínio.";
     const record = { type: "MX", name: domain, value: `10 ${expected.mx[0]}` };
     const answer = lookups.mx;
     if (answer.status === "error")
-      checks.push({ key: "mx", title, purpose, status: "unknown", found: [], fix: null, record: null });
+      checks.push({ key: "mx", stage, title, purpose, status: "unknown", found: [], fix: null, record: null });
     else {
       const found = answer.status === "found" ? answer.records.map((r) => host(r.exchange)) : [];
       const missing = expected.mx.filter((mx) => !found.includes(mx));
@@ -557,6 +687,7 @@ export function compareDns(expected: DnsExpectation, lookups: DnsLookups): DnsCh
       const ok = !missing.length && !extra.length;
       checks.push({
         key: "mx",
+        stage,
         title,
         purpose,
         status: ok ? "ok" : "missing",
@@ -574,11 +705,12 @@ export function compareDns(expected: DnsExpectation, lookups: DnsLookups): DnsCh
   }
 
   if (expected.spf) {
+    const stage = "switch" as const;
     const title = "Quem pode enviar (SPF)";
     const purpose = "Lista os servidores que podem mandar e-mail em nome do domínio, para não cair no spam.";
     const record = { type: "TXT", name: domain, value: expected.spf };
     const answer = txt(domain);
-    if (answer.status === "error") checks.push({ key: "spf", title, purpose, status: "unknown", found: [], fix: null, record: null });
+    if (answer.status === "error") checks.push({ key: "spf", stage, title, purpose, status: "unknown", found: [], fix: null, record: null });
     else {
       const found = answer.status === "found" ? answer.records.filter((r) => /^v=spf1\b/i.test(r.trim())) : [];
       const wanted = spfTerms(expected.spf).filter((term) => !/^[-~?+]?all$/.test(term));
@@ -591,23 +723,25 @@ export function compareDns(expected: DnsExpectation, lookups: DnsLookups): DnsCh
         if (terms.some((term) => term === "+all" || term === "all")) fix = "O SPF de hoje deixa qualquer servidor enviar pelo domínio. Troque o fim por -all, como no valor abaixo.";
         else if (lacking.length) fix = `O SPF de hoje não inclui o servidor da Anuntech. Acrescente ${lacking.join(" ")} ao registro, antes do "all".`;
       }
-      checks.push({ key: "spf", title, purpose, status: fix ? "missing" : "ok", found, fix, record: fix ? record : null });
+      checks.push({ key: "spf", stage, title, purpose, status: fix ? "missing" : "ok", found, fix, record: fix ? record : null });
     }
   }
 
   for (const key of expected.dkim) {
+    const stage = "now" as const;
     const title = expected.dkim.length > 1 ? `Assinatura dos e-mails (DKIM ${key.selector})` : "Assinatura dos e-mails (DKIM)";
     const purpose = "Prova que o e-mail saiu do servidor da Anuntech e não foi alterado no caminho.";
     const record = { type: "TXT", name: key.name, value: key.value };
     const answer = txt(key.name);
     if (answer.status === "error") {
-      checks.push({ key: `dkim:${key.selector}`, title, purpose, status: "unknown", found: [], fix: null, record: null });
+      checks.push({ key: `dkim:${key.selector}`, stage, title, purpose, status: "unknown", found: [], fix: null, record: null });
       continue;
     }
     const found = answer.status === "found" ? answer.records : [];
     const matches = found.some((r) => dkimKey(r) && dkimKey(r) === dkimKey(key.value));
     checks.push({
       key: `dkim:${key.selector}`,
+      stage,
       title,
       purpose,
       status: matches ? "ok" : "missing",
@@ -623,12 +757,14 @@ export function compareDns(expected: DnsExpectation, lookups: DnsLookups): DnsCh
   }
 
   {
+    const stage = "now" as const;
     const title = "Proteção contra falsificação (DMARC)";
     const purpose = "Diz aos outros servidores o que fazer com e-mails falsos que usam o domínio.";
     const name = `_dmarc.${domain}`;
-    const value = expected.dmarc ?? `v=DMARC1; p=none; rua=mailto:postmaster@${domain}`;
+    // The server's zone asks for p=reject; a domain starts at p=none and is hardened later, by hand.
+    const value = startingDmarc(domain);
     const answer = txt(name);
-    if (answer.status === "error") checks.push({ key: "dmarc", title, purpose, status: "unknown", found: [], fix: null, record: null });
+    if (answer.status === "error") checks.push({ key: "dmarc", stage, title, purpose, status: "unknown", found: [], fix: null, record: null });
     else {
       const found = answer.status === "found" ? answer.records.filter((r) => /^v=DMARC1\b/i.test(r.trim())) : [];
       const policy = found.length === 1 ? dmarcPolicy(found[0]) : null;
@@ -639,13 +775,67 @@ export function compareDns(expected: DnsExpectation, lookups: DnsLookups): DnsCh
           : !policy
             ? `O registro DMARC de ${name} não diz a política (p=). Use o valor abaixo.`
             : null;
-      checks.push({ key: "dmarc", title, purpose, status: fix ? "missing" : "ok", found, fix, record: fix ? { type: "TXT", name, value } : null });
+      checks.push({ key: "dmarc", stage, title, purpose, status: fix ? "missing" : "ok", found, fix, record: fix ? { type: "TXT", name, value } : null });
     }
   }
+
+  for (const entry of expected.hosts) {
+    const stage = "switch" as const;
+    const { title, purpose } = HOST_TEXT[entry.label as (typeof HOST_LABELS)[number]] ?? { title: entry.name, purpose: "" };
+    const record = { type: "CNAME", name: entry.name, value: entry.target };
+    const answer = lookups.hosts?.[entry.name];
+    const target = lookups.targets?.[entry.target];
+    if (!answer || answer.cname.status === "error") {
+      checks.push({ key: `host:${entry.label}`, stage, title, purpose, status: "unknown", found: [], fix: null, record: null });
+      continue;
+    }
+    let fix: string | null;
+    let found: string[] = [];
+    if (answer.cname.status === "found") {
+      const to = host(answer.cname.records[0] ?? "");
+      found = [`CNAME ${to}`];
+      fix = to === entry.target ? null : `${entry.name} aponta para ${to}. Troque o CNAME para ${entry.target}.`;
+    } else if (answer.a.status === "found") {
+      found = answer.a.records.map((ip) => `A ${ip}`);
+      const server = target?.status === "found" ? target.records : [];
+      // A name with the server's own addresses works as well as the CNAME (mail.anuntech.com).
+      fix = server.length && answer.a.records.every((ip) => server.includes(ip))
+        ? null
+        : `${entry.name} aponta para outro servidor. Apague o registro A e crie o CNAME abaixo. Se o DNS é da Cloudflare, deixe o proxy desligado (nuvem cinza) nesse registro.`;
+    } else if (answer.a.status === "error") {
+      checks.push({ key: `host:${entry.label}`, stage, title, purpose, status: "unknown", found: [], fix: null, record: null });
+      continue;
+    } else fix = `Crie um registro CNAME com o nome ${entry.name} apontando para ${entry.target}.`;
+    checks.push({ key: `host:${entry.label}`, stage, title, purpose, status: fix ? "missing" : "ok", found: fix ? found : [], fix, record: fix ? record : null });
+  }
   return checks;
+}
+
+/** The name as most DNS panels take it: without the domain, and "@" for the domain itself. */
+export function dnsPanelName(name: string, domain: string) {
+  if (name === domain) return "@";
+  return name.endsWith(`.${domain}`) ? name.slice(0, -domain.length - 1) : name;
 }
 
 /** The names the DNS check asks about: the domain, each DKIM selector and DMARC. */
 export function dnsQuestions(expected: DnsExpectation) {
   return [expected.domain, ...expected.dkim.map((k) => k.name), `_dmarc.${expected.domain}`];
+}
+
+const HOST_TEXT: Record<(typeof HOST_LABELS)[number], { title: string; purpose: string }> = {
+  mail: { title: "Endereço dos aplicativos (mail)", purpose: "O nome que os celulares e programas de e-mail usam, e que o certificado do servidor cobre." },
+  autoconfig: { title: "Configuração automática (autoconfig)", purpose: "Deixa o Thunderbird e outros aplicativos acharem o servidor sozinhos." },
+  autodiscover: { title: "Configuração automática do Outlook (autodiscover)", purpose: "Deixa o Outlook achar o servidor sozinho, só com o endereço e a senha." },
+};
+
+/**
+ * Where the domain's mail lands today, from the MX check: on the server
+ * ("here"), still at the old provider ("elsewhere"), nowhere yet ("none"),
+ * or unknown. The guide warns while it is not here.
+ */
+export function mailArrival(checks: DnsCheck[]): "here" | "elsewhere" | "none" | "unknown" {
+  const mx = checks.find((check) => check.key === "mx");
+  if (!mx || mx.status === "unknown") return "unknown";
+  if (mx.status === "ok") return "here";
+  return mx.found.length ? "elsewhere" : "none";
 }

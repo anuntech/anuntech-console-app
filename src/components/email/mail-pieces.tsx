@@ -38,10 +38,11 @@ export function QuotaBar({ used, quota, className }: { used: number; quota: numb
   );
 }
 
-const choice =
+/** A radio choice as a framed row: the input hides, the dot and the border show the pick. */
+export const choice =
   "group flex cursor-pointer items-start gap-3 rounded-lg border bg-field px-3 py-2.5 text-sm transition-colors hover:bg-accent/40 has-[:checked]:border-primary has-[:checked]:bg-accent has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50";
 
-function Dot() {
+export function Dot() {
   return (
     <span
       aria-hidden="true"
