@@ -28,7 +28,9 @@ export default async function EmailPage({ searchParams }: { searchParams: Promis
   let rows;
   try {
     rows = await listMailboxes();
-  } catch {
+  } catch (error) {
+    // The JMAP client already logged the step and the status; anything else is named, never dumped.
+    console.error("[email] page failed", { name: error instanceof Error ? error.name : typeof error });
     return <MailServerProblem configured />;
   }
   const emails = await getAccountEmails(actor.user.id, actor.user.email);

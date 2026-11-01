@@ -122,7 +122,8 @@ export async function managedDomains() {
     const found = domains.find((d) => text(d.name).toLowerCase() === domain && isJmapId(d.id));
     if (found) byName.set(domain, found.id as string);
   }
-  domainCache = { byName, expires: Date.now() + 10 * 60_000 };
+  // An empty answer (a server being set up, a role without sysDomainQuery) is not kept: the next request asks again.
+  if (byName.size) domainCache = { byName, expires: Date.now() + 10 * 60_000 };
   return byName;
 }
 
@@ -156,7 +157,7 @@ function mailboxRow(account: RawAccount, names: Map<string, MailDomain>): Mailbo
     aliases: listEntries<Alias>(account.aliases)
       .filter((a) => a.domainId === account.domainId && a.enable !== false && text(a.name))
       .map((a) => text(a.name).toLowerCase()),
-    createdAt: text(account.createdAt) || null,
+    createdAt: Number.isFinite(Date.parse(text(account.createdAt))) ? new Date(text(account.createdAt)).toISOString() : null,
     managed: isPlainUser(account),
   };
 }

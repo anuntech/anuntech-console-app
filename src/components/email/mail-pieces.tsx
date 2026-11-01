@@ -117,7 +117,8 @@ export type Secret = { address: string; password: string; title: string };
 export function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () => void }) {
   return (
     <Sheet open={!!secret} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+      {/* The assistant never reads what is in here. */}
+      <SheetContent data-assistant-ignore="" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
         <SheetHeader className="border-b px-6 py-5">
           <SheetTitle>{secret?.title ?? "Senha"}</SheetTitle>
           <SheetDescription>Copie a senha e passe para quem usa a caixa por um canal seguro.</SheetDescription>

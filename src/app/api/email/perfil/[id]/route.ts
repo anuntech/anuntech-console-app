@@ -19,7 +19,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   let mailbox;
   try {
     mailbox = await findManagedMailbox(id);
-  } catch {
+  } catch (error) {
+    console.error("[email] profile failed", { name: error instanceof Error ? error.name : typeof error });
     return new Response("O servidor de e-mail não respondeu. Tente de novo em alguns minutos.", {
       status: 502,
       headers: { "Cache-Control": "private, no-store", "Content-Type": "text/plain; charset=utf-8" },

@@ -20,7 +20,9 @@ export default async function ForwardsPage() {
   let rows;
   try {
     rows = await listForwards();
-  } catch {
+  } catch (error) {
+    // The JMAP client already logged the step and the status; anything else is named, never dumped.
+    console.error("[email] page failed", { name: error instanceof Error ? error.name : typeof error });
     return <MailServerProblem configured />;
   }
   return (

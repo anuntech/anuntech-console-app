@@ -25,6 +25,7 @@ export default async function DnsPage() {
     health = await dnsHealth(domain);
   } catch (error) {
     if (error instanceof MailRefusal) return <StatusPage layout="inline" title="Não deu para conferir o DNS" description={error.message} />;
+    console.error("[email] dns page failed", { name: error instanceof Error ? error.name : typeof error });
     return <MailServerProblem configured />;
   }
   const missing = health.checks.filter((check) => check.status === "missing").length;
