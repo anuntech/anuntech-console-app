@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+// The server's own business calendar (no imports, so Node loads it as it is).
+import { calendar } from "../src/lib/service-terms/business-calendar.ts";
 
 /**
  * Automation batch 6 (billing): the overdue queue with the contact log,
@@ -129,14 +131,20 @@ export async function runBillingExtrasTests({ database: db, ids, people, request
     "Retomar reaproveita o rascunho do período, com nova data para pagar, sem criar outro",
   );
 
-  // The month close goes once, from the daily digest (earlier tests already ran it; running again sends nothing new).
+  // The month close goes once, from the daily digest (earlier tests already ran it; running again sends nothing new),
+  // and only from the month's first business day on (month-close.ts): on a 1st that is a Sunday before a holiday, it waits.
   await cron("/api/cron/ops-digest");
   await cron("/api/cron/ops-digest");
   const closes = sentNotices().filter((n) => String(n.payload?.subject ?? "").startsWith("[Console] Fechamento de"));
-  ok(
-    closes.length > 0 && new Set(closes.map((n) => n.payload.to[0])).size === closes.length && String(closes[0].payload.text).includes("Recebido:"),
-    "O fechamento do mês sai uma vez, com o recebido e o em aberto",
-  );
+  const seat = calendar((await one("select holidays from console_environment_profile limit 1"))?.holidays ?? {});
+  const firstBusinessDay =
+    Array.from({ length: 10 }, (_, i) => `${today.slice(0, 8)}${String(i + 1).padStart(2, "0")}`).find((day) => seat.isBusinessDay(day)) ?? `${today.slice(0, 8)}01`;
+  if (today < firstBusinessDay) ok(closes.length === 0, "Antes do primeiro dia útil do mês, o fechamento espera");
+  else
+    ok(
+      closes.length > 0 && new Set(closes.map((n) => n.payload.to[0])).size === closes.length && String(closes[0].payload.text).includes("Recebido:"),
+      "O fechamento do mês sai uma vez, com o recebido e o em aberto",
+    );
 
   // A contract a year old with its anniversary within 30 days: the readjust by IPCA comes prepared.
   const item = randomUUID(), contract = randomUUID();
