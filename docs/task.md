@@ -41,6 +41,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Engenharia
 
+- [ ] E-mail (31/10): área de gestão das caixas no servidor Stalwart (mx1.anuntech.cloud): caixas, senha, espaço, apelidos e redirecionamentos, resposta automática, "Configurar no iPhone/Mac" (perfil .mobileconfig) e saúde do DNS; o Administrador gerencia as da empresa, a equipe todas. Credencial de serviço sem permissão de ler mensagens.
 - [ ] Assistente no AI SDK (19/10): a partir de 21/10/2026 (7 dias do `ai` 7.0.140), subir o AI SDK (e o `@ai-sdk/gateway` junto, na versão que ele fixa) e passar `toolCallConcurrency: 1` ao `streamText`, mantendo a fila do executor e o `inModelOrder`. O servidor não confere o caminho do cartão de tela (`path`) na confirmação, só o painel.
 - [ ] AI Gateway (19/10), depois dos créditos: conferir em produção se o Jev devolve a confiança própria em `providerMetadata.typesafe.confidence` pelo Gateway (sem ela, vale a probabilidade da opção escolhida; sem as duas, os atalhos de abrir tela e chamar a equipe não disparam) e mandar um ditado de 2 minutos pelo celular (o WAV tem 3,8 MB). O formato do erro no meio do stream e do 402 sem créditos foram supostos pelo simulador (`scripts/ai-gateway-mock.cjs`).
 - [ ] Assistente (16/10, restos da auditoria): prazo de retenção para conversas e cartões e o texto das instruções na auditoria (L6). Se a vez restrita (consultas só da empresa do registro depois de ler texto de cliente) atrapalhar a equipe, avaliar o classificador secundário da seção 3 de [security.md](security.md).
