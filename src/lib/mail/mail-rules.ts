@@ -149,9 +149,10 @@ export function parseAddressList(text: string): { ok: true; addresses: Address[]
   for (const raw of pieces) {
     const piece = raw.trim();
     if (!piece) continue;
-    const named = /^(.*)<([^<>]+)>$/.exec(piece);
+    const named = /^([\s\S]*)<([^<>]+)>$/.exec(piece);
     const email = (named ? named[2] : piece).trim();
-    const name = named ? named[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+    // No line breaks or control characters in a display name: they belong to no header.
+    const name = named ? named[1].replace(/[\u0000-\u001f\u007f]+/g, " ").trim().replace(/^"(.*)"$/, "$1").trim() : "";
     if (!isEmailAddress(email)) return { ok: false, invalid: piece.slice(0, 80) };
     const key = email.toLowerCase();
     if (seen.has(key)) continue;

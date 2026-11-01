@@ -203,7 +203,8 @@ export async function sendEmail(_: ActionState, form: FormData): Promise<ActionS
       to: recipients.para,
       cc: recipients.cc,
       bcc: recipients.cco,
-      subject: data.assunto.trim(),
+      // One line: a line break in the subject would start another header.
+      subject: data.assunto.replace(/[\u0000-\u001f\u007f]+/g, " ").trim(),
       body: data.corpo.replace(/\r\n?/g, "\n"),
       inReplyTo: data.inReplyTo,
       references: data.references,

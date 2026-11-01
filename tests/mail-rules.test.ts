@@ -63,8 +63,9 @@ test("recipients: commas or semicolons, names with or without quotes, each addre
   assert.deepEqual(parseAddressList("ana@x.com, nao-e-email"), { ok: false, invalid: "nao-e-email" });
   assert.deepEqual(parseAddressList("a@b"), { ok: false, invalid: "a@b" });
   assert.deepEqual(parseAddressList("   "), { ok: true, addresses: [] });
-  // A header injection attempt is not an address.
+  // A header injection attempt is not an address, and a name keeps to one line.
   assert.equal(parseAddressList("a@b.com\r\nBcc: c@d.com").ok, false);
+  assert.deepEqual(parseAddressList("Ana\r\nBcc: x <ana@x.com>"), { ok: true, addresses: [{ name: "Ana Bcc: x", email: "ana@x.com" }] });
 });
 
 test("subjects get Re: and Enc: once", () => {
