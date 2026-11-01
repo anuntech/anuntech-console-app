@@ -21,8 +21,7 @@ export type DockIconName =
   | "receipt"
   | "bookmark"
   | "calculator"
-  | "folders"
-  | "mail";
+  | "folders";
 
 const EASE = [0.2, 0, 0, 1] as const;
 const base: Transition = { duration: 0.45, ease: EASE };
@@ -150,12 +149,6 @@ const parts: Record<DockIconName, ReactNode> = {
       />
       <path d="M3 8.268a2 2 0 0 0-1 1.738V19a2 2 0 0 0 2 2h11a2 2 0 0 0 1.732-1" />
     </>
-  ),
-  mail: (
-    <m.g variants={{ normal: { y: 0 }, animate: { y: [0, -1.5, 0], transition: base } }}>
-      <rect width={20} height={16} x={2} y={4} rx={2} />
-      <m.path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" custom={1} variants={draw} />
-    </m.g>
   ),
 };
 

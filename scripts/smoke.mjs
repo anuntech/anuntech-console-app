@@ -9,8 +9,6 @@ import { runBillingExtrasTests } from "./billing-extras-smoke.mjs";
 import { runSuspensionTests } from "./suspension-smoke.mjs";
 import { runArquivosTests } from "./arquivos-smoke.mjs";
 import { startR2Mock } from "./r2-mock.mjs";
-import { startJmapMock } from "./jmap-mock.mjs";
-import { runEmailTests } from "./email-smoke.mjs";
 import { runJourneyTests } from "./journey-smoke.mjs";
 import { runHelpTests } from "./help-smoke.mjs";
 import { runAppsTests } from "./apps-smoke.mjs";
@@ -85,7 +83,6 @@ const sentNotices = () => {
 flags({ approved: true });
 let server;
 let r2;
-let jmap;
 let logs = "";
 let passed = 0;
 const companyIds = [ids.a, ids.b];
@@ -274,8 +271,6 @@ try {
   assert.ok(!taken, `A porta ${port} já está em uso: feche o outro servidor ou use CONSOLE_TEST_HTTP_PORT.`);
   // Arquivos talks to a local stand-in for R2 (scripts/r2-mock.mjs), never to the real bucket in .env.local.
   r2 = await startR2Mock();
-  // E-mail talks to a local JMAP stand-in (scripts/jmap-mock.mjs), never to the real mail server.
-  jmap = await startJmapMock();
   server = spawn(
     process.execPath,
     [
@@ -319,9 +314,6 @@ try {
         R2_BUCKET: "console-test",
         R2_ACCESS_KEY_ID: "test",
         R2_SECRET_ACCESS_KEY: "test",
-        STALWART_URL: jmap.endpoint,
-        STALWART_USER: jmap.user,
-        STALWART_PASSWORD: jmap.password,
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -2237,7 +2229,6 @@ try {
     await runAssistantTests({ database, ids, people, request, ok, marker, base, flags, aiFile });
     await runContractSigningTests({ database, ids, request, ok, marker, base });
     await runWorkspaceDomainTests({ people, ok, base, notFoundPage, passKeyId });
-    await runEmailTests({ database, people, request, submitForm, ok, marker, base, jmap, notFoundPage });
   }
   // Every AI call of the run, as the Gateway mock saw it: client data only to providers that keep nothing and train
   // on nothing (the catalog icons carry none), and nothing left for OpenRouter or a Gateway path the mock does not know.
@@ -2263,7 +2254,6 @@ try {
     await new Promise((r) => server.once("exit", r));
   }
   await r2?.close();
-  await jmap?.close();
   await database.query("delete from console_file_uploads where actor_id=any($1::text[]) or company_id=any($2::text[])", [
     Object.values(people).map((p) => p.id),
     companyIds,
