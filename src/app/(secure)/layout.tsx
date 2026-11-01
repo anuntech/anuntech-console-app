@@ -6,6 +6,8 @@ import { ServerForm, SubmitButton } from "@/components/console/server-form";
 import { endAssistedSession } from "@/lib/access/assisted-actions";
 import { voiceEnabled } from "@/lib/voice/voice-server";
 import { ConsoleOpening } from "@/components/shell/console-opening";
+import { mailConfigured } from "@/lib/mail/jmap";
+import { mailboxesOf } from "@/lib/mail/mailbox";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export default async function ConsoleLayout({
@@ -19,6 +21,8 @@ export default async function ConsoleLayout({
   const actor = await getActor();
   if (!actor.admin && !actor.grants.length && !actor.assisting)
     redirect("/acesso-pendente");
+  // The dock's E-mail: the pure rule over the person's own addresses, no call to the mail server.
+  const mail = mailConfigured() && actor.admin && (await mailboxesOf(actor)).length > 0;
   return (
     <>
       <ConsoleOpening />
@@ -53,6 +57,7 @@ export default async function ConsoleLayout({
             support={!!allowedIds(actor, "support").length}
             finance={!!allowedIds(actor, "finance").length}
             voice={voiceEnabled()}
+            mail={mail}
           />
           <main className="page-content" id="main-content" tabIndex={-1}>
             {children}

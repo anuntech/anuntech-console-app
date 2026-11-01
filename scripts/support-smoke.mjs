@@ -119,16 +119,16 @@ export async function runSupportTests({ database: db, ids, people, request, subm
   })();
   // Logged during the month, reported after it closed: the final report.
   await db.query(
-    "insert into console_time_entries(id,company_id,author_id,minutes,note,worked_on,kind,created_at) values($1,$2,$3,690,'Mês cheio',$4,'bank',date_trunc('month', now()) - interval '2 days')",
+    "insert into console_time_entries(id,company_id,author_id,minutes,note,worked_on,kind,created_at) values($1,$2,$3,690,'Mês cheio',$4,'bank',(date_trunc('month', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo') - interval '2 days')",
     [randomUUID(), ids.a, people.admin.id, `${last}-10`],
   );
-  await db.query("insert into console_hours_months(id,company_id,month,report_sent_at,report_sent_by) values($1,$2,$3,date_trunc('month', now()) + interval '6 hours',$4)", [randomUUID(), ids.a, last, people.admin.id]);
+  await db.query("insert into console_hours_months(id,company_id,month,report_sent_at,report_sent_by) values($1,$2,$3,(date_trunc('month', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo') + interval '6 hours',$4)", [randomUUID(), ids.a, last, people.admin.id]);
   // Conditions confirmed after the report and nothing kept of what it said: no price is guessed.
   let card = await request(`/empresas/${ids.a}`, "admin");
   ok(!card.text.includes(`/financeiro/nova?excedente=${ids.a}`), "Sem o banco do relatório e com condições mudadas depois, o excedente não sai com o preço de hoje");
   // The report keeps the bank and the price the client saw.
   await db.query(
-    "insert into console_audit_events(id,actor_id,company_id,action,entity_id,details,created_at) values($1,$2,$3,'hours.report_sent',$3,$4,date_trunc('month', now()) + interval '6 hours')",
+    "insert into console_audit_events(id,actor_id,company_id,action,entity_id,details,created_at) values($1,$2,$3,'hours.report_sent',$3,$4,(date_trunc('month', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo') + interval '6 hours')",
     [randomUUID(), people.admin.id, ids.a, JSON.stringify({ month: last, sent: 1, automatic: false, includedMinutes: 600, overageCents: 15000 })],
   );
   card = await request(`/empresas/${ids.a}`, "admin");

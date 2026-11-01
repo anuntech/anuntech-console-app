@@ -15,6 +15,7 @@ import {
   Folders,
   Bookmark,
   Calculator,
+  Mail,
   type LucideIcon,
 } from "lucide-react";
 import { useAppearance } from "@/components/shell/appearance-provider";
@@ -36,6 +37,8 @@ export type NavigationProps = {
   canManageMembers: boolean;
   /** The assistant's microphone (lib/voice). */
   voice: boolean;
+  /** E-mail: the team with a mailbox of its own (lib/mail), worked out on the server. */
+  mail: boolean;
 };
 const items: {
   href: string;
@@ -47,6 +50,8 @@ const items: {
   motion: DockIconName;
   admin?: boolean;
   area?: string;
+  /** Only for whoever has a mailbox (`mail`). */
+  mail?: boolean;
 }[] = [
   { href: "/painel", label: "Visão geral", short: "Início", icon: LayoutDashboard, motion: "dashboard" },
   { href: "/empresas", label: "Empresas", icon: Building2, motion: "building", admin: true },
@@ -68,6 +73,7 @@ const items: {
     area: "finance",
   },
   { href: "/bookmarks", label: "Arquivos", icon: Bookmark, motion: "bookmark" },
+  { href: "/email", label: "E-mail", icon: Mail, motion: "mail", mail: true },
   { href: "/orcamentos", label: "Orçamentos", icon: Calculator, motion: "calculator", area: "finance" },
   { href: "/contratos", label: "Contratos", icon: Folders, motion: "folders", area: "finance" },
 ];
@@ -136,6 +142,7 @@ export function Dock({
   userImage,
   canManageMembers,
   voice,
+  mail,
 }: NavigationProps) {
   const pathname = usePathname();
   const { position } = useAppearance();
@@ -152,6 +159,7 @@ export function Dock({
   const visible = items.filter(
     (item) =>
       (!item.admin || admin) &&
+      (!item.mail || mail) &&
       (!item.area || admin || (item.area === "support" ? support : finance)),
   );
   const actions = [
