@@ -166,7 +166,6 @@ export const auditLabels: Record<string, string> = {
   "engagement.status_changed": "Situação do produto ou projeto alterada",
   "company.storage_quota": "Espaço em Arquivos alterado",
   "bookmark.trashed": "Item movido para a lixeira",
-  "email.sent": "E-mail enviado",
   "bookmark.version_added": "Nova versão de arquivo",
   "bookmark.version_restored": "Versão de arquivo restaurada",
   "bookmark.restored": "Item restaurado da lixeira",

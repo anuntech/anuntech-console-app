@@ -218,12 +218,6 @@ A web passou a mostrar cada arquivo no cartão e ganhou o que um drive tem (f2bd
 - ⚪ Primeiro quadro do vídeo e página do documento na linha da lista: a linha tem 32 pontos e tirar o quadro pede um player por linha; a lista mostra o ícone do tipo e o visualizador mostra o vídeo e a página.
 - ⚪ Grade de cartões, botões que aparecem ao passar o mouse e setas do teclado (← →): no celular é a lista, o menu da linha e o deslizar no visualizador.
 
-## E-mail (31/10)
-
-A web ganhou `/email` (fase 1 do webmail no Console, ramo `codex/email-console`). No app:
-
-- ⚪ Fica fora do app nesta fase: a área é só da equipe da Anuntech, e o app é a frente do cliente (`guard()` com área de empresa). A equipe usa o E-mail pela web, que já funciona no celular (uma coisa por vez, sem rolagem horizontal em 320 px). Entra no app com a fase 2, junto das caixas compartilhadas e dos clientes, com procedimentos próprios em `/api/v1` que chamem `lib/mail` (a mesma regra de acesso) e o push de mensagem nova.
-
 ---
 
 ## Publicação
