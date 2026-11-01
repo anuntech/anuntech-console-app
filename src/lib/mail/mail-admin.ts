@@ -15,6 +15,7 @@ import {
   isAnuntechDomain,
   isOwnMailDomain,
   localOf,
+  OWNERSHIP_LABEL,
   localPartProblem,
   parseZoneFile,
   type DnsAnswer,
@@ -570,31 +571,118 @@ async function answer<T>(work: () => Promise<T[]>): Promise<DnsAnswer<T>> {
   }
 }
 
+const resolver = () => new Resolver({ timeout: 4000, tries: 2 });
+
+/** The TXT records at _anuntech.<domain>, where a client proves the domain is theirs. */
+export async function ownershipAnswer(domain: string) {
+  return answer(() => resolver().resolveTxt(`${OWNERSHIP_LABEL}.${domain}`));
+}
+
 /**
  * The domain's records as the internet sees them, compared with the zone
  * the server expects (`dnsZoneFile`). Kept for a few minutes: the page is
- * opened often and DNS changes take a while anyway.
+ * opened often and DNS changes take a while anyway; `fresh` asks again
+ * ("Conferir de novo").
  */
-export async function dnsHealth(domain: string) {
+export async function dnsHealth(domain: string, { fresh = false } = {}) {
   const { id } = await managedDomain(domain);
   // The cache comes after the check: a domain unlinked a minute ago is no longer shown.
   const cached = dnsCache.get(domain);
-  if (cached && cached.expires > Date.now()) return cached;
+  if (!fresh && cached && cached.expires > Date.now()) return cached;
   const [server] = await getObjects<{ id?: unknown; name?: unknown; dnsZoneFile?: unknown }>("x:Domain", [id], ["id", "name", "dnsZoneFile"]);
   const zone = text(server?.dnsZoneFile);
   if (!zone) throw new MailRefusal("O servidor de e-mail não informou os registros que espera para o domínio.");
   const expected = expectedDns(parseZoneFile(zone, domain), domain);
-  const resolver = new Resolver({ timeout: 4000, tries: 2 });
+  const dns = resolver();
   const names = dnsQuestions(expected);
-  const [mx, ...txt] = await Promise.all([
-    answer(() => resolver.resolveMx(domain)),
-    ...names.map((name) => answer(() => resolver.resolveTxt(name))),
+  const targets = [...new Set(expected.hosts.map((entry) => entry.target))];
+  const [mx, txt, hosts, addresses] = await Promise.all([
+    answer(() => dns.resolveMx(domain)),
+    Promise.all(names.map((name) => answer(() => dns.resolveTxt(name)))),
+    Promise.all(
+      expected.hosts.map(async (entry) => {
+        const cname = await answer(() => dns.resolveCname(entry.name));
+        // Without a CNAME, the addresses: a name with the server's own works too.
+        const a = cname.status === "none" ? await answer(() => dns.resolve4(entry.name)) : ({ status: "none" } as const);
+        return [entry.name, { cname, a }] as const;
+      }),
+    ),
+    Promise.all(targets.map(async (target) => [target, await answer(() => dns.resolve4(target))] as const)),
   ]);
   const result = {
     checkedAt: new Date().toISOString(),
-    checks: compareDns(expected, { mx, txt: Object.fromEntries(names.map((name, i) => [name, txt[i]])) }),
+    checks: compareDns(expected, {
+      mx,
+      txt: Object.fromEntries(names.map((name, i) => [name, txt[i]])),
+      hosts: Object.fromEntries(hosts),
+      targets: Object.fromEntries(addresses),
+    }),
     expires: Date.now() + DNS_TTL,
   };
   dnsCache.set(domain, result);
   return result;
+}
+
+// Creating a client's domain -------------------------------------------
+
+/**
+ * The certificate settings a new domain copies from Anuntech's own: the same
+ * ACME provider, with mail, autoconfig and autodiscover. Without one there
+ * (a server being set up), the domain starts with a manual certificate.
+ */
+async function certificateTemplate() {
+  const own = (await serverDomains()).get(MAIL_DOMAINS[0]);
+  const [domain] = own ? await getObjects<{ certificateManagement?: unknown }>("x:Domain", [own], ["id", "certificateManagement"]) : [];
+  const current = record(domain?.certificateManagement);
+  if (current["@type"] !== "Automatic" || !isJmapId(current.acmeProviderId)) {
+    console.error("[email] domain created without an ACME template");
+    return { "@type": "Manual" };
+  }
+  return { "@type": "Automatic", acmeProviderId: current.acmeProviderId, subjectAlternativeNames: { mail: true, autoconfig: true, autodiscover: true } };
+}
+
+/**
+ * Creates a client's domain on the server, as the team set mulheresfm.com.br
+ * up: DKIM keys (Ed25519 and RSA) made by the server at once, DNS published
+ * by the client by hand, the certificate by ACME. The caller proved the
+ * domain is the client's (the _anuntech TXT). Only sysDomainCreate on the
+ * service account (anuntech-mail-server, docs/decisoes.md, 01/11/2026):
+ * nothing here changes or deletes a domain. A domain that already exists
+ * answers its id, so a retry after an uncertain answer does no harm.
+ */
+export async function createServerDomain(domain: string) {
+  if (isAnuntechDomain(domain)) throw new MailRefusal("Os domínios da Anuntech não são usados por clientes.");
+  const existing = (await serverDomains(true)).get(domain);
+  if (existing) return { id: existing, created: false };
+  const result = await set(
+    "x:Domain",
+    {
+      create: {
+        new: {
+          name: domain,
+          aliases: {},
+          certificateManagement: await certificateTemplate(),
+          dkimManagement: { "@type": "Automatic" },
+          dnsManagement: { "@type": "Manual" },
+          subAddressing: { "@type": "Enabled" },
+        },
+      },
+    },
+    { idempotent: false },
+  );
+  const id = result.created?.new?.id;
+  if (isJmapId(id)) {
+    await serverDomains(true);
+    return { id, created: true };
+  }
+  const error = result.notCreated?.new;
+  // Created in between (two tabs, a retry): the server's own id.
+  if (text(error?.type) === "primaryKeyViolation" || text(error?.type) === "alreadyExists") {
+    const now = (await serverDomains(true)).get(domain);
+    if (now) return { id: now, created: false };
+  }
+  console.error("[email] x:Domain/set refused", { type: text(error?.type) || "unknown" });
+  if (text(error?.type) === "invalidPatch" || text(error?.type) === "invalidProperties")
+    throw new MailRefusal(`O servidor de e-mail não aceitou ${domain} como domínio. Confira o nome.`);
+  throw refusal("x:Domain/set", error);
 }

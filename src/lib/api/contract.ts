@@ -1365,6 +1365,10 @@ export const contract = {
         ),
         /** What the mail apps connect to, for "Configurar aparelhos". */
         setup: z.object({ host: z.string(), imapPort: z.number(), smtpPort: z.number(), smtpStarttlsPort: z.number() }),
+        /** Domains the company added and has not proved yet (only for whoever manages the mail). Older apps ignore it. */
+        pendingDomains: z.array(z.string()).optional(),
+        /** Whether the person may add a domain (on the web, "Adicionar domínio"). Older apps ignore it. */
+        canAddDomain: z.boolean().optional(),
       }),
     ),
     /**

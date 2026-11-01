@@ -5,13 +5,15 @@ const fs = require("node:fs");
 /*
  * DNS stand-in for E-mail's DNS health (lib/mail/mail-admin.ts): the test
  * server never asks the real DNS about anuntech.com. With
- * CONSOLE_TEST_DNS_FILE set, the MX and TXT lookups of node:dns/promises
+ * CONSOLE_TEST_DNS_FILE set, the MX, TXT, CNAME and A lookups of node:dns/promises
  * (the module's functions and every Resolver) answer from that JSON file,
  * read at each call so a suite can change it between pages:
  *
  *   { "MX anuntech.com": [{ "exchange": "mx1.anuntech.cloud", "priority": 10 }],
  *     "TXT anuntech.com": [["v=spf1 mx -all"]],
- *     "TXT _dmarc.anuntech.com": "SERVFAIL" }
+ *     "TXT _dmarc.anuntech.com": "SERVFAIL",
+ *     "CNAME autoconfig.anuntech.com": ["mx1.anuntech.cloud"],
+ *     "A mail.anuntech.com": ["203.0.113.10"] }
  *
  * A name missing from the file answers ENOTFOUND; a string answers as that
  * error code. Every question is appended to the file's ".log" twin.
@@ -42,5 +44,7 @@ if (file) {
   for (const target of [dns.promises, dns.promises.Resolver.prototype]) {
     target.resolveMx = lookup("MX");
     target.resolveTxt = lookup("TXT");
+    target.resolveCname = lookup("CNAME");
+    target.resolve4 = lookup("A");
   }
 }

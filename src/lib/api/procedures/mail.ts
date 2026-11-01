@@ -2,6 +2,7 @@ import "server-only";
 import { areaMailboxes, mailArea } from "../../mail/mail-area";
 import { MAIL_CLIENT_HOST, MAIL_PORTS } from "../../mail/mail-rules";
 import { blocked, notFound, resetPassword } from "../../mail/mail-service";
+import { mailProduct, pendingDomains } from "../../mail/mail-setup";
 import { api } from "../server";
 import { guard, missing } from "../access";
 import { refuse } from "../managed-company";
@@ -10,8 +11,8 @@ import { refuse } from "../managed-company";
  * The company's e-mail in the app, opened by the e-mail product: the list of
  * mailboxes and the password. The rules are the web's (lib/mail): the team
  * and the Administrador see every mailbox of the company's domains, a Membro
- * only their own; creating, editing, deleting, forwards and the DNS stay on
- * the web (mobile/task.md).
+ * only their own; creating, editing, deleting, forwards, adding a domain and
+ * the DNS stay on the web (mobile/task.md).
  */
 export const mail = {
   mailboxes: api.mail.mailboxes
@@ -22,6 +23,8 @@ export const mail = {
       // A domain of another of the person's companies is not this company's: it does not exist here.
       if (!area || area.companyId !== input.companyId) throw missing();
       const rows = area.current ? await areaMailboxes(actor, area) : [];
+      const manages = area.role !== "member";
+      const [pending, product] = manages ? await Promise.all([pendingDomains(input.companyId), mailProduct(input.companyId)]) : [[], null];
       return {
         company: area.companyName,
         role: area.role,
@@ -38,6 +41,8 @@ export const mail = {
           own: !!row.own,
         })),
         setup: { host: MAIL_CLIENT_HOST, imapPort: MAIL_PORTS.imap.port, smtpPort: MAIL_PORTS.smtp.port, smtpStarttlsPort: MAIL_PORTS.smtpStarttls.port },
+        pendingDomains: pending.map((claim) => claim.domain),
+        canAddDomain: manages && (area.role === "team" || product?.state === "active"),
       };
     }),
   resetPassword: api.mail.resetPassword

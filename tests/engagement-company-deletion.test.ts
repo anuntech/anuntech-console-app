@@ -93,6 +93,8 @@ test("company deletion knows every table that points at a company", () => {
     "console_company_notes.company_id": "not null",
     // Its mail domains' links (the mailboxes stay on the mail server, out of the Console).
     "console_mail_domains.company_id": "not null",
+    // Domains it added and never proved (nothing of them is on the mail server).
+    "console_mail_domain_claims.company_id": "not null",
     // Kept, set to null: the history outlives the company.
     "console_audit_events.company_id": "null",
   });

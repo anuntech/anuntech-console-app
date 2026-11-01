@@ -98,9 +98,10 @@ export function PageHeader({
             {facts && facts.length > 0 && (
               // Spaced, not dotted: a dot left at the end of a wrapped line dangles.
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                {facts.map((fact, index) => (
-                  <Fragment key={index}>{fact}</Fragment>
-                ))}
+                {facts.map((fact, index) =>
+                  // Bare text runs would merge into one flex item, without the gap between them.
+                  typeof fact === "string" || typeof fact === "number" ? <span key={index}>{fact}</span> : <Fragment key={index}>{fact}</Fragment>,
+                )}
               </div>
             )}
             {description && (

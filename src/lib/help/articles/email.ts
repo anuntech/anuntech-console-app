@@ -203,7 +203,7 @@ export const emailArticles: HelpArticle[] = [
             items: [
               "Membro: vê só a própria caixa, a que tem como endereço um dos e-mails da conta dele no Console, com o espaço usado, Trocar senha e Configurar aparelhos. Não cria, não edita nem exclui caixas, e não vê redirecionamentos nem o DNS.",
               "No acesso assistido o e-mail não abre, porque as caixas mexem com senhas da empresa: a equipe sai do acesso assistido e abre o produto de e-mail.",
-              "No app do Console, o produto de e-mail mostra as caixas, a troca de senha e o perfil para iPhone. Criar, editar, excluir, os redirecionamentos e o DNS ficam no Console na web.",
+              "No app do Console, o produto de e-mail mostra as caixas, a troca de senha, o perfil para iPhone e os domínios esperando a confirmação. Contratar, adicionar domínio, criar, editar, excluir, os redirecionamentos e o DNS ficam no Console na web.",
               "Criar ou excluir uma caixa ainda não muda a cobrança sozinho: a mudança aparece na atividade da empresa, e a equipe da Anuntech ajusta o valor do produto.",
             ],
           },
@@ -223,7 +223,7 @@ export const emailArticles: HelpArticle[] = [
           {
             kind: "note",
             tone: "attention",
-            text: "Um domínio novo precisa ser criado no servidor de e-mail antes de aparecer aqui. Desvincular (no menu do domínio, digitando o domínio) só tira o domínio do Console: as caixas e os e-mails continuam no servidor, funcionando.",
+            text: "Vincular serve para um domínio que já está no servidor de e-mail, como um cliente trazido do cPanel. Um domínio novo o próprio Administrador da empresa adiciona pelo produto de e-mail, com a prova de posse (veja o artigo de adicionar domínio), e o Console cria no servidor. Desvincular (no menu do domínio, digitando o domínio) só tira o domínio do Console: as caixas e os e-mails continuam no servidor, funcionando.",
           },
         ],
       },
@@ -293,12 +293,155 @@ export const emailArticles: HelpArticle[] = [
         blocks: [
           {
             kind: "p",
-            text: "No produto de e-mail, DNS compara os registros do domínio com o que o servidor de e-mail espera: recebimento (MX), quem pode enviar (SPF), a assinatura dos e-mails (DKIM) e a proteção contra falsificação (DMARC). Cada item diz Certo ou Falta isto, com o registro para copiar no painel de DNS. A conferência fica guardada por alguns minutos.",
+            text: "No produto de e-mail, DNS compara os registros do domínio com o que o servidor de e-mail espera, em dois grupos: o que pode publicar agora sem mudar o e-mail de hoje (a assinatura dos e-mails, DKIM, e a proteção contra falsificação, DMARC) e o que faz a troca (recebimento, MX; quem pode enviar, SPF; e os nomes que os aplicativos usam: mail, autoconfig e autodiscover). Cada item diz Certo ou Falta isto, com o registro para copiar no painel de DNS. A conferência fica guardada por alguns minutos; Conferir de novo pergunta ao DNS na hora.",
           },
         ],
       },
     ],
-    related: ["configurar-email-nos-aparelhos"],
+    related: ["adicionar-dominio-de-email", "configurar-email-nos-aparelhos"],
+    updatedAt: "2026-11-01",
+  },
+  {
+    slug: "adicionar-dominio-de-email",
+    category: "conta",
+    title: "Contratar o e-mail e adicionar o domínio da empresa",
+    summary: "Como o Administrador contrata o e-mail da Anuntech em Produtos, adiciona o domínio da empresa, prova que ele é da empresa e publica os registros de DNS no próprio provedor (Cloudflare, Registro.br, GoDaddy, Hostinger), e como trazer e-mails de outro provedor sem perder nada.",
+    audience: "administrador",
+    keywords: [
+      "contratar email",
+      "contratar e-mail",
+      "email da empresa",
+      "adicionar dominio",
+      "dominio proprio",
+      "dns",
+      "registro txt",
+      "_anuntech",
+      "mx",
+      "spf",
+      "dkim",
+      "dmarc",
+      "cname",
+      "autoconfig",
+      "autodiscover",
+      "cloudflare",
+      "registro.br",
+      "godaddy",
+      "hostinger",
+      "migrar email",
+      "trocar provedor",
+      "cpanel",
+    ],
+    sections: [
+      {
+        title: "1. Contratar o e-mail",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Em Produtos, clique em Contratar e-mail. O botão aparece para o Administrador de uma empresa que ainda não tem o e-mail da Anuntech.",
+              "Escolha o plano (e a empresa, se você é Administrador de mais de uma) e clique em Contratar.",
+              "O produto de e-mail aparece em Produtos na hora, e o Console abre a página do e-mail da empresa para você adicionar o domínio.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "info",
+            text: "O Console não cobra nada nessa hora: a equipe da Anuntech recebe o aviso e manda a cobrança pelo Financeiro, como nos outros produtos. Uma empresa com fatura vencida ou produto suspenso paga ou fala com a equipe antes de contratar.",
+          },
+        ],
+      },
+      {
+        title: "2. Adicionar o domínio",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Na página do e-mail (o card do e-mail em Produtos), clique em Adicionar domínio e digite o domínio que vem depois do @, como empresa.com.br.",
+              "O Console mostra um registro TXT com o nome _anuntech.empresa.com.br e um valor que começa com anuntech-verificacao=. Crie esse registro no painel de DNS do domínio. Ele só prova que o domínio é da empresa e não muda nada no e-mail de hoje.",
+              "Depois de criar, clique em Conferir agora. Se o DNS ainda não mostrar o registro, espere alguns minutos e confira de novo.",
+              "Com o registro encontrado, o domínio vai para o servidor de e-mail da Anuntech, e você já pode criar as caixas.",
+            ],
+          },
+          {
+            kind: "p",
+            text: "Enquanto espera a prova, o domínio aparece na página do e-mail com Continuar. Se você digitou errado, abra e clique em Remover. Uma empresa pode ter até 5 domínios esperando ao mesmo tempo.",
+          },
+        ],
+      },
+      {
+        title: "3. Publicar o resto do DNS",
+        blocks: [
+          {
+            kind: "p",
+            text: "Depois da prova, a página DNS do domínio mostra cada registro que o servidor espera, com o nome e o valor para copiar, e diz Certo ou Falta isto. São dois grupos:",
+          },
+          {
+            kind: "list",
+            items: [
+              "Pode publicar agora: as duas chaves de assinatura (DKIM) e a proteção contra falsificação (DMARC, começando em p=none, que só pede relatórios). Não mudam nada no e-mail de hoje.",
+              "Na hora da troca: o recebimento (MX, para mx1.anuntech.cloud), quem pode enviar (SPF) e os nomes mail, autoconfig e autodiscover (CNAME para mx1.anuntech.cloud). Com eles, os e-mails passam a chegar no servidor da Anuntech.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Tenha um registro SPF só: com dois, nenhum vale. Se o domínio já tem um, junte os dois num só, como o Console explica. E não crie registros CAA para o e-mail: eles podem impedir o certificado do site da empresa.",
+          },
+        ],
+      },
+      {
+        title: "Onde criar os registros",
+        blocks: [
+          {
+            kind: "p",
+            text: "Na maioria dos painéis, o campo Nome leva só a parte antes do domínio (o Console mostra em Nome no painel, como _anuntech ou v1-rsa-20261101._domainkey) e @ quer dizer o próprio domínio. Uma mudança pode levar de alguns minutos a algumas horas para aparecer.",
+          },
+          {
+            kind: "pairs",
+            items: [
+              { term: "Cloudflare", text: "DNS, Registros, Adicionar registro. Nos registros CNAME, deixe o proxy desligado (nuvem cinza, só DNS): com a nuvem laranja, os aplicativos de e-mail não acham o servidor." },
+              { term: "Registro.br", text: "No domínio, DNS e Editar zona. Se o DNS do domínio é de outro provedor (a Cloudflare, a hospedagem do site), os registros vão lá, não no Registro.br." },
+              { term: "GoDaddy", text: "Meus produtos, o domínio, DNS e Adicionar novo registro. Em Nome, só a parte antes do domínio." },
+              { term: "Hostinger", text: "Domínios, o domínio, DNS / Nameservers e Gerenciar registros DNS. Em Nome, só a parte antes do domínio, e @ para o domínio." },
+            ],
+          },
+        ],
+      },
+      {
+        title: "Vindo de outro provedor",
+        blocks: [
+          {
+            kind: "steps",
+            items: [
+              "Adicione o domínio e faça a prova de posse. O e-mail de hoje continua chegando no provedor antigo; a página DNS avisa enquanto for assim.",
+              "Crie as caixas com os mesmos endereços que a empresa já usa.",
+              "Peça à equipe da Anuntech, por um chamado, a cópia dos e-mails antigos para as caixas novas.",
+              "Com os e-mails copiados, troque o MX, o SPF e os nomes mail, autoconfig e autodiscover. A partir daí tudo chega no servidor da Anuntech. Configure os aparelhos com a senha de cada caixa.",
+            ],
+          },
+          {
+            kind: "note",
+            tone: "attention",
+            text: "Não troque o MX antes de criar as caixas: um e-mail que chegar para um endereço que ainda não existe aqui volta para quem mandou.",
+          },
+        ],
+      },
+    ],
+    faq: [
+      {
+        q: "Cliquei em Conferir agora e o Console não achou o registro.",
+        a: "Confira se o nome é _anuntech seguido do domínio (no painel, normalmente só _anuntech) e se o valor está inteiro, sem aspas a mais nem espaço. Se o DNS do domínio está num provedor diferente de onde o domínio foi registrado, o registro precisa ir no provedor do DNS. Depois de salvar, espere alguns minutos.",
+      },
+      {
+        q: "O Console diz que o domínio já está em outra conta.",
+        a: "O domínio já está no servidor de e-mail da Anuntech para outra empresa. Abra um chamado para a equipe conferir.",
+      },
+      {
+        q: "Posso apagar o registro _anuntech depois?",
+        a: "Pode. Ele só serve para a confirmação, que é feita uma vez.",
+      },
+    ],
+    related: ["gerenciar-caixas-de-email", "configurar-email-nos-aparelhos"],
     updatedAt: "2026-11-01",
   },
 ];

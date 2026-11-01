@@ -22,8 +22,8 @@ import { space } from "@/lib/theme";
  * The company's e-mail, opened by its e-mail product (mail.mailboxes), as the
  * web's /email: the team and the Administrador see every mailbox of one of
  * the company's domains, a Membro only their own. A mailbox opens its space,
- * the password and the devices' setup; creating, editing, deleting, forwards
- * and the DNS are on the web, one tap away.
+ * the password and the devices' setup; creating, editing, deleting, forwards,
+ * adding a domain and the DNS are on the web, one tap away.
  */
 export default function CompanyMail() {
   const { company } = useLocalSearchParams<{ company: string }>();
@@ -33,6 +33,7 @@ export default function CompanyMail() {
   const loading = useDelayed(mail.isPending);
   const data = mail.data;
   const manages = data ? data.role !== "member" : false;
+  const pending = data?.pendingDomains ?? [];
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
@@ -67,13 +68,44 @@ export default function CompanyMail() {
               onChange={setDomain}
             />
           ) : null}
+          {pending.length ? (
+            <Section header="Esperando a confirmação" footer="Crie no DNS do domínio o registro que o Console mostra e confira lá. Depois disso, as caixas já podem ser criadas.">
+              {pending.map((name) => (
+                <ListRow
+                  key={name}
+                  leading={<IconTile icon="hourglass" color="amber" />}
+                  title={name}
+                  subtitle="Falta a prova de posse"
+                  trailing="external"
+                  onPress={() => void openConsole(`/email/dns?dominio=${encodeURIComponent(name)}&empresa=${company}`)}
+                />
+              ))}
+            </Section>
+          ) : null}
           {!data.domains.length ? (
-            <EmptyState
-              icon="envelope"
-              title="Nenhum domínio de e-mail ainda"
-              text="A empresa ainda não tem um domínio no servidor de e-mail da Anuntech. Abra um chamado para a equipe preparar o domínio."
-              action={{ label: "Abrir chamado", icon: "square.and.pencil", onPress: () => router.push("/chamados/novo") }}
-            />
+            pending.length ? null : (
+              <EmptyState
+                icon="envelope"
+                title="Nenhum domínio de e-mail ainda"
+                text={
+                  data.canAddDomain
+                    ? "Adicione o domínio da empresa no Console na web: ele mostra os registros para publicar no DNS do domínio e confere se ficaram certos."
+                    : manages && data.canAddDomain === false
+                      ? "Contrate o e-mail em Produtos no Console na web para adicionar o domínio."
+                      : manages
+                        ? "A empresa ainda não tem um domínio no servidor de e-mail da Anuntech. Abra um chamado para a equipe preparar o domínio."
+                        : "A empresa ainda não tem um domínio de e-mail. Peça ao Administrador da empresa."
+                }
+                action={
+                  data.canAddDomain
+                    ? { label: "Adicionar domínio", icon: "plus", onPress: () => void openConsole(`/email?empresa=${company}`) }
+                    : // An older Console without canAddDomain: the team prepares the domain, as before.
+                      manages && data.canAddDomain === undefined
+                      ? { label: "Abrir chamado", icon: "square.and.pencil", onPress: () => router.push("/chamados/novo") }
+                      : undefined
+                }
+              />
+            )
           ) : !data.mailboxes.length ? (
             <EmptyState
               icon="envelope"

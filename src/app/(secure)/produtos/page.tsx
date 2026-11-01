@@ -9,6 +9,8 @@ import { listProducts } from "@/lib/products/product-list";
 import { engagementLinks } from "@/lib/record-links";
 import { appForUrl, protectedApps } from "@/lib/apps/registry";
 import { mailPageOf } from "@/lib/products/product-opening";
+import { mailOfferFor } from "@/lib/mail/mail-setup";
+import { ContractMailButton } from "@/components/email/setup-sheets";
 import { Button } from "@/components/ui/button";
 import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
@@ -35,6 +37,8 @@ export default async function Products({
   const links = actor.admin ? await engagementLinks(rows.map((row) => row.id)) : null;
   // Products whose URL is an app that only runs inside the Console open there.
   const apps = protectedApps();
+  // A client's Administrador contracts the e-mail here; the team links products from the catalog instead.
+  const mailOffer = actor.admin ? null : await mailOfferFor(actor);
   return (
     <>
       <PageHeader
@@ -46,13 +50,15 @@ export default async function Products({
       <ProductsList
         view={view}
         actions={
-          actor.admin && (
+          actor.admin ? (
             <Button asChild>
               <Link href="/produtos/novo" data-assistant-action="">
                 <PlusIcon />
                 Vincular
               </Link>
             </Button>
+          ) : (
+            mailOffer && <ContractMailButton companies={mailOffer.companies} offers={mailOffer.offers} />
           )
         }
         rows={rows.map(({ amountCents, interval, nextDueDate, subscriptionId, catalogItemId, icon, suspensionKind, companyDocument, ...row }) => ({
