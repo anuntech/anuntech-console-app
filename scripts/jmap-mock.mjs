@@ -29,6 +29,8 @@ export async function startJmapMock({ user = "console-test", password = "test", 
   const hasArray = (value) => Array.isArray(value) || (!!value && typeof value === "object" && Object.values(value).some(hasArray));
   const clone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
   /** Passwords the policy refuses, standing in for zxcvbn below 3. */
+  // Fixture values, not credentials: the first secret every stand-in account starts with.
+  const INITIAL_FIXTURE = "Inicial-Forte-2026";
   const weak = new Set(["senhafraca12345", "password123456", "anuntech2026!"]);
   const weakSecret = (secret) => typeof secret !== "string" || secret.length < 8 || secret.length > 128 || weak.has(secret.toLowerCase());
 
@@ -38,7 +40,7 @@ export async function startJmapMock({ user = "console-test", password = "test", 
     return id;
   }
   const domainName = (id) => domains.get(id)?.name;
-  function addAccount({ type = "User", name, domainId, description = null, role = "User", secret = "Inicial-Forte-2026", quota, used = 0, aliases = [], createdAt = "2026-03-02T12:00:00Z" }) {
+  function addAccount({ type = "User", name, domainId, description = null, role = "User", secret = INITIAL_FIXTURE, quota, used = 0, aliases = [], createdAt = "2026-03-02T12:00:00Z" }) {
     const id = nextId("a");
     accounts.set(id, {
       id,

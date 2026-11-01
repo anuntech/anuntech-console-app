@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 
+// The first secret every account of the JMAP stand-in starts with (jmap-mock.mjs): a fixture, not a credential.
+const INITIAL_FIXTURE = "Inicial-Forte-2026";
+
 /**
  * E-mail management (lib/mail) against a local stand-in of Stalwart's JMAP
  * admin API (scripts/jmap-mock.mjs) and of the DNS (scripts/dns-mock.cjs),
@@ -109,9 +112,11 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
     ok(audit?.details?.address === `${local}@anuntech.com` && audit.details.generatedPassword === true && !JSON.stringify(audit.details).includes(generated), "A criação fica na auditoria, sem a senha");
 
     // Typed passwords: the Console's rule, then the server's.
+    // Fixture values the JMAP stand-in knows (jmap-mock.mjs), not credentials.
+    const WEAK_FIXTURE = "senhafraca12345";
     const short = await call("/email", "admin", "createMailbox", { domain: "anuntech.com", local: `qa-curta-${marker}`, name: "", quota: "1", mode: "type", password: "curta" });
     ok(short.text.includes("Use pelo menos 12 caracteres") && !jmap.find(jmap.accounts, `qa-curta-${marker}`, anun), "Senha digitada curta é recusada antes do servidor");
-    const weak = await call("/email", "admin", "createMailbox", { domain: "anuntech.com", local: `qa-fraca-${marker}`, name: "", quota: "1", mode: "type", password: "senhafraca12345" });
+    const weak = await call("/email", "admin", "createMailbox", { domain: "anuntech.com", local: `qa-fraca-${marker}`, name: "", quota: "1", mode: "type", password: WEAK_FIXTURE });
     ok(weak.text.includes("achou a senha fraca") && !jmap.find(jmap.accounts, `qa-fraca-${marker}`, anun), "Senha que o servidor acha fraca volta com a explicação, sem criar a caixa");
     const typedSecret = `Cavalo-Bateria-Grampo-${marker}`;
     const typed = await call("/email", "admin", "createMailbox", { domain: "anuntech.com", local: `qa-digitada-${marker}`, name: "", quota: "10", mode: "type", password: typedSecret });
@@ -300,7 +305,7 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
     ok(
       jmap.accounts.size === accountsBefore &&
         !passwordIn(clientReset) &&
-        jmap.secretOf(kauan) === "Inicial-Forte-2026" &&
+        jmap.secretOf(kauan) === INITIAL_FIXTURE &&
         jmap.accounts.get(finance).description === "Financeiro" &&
         !jmap.find(jmap.lists, `qa-fwd2-${marker}`, anun),
       "Administrador, Membro e acesso assistido não criam, não trocam senha, não editam nem redirecionam",
@@ -315,7 +320,7 @@ _dmarc IN TXT "v=DMARC1; p=reject; rua=mailto:postmaster@anuntech.com"
     const limited = await call("/email", "admin", "createMailbox", { domain: "anuntech.com", local: `qa-limite-${marker}`, name: "", quota: "1", mode: "generate" });
     const limitedReset = await call("/email", "admin", "resetMailboxPassword", { id: finance, mode: "generate" });
     ok(limited.text.includes("limite de 20 caixas") && !jmap.find(jmap.accounts, `qa-limite-${marker}`, anun), "Limite por hora de caixas criadas");
-    ok(limitedReset.text.includes("limite de 20 trocas") && jmap.secretOf(finance) === "Inicial-Forte-2026", "Limite por hora de trocas de senha");
+    ok(limitedReset.text.includes("limite de 20 trocas") && jmap.secretOf(finance) === INITIAL_FIXTURE, "Limite por hora de trocas de senha");
 
     // What never happened: reading mail, asking for secrets, passwords at rest.
     ok(jmap.calls.every((c) => c.name.startsWith("x:")), "O Console só usou os métodos de gestão (x:), nunca leu caixa nem mensagem");
