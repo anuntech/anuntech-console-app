@@ -28,15 +28,18 @@ function matches(row: MailboxRow, query: string) {
   return [row.address, row.name ?? "", ...row.aliases.map((a) => `${a}@${row.domain}`)].some((value) => fold(value).includes(q));
 }
 
-function MailboxMenu({ row, open }: { row: MailboxRow; open: (panel: Panel, row: MailboxRow) => void }) {
+/** `manages` false: a Membro's own mailbox, with the password and the devices only. */
+function MailboxMenu({ row, open, manages }: { row: MailboxRow; open: (panel: Panel, row: MailboxRow) => void; manages: boolean }) {
   // Menu items open their panel after the menu has closed, so focus lands in the panel.
   const later = (panel: Panel) => () => setTimeout(() => open(panel, row), 0);
   return (
     <RowActions label={row.address}>
-      <DropdownMenuItem onSelect={later("edit")}>
-        <PencilIcon />
-        Editar
-      </DropdownMenuItem>
+      {manages && (
+        <DropdownMenuItem onSelect={later("edit")}>
+          <PencilIcon />
+          Editar
+        </DropdownMenuItem>
+      )}
       <DropdownMenuItem onSelect={later("password")}>
         <KeyRoundIcon />
         Trocar senha
@@ -45,11 +48,15 @@ function MailboxMenu({ row, open }: { row: MailboxRow; open: (panel: Panel, row:
         <SmartphoneIcon />
         Configurar aparelhos
       </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem variant="destructive" onSelect={later("delete")}>
-        <Trash2Icon />
-        Excluir caixa
-      </DropdownMenuItem>
+      {manages && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={later("delete")}>
+            <Trash2Icon />
+            Excluir caixa
+          </DropdownMenuItem>
+        </>
+      )}
     </RowActions>
   );
 }
@@ -63,12 +70,17 @@ function Protected() {
   );
 }
 
-/** The mailboxes: a table from the tablet up, cards on the phone (no sideways scroll at 320 px). */
-export function MailboxList({ rows, query: initial, actions }: { rows: MailboxRow[]; query: string; actions: ReactNode }) {
+/**
+ * The mailboxes: a table from the tablet up, cards on the phone (no sideways
+ * scroll at 320 px). `manages` false: a Membro's own mailbox, whose row
+ * opens the devices' setup and whose menu has only the password besides.
+ */
+export function MailboxList({ rows, query: initial, actions, manages }: { rows: MailboxRow[]; query: string; actions: ReactNode; manages: boolean }) {
   const [query, setQuery] = useState(initial);
   const [panel, setPanel] = useState<{ kind: Panel | null; row: MailboxRow | null }>({ kind: null, row: null });
   const shown = useMemo(() => rows.filter((row) => matches(row, query)), [rows, query]);
   const open = (kind: Panel, row: MailboxRow) => setPanel({ kind, row });
+  const main: Panel = manages ? "edit" : "devices";
   // The row stays set while a panel slides out, so its fields don't blank.
   const onOpenChange = (kind: Panel) => (next: boolean) => setPanel((current) => ({ kind: next ? kind : null, row: current.row }));
   const search = (value: string) => {
@@ -84,11 +96,19 @@ export function MailboxList({ rows, query: initial, actions }: { rows: MailboxRo
         label="Caixas de e-mail"
         fill
         empty={!shown.length}
-        toolbar={rows.length > 0 && <SearchField value={query} onChange={search} placeholder="Buscar por endereço, nome ou apelido" />}
+        toolbar={manages && rows.length > 0 && <SearchField value={query} onChange={search} placeholder="Buscar por endereço, nome ou apelido" />}
         actions={actions}
       >
         {!rows.length ? (
-          <EmptyState art="projetos" title="Nenhuma caixa ainda" description="Crie a primeira caixa do domínio para entrar pelos aplicativos de e-mail." />
+          manages ? (
+            <EmptyState art="projetos" title="Nenhuma caixa ainda" description="Crie a primeira caixa do domínio para entrar pelos aplicativos de e-mail." />
+          ) : (
+            <EmptyState
+              art="projetos"
+              title="Nenhuma caixa ligada a você"
+              description="Sua caixa aparece aqui quando o endereço dela é um dos e-mails da sua conta. Peça ao Administrador da empresa para criar a caixa ou incluir o endereço na sua conta."
+            />
+          )
         ) : !shown.length ? (
           <EmptyState art="busca" title="Nenhuma caixa encontrada" description="Confira o endereço ou busque por outra parte do nome." />
         ) : (
@@ -107,9 +127,9 @@ export function MailboxList({ rows, query: initial, actions }: { rows: MailboxRo
               </TableHeader>
               <TableBody>
                 {shown.map((row) => (
-                  <LinkRow key={row.id} onOpen={row.managed ? () => open("edit", row) : undefined}>
+                  <LinkRow key={row.id} onOpen={row.managed ? () => open(main, row) : undefined}>
                     <PrimaryCell
-                      onOpen={row.managed ? () => open("edit", row) : undefined}
+                      onOpen={row.managed ? () => open(main, row) : undefined}
                       title={row.address}
                       subtitle={row.managed ? row.name : <Protected />}
                       leading={
@@ -127,7 +147,7 @@ export function MailboxList({ rows, query: initial, actions }: { rows: MailboxRo
                     <TableCell className="hidden text-sm text-muted-foreground tabular-nums xl:table-cell">
                       {row.createdAt ? dateLabel(new Date(row.createdAt)) : "—"}
                     </TableCell>
-                    {row.managed ? <MailboxMenu row={row} open={open} /> : <TableCell className="w-12" />}
+                    {row.managed ? <MailboxMenu row={row} open={open} manages={manages} /> : <TableCell className="w-12" />}
                   </LinkRow>
                 ))}
               </TableBody>
@@ -137,7 +157,7 @@ export function MailboxList({ rows, query: initial, actions }: { rows: MailboxRo
                 <li key={row.id} className="flex min-w-0 items-start gap-3 px-4 py-3.5">
                   <div className="min-w-0 flex-1">
                     {row.managed ? (
-                      <button type="button" onClick={() => open("edit", row)} className="block max-w-full text-left">
+                      <button type="button" onClick={() => open(main, row)} className="block max-w-full text-left">
                         <span className="block truncate font-medium text-foreground">{row.address}</span>
                       </button>
                     ) : (
@@ -154,7 +174,7 @@ export function MailboxList({ rows, query: initial, actions }: { rows: MailboxRo
                   {row.managed && (
                     <div className="-mr-1 shrink-0">
                       <InCardScope>
-                        <MailboxMenu row={row} open={open} />
+                        <MailboxMenu row={row} open={open} manages={manages} />
                       </InCardScope>
                     </div>
                   )}
@@ -164,10 +184,10 @@ export function MailboxList({ rows, query: initial, actions }: { rows: MailboxRo
           </>
         )}
       </ListCard>
-      <EditMailboxSheet open={panel.kind === "edit"} onOpenChange={onOpenChange("edit")} mailbox={panel.row} />
+      {manages && <EditMailboxSheet open={panel.kind === "edit"} onOpenChange={onOpenChange("edit")} mailbox={panel.row} />}
       <PasswordSheet open={panel.kind === "password"} onOpenChange={onOpenChange("password")} mailbox={panel.row} />
       <DevicesSheet open={panel.kind === "devices"} onOpenChange={onOpenChange("devices")} mailbox={panel.row} />
-      <DeleteMailboxDialog open={panel.kind === "delete"} onOpenChange={onOpenChange("delete")} mailbox={panel.row} />
+      {manages && <DeleteMailboxDialog open={panel.kind === "delete"} onOpenChange={onOpenChange("delete")} mailbox={panel.row} />}
     </>
   );
 }

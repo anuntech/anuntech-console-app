@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/access/access";
+import { getActor } from "@/lib/access/access";
 import { timeLabel } from "@/lib/format";
 import { mailConfigured } from "@/lib/mail/jmap";
-import { MailRefusal, dnsHealth, domainChoices } from "@/lib/mail/mail-admin";
-import { canManageMail, pickDomain } from "@/lib/mail/mail-rules";
+import { MailRefusal, dnsHealth } from "@/lib/mail/mail-admin";
+import { mailArea, managesArea } from "@/lib/mail/mail-area";
 import { PageHeader } from "@/components/console/page-header";
 import { DnsHealth } from "@/components/email/dns-health";
 import { DomainSwitcher } from "@/components/email/domain-switcher";
-import { MailServerProblem } from "@/components/email/mail-status";
+import { AssistedMail, MailServerProblem, mailCrumbs } from "@/components/email/mail-status";
 import { StatusPage } from "@/components/console/status-page";
 
 export const metadata: Metadata = {
@@ -17,22 +17,23 @@ export const metadata: Metadata = {
 };
 
 export default async function DnsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const actor = await requireAdmin();
-  if (!canManageMail(actor)) notFound();
-  if (!mailConfigured()) return <MailServerProblem configured={false} />;
+  const actor = await getActor();
+  if (actor.assisting) return <AssistedMail />;
+  if (!mailConfigured()) return <MailServerProblem configured={!actor.admin} />;
   const params = await searchParams;
   const failed = (error: unknown) => {
     console.error("[email] dns page failed", { name: error instanceof Error ? error.name : typeof error });
     return <MailServerProblem configured />;
   };
-  let choices, health;
+  let area, health;
   try {
-    choices = await domainChoices();
+    area = await mailArea(actor, params);
   } catch (error) {
     return failed(error);
   }
-  const current = pickDomain(choices, params.dominio);
-  if (!current) notFound();
+  // Forwards and the DNS are for whoever manages the domain; a Membro has only their own mailbox.
+  if (!area?.current || !managesArea(area.role)) notFound();
+  const { current, choices } = area;
   const { domain } = current;
   try {
     health = await dnsHealth(domain);
@@ -44,7 +45,7 @@ export default async function DnsPage({ searchParams }: { searchParams: Promise<
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "E-mail", href: `/email?dominio=${encodeURIComponent(domain)}` }]}
+        crumbs={[...mailCrumbs(area.companyId), { label: area.companyId ? "E-mail" : "Caixas", href: `/email?dominio=${encodeURIComponent(domain)}` }]}
         title="Saúde do DNS"
         meta={[
           domain,

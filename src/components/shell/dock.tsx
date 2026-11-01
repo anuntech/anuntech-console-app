@@ -15,7 +15,6 @@ import {
   Folders,
   Bookmark,
   Calculator,
-  Mail,
   type LucideIcon,
 } from "lucide-react";
 import { useAppearance } from "@/components/shell/appearance-provider";
@@ -69,8 +68,6 @@ const items: {
     area: "finance",
   },
   { href: "/bookmarks", label: "Arquivos", icon: Bookmark, motion: "bookmark" },
-  // Managing the mailboxes; reading and sending happen in each person's own mail app.
-  { href: "/email", label: "E-mail", icon: Mail, motion: "mail", admin: true },
   { href: "/orcamentos", label: "Orçamentos", icon: Calculator, motion: "calculator", area: "finance" },
   { href: "/contratos", label: "Contratos", icon: Folders, motion: "folders", area: "finance" },
 ];

@@ -34,7 +34,7 @@ import { addDays } from "@/lib/billing/recurrence";
 import { saoPauloDate } from "@/lib/dates";
 import { dateLabel, dateTimeLabel } from "@/lib/format";
 
-/** `appPage` set: the product only opens inside the Console, which already refuses it while suspended. */
+/** `appPage` set: the product opens inside the Console; a protected app (`/apps/`) is refused there while suspended. */
 type Target = { id: string; name: string; appPage?: string | null; suspension?: SuspensionView };
 
 const check = "mt-0.5 size-4 min-h-0 shrink-0 accent-primary";
@@ -150,7 +150,8 @@ function SuspensionSheet({ target, onOpenChange }: { target: Target | null; onOp
           <SheetTitle>{target?.name}</SheetTitle>
           <SheetDescription>{s ? `${suspensionStageLabels[s.stage]} · ${suspensionReasonLabels[s.reason]}` : ""}</SheetDescription>
         </SheetHeader>
-        {s && <SuspensionBody key={`${s.id}-${s.stage}`} s={s} insideConsole={!!target?.appPage} onDone={() => onOpenChange(false)} />}
+        {/* Only a protected app is refused while suspended; the e-mail product's mailboxes still open (receiving goes on). */}
+        {s && <SuspensionBody key={`${s.id}-${s.stage}`} s={s} insideConsole={!!target?.appPage?.startsWith("/apps/")} onDone={() => onOpenChange(false)} />}
       </SheetContent>
     </Sheet>
   );

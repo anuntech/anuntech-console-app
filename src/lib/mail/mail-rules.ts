@@ -1,5 +1,5 @@
 /*
- * E-mail management, the pure part: who manages, which domains, the address
+ * E-mail management, the pure part: who manages what, which domains, the address
  * and password rules, the quota choices, the password generator, the Apple
  * profile and the DNS comparison. No server, no Next, no database: the
  * screens, the actions and tests/mail-rules.test.ts all read this file.
@@ -25,9 +25,55 @@ export const isOwnMailDomain = (value: unknown) =>
 const ANUNTECH_ROOTS = ["anuntech.com", "anuntech.cloud"];
 export const isAnuntechDomain = (domain: string) => ANUNTECH_ROOTS.some((root) => domain === root || domain.endsWith(`.${root}`));
 
-/** Phase 1 of the clients' e-mail: the Anuntech team manages every managed domain; a client's Administrador comes next. */
-export function canManageMail(actor: { admin: boolean }) {
-  return actor.admin;
+/** The part of a person's access the e-mail rules read: the team flag, assisted access and the company roles. */
+export type MailActor = {
+  admin: boolean;
+  assisting?: unknown;
+  grants: readonly { company: { id: string }; role: "manager" | "member" }[];
+};
+export type MailRole = "team" | "manager" | "member";
+
+/**
+ * Who someone is for a managed domain's mail (companyId null: Anuntech's own):
+ * "team" (the Anuntech team, every managed domain), "manager" (a client's
+ * Administrador, the domains linked to the company), "member" (a Membro of
+ * the company: only the mailbox linked to them, see ownsMailbox) or null.
+ * Assisted access shows the company as its client sees it but never touches
+ * its mailboxes: the team manages them with its own access.
+ */
+export function mailRole(actor: MailActor, companyId: string | null): MailRole | null {
+  if (actor.assisting) return null;
+  if (actor.admin) return "team";
+  if (!companyId) return null;
+  const roles = actor.grants.filter((grant) => grant.company.id === companyId).map((grant) => grant.role);
+  return roles.includes("manager") ? "manager" : roles.includes("member") ? "member" : null;
+}
+
+/** Creates, edits and deletes mailboxes and forwards and reads the DNS: the team, and a client's Administrador on the company's domains. */
+export function canManageMail(actor: MailActor, companyId: string | null) {
+  const role = mailRole(actor, companyId);
+  return role === "team" || role === "manager";
+}
+
+/** Whether someone manages any mail at all: the actions refuse everyone else before asking the server anything. */
+export const managesAnyMail = (actor: MailActor) => !actor.assisting && (actor.admin || actor.grants.some((grant) => grant.role === "manager"));
+
+/**
+ * The mailbox linked to a Membro: its own address is one of the e-mails of
+ * the person's Console account. The address only, never an alias: an alias
+ * is often shared (contato@), and reading it must not hand over the mailbox.
+ */
+export const ownsMailbox = (address: string, emails: readonly string[]) => emails.includes(address.toLowerCase());
+
+/**
+ * What someone may do with one mailbox: "manage" (everything), "own" (a
+ * Membro's own: the password, the space used and the devices) or null, when
+ * for them it does not exist.
+ */
+export function mailboxAccess(actor: MailActor, mailbox: { companyId: string | null; address: string }, emails: readonly string[]) {
+  const role = mailRole(actor, mailbox.companyId);
+  if (role === "team" || role === "manager") return "manage" as const;
+  return role === "member" && ownsMailbox(mailbox.address, emails) ? ("own" as const) : null;
 }
 
 /**

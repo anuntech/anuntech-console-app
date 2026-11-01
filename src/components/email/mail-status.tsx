@@ -16,3 +16,18 @@ export function MailServerProblem({ configured }: { configured: boolean }) {
     />
   );
 }
+
+/** Assisted access shows the company as its client sees it, but mailboxes mean passwords: the team manages them with its own access. */
+export function AssistedMail() {
+  return (
+    <StatusPage
+      layout="inline"
+      title="O e-mail não abre no acesso assistido"
+      description="As caixas mexem com senhas da empresa. Saia do acesso assistido e abra o produto de e-mail da empresa em Produtos para gerenciar como equipe."
+    />
+  );
+}
+
+/** Where the e-mail pages sit: a client's under Produtos, Anuntech's own under Configurações › E-mail. */
+export const mailCrumbs = (companyId: string | null) =>
+  companyId ? [{ label: "Produtos e serviços", href: "/produtos" }] : [{ label: "E-mail", href: "/configuracoes/email" }];

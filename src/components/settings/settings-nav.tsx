@@ -14,6 +14,7 @@ export type SettingsSection =
   | "catalog"
   | "contracts"
   | "integrations"
+  | "email"
   | "automations"
   | "cleanup"
   | "assistant";

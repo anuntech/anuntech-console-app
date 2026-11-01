@@ -24,6 +24,7 @@ import { clientOverview } from "@/lib/painel/client-overview";
 import { boardHref, kindOf } from "@/lib/bookmarks/board-rules";
 import { dateLabel } from "@/lib/format";
 import { appForUrl, protectedApps } from "@/lib/apps/registry";
+import { mailPageOf } from "@/lib/products/product-opening";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/console/page-header";
@@ -386,13 +387,14 @@ export async function ClientDashboard({ actor }: { actor: Actor }) {
           {products.length ? (
             <ul className="divide-y border-t">
               {products.map((product) => {
-                // A protected app opens inside the Console; other products, their own link.
-                const app = product.kind === "product" && appForUrl(product.url, apps);
-                const link = product.kind === "product" && !app ? webUrl(product.url) : null;
+                // The e-mail product and protected apps open inside the Console; other products, their own link.
+                const mail = mailPageOf(product.kind, product.suspensionKind, product.companyId);
+                const app = !mail && product.kind === "product" && appForUrl(product.url, apps);
+                const link = product.kind === "product" && !mail && !app ? webUrl(product.url) : null;
                 return (
                   <Row
                     key={product.id}
-                    href={app ? `/apps/${product.id}` : (link ?? (product.kind === "service" ? `/produtos/${product.id}` : "/produtos"))}
+                    href={mail ?? (app ? `/apps/${product.id}` : (link ?? (product.kind === "service" ? `/produtos/${product.id}` : "/produtos")))}
                     external={!!link}
                     leading={<ProductIcon src={catalogIconSrc(product.catalogItemId, product.icon)} name={product.name} size={32} />}
                     title={product.name}

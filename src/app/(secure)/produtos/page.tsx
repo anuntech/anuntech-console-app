@@ -8,6 +8,7 @@ import { projectListQuery } from "@/lib/projects/project-table";
 import { listProducts } from "@/lib/products/product-list";
 import { engagementLinks } from "@/lib/record-links";
 import { appForUrl, protectedApps } from "@/lib/apps/registry";
+import { mailPageOf } from "@/lib/products/product-opening";
 import { Button } from "@/components/ui/button";
 import { listLayoutFor } from "@/lib/list-layout-server";
 import { PageHeader } from "@/components/console/page-header";
@@ -60,7 +61,8 @@ export default async function Products({
           company: companyDisplayName(row.company, companyDocument),
           suspension: suspensionView(suspensions.get(row.id), suspensionKind, actor.admin),
           kind: row.kind === "service" ? "service" : "product",
-          appPage: row.kind === "product" && appForUrl(row.url, apps) ? `/apps/${row.id}` : null,
+          // The e-mail product opens the company's mailboxes; a protected app opens inside the Console too.
+          appPage: mailPageOf(row.kind, suspensionKind, row.companyId) ?? (row.kind === "product" && appForUrl(row.url, apps) ? `/apps/${row.id}` : null),
           icon: catalogIconSrc(catalogItemId, icon),
           // Left out (not nulled) where the viewer does not see money, so nothing reaches the browser.
           ...(canSeeMoney(actor, row.companyId) ? { money: { amountCents, interval, nextDueDate, subscriptionId } } : {}),

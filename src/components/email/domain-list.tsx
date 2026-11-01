@@ -173,7 +173,7 @@ function UnlinkDomainDialog({ open, row, onOpenChange }: { open: boolean; row: D
 }
 
 /** The managed domains: a table from the tablet up, cards on the phone. */
-export function DomainList({ rows, actions }: { rows: DomainListRow[]; actions: ReactNode }) {
+export function DomainList({ rows, actions }: { rows: DomainListRow[]; actions?: ReactNode }) {
   // The row stays set while the dialog fades out, so its text doesn't blank.
   const [unlinking, setUnlinking] = useState<{ open: boolean; row: DomainListRow | null }>({ open: false, row: null });
   const unlink = (row: DomainListRow) => setUnlinking({ open: true, row });

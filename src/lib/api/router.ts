@@ -20,6 +20,7 @@ import { guide } from "./procedures/guide";
 import { products } from "./procedures/products";
 import { apps } from "./procedures/apps";
 import { hours } from "./procedures/hours";
+import { mail } from "./procedures/mail";
 
-export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, files, overview, devices, profile, security, company, members, notifications, help, guide, products, apps, hours });
+export const router = api.router({ me, account, tickets, finance, projects, contracts, quotes, bookmarks, files, overview, devices, profile, security, company, members, notifications, help, guide, products, apps, hours, mail });
 export type Router = typeof router;
