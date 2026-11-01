@@ -4,7 +4,7 @@ O que está em aberto no Console. Ao terminar um item, mova para "Feito" com a d
 
 ## Depende do Kauan
 
-- [ ] E-mail dos clientes (01/11): publicar a migração 0061 (`console_mail_domains`) pela rota temporária antes do deploy que usa a tabela (ver [rules.md](rules.md#migrações-em-produção)). No servidor de e-mail, criar os domínios dos clientes (com DKIM) antes de vincular no Console. Para a compra pelo cliente ([plano-email.md](plano-email.md), Fase 3): fixar os preços com o uso real do cPanel, decidir o nome do servidor de produção e passar as condições do serviço de e-mail pelo `advogado-consumidor-produto` e os suboperadores (Hetzner, AWS SES) pelo `advogado-lgpd`.
+- [ ] E-mail dos clientes (01/11; a migração 0061 foi aplicada em produção no mesmo dia, pela rota temporária). No servidor de e-mail, criar os domínios dos clientes (com DKIM) antes de vincular no Console. Para a compra pelo cliente ([plano-email.md](plano-email.md), Fase 3): fixar os preços com o uso real do cPanel, decidir o nome do servidor de produção e passar as condições do serviço de e-mail pelo `advogado-consumidor-produto` e os suboperadores (Hetzner, AWS SES) pelo `advogado-lgpd`.
 
 - [ ] Cota do Neon (18/10): conferir no painel do Neon, projeto `anuntech-console-app`, se sobrou algum banco `console_test_*` das rodadas de integração de 16/10 (uma rodada interrompida não chega ao `DROP DATABASE`) e apagar pelo painel. Ver o consumo do período e decidir se o plano Launch precisa de um alerta ou de folga. A integração já não roda mais lá ([memory.md](memory.md#lições)).
 
